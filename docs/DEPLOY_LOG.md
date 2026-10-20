@@ -2,6 +2,129 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-20 — PRODUCTION PROMOTION: Staff Milestones and one notification pipeline, fourteen phases in one merge
+
+**Merge SHA:** `<merge SHA>` — stamped post-merge on `main` from `git rev-parse`,
+never hand-typed, together with this heading.
+**Written 2026-10-20 by DOCS-CLOSEOUT-2, BEFORE THE MERGE**, in the `076ccf8`
+umbrella format. Spec: `docs/prompts/2026-10-20_PROMOTE_addendum_backlog.md`.
+Payload measured at this writing with `git log origin/main..staging`
+(`origin/main` = `0d51496`): **22 commits touching code, scripts or schema**,
+three `CLAUDE.md` commits (`9917412`, `afd2816`, `0ee506f`), and docs. Re-read
+the count from `<merge SHA>^1..<merge SHA>^2` at the stamp.
+
+**THIS IS THE UMBRELLA ENTRY. Each phase also has its own entry below**, written
+by its PRE-PUSH-CHECK and stamped with the merge SHA in the same post-merge pass.
+MS-3a's entry is carried by ROADMAP row `MS-3`.
+
+**What it carries — fourteen phases, in the order they were built:**
+
+| Phase | What reaches production | Row |
+|---|---|---|
+| MS-1 | Staff Milestones foundation: the org toggle, tenure milestones, start date (manual beside Square's), the Milestones tab | `MS-1` |
+| BUG-15 | `/dashboard` header date formatted server-side in the store's zone (React #418 after 5 PM Pacific) | `BUG-15` |
+| MS-2 | On-time % and the On-Time badge, On-time settings, the scheduled-shifts cron | `MS-2` |
+| MS-3a | Raise eligibility: Raise settings, criteria, the Raise badge | `MS-3` |
+| MS-3b | Raise detection, manual last-raise date, cooldown, daily wage sync | `MS-3b` |
+| MS-3c | No amber "Raise in progress" badge on `/staff` | `MS-3c` |
+| CHK-15 | Security fix: a checklist tick names only an active staff member of this store | `CHK-15` |
+| MS-4a | Checklist milestones (named tasks), the Checklist milestones switch, Copy message, pay warning | `MS-4a` |
+| NOTIFY-5 | One delivery mode (live / sandbox / dry-run) for every email; "Send a test to me" | `NOTIFY-5` |
+| NOTIFY-6 | One notification pipeline: intent ledger, dispatcher, per-recipient sends, hourly retry | `NOTIFY-6` |
+| NOTIFY-11 | The hourly sweep never sends in sandbox (R2); dry-run rows name the real provider | `NOTIFY-11` |
+| MS-4b | Milestone emails, the first grouped kind on the pipeline (plus `9a70f52`, see its entry) | `MS-4b` |
+| MS-5 | The Milestone Report at `/staff/milestones/report`; a MANAGER never sees their own Raise status | `MS-5` |
+| MS-5b | One milestone button per role on `/staff` | `MS-5b` |
+
+**MILESTONES ARRIVE DARK, BY DEFAULT RATHER THAN BY LUCK.** Three switches,
+all off for every org on arrival:
+
+1. `Organization.milestonesEnabled` defaults to `false` (MS-1). With it off,
+   every Milestones surface is hidden and its routes answer 404.
+2. `MilestoneSettings.checklistMilestonesEnabled` defaults to `false` (MS-4a).
+3. `Organization.milestoneAlertsEnabled` defaults to `false` (MS-4b), so the
+   milestone leg of the pace-alerts cron finds no org.
+
+**NO EMAIL LEAVES PRODUCTION.** `NOTIFY_EMAIL_PROVIDER` is UNSET in Production,
+so under NOTIFY-5 every email type is a DRY RUN: rendered, logged, recorded
+"Dry run — not sent", consuming nothing. `NOTIFY_SANDBOX_ALLOWLIST` is set in
+Preview only; production ignores it by design. So the `notify-dispatch` rows
+production writes are dry-run rows.
+
+**LIVE ON ARRIVAL, WHATEVER THE SWITCHES SAY:** CHK-15's task-log guard (a tick
+naming an inactive, other-company or not-at-this-store person gets a 400);
+BUG-15's header date; NOTIFY-5/6/11's delivery path for the existing emails
+(signing acknowledgments, pace alerts, the test send), which now runs through
+the pipeline and, with the provider unset, ends in dry-run rows; MS-2's Day
+Inspector pairing code, moved and behaviour-identical; and the two crons below.
+
+**EIGHT MIGRATIONS, all additive, applied by `prisma migrate deploy` in the
+merge's Vercel build.** Production baseline (`br-sparkling-block`, read by Gary
+in the Neon console on 2026-10-20, per the addendum): newest applied
+`20260928222624_doc6_key_return_register`, none of the eight present, no failed
+rows. No `DROP`, no type change, no backfill in any of them (each
+`migration.sql` read at this writing).
+
+| Migration | Adds | Default that matters |
+|---|---|---|
+| `20261015171226_ms1_milestones_foundation` | `Organization.milestonesEnabled`; `StaffMember.startDate`, `.startDateManual`; tables `TenureMilestone`, `WageSnapshot` | `milestonesEnabled` `false` |
+| `20261015183554_ms1_start_date_square_archived_at` | `StaffMember.squareStartDate`; `TenureMilestone.archivedAt` | nullable |
+| `20261016140411_ms2_milestone_settings` | table `MilestoneSettings` (on-time thresholds) | no rows until an admin saves |
+| `20261016190415_ms3a_raise_settings` | five raise columns on `MilestoneSettings`; tables `MilestoneRaiseTraining`, `MilestoneRaiseDocument` | column defaults |
+| `20261017002340_ms3b_last_raise` | table `StaffLastRaise` | empty |
+| `20261017204956_ms4a_checklist_milestones` | `MilestoneSettings.checklistMilestonesEnabled`; table `ChecklistMilestone` | `false` |
+| `20261019005116_notify6_pipeline` | tables `NotificationIntent`, `NotificationDelivery`, `NotificationMessage`, `NotificationEvent` | empty |
+| `20261019211518_ms4b_milestone_alerts` | `Organization.milestoneAlertsEnabled`; `NotificationMessage.intentIds` | `false`; `'{}'` |
+
+**NOT VERIFIED AGAINST THE BRANCH AFTER THE DEPLOY HERE.** A docs session does not
+read a deployed database. A post-deploy `_prisma_migrations` read on
+`br-sparkling-block` is Gary's, in the Neon console.
+
+**TWO NEW CRONS (`vercel.json`). Vercel fires crons on Production only, so this
+promotion is the first live run of both:**
+
+| Cron | Schedule (UTC) | Added by | What it does |
+|---|---|---|---|
+| `/api/cron/labor-scheduled-shifts` | `45 11 * * *` | MS-2 `15765c7` (Gary, superseding CRON-1's parking) | Re-pulls Square scheduled shifts for Square-linked stores in orgs with the Advanced Labor overlay ON. Reads only. About 5 Square requests per store per day |
+| `/api/cron/notify-dispatch` | `15 * * * *` | NOTIFY-6 `3ffb3f6` | The hourly retry sweep. Never makes a grouped FIRST send (C3), never sends in sandbox (NOTIFY-11 R2). With the provider unset, its rows are dry-run |
+
+Watch the first production run of each in the Vercel logs.
+
+**MS-5 SHIPS WITH EIGHT STAGING CHECKS UNOBSERVED.** From the MS-5 row's "STILL
+OPEN, not in the evidence" list: (1) F9 on Tommy's own row on `/staff` and on
+his own Milestones tab (only the report was checked); (2) gary@keva.com
+(MANAGER, Carson) sees only Carson; (3) Tommy switched to STORE is redirected;
+(4) the filters; (5) turning the terminated toggle ON; (6) the CSV opened and
+read (only its visibility was checked); (7) phone width; (8) Milestones off →
+404. **They ship unverified, and they are CONTAINED by milestones defaulting
+OFF:** no org can reach the report until an ADMIN turns Milestones on, so each
+check becomes a production observation at that moment, before anyone else sees
+the page.
+
+**Rollback.** `git revert -m 1 <merge SHA>` on `main` per `docs/WORKFLOW.md`,
+keeping `docs/DEPLOY_LOG.md` at `HEAD` (the revert conflicts on this file
+structurally; keeping the log is the correct resolution). **NO DATABASE STEP,
+AND NONE IS ALLOWED.** The eight migrations stay applied; the reverted code
+never reads the new columns and tables, so they sit unread. Never drop them or
+delete their `_prisma_migrations` rows. The revert also removes both cron
+entries from `vercel.json`. **What a revert does NOT undo:** rows already
+written (milestone settings, last-raise dates, notification intents and dry-run
+messages) stay, inert. CHK-15's security gap REOPENS on revert: the old
+task-log route saves any staff id sent. **Faster posture if production is
+actively broken:** Vercel → Deployments → promote the previous production
+deployment, then revert at leisure. **No-deploy switches:** Milestones off at
+`/settings` hides every milestone surface; "Milestone emails" off stops the
+milestone leg.
+
+**Still open after this promotion, none of it in this merge:**
+- Handbook: "not available yet".
+- `RESEND_API_KEY`: "Needs Attention" in Vercel.
+- NOTIFY-10: the resolved-flag warning on `blockers[2]` (`generate-roadmap`
+  prints it on every build).
+- DEBT-116, DEBT-117, DEBT-118.
+- NOTIFY-10: production email go-live (the `NOTIFY_EMAIL_PROVIDER` flip is its
+  own decision; nothing here makes it).
+
 ## UNPROMOTED — 2026-10-19 — MS-5b: one milestone button per role on /staff
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
@@ -97,12 +220,28 @@ with every unpromoted entry below.
 @{u}..` at this check: exactly `1bc01cf`, `5517d60`, `9e608ab`. **NONE WAS
 PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
 
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2).** The "NONE WAS PUSHED" line
+> above is the PRE-PUSH-CHECK's own, true when written and now spent. Gary
+> pushed on 2026-10-19 (15:21 PDT, per the MS-4b row's evidence note, `e79a0b6`).
+> **The payload is FIVE commits, not four:** `9a70f52` ("docs(MS-4b): correct
+> the C2 comment in milestone-alerts.ts", 15:27 PDT) came after the check
+> commit `9d39f9b`. Its subject says docs, but it edits
+> `src/lib/milestone-alerts.ts` (a comment only, no behaviour). It is the commit
+> staging served when Gary recorded the MS-4b evidence (footer `9a70f52`). Row
+> added to the table below.
+> **The rollback line below no longer applies cleanly.** `git revert 9e608ab
+> 1bc01cf` CONFLICTS on `src/lib/milestone-alerts.ts` now that `9a70f52` sits on
+> top. Tested 2026-10-20 in a throwaway worktree at `3ed5fd3`: `git revert
+> 9a70f52 9e608ab 1bc01cf` (newest first) applies cleanly. After promotion the
+> umbrella entry's `git revert -m 1` of the merge supersedes both.
+
 | Commit | What it is |
 |---|---|
 | `1bc01cf` | MS-4b work: kind `milestone.reached` on a new per-recipient daily grouping mode in the dispatcher; `recordKnownNotification`; producer `processMilestoneAlerts` in the pace-alerts cron; capability `notify.milestone.receive` and grid line "Milestone reached"; "Milestone emails" card + `PUT /api/milestone-alerts/settings`; "Send a sample to me"; `?tab=milestones` on `/staff/[id]`; migration `20261019211518_ms4b_milestone_alerts`; `scripts/verify-ms4b.ts` |
 | `5517d60` | `docs(MS-4b)`: row to `in_progress`, DECISIONS draft, MIGRATIONS entry, PERMISSIONS_INVENTORY, audit `docs/prompts/2026-10-19_MS-4b_v2_AUDIT.md` |
 | `9e608ab` | `test(MS-4b)`: section J, skipped-day checks in `verify-ms4b` (Gary asked for it). No product code |
 | the commit immediately after `9e608ab` | `docs(MS-4b PRE-PUSH-CHECK)`: this entry, DECISIONS ratified, row to `staging`, docs SHAs |
+| `9a70f52` | *(added 2026-10-20 by DOCS-CLOSEOUT-2)* `docs(MS-4b)`: corrects the C2 comment in `src/lib/milestone-alerts.ts`. Comment only, but under `src/` |
 
 **Blast radius: SCHEMA (two additive columns), the daily pace-alerts cron, and
 two pages. NO EMAIL ON DEPLOY, BY CONSTRUCTION:** the new
@@ -145,6 +284,11 @@ dropped — and the reverted client simply does not read them. Any
 finds no definition for the kind and skips them as `unknown kind`
 (`dispatch.ts`, NOTIFY-6), so nothing mails. Turning the org switch off is the
 no-deploy alternative: queued intents then expire at dispatch.
+
+> **Superseded 2026-10-20 (DOCS-CLOSEOUT-2):** staging evidence WAS recorded,
+> on the MS-4b row ("STAGING EVIDENCE 2026-10-19 (Gary)", `e79a0b6`, staging
+> footer `9a70f52`, branch `preview/staging` `br-square-feather-a63z92vz`, org
+> `cmr54z65v000105jxczpt72w1`). The row is the record; the line below is kept.
 
 **Staging evidence:** pending — the MS-4b row's "STAGING VERIFICATION OWED"
 note in `docs/ROADMAP.yaml`. Preconditions: the staging-SHA precondition,
@@ -488,6 +632,13 @@ on every observation:
 - "Team Member" still saves;
 - after a reload the terminated person is gone from the picker, and a task they
   ticked earlier still shows their name.
+
+> **Recorded 2026-10-20 (DOCS-CLOSEOUT-2), Gary's ruling:** the "CHK-15 Test"
+> staff member on `preview/staging` (org `cmr54z65v000105jxczpt72w1`) is LEFT
+> TERMINATED ON PURPOSE. It is the fixture the terminated-staff paths are
+> checked against, and MS-5's staging pass used it ("CHK-15 Test terminated is
+> hidden from Tommy's report (26 -> 25)"). Not a cleanup item. Its name says
+> which phase made it (CLAUDE.md § Name every test principal).
 
 Dev-level evidence only so far: verify-chk15 28/28 (live negative control
 3 FAIL, restored), verify-ms1 97/97, verify-ms2 90/90, verify-ms3 95/95 and

@@ -3491,6 +3491,10 @@ phases:
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-17 — CHK-15, to be
         ratified at the PRE-PUSH-CHECK.
     notes: >
+      ── 2026-10-20 (DOCS-CLOSEOUT-2), Gary's ruling: the "CHK-15 Test" staff
+      member on preview/staging (org cmr54z65v000105jxczpt72w1) is LEFT
+      TERMINATED ON PURPOSE, as the terminated-staff fixture (MS-5's staging
+      pass used it). Not a cleanup item. Prepended; NOTHING BELOW IS EDITED.
       ── VERIFIED ON STAGING — recorded 2026-10-17 in the MS-4a session.
       Prepended; NOTHING BELOW IS EDITED. Status stays `staging` (no
       "verified on staging" value exists). Gary, exactly: "CHK-15: verified on
@@ -7384,6 +7388,9 @@ phases:
     # `planned` -> `in_progress` 2026-10-16 by the MS-3a build session. THIS ID
     # CARRIES MS-3a; MS-3b is its own row below. Neither commit is pushed —
     # Claude never pushes.
+    # SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): both "not pushed" comments above
+    # are spent. Pushed 2026-10-16, deployed 4cb60b0 (DOCS-CLOSEOUT, recorded
+    # in notes 2026-10-17; the DEPLOY_LOG MS-3a line was marked then).
     status: staging
     title: "Staff Milestones — raise eligibility (MS-3a): settings, compliance/hours/on-time/trainings/documents criteria, Raise badge"
     commits:
@@ -7816,11 +7823,15 @@ phases:
     # planned -> in_progress 2026-10-19 by the MS-4b v2 build session. Work
     # commit 1bc01cf is on local `staging` and NOT pushed (Claude never
     # pushes). PRE-PUSH-CHECK owns the flip to `staging`.
+    # SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): both "not pushed" comments above
+    # are spent. Gary pushed 2026-10-19 15:21 PDT; staging served 9a70f52.
+    # 9a70f52 (C2 comment fix in src/lib/milestone-alerts.ts) added to commits.
     status: staging
     commits:
       - "1bc01cf"
       - "5517d60"
       - "9e608ab"
+      - "9a70f52"
     title: "Staff Milestones — ADMIN/MANAGER milestone emails (production only, sent once, per-user switch-off)"
     blockers:
       - >
