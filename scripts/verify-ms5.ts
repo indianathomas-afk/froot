@@ -203,7 +203,26 @@ check(
   [/raiseHiddenForViewer\(dbUser\?\.role, selfStaffId, id\)/.test(staffSrc), /raiseHiddenForViewer\(dbUser\.role,/.test(profileSrc)],
   [true, true]
 )
-check("B11. the /staff report link sits on the badges' gate", /const canSeeMilestoneReport = showOnTime/.test(staffSrc), true)
+check("B11. the /staff report link sits on the badges' gate, minus the Milestones-button holders (MS-5b)", /const canSeeMilestoneReport = showOnTime && !canSetUpMilestones\n/.test(staffSrc), true)
+// MS-5b (Gary, 2026-10-19) — ONE milestone button per role on /staff. The two
+// flags as page.tsx composes them, with Milestones on and the role on the
+// badges' gate: ADMIN gets Milestones and no report button (it lives on
+// /staff/milestones); MANAGER gets the report button, its only route in.
+const staffButtons = (role: string) => {
+  const showOnTime = role === "ADMIN" || role === "MANAGER"
+  const canSetUpMilestones = can(P(role), "milestones.manage")
+  return { milestones: canSetUpMilestones, report: showOnTime && !canSetUpMilestones }
+}
+check(
+  "B12. MS-5b: ADMIN sees no report button on /staff (Milestones only); MANAGER sees the report button (no Milestones)",
+  [staffButtons("ADMIN"), staffButtons("MANAGER")],
+  [{ milestones: true, report: false }, { milestones: false, report: true }]
+)
+check(
+  "B13. MS-5b: the report button still renders on /staff/milestones, and /staff renders it behind canSeeMilestoneReport",
+  [src("src/app/(app)/staff/milestones/milestones-client.tsx").includes('href="/staff/milestones/report"'), /\{canSeeMilestoneReport && \(\s*<Link\s*href="\/staff\/milestones\/report"/.test(staffSrc)],
+  [true, true]
+)
 
 // ─── C. DATABASE ─────────────────────────────────────────────────────────────
 

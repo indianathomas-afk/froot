@@ -228,7 +228,11 @@ async function getStaffData() {
 
   // MS-5 — the report link. The badges' gate exactly (Milestones on, ADMIN or
   // MANAGER). The link is not the gate: the report page re-checks both.
-  const canSeeMilestoneReport = showOnTime
+  // MS-5b — minus anyone who gets the Milestones button: they reach the report
+  // from /staff/milestones, so each role sees ONE milestone button here (Gary,
+  // 2026-10-19: "/staff is getting cluttered"). In practice ADMINs lose it
+  // (milestones.manage is ADMIN_ONLY) and MANAGERs keep their only route in.
+  const canSeeMilestoneReport = showOnTime && !canSetUpMilestones
 
   return { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, canSeeMilestoneReport, hrActive, summaries, pay, showPay, selfStaffId, onTime, onTimeLookbackDays, raise }
 }
