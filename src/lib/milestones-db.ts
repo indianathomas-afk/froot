@@ -148,3 +148,32 @@ export async function namedTaskDates(args: {
   })
   return rows.map((r) => localDateStr(r.completedAt, args.zone))
 }
+
+/**
+ * MS-5 — namedTaskDates for MANY members in ONE read (the report's batch; the
+ * profile tab and the MS-4b cron still call the single-member function above).
+ * Same rule exactly: org-scoped through the checklist, oldest first, ties by
+ * id, each date in THAT member's zone. scripts/verify-ms5.ts asserts the two
+ * agree member by member. Every id passed gets an entry, empty when none.
+ */
+export async function namedTaskDatesForMembers(args: {
+  organizationId: string
+  members: { id: string; zone: string }[]
+}): Promise<Map<string, string[]>> {
+  const out = new Map(args.members.map((m) => [m.id, [] as string[]]))
+  if (args.members.length === 0) return out
+  const zoneOf = new Map(args.members.map((m) => [m.id, m.zone]))
+  const rows = await prisma.taskLog.findMany({
+    where: {
+      completedByStaffId: { in: args.members.map((m) => m.id) },
+      checklist: { organizationId: args.organizationId },
+    },
+    orderBy: [{ completedAt: "asc" }, { id: "asc" }],
+    select: { completedByStaffId: true, completedAt: true },
+  })
+  for (const r of rows) {
+    const id = r.completedByStaffId as string
+    out.get(id)?.push(localDateStr(r.completedAt, zoneOf.get(id) as string))
+  }
+  return out
+}

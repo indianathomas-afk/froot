@@ -394,6 +394,16 @@ export function redactForViewer(result: RaiseEligibility, payVisible: boolean): 
   return copy
 }
 
+/// MS-5 F9 — PURE. Gary, 2026-10-19: "A MANAGER never sees their own Raise
+/// status — hide it on their own row on /staff, on the report, and on their
+/// own Milestones tab. ADMINs see everyone." True = drop the WHOLE result for
+/// this member before anything renders (absent, like redaction — never a
+/// hidden cell). `selfStaffId` is resolveSelfStaff's answer for the viewer;
+/// null (no match) hides nothing. Every caller asks this one function.
+export function raiseHiddenForViewer(viewerRole: string | null | undefined, selfStaffId: string | null, memberId: string): boolean {
+  return viewerRole === "MANAGER" && selfStaffId !== null && selfStaffId === memberId
+}
+
 // ─── THE READ (DB) ───────────────────────────────────────────────────────────
 
 export type RaiseMember = {

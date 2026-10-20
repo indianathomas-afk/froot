@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Trophy } from "lucide-react"
 import { dayCountLabel } from "@/lib/milestones"
 import type { MilestoneSettingsValues } from "@/lib/attendance-settings"
 import { AttendanceSettings } from "./attendance-settings"
@@ -62,7 +62,17 @@ export function MilestonesClient({
         <Link href="/staff" className="inline-flex items-center gap-1 text-sm text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] mb-2">
           <ArrowLeft className="h-3.5 w-3.5" /> Staff
         </Link>
-        <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Milestones</h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Milestones</h1>
+          {/* MS-5 F1 — the report, linked from the setup page. */}
+          <Link
+            href="/staff/milestones/report"
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] text-sm font-medium text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
+          >
+            <Trophy className="h-4 w-4" />
+            Milestone report
+          </Link>
+        </div>
         <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
           Recognise your team as they reach tenure milestones. Days count from each person&apos;s start date.
         </p>

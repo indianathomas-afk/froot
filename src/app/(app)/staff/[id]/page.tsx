@@ -5,7 +5,7 @@ import Link from "next/link"
 import { formatCivilDate, formatInstant } from "@/lib/display-time"
 import { ArrowLeft, FileText, GraduationCap, Gauge, Store } from "lucide-react"
 import { getCurrentUser, getUserStoreScope, hrModuleAvailable, requireModule } from "@/lib/auth"
-import { displayTimeZone } from "@/lib/hr"
+import { displayTimeZone, resolveSelfStaff } from "@/lib/hr"
 import { can } from "@/lib/permissions"
 import { canSeeWages } from "@/lib/labor-dashboard"
 import { formatPay } from "@/lib/labor-costs"
@@ -35,7 +35,7 @@ import { checklistMilestonesEnabled, namedTaskDates } from "@/lib/milestones-db"
 import { localDateStr } from "@/lib/reports"
 import { getMilestoneSettings, getOnTimeForStaff, lookbackRange, type OnTimeResult } from "@/lib/attendance"
 import { OnTimeCard } from "../on-time-badge"
-import { getRaiseEligibility, getRaiseSettings, redactForViewer, type RaiseEligibility } from "@/lib/raise-eligibility"
+import { getRaiseEligibility, getRaiseSettings, raiseHiddenForViewer, redactForViewer, type RaiseEligibility } from "@/lib/raise-eligibility"
 import { getManualRaiseDates, getRaiseDetailVisibility } from "@/lib/raise-history"
 import { RaiseCard } from "../raise-badge"
 import { LastRaiseControl } from "./last-raise-control"
@@ -703,7 +703,14 @@ export default async function StaffDetailPage({
     // before anything renders, so a viewer who fails canSeeWages or COMP-1 for
     // this member (no wage row = masked for a MANAGER) gets "in cooldown" with
     // no date keys at all.
-    const computed = raiseResults.get(member.id) ?? null
+    // MS-5 F9 (Gary, 2026-10-19): "A MANAGER never sees their own Raise
+    // status — ... and on their own Milestones tab." The whole result is
+    // dropped, so no card renders and nothing reaches the payload. Resolved
+    // only for a MANAGER (the /staff "You" resolver); ADMINs see everyone.
+    const ownRow =
+      dbUser?.role === "MANAGER" &&
+      raiseHiddenForViewer(dbUser.role, await resolveSelfStaff(org.id, dbUser).then((r) => (r.ok ? r.staffMember.id : null)), member.id)
+    const computed = ownRow ? null : (raiseResults.get(member.id) ?? null)
     if (computed) {
       const raiseVisible = (await getRaiseDetailVisibility(org, actor, [member])).has(member.id)
       raise = redactForViewer(computed, raiseVisible)

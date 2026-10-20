@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import Link from "next/link"
-import { Activity, Award } from "lucide-react"
+import { Activity, Award, Trophy } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { AddStaffButton, ImportStaffButton, SyncStaffButton, DeleteStaffButton, StaffLocationChips } from "./staff-buttons"
 import { StaffLocationFilter } from "./staff-location-filter"
@@ -16,7 +16,7 @@ import { milestonesActive } from "@/lib/milestones-access"
 import { getMilestoneSettings, getOnTimeForStaff, lookbackRange, type OnTimeResult } from "@/lib/attendance"
 import { displayTimeZone } from "@/lib/hr"
 import { OnTimeBadge } from "./on-time-badge"
-import { getRaiseEligibility, getRaiseSettings, redactForViewer, type RaiseEligibility } from "@/lib/raise-eligibility"
+import { getRaiseEligibility, getRaiseSettings, raiseHiddenForViewer, redactForViewer, type RaiseEligibility } from "@/lib/raise-eligibility"
 import { getRaiseDetailVisibility } from "@/lib/raise-history"
 import { RaiseBadge } from "./raise-badge"
 import { Badge } from "@/components/ui/badge"
@@ -36,9 +36,9 @@ const NO_PAY = new Map<string, { payType: string | null; hourlyRate: number | nu
 
 async function getStaffData() {
   const { orgId } = await auth()
-  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, canSetUpMilestones: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null, onTime: NO_ON_TIME, onTimeLookbackDays: 0, raise: NO_RAISE }
+  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, canSetUpMilestones: false, canSeeMilestoneReport: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null, onTime: NO_ON_TIME, onTimeLookbackDays: 0, raise: NO_RAISE }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, canSetUpMilestones: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null, onTime: NO_ON_TIME, onTimeLookbackDays: 0, raise: NO_RAISE }
+  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, canSetUpMilestones: false, canSeeMilestoneReport: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null, onTime: NO_ON_TIME, onTimeLookbackDays: 0, raise: NO_RAISE }
 
   // HR surfaces on this page only exist when the module is available in this
   // environment AND the org has the add-on on — otherwise render as before.
@@ -219,10 +219,18 @@ async function getStaffData() {
       { now, compliance: new Map(complianceDetails.map((d) => [d.staffId, d])) }
     )
     const raiseVisible = await getRaiseDetailVisibility(org, actor, staff)
+    // MS-5 F9 (Gary, 2026-10-19): "A MANAGER never sees their own Raise
+    // status". Their own entry is DROPPED from the map before redaction, so the
+    // row renders no badge and nothing reaches the payload. ADMINs see everyone.
+    for (const id of [...computed.keys()]) if (raiseHiddenForViewer(dbUser?.role, selfStaffId, id)) computed.delete(id)
     raise = new Map([...computed].map(([id, r]) => [id, redactForViewer(r, raiseVisible.has(id))]))
   }
 
-  return { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, hrActive, summaries, pay, showPay, selfStaffId, onTime, onTimeLookbackDays, raise }
+  // MS-5 — the report link. The badges' gate exactly (Milestones on, ADMIN or
+  // MANAGER). The link is not the gate: the report page re-checks both.
+  const canSeeMilestoneReport = showOnTime
+
+  return { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, canSeeMilestoneReport, hrActive, summaries, pay, showPay, selfStaffId, onTime, onTimeLookbackDays, raise }
 }
 
 type RosterMember = Awaited<ReturnType<typeof getStaffData>>["staff"][number]
@@ -431,7 +439,7 @@ function StaffRow({
 }
 
 export default async function StaffPage() {
-  const { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, hrActive, summaries, pay, showPay, selfStaffId, onTime, onTimeLookbackDays, raise } = await getStaffData()
+  const { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, canSeeMilestoneReport, hrActive, summaries, pay, showPay, selfStaffId, onTime, onTimeLookbackDays, raise } = await getStaffData()
 
   // The stores this page actually renders: every org store for an ADMIN, the
   // caller's assigned stores otherwise.
@@ -541,7 +549,7 @@ export default async function StaffPage() {
         : `Everyone assigned to your ${stores.length} store${stores.length !== 1 ? "s" : ""}, including staff based at another location.`}
     </p>
   )
-  const actions = (canViewEngagement || canSetUpMilestones || canSync || canImport || canManage) && (
+  const actions = (canViewEngagement || canSetUpMilestones || canSeeMilestoneReport || canSync || canImport || canManage) && (
     <div className="flex gap-2">
       {canViewEngagement && (
         <Link
@@ -559,6 +567,15 @@ export default async function StaffPage() {
         >
           <Award className="h-4 w-4" />
           Milestones
+        </Link>
+      )}
+      {canSeeMilestoneReport && (
+        <Link
+          href="/staff/milestones/report"
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] text-sm font-medium text-[var(--color-foreground)] hover:bg-[var(--color-muted)]"
+        >
+          <Trophy className="h-4 w-4" />
+          Milestone report
         </Link>
       )}
       {canSync && <SyncStaffButton />}
