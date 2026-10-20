@@ -3464,12 +3464,17 @@ phases:
     # not pushed either — Claude never pushes.
     # `in_progress` at 329526d, set 2026-10-17 by the CHK-15 build session
     # (TIER 3). Not pushed — Claude never pushes.
-    status: staging
+    # `staging` -> `shipped` 2026-10-20, stamped post-merge by DOCS-CLOSEOUT-2:
+    # merge 04cb72c (DEPLOY_LOG entry `04cb72c`, umbrella `04cb72c — PRODUCTION PROMOTION`).
+    # Any "not pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-20
     title: "Task route accepts any staff id — refuse other-company, terminated, and not-at-this-store staff (security fix)"
     commits:
       - "329526d"
       - "adc56a9"
       - "92dad4d"
+      - "04cb72c"
     blockers:
       - >
         MUST REACH STAGING BEFORE MS-4a IS BUILT. MS-4a counts named tasks
@@ -7177,13 +7182,18 @@ phases:
     # five MS-1 commits was pushed when the check ran; this check's own commit
     # (the one immediately after 9287680, which cannot name itself) is not
     # pushed either — Claude never pushes.
-    status: staging
+    # `staging` -> `shipped` 2026-10-20, stamped post-merge by DOCS-CLOSEOUT-2:
+    # merge 04cb72c (DEPLOY_LOG entry `04cb72c`, umbrella `04cb72c — PRODUCTION PROMOTION`).
+    # Any "not pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-20
     title: "Staff Milestones foundation — toggle, tenure milestones, start date, Milestones tab"
     commits:
       - "4f21157"
       - "6d8c52a"
       - "145fc74"
       - "9287680"
+      - "04cb72c"
     blockers:
       - >
         UNVERIFIED ON STAGING — RE-STATED 2026-10-15 AFTER 145fc74, WHICH IS THE
@@ -7286,12 +7296,17 @@ phases:
     # four MS-2 commits was pushed when the check ran; this check's own commit
     # (the one immediately after b0fa415, which cannot name itself) is not
     # pushed either — Claude never pushes.
-    status: staging
+    # `staging` -> `shipped` 2026-10-20, stamped post-merge by DOCS-CLOSEOUT-2:
+    # merge 04cb72c (DEPLOY_LOG entry `04cb72c`, umbrella `04cb72c — PRODUCTION PROMOTION`).
+    # Any "not pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-20
     title: "Staff Milestones — on-time % and On-Time badge, On-time settings, schedule cron"
     commits:
       - "15765c7"
       - "c8e302f"
       - "b0fa415"
+      - "04cb72c"
     blockers:
       - >
         UNVERIFIED ON STAGING. Everything is dev-level evidence: verify-ms2
@@ -7391,13 +7406,18 @@ phases:
     # SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): both "not pushed" comments above
     # are spent. Pushed 2026-10-16, deployed 4cb60b0 (DOCS-CLOSEOUT, recorded
     # in notes 2026-10-17; the DEPLOY_LOG MS-3a line was marked then).
-    status: staging
+    # `staging` -> `shipped` 2026-10-20, stamped post-merge by DOCS-CLOSEOUT-2:
+    # merge 04cb72c (DEPLOY_LOG entry `04cb72c`, umbrella `04cb72c — PRODUCTION PROMOTION`).
+    # Any "not pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-20
     title: "Staff Milestones — raise eligibility (MS-3a): settings, compliance/hours/on-time/trainings/documents criteria, Raise badge"
     commits:
       - "3870fb2"
       - "3a3f210"
       - "99cab10"
       - "9917412"
+      - "04cb72c"
     blockers:
       - >
         PROMOTES TOGETHER WITH MS-3b (Gary, 2026-10-16: "Promote together").
@@ -7500,13 +7520,18 @@ phases:
     # pushed either — Claude never pushes.
     # `planned` -> `in_progress` 2026-10-16 by the MS-3b build session. Neither
     # commit is pushed — Claude never pushes.
-    status: staging
+    # `staging` -> `shipped` 2026-10-20, stamped post-merge by DOCS-CLOSEOUT-2:
+    # merge 04cb72c (DEPLOY_LOG entry `04cb72c`, umbrella `04cb72c — PRODUCTION PROMOTION`).
+    # Any "not pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-20
     title: "Staff Milestones — raise detection, manual last-raise date, cooldown, daily wage sync, COMP-1 redaction"
     commits:
       - "cd650f7"
       - "d2897ed"
       - "f3965f9"
       - "f5aad38"
+      - "04cb72c"
     blockers:
       - >
         PROMOTES TOGETHER WITH MS-3 (Gary, 2026-10-16: "Promote together").
@@ -7636,12 +7661,17 @@ phases:
     # `in_progress` at 6eabef1, set 2026-10-17 by the MS-3c build session
     # (TIER 2, written at the end from what was done). Not pushed — Claude
     # never pushes.
-    status: staging
+    # `staging` -> `shipped` 2026-10-20, stamped post-merge by DOCS-CLOSEOUT-2:
+    # merge 04cb72c (DEPLOY_LOG entry `04cb72c`, umbrella `04cb72c — PRODUCTION PROMOTION`).
+    # Any "not pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-20
     title: "Staff Milestones — no amber \"Raise in progress\" badge on /staff (tab unchanged)"
     commits:
       - "6eabef1"
       - "3d675b4"
       - "7d53b1b"
+      - "04cb72c"
     blockers:
       - >
         PROMOTES WITH MS-3 AND MS-3b. It amends MS-3a's /staff badge, so it
@@ -7729,13 +7759,18 @@ phases:
     # not pushed either — Claude never pushes.
     # `in_progress` at 70365c6, set 2026-10-17 by the MS-4a build session
     # (TIER 3). Not pushed — Claude never pushes.
-    status: staging
+    # `staging` -> `shipped` 2026-10-20, stamped post-merge by DOCS-CLOSEOUT-2:
+    # merge 04cb72c (DEPLOY_LOG entry `04cb72c`, umbrella `04cb72c — PRODUCTION PROMOTION`).
+    # Any "not pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-20
     title: "Staff Milestones — checklist milestones (named tasks), the Checklist milestones switch, Copy message, pay warning"
     commits:
       - "70365c6"
       - "e90ca16"
       - "f295ea1"
       - "2ca8b64"
+      - "04cb72c"
     blockers:
       - >
         PROMOTES WITH THE REST OF MILESTONES (MS-1 to MS-3c), none of which is
@@ -7826,12 +7861,17 @@ phases:
     # SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): both "not pushed" comments above
     # are spent. Gary pushed 2026-10-19 15:21 PDT; staging served 9a70f52.
     # 9a70f52 (C2 comment fix in src/lib/milestone-alerts.ts) added to commits.
-    status: staging
+    # `staging` -> `shipped` 2026-10-20, stamped post-merge by DOCS-CLOSEOUT-2:
+    # merge 04cb72c (DEPLOY_LOG entry `04cb72c`, umbrella `04cb72c — PRODUCTION PROMOTION`).
+    # Any "not pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-20
     commits:
       - "1bc01cf"
       - "5517d60"
       - "9e608ab"
       - "9a70f52"
+      - "04cb72c"
     title: "Staff Milestones — ADMIN/MANAGER milestone emails (production only, sent once, per-user switch-off)"
     blockers:
       - >
@@ -8009,12 +8049,17 @@ phases:
     # not pushed either — Claude never pushes.
     # `in_progress` at 511f321, set 2026-10-19 by the MS-5 build session
     # (TIER 3). Not pushed — Claude never pushes.
-    status: staging
+    # `staging` -> `shipped` 2026-10-20, stamped post-merge by DOCS-CLOSEOUT-2:
+    # merge 04cb72c (DEPLOY_LOG entry `04cb72c`, umbrella `04cb72c — PRODUCTION PROMOTION`).
+    # Any "not pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-20
     title: "Staff Milestones — Milestone Report (/staff/milestones/report), and F9: a MANAGER never sees their own Raise status"
     commits:
       - "60c8468"
       - "511f321"
       - "041834b"
+      - "04cb72c"
     blockers:
       - >
         STAGING VERIFICATION, 2026-10-19 (Gary). Prepended per preserve-and-mark;
@@ -8123,11 +8168,16 @@ phases:
     # flip to `staging`.
     # `staging`, set 2026-10-19 by the MS-5b PRE-PUSH-CHECK. Not pushed when
     # set — Gary runs the push.
-    status: staging
+    # `staging` -> `shipped` 2026-10-20, stamped post-merge by DOCS-CLOSEOUT-2:
+    # merge 04cb72c (DEPLOY_LOG entry `04cb72c`, umbrella `04cb72c — PRODUCTION PROMOTION`).
+    # Any "not pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-20
     title: "Staff Milestones — one milestone button per role on /staff (ADMIN: Milestones; MANAGER: Milestone report)"
     commits:
       - "dbd7482"
       - "7feab65"
+      - "04cb72c"
     blockers:
       - >
         STAGING VERIFICATION, 2026-10-19 (Gary). Prepended per preserve-and-mark;
@@ -20633,11 +20683,16 @@ phases:
     # pushed either — Claude never pushes.
     # in_progress: work commit 07e9253 is on local `staging` and NOT pushed
     # (Claude never pushes). PRE-PUSH-CHECK owns the flip to `staging`.
-    status: staging
+    # `staging` -> `shipped` 2026-10-20, stamped post-merge by DOCS-CLOSEOUT-2:
+    # merge 04cb72c (DEPLOY_LOG entry `04cb72c`, umbrella `04cb72c — PRODUCTION PROMOTION`).
+    # Any "not pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-20
     commits:
       - "07e9253"
       - "0ee506f"
       - "3fb760d"
+      - "04cb72c"
     title: "One delivery mode (live / sandbox / dry-run) for every email + 'Send a test to me'"
     blockers:
       - >
@@ -20826,11 +20881,16 @@ phases:
     # planned -> in_progress 2026-10-18 by the NOTIFY-6 build session. Work
     # commit 3ffb3f6 is on local `staging` and NOT pushed (Claude never
     # pushes). PRE-PUSH-CHECK owns the flip to `staging`.
-    status: staging
+    # `staging` -> `shipped` 2026-10-20, stamped post-merge by DOCS-CLOSEOUT-2:
+    # merge 04cb72c (DEPLOY_LOG entry `04cb72c`, umbrella `04cb72c — PRODUCTION PROMOTION`).
+    # Any "not pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-20
     commits:
       - "3ffb3f6"
       - "9747638"
       - "a7fed5f"
+      - "04cb72c"
     title: "One notification pipeline — intent ledger, dispatcher, registry, per-recipient sends, retry"
     blockers:
       - >
@@ -21253,10 +21313,15 @@ phases:
     # planned -> in_progress 2026-10-19 by the NOTIFY-11 build session. Work
     # commit 9f54bd8 is on local `staging` and NOT pushed (Claude never
     # pushes). PRE-PUSH-CHECK owns the flip to `staging`.
-    status: staging
+    # `staging` -> `shipped` 2026-10-20, stamped post-merge by DOCS-CLOSEOUT-2:
+    # merge 04cb72c (DEPLOY_LOG entry `04cb72c`, umbrella `04cb72c — PRODUCTION PROMOTION`).
+    # Any "not pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-20
     commits:
       - "9f54bd8"
       - "6f78487"
+      - "04cb72c"
     title: "R2 enforced: the sweep never sends in sandbox; dry-run rows name the real provider"
     blockers:
       - >
@@ -22988,8 +23053,12 @@ bugs:
     # own commit (the one immediately after 7977d43, which cannot name itself)
     # is not pushed either — Claude never pushes. MS-1 is still unpromoted
     # beneath it, so a promotion of staging carries both.
-    status: staging
-    commits: [0ddf236, cd57d44, 7977d43]
+    # `staging` -> `shipped` 2026-10-20, stamped post-merge by DOCS-CLOSEOUT-2:
+    # merge 04cb72c (DEPLOY_LOG entry `04cb72c`, umbrella `04cb72c — PRODUCTION PROMOTION`).
+    # Any "not pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-20
+    commits: [0ddf236, cd57d44, 7977d43, 04cb72c]
     title: >
       /dashboard header date causes React #418 after 5 PM Pacific
     notes: >

@@ -2,16 +2,20 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-10-20 — PRODUCTION PROMOTION: Staff Milestones and one notification pipeline, fourteen phases in one merge
+## 04cb72c — 2026-10-20 — PRODUCTION PROMOTION: Staff Milestones and one notification pipeline, fourteen phases in one merge
 
-**Merge SHA:** `<merge SHA>` — stamped post-merge on `main` from `git rev-parse`,
-never hand-typed, together with this heading.
+**Merge SHA:** `04cb72c049953b22deb6d720eca6e299682a7a96` — stamped post-merge from `git rev-parse`, never
+hand-typed, together with this heading. **Promoted 2026-10-20 09:40:31 -0700
+(Pacific)** in `04cb72c` ("Merge branch 'staging'"), parents `0d51496` (prior tip
+of `main`) and `e86f184` (tip of `staging`). **83 commits** in `04cb72c^1..04cb72c^2`,
+read out of `git rev-list --count` at the stamp. The heading read UNPROMOTED
+until this stamp.
 **Written 2026-10-20 by DOCS-CLOSEOUT-2, BEFORE THE MERGE**, in the `076ccf8`
 umbrella format. Spec: `docs/prompts/2026-10-20_PROMOTE_addendum_backlog.md`.
 Payload measured at this writing with `git log origin/main..staging`
 (`origin/main` = `0d51496`): **22 commits touching code, scripts or schema**,
 three `CLAUDE.md` commits (`9917412`, `afd2816`, `0ee506f`), and docs. Re-read
-the count from `<merge SHA>^1..<merge SHA>^2` at the stamp.
+the count from `04cb72c^1..04cb72c^2` at the stamp *(done: 83, above)*.
 
 **THIS IS THE UMBRELLA ENTRY. Each phase also has its own entry below**, written
 by its PRE-PUSH-CHECK and stamped with the merge SHA in the same post-merge pass.
@@ -101,7 +105,7 @@ OFF:** no org can reach the report until an ADMIN turns Milestones on, so each
 check becomes a production observation at that moment, before anyone else sees
 the page.
 
-**Rollback.** `git revert -m 1 <merge SHA>` on `main` per `docs/WORKFLOW.md`,
+**Rollback.** `git revert -m 1 04cb72c` on `main` per `docs/WORKFLOW.md`,
 keeping `docs/DEPLOY_LOG.md` at `HEAD` (the revert conflicts on this file
 structurally; keeping the log is the correct resolution). **NO DATABASE STEP,
 AND NONE IS ALLOWED.** The eight migrations stay applied; the reverted code
@@ -125,7 +129,18 @@ milestone leg.
 - NOTIFY-10: production email go-live (the `NOTIFY_EMAIL_PROVIDER` flip is its
   own decision; nothing here makes it).
 
-## UNPROMOTED — 2026-10-19 — MS-5b: one milestone button per role on /staff
+## 04cb72c — 2026-10-19 — MS-5b: one milestone button per role on /staff
+
+**PROMOTED 2026-10-20 in merge `04cb72c`** (`04cb72c049953b22deb6d720eca6e299682a7a96`, "Merge branch
+'staging'", 2026-10-20 09:40:31 -0700 (Pacific), parents `0d51496` and
+`e86f184`), with the other thirteen phases. Stamped post-merge by DOCS-CLOSEOUT-2;
+the heading previously read "UNPROMOTED — 2026-10-19 — MS-5b: one milestone button per role on /staff".
+**Rollback after promotion:** `git revert -m 1 04cb72c` on `main` (the whole merge;
+recipe and caveats in the umbrella entry `04cb72c — 2026-10-20 — PRODUCTION PROMOTION`
+at the head of this file). The per-commit rollback below is pre-merge and kept as written.
+
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): promoted in `04cb72c`.** The "Status:
+> staging only" line below is the PRE-PUSH-CHECK's own, kept as written and now spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge. **MS-5b builds on MS-5 directly below
@@ -162,7 +177,18 @@ nothing depends on it.
 negative control (old flag restored → B11 FAIL); a green build. Staging checks
 are in the MS-5b row's blockers.
 
-## UNPROMOTED — 2026-10-19 — MS-5: the Milestone Report, and a MANAGER never sees their own Raise status
+## 04cb72c — 2026-10-19 — MS-5: the Milestone Report, and a MANAGER never sees their own Raise status
+
+**PROMOTED 2026-10-20 in merge `04cb72c`** (`04cb72c049953b22deb6d720eca6e299682a7a96`, "Merge branch
+'staging'", 2026-10-20 09:40:31 -0700 (Pacific), parents `0d51496` and
+`e86f184`), with the other thirteen phases. Stamped post-merge by DOCS-CLOSEOUT-2;
+the heading previously read "UNPROMOTED — 2026-10-19 — MS-5: the Milestone Report, and a MANAGER never sees their own Raise status".
+**Rollback after promotion:** `git revert -m 1 04cb72c` on `main` (the whole merge;
+recipe and caveats in the umbrella entry `04cb72c — 2026-10-20 — PRODUCTION PROMOTION`
+at the head of this file). The per-commit rollback below is pre-merge and kept as written.
+
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): promoted in `04cb72c`.** The "Status:
+> staging only" line below is the PRE-PUSH-CHECK's own, kept as written and now spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge. **MS-5 builds on MS-1 to MS-4b below it**
@@ -208,7 +234,18 @@ Turning Milestones off at `/settings` hides the page (404) without a deploy.
 `br-square-feather-a63z92vz`, org `cmr54z65v000105jxczpt72w1`; the checklist
 is on the MS-5 row in `docs/ROADMAP.yaml`.
 
-## UNPROMOTED — 2026-10-19 — MS-4b: milestone emails, the first grouped kind on the NOTIFY-6 pipeline
+## 04cb72c — 2026-10-19 — MS-4b: milestone emails, the first grouped kind on the NOTIFY-6 pipeline
+
+**PROMOTED 2026-10-20 in merge `04cb72c`** (`04cb72c049953b22deb6d720eca6e299682a7a96`, "Merge branch
+'staging'", 2026-10-20 09:40:31 -0700 (Pacific), parents `0d51496` and
+`e86f184`), with the other thirteen phases. Stamped post-merge by DOCS-CLOSEOUT-2;
+the heading previously read "UNPROMOTED — 2026-10-19 — MS-4b: milestone emails, the first grouped kind on the NOTIFY-6 pipeline".
+**Rollback after promotion:** `git revert -m 1 04cb72c` on `main` (the whole merge;
+recipe and caveats in the umbrella entry `04cb72c — 2026-10-20 — PRODUCTION PROMOTION`
+at the head of this file). The per-commit rollback below is pre-merge and kept as written.
+
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): promoted in `04cb72c`.** The "Status:
+> staging only" line below is the PRE-PUSH-CHECK's own, kept as written and now spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge. **MS-4b builds on NOTIFY-6, NOTIFY-11 and
@@ -309,7 +346,18 @@ verify-f5-polish 63, verify-notify-template 35, verify-ms1 97, ms2 90, ms3 95,
 ms3b 80, ms4a 52, chk15 28. Negative controls run and restored: email
 exclusion removed → B4 failed; `>=` window → J3 failed; window 0 → J1 failed.
 
-## UNPROMOTED — 2026-10-19 — NOTIFY-11: the hourly sweep never sends in sandbox (R2); dry-run rows name the real provider
+## 04cb72c — 2026-10-19 — NOTIFY-11: the hourly sweep never sends in sandbox (R2); dry-run rows name the real provider
+
+**PROMOTED 2026-10-20 in merge `04cb72c`** (`04cb72c049953b22deb6d720eca6e299682a7a96`, "Merge branch
+'staging'", 2026-10-20 09:40:31 -0700 (Pacific), parents `0d51496` and
+`e86f184`), with the other thirteen phases. Stamped post-merge by DOCS-CLOSEOUT-2;
+the heading previously read "UNPROMOTED — 2026-10-19 — NOTIFY-11: the hourly sweep never sends in sandbox (R2); dry-run rows name the real provider".
+**Rollback after promotion:** `git revert -m 1 04cb72c` on `main` (the whole merge;
+recipe and caveats in the umbrella entry `04cb72c — 2026-10-20 — PRODUCTION PROMOTION`
+at the head of this file). The per-commit rollback below is pre-merge and kept as written.
+
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): promoted in `04cb72c`.** The "Status:
+> staging only" line below is the PRE-PUSH-CHECK's own, kept as written and now spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge. **NOTIFY-11 builds on NOTIFY-6 below it**
@@ -377,7 +425,18 @@ verify-f5-polish 63/0, verify-notify-template 35/0. Negative controls run and
 reverted: old guard → 2 fail; forced `console` → 2 fail; environment-only
 provider → 1 fail.
 
-## UNPROMOTED — 2026-10-18 — NOTIFY-6: one notification pipeline (intent ledger, dispatcher, per-recipient sends, hourly retry)
+## 04cb72c — 2026-10-18 — NOTIFY-6: one notification pipeline (intent ledger, dispatcher, per-recipient sends, hourly retry)
+
+**PROMOTED 2026-10-20 in merge `04cb72c`** (`04cb72c049953b22deb6d720eca6e299682a7a96`, "Merge branch
+'staging'", 2026-10-20 09:40:31 -0700 (Pacific), parents `0d51496` and
+`e86f184`), with the other thirteen phases. Stamped post-merge by DOCS-CLOSEOUT-2;
+the heading previously read "UNPROMOTED — 2026-10-18 — NOTIFY-6: one notification pipeline (intent ledger, dispatcher, per-recipient sends, hourly retry)".
+**Rollback after promotion:** `git revert -m 1 04cb72c` on `main` (the whole merge;
+recipe and caveats in the umbrella entry `04cb72c — 2026-10-20 — PRODUCTION PROMOTION`
+at the head of this file). The per-commit rollback below is pre-merge and kept as written.
+
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): promoted in `04cb72c`.** The "Status:
+> staging only" line below is the PRE-PUSH-CHECK's own, kept as written and now spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge. **NOTIFY-6 builds on NOTIFY-5 below it**
@@ -456,7 +515,18 @@ Dev-level evidence only so far, all on the DEV database
 verify-f5-polish 63/0, verify-notify-template 35/0. Nothing from this code has
 been seen in an inbox yet.
 
-## UNPROMOTED — 2026-10-18 — NOTIFY-5: one delivery mode (live / sandbox / dry-run) for every email, and "Send a test to me"
+## 04cb72c — 2026-10-18 — NOTIFY-5: one delivery mode (live / sandbox / dry-run) for every email, and "Send a test to me"
+
+**PROMOTED 2026-10-20 in merge `04cb72c`** (`04cb72c049953b22deb6d720eca6e299682a7a96`, "Merge branch
+'staging'", 2026-10-20 09:40:31 -0700 (Pacific), parents `0d51496` and
+`e86f184`), with the other thirteen phases. Stamped post-merge by DOCS-CLOSEOUT-2;
+the heading previously read "UNPROMOTED — 2026-10-18 — NOTIFY-5: one delivery mode (live / sandbox / dry-run) for every email, and "Send a test to me"".
+**Rollback after promotion:** `git revert -m 1 04cb72c` on `main` (the whole merge;
+recipe and caveats in the umbrella entry `04cb72c — 2026-10-20 — PRODUCTION PROMOTION`
+at the head of this file). The per-commit rollback below is pre-merge and kept as written.
+
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): promoted in `04cb72c`.** The "Status:
+> staging only" line below is the PRE-PUSH-CHECK's own, kept as written and now spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge. **NOTIFY-5 is independent of the
@@ -527,7 +597,18 @@ fail with the dry-run branch disabled, 6 section-F fail with `resend` forced
 to live, both restored), verify-f5-polish 63/63, verify-notify-template 35/35,
 all on the DEV database. Nothing has been seen in an inbox from this code.
 
-## UNPROMOTED — 2026-10-17 — MS-4a: checklist milestones (named tasks), the Checklist milestones switch, Copy message, pay warning
+## 04cb72c — 2026-10-17 — MS-4a: checklist milestones (named tasks), the Checklist milestones switch, Copy message, pay warning
+
+**PROMOTED 2026-10-20 in merge `04cb72c`** (`04cb72c049953b22deb6d720eca6e299682a7a96`, "Merge branch
+'staging'", 2026-10-20 09:40:31 -0700 (Pacific), parents `0d51496` and
+`e86f184`), with the other thirteen phases. Stamped post-merge by DOCS-CLOSEOUT-2;
+the heading previously read "UNPROMOTED — 2026-10-17 — MS-4a: checklist milestones (named tasks), the Checklist milestones switch, Copy message, pay warning".
+**Rollback after promotion:** `git revert -m 1 04cb72c` on `main` (the whole merge;
+recipe and caveats in the umbrella entry `04cb72c — 2026-10-20 — PRODUCTION PROMOTION`
+at the head of this file). The per-commit rollback below is pre-merge and kept as written.
+
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): promoted in `04cb72c`.** The "Status:
+> staging only" line below is the PRE-PUSH-CHECK's own, kept as written and now spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge. **PROMOTES WITH THE REST OF MILESTONES
@@ -586,7 +667,18 @@ Dev-level evidence only so far: verify-ms4a 52/52 (live negative control
 verify-ms3b 80/80 and verify-chk15 28/28, all on dev `br-broad-wave-a6vpjdw0`;
 375 px checked on a temporary page with sample data, deleted before the commit.
 
-## UNPROMOTED — 2026-10-17 — CHK-15: a checklist tick names only an active staff member of this store
+## 04cb72c — 2026-10-17 — CHK-15: a checklist tick names only an active staff member of this store
+
+**PROMOTED 2026-10-20 in merge `04cb72c`** (`04cb72c049953b22deb6d720eca6e299682a7a96`, "Merge branch
+'staging'", 2026-10-20 09:40:31 -0700 (Pacific), parents `0d51496` and
+`e86f184`), with the other thirteen phases. Stamped post-merge by DOCS-CLOSEOUT-2;
+the heading previously read "UNPROMOTED — 2026-10-17 — CHK-15: a checklist tick names only an active staff member of this store".
+**Rollback after promotion:** `git revert -m 1 04cb72c` on `main` (the whole merge;
+recipe and caveats in the umbrella entry `04cb72c — 2026-10-20 — PRODUCTION PROMOTION`
+at the head of this file). The per-commit rollback below is pre-merge and kept as written.
+
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): promoted in `04cb72c`.** The "Status:
+> staging only" line below is the PRE-PUSH-CHECK's own, kept as written and now spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge. **A SECURITY FIX (MS-4 F12). MUST REACH
@@ -644,7 +736,18 @@ Dev-level evidence only so far: verify-chk15 28/28 (live negative control
 3 FAIL, restored), verify-ms1 97/97, verify-ms2 90/90, verify-ms3 95/95 and
 verify-ms3b 80/80, all on dev `br-broad-wave-a6vpjdw0`.
 
-## UNPROMOTED — 2026-10-17 — MS-3c: no amber "Raise in progress" badge on /staff (tab unchanged)
+## 04cb72c — 2026-10-17 — MS-3c: no amber "Raise in progress" badge on /staff (tab unchanged)
+
+**PROMOTED 2026-10-20 in merge `04cb72c`** (`04cb72c049953b22deb6d720eca6e299682a7a96`, "Merge branch
+'staging'", 2026-10-20 09:40:31 -0700 (Pacific), parents `0d51496` and
+`e86f184`), with the other thirteen phases. Stamped post-merge by DOCS-CLOSEOUT-2;
+the heading previously read "UNPROMOTED — 2026-10-17 — MS-3c: no amber "Raise in progress" badge on /staff (tab unchanged)".
+**Rollback after promotion:** `git revert -m 1 04cb72c` on `main` (the whole merge;
+recipe and caveats in the umbrella entry `04cb72c — 2026-10-20 — PRODUCTION PROMOTION`
+at the head of this file). The per-commit rollback below is pre-merge and kept as written.
+
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): promoted in `04cb72c`.** The "Status:
+> staging only" line below is the PRE-PUSH-CHECK's own, kept as written and now spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge. **PROMOTES WITH MS-3a AND MS-3b** — it
@@ -681,7 +784,18 @@ theirs; the tab still shows "Raise in progress" for the amber member.
 Dev-level evidence only so far (verify-ms3 95/95, verify-ms3b 80/80, verify-ms1
 97/97, verify-ms2 90/90, all on dev `br-broad-wave-a6vpjdw0`).
 
-## UNPROMOTED — 2026-10-16 — MS-3b: raise detection, manual last-raise date, cooldown, daily wage sync
+## 04cb72c — 2026-10-16 — MS-3b: raise detection, manual last-raise date, cooldown, daily wage sync
+
+**PROMOTED 2026-10-20 in merge `04cb72c`** (`04cb72c049953b22deb6d720eca6e299682a7a96`, "Merge branch
+'staging'", 2026-10-20 09:40:31 -0700 (Pacific), parents `0d51496` and
+`e86f184`), with the other thirteen phases. Stamped post-merge by DOCS-CLOSEOUT-2;
+the heading previously read "UNPROMOTED — 2026-10-16 — MS-3b: raise detection, manual last-raise date, cooldown, daily wage sync".
+**Rollback after promotion:** `git revert -m 1 04cb72c` on `main` (the whole merge;
+recipe and caveats in the umbrella entry `04cb72c — 2026-10-20 — PRODUCTION PROMOTION`
+at the head of this file). The per-commit rollback below is pre-merge and kept as written.
+
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): promoted in `04cb72c`.** The "Status:
+> staging only" line below is the PRE-PUSH-CHECK's own, kept as written and now spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge. **PROMOTES TOGETHER WITH MS-3a** (Gary,
@@ -764,7 +878,18 @@ footer: `029e4ba`.
   both dates (positive control).
 - Test data cleaned up.
 
-## UNPROMOTED — 2026-10-16 — MS-3a: raise eligibility (Raise settings, criteria, Raise badge)
+## 04cb72c — 2026-10-16 — MS-3a: raise eligibility (Raise settings, criteria, Raise badge)
+
+**PROMOTED 2026-10-20 in merge `04cb72c`** (`04cb72c049953b22deb6d720eca6e299682a7a96`, "Merge branch
+'staging'", 2026-10-20 09:40:31 -0700 (Pacific), parents `0d51496` and
+`e86f184`), with the other thirteen phases. Stamped post-merge by DOCS-CLOSEOUT-2;
+the heading previously read "UNPROMOTED — 2026-10-16 — MS-3a: raise eligibility (Raise settings, criteria, Raise badge)".
+**Rollback after promotion:** `git revert -m 1 04cb72c` on `main` (the whole merge;
+recipe and caveats in the umbrella entry `04cb72c — 2026-10-20 — PRODUCTION PROMOTION`
+at the head of this file). The per-commit rollback below is pre-merge and kept as written.
+
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): promoted in `04cb72c`.** The "Status:
+> staging only" line below is the PRE-PUSH-CHECK's own, kept as written and now spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge. **DO NOT PROMOTE WITHOUT MS-3b** (Gary,
@@ -837,7 +962,18 @@ Neon branch `br-square-feather-a63z92vz`, org `cmr54z65v000105jxczpt72w1`
 - Migration finished 2026-10-16 22:14 UTC.
 - All checklist items confirmed by Gary.
 
-## UNPROMOTED — 2026-10-16 — MS-2: on-time % and the On-Time badge (On-time settings, schedule cron)
+## 04cb72c — 2026-10-16 — MS-2: on-time % and the On-Time badge (On-time settings, schedule cron)
+
+**PROMOTED 2026-10-20 in merge `04cb72c`** (`04cb72c049953b22deb6d720eca6e299682a7a96`, "Merge branch
+'staging'", 2026-10-20 09:40:31 -0700 (Pacific), parents `0d51496` and
+`e86f184`), with the other thirteen phases. Stamped post-merge by DOCS-CLOSEOUT-2;
+the heading previously read "UNPROMOTED — 2026-10-16 — MS-2: on-time % and the On-Time badge (On-time settings, schedule cron)".
+**Rollback after promotion:** `git revert -m 1 04cb72c` on `main` (the whole merge;
+recipe and caveats in the umbrella entry `04cb72c — 2026-10-20 — PRODUCTION PROMOTION`
+at the head of this file). The per-commit rollback below is pre-merge and kept as written.
+
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): promoted in `04cb72c`.** The "Status:
+> staging only" line below is the PRE-PUSH-CHECK's own, kept as written and now spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge.
@@ -913,7 +1049,18 @@ footer: `06b5bba`.
 - 403s as STORE and as an out-of-scope MANAGER.
 - Phone width.
 
-## UNPROMOTED — 2026-10-15 — BUG-15: /dashboard header date no longer causes React #418 after 5 PM Pacific
+## 04cb72c — 2026-10-15 — BUG-15: /dashboard header date no longer causes React #418 after 5 PM Pacific
+
+**PROMOTED 2026-10-20 in merge `04cb72c`** (`04cb72c049953b22deb6d720eca6e299682a7a96`, "Merge branch
+'staging'", 2026-10-20 09:40:31 -0700 (Pacific), parents `0d51496` and
+`e86f184`), with the other thirteen phases. Stamped post-merge by DOCS-CLOSEOUT-2;
+the heading previously read "UNPROMOTED — 2026-10-15 — BUG-15: /dashboard header date no longer causes React #418 after 5 PM Pacific".
+**Rollback after promotion:** `git revert -m 1 04cb72c` on `main` (the whole merge;
+recipe and caveats in the umbrella entry `04cb72c — 2026-10-20 — PRODUCTION PROMOTION`
+at the head of this file). The per-commit rollback below is pre-merge and kept as written.
+
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): promoted in `04cb72c`.** The "Status:
+> staging only" line below is the PRE-PUSH-CHECK's own, kept as written and now spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge.
@@ -964,7 +1111,18 @@ footer: `147fa94`.
 - Southgate and All locations clean (checked 06:34 PDT, outside the bug
   window); the fixture covers Denver.
 
-## UNPROMOTED — 2026-10-15 — MS-1: Staff Milestones foundation (toggle, tenure milestones, start date, Milestones tab)
+## 04cb72c — 2026-10-15 — MS-1: Staff Milestones foundation (toggle, tenure milestones, start date, Milestones tab)
+
+**PROMOTED 2026-10-20 in merge `04cb72c`** (`04cb72c049953b22deb6d720eca6e299682a7a96`, "Merge branch
+'staging'", 2026-10-20 09:40:31 -0700 (Pacific), parents `0d51496` and
+`e86f184`), with the other thirteen phases. Stamped post-merge by DOCS-CLOSEOUT-2;
+the heading previously read "UNPROMOTED — 2026-10-15 — MS-1: Staff Milestones foundation (toggle, tenure milestones, start date, Milestones tab)".
+**Rollback after promotion:** `git revert -m 1 04cb72c` on `main` (the whole merge;
+recipe and caveats in the umbrella entry `04cb72c — 2026-10-20 — PRODUCTION PROMOTION`
+at the head of this file). The per-commit rollback below is pre-merge and kept as written.
+
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): promoted in `04cb72c`.** The "Status:
+> staging only" line below is the PRE-PUSH-CHECK's own, kept as written and now spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge.
