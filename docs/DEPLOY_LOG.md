@@ -120,6 +120,30 @@ deployment, then revert at leisure. **No-deploy switches:** Milestones off at
 `/settings` hides every milestone surface; "Milestone emails" off stops the
 milestone leg.
 
+**PRODUCTION EVIDENCE (Gary, 2026-10-20, after the deploy).** Recorded by
+DOCS-CLOSEOUT-2 from his report in chat; read-only, nothing was changed.
+
+- **Deployment:** the Production deployment of `04cb72c` is Ready.
+- **Migrations, production `_prisma_migrations` (Neon console; Gary named the
+  branch as production, `br-sparkling-block`; the pasted result carries no
+  branch column):** all eight applied, in order, none rolled back.
+  `finished_at` from `16:42:15.562 UTC` (ms1_milestones_foundation) to
+  `16:42:20.208 UTC` (ms4b_milestone_alerts), which is 09:42:15–09:42:20 PDT,
+  1 m 44 s after the 09:40:31 PDT merge commit: the Vercel build's
+  `migrate deploy`, as designed.
+- **Smoke, production browser:** the `/dashboard` header date is right
+  (BUG-15); `/staff` shows no milestone badges; `/staff/milestones` answers
+  404 (Milestones off); a checklist tick saves (CHK-15's guard passes an
+  active, assigned person); the notifications test send records a dry run
+  (NOTIFY-5, provider unset); both new crons are listed in Vercel.
+- **NOT IN THE REPORT, so not recorded as observed:** the org id the browser
+  checks ran under (CLAUDE.md § Browser Evidence requires it on the line); an
+  hourly `notify-dispatch` row (the dry-run evidence is the test send, not the
+  sweep); "Milestones, milestone emails and checklist milestones OFF for EVERY
+  org", which takes a SQL read across `Organization` and `MilestoneSettings`
+  (one org's 404 shows it for that org only); the first production run of
+  each new cron; and whether the open items below are unchanged.
+
 **Still open after this promotion, none of it in this merge:**
 - Handbook: "not available yet".
 - `RESEND_API_KEY`: "Needs Attention" in Vercel.
