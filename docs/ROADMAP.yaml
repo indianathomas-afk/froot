@@ -8056,10 +8056,13 @@ phases:
     # `in_progress` at dbd7482, set 2026-10-19 by the MS-5b build session
     # (TIER 2). Not pushed — Claude never pushes. PRE-PUSH-CHECK owns the
     # flip to `staging`.
-    status: in_progress
+    # `staging`, set 2026-10-19 by the MS-5b PRE-PUSH-CHECK. Not pushed when
+    # set — Gary runs the push.
+    status: staging
     title: "Staff Milestones — one milestone button per role on /staff (ADMIN: Milestones; MANAGER: Milestone report)"
     commits:
       - "dbd7482"
+      - "7feab65"
     blockers:
       - >
         PROMOTES WITH THE REST OF MILESTONES (MS-1 to MS-5). No migration.
@@ -8075,6 +8078,16 @@ phases:
         as MANAGER (Tommy, Las Brisas), /staff shows "Milestone report" and no
         "Milestones", and the link opens the report.
     notes: >
+      ── PRE-PUSH-CHECK 2026-10-19 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs SHA 7feab65 added; this check's own commit
+      is the one immediately after it. RULING RATIFIED by Gary with one
+      correction: only the first passage is his quoted words; the "Scope: …"
+      passage was drafted in chat with Claude and is recorded as his APPROVED
+      SCOPE, not as his words. The flag `showOnTime && !canSetUpMilestones` is
+      ratified as written. DECISIONS entry rewritten to that correction, his
+      reply recorded exactly. DEPLOY_LOG: UNPROMOTED MS-5b entry written by
+      this check. CLAUDE.md untouched. Prompt committed (7feab65). Staging
+      evidence pending — the blockers above stand.
       TIER 2, 2026-10-19. Prompt:
       docs/prompts/2026-10-19_MS-5b_staff_report_button.md. Ruling: Gary,
       2026-10-19 (docs/DECISIONS.md 2026-10-19 — MS-5b). WHAT SHIPPED

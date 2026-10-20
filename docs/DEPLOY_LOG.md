@@ -2,6 +2,43 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-19 — MS-5b: one milestone button per role on /staff
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **MS-5b builds on MS-5 directly below
+it** (it narrows MS-5's `/staff` report link), and a staging → main merge
+carries it together with every unpromoted entry below.
+
+**Payload: two MS-5b commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `dbd7482`, `7feab65`. **NEITHER WAS PUSHED WHEN
+THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `dbd7482` | MS-5b work: `canSeeMilestoneReport` in `src/app/(app)/staff/page.tsx` becomes `showOnTime && !canSetUpMilestones`; `scripts/verify-ms5.ts` B11 retargeted, B12 and B13 added |
+| `7feab65` | `docs(MS-5b)`: row to `in_progress`, DECISIONS draft, the session prompt |
+| the commit immediately after `7feab65` | `docs(MS-5b PRE-PUSH-CHECK)`: this entry, DECISIONS ratified with Gary's correction, row to `staging` |
+
+**Blast radius: which button one page header shows, per role. NO SCHEMA, NO
+MIGRATION, NO WRITE, NO EMAIL, NO CRON, NO ENV VAR, NO GATE CHANGE.** What
+changes:
+
+- **ADMINs no longer see "Milestone report" in the `/staff` header** (Gary,
+  2026-10-19: "/staff is getting cluttered"). They keep "Milestones" and reach
+  the report from `/staff/milestones`, which still links it.
+- **MANAGERs are unchanged** — they keep "Milestone report", their only route
+  in, since `milestones.manage` is ADMIN_ONLY and they cannot open
+  `/staff/milestones`.
+- **The report page and its gates are untouched.** The flag is a link, not a
+  gate; anyone with the URL is checked exactly as under MS-5.
+
+**Rollback:** revert `dbd7482`. It touches one expression and one fixture file;
+nothing depends on it.
+
+**Evidence: dev only, not opened in a browser.** verify-ms5 51/51 with a live
+negative control (old flag restored → B11 FAIL); a green build. Staging checks
+are in the MS-5b row's blockers.
+
 ## UNPROMOTED — 2026-10-19 — MS-5: the Milestone Report, and a MANAGER never sees their own Raise status
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at

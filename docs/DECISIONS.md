@@ -7,16 +7,30 @@ decisions too.)
 
 ## 2026-10-19 — MS-5b: one milestone button per role on /staff (Gary)
 
+**RATIFIED BY GARY, 2026-10-19, at the MS-5b PRE-PUSH-CHECK, with one
+correction.** The entry was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify, with
+one correction: only the first passage ("Remove the Milestone report button
+from the /staff page… is getting cluttered.") is my words. The "Scope: …"
+passage was drafted in chat with Claude and approved by me when I pasted it —
+record it as my approved scope, not as my quoted words. The permission-based
+condition (showOnTime && !canSetUpMilestones) is ratified as written."* The
+draft quoted both passages as his words; the scope bullet below is rewritten
+to his correction, and nothing else in the entry changed.
+
 **Gary's words, recorded exactly** (session prompt, 2026-10-19, saved as
 `docs/prompts/2026-10-19_MS-5b_staff_report_button.md`):
 
 - *"Remove the Milestone report button from the /staff page and leave it on
   the /staff/milestones page. The reason is that /staff is getting
   cluttered."*
-- *"Scope: on /staff, ADMINs no longer see the "Milestone report" button
-  (they reach it from /staff/milestones). MANAGERs, who can't open
-  /staff/milestones, keep the "Milestone report" button on /staff as their
-  only route to the report. Each role sees one milestone button."*
+
+**Scope approved by Gary — drafted in chat with Claude, approved by Gary when
+he pasted it into the session prompt. NOT his quoted words:** on /staff, ADMINs
+no longer see the "Milestone report" button (they reach it from
+/staff/milestones). MANAGERs, who can't open /staff/milestones, keep the
+"Milestone report" button on /staff as their only route to the report. Each
+role sees one milestone button.
 
 This narrows MS-5's "Links: /staff header (ADMIN + MANAGER on the badges'
 gate)" to MANAGER only. The report page and its gates are unchanged.
