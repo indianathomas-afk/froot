@@ -5,6 +5,13 @@ entry: /staff
 routes:
   - /staff
   - /staff/[id]
+  - /staff/milestones
+sections:
+  - id: milestones-setup
+    heading: Setting up milestones
+    capability: milestones.manage
+    routes:
+      - /staff/milestones
 summary: >
   Add and manage the people who work at each store, link them to Square, set
   their primary store, and open a person's record.
@@ -66,3 +73,45 @@ was never fetched.
 
 Clicking a row opens that person's record: their assignments, their Square link
 state, and — where the HR module is active — their documents and training.
+
+## Setting up milestones
+
+Where the HR module is on and an admin has switched on **Milestones** in
+Settings, a **Milestones** button appears at the top of Staff Members. It opens
+the setup page, which only admins can see.
+
+Add a tenure milestone with the number of days from a person's start date (for
+example 90, or 365 for one year), a title, what the business does to recognise
+it, and a suggested message a manager can send in their own email. Froot never
+emails employees.
+
+Each person's **Milestones** tab then shows their next milestone, how many days
+are left, and the milestones they have already reached. Days count from the
+**Start Date** on their record, in their store's own time zone. Square fills the
+start date from when the person's Square profile was created, unless someone
+has edited it by hand.
+
+Archiving a milestone stops it appearing for anyone who has not reached it yet.
+People who reached it before it was archived keep it in their history.
+
+### Raise eligibility
+
+Where Square labor is switched on, the setup page's **Raise eligibility**
+section sets the rules for a red, yellow or green **Raise** badge. Admins and
+managers see it beside each person's name on Staff Members and on their
+Milestones tab. Store accounts and staff never see it.
+
+- **Compliance gate** — red while any assigned training is overdue or any
+  required document is unsigned. Tenure milestones are not affected.
+- **Hours** — paid hours (unpaid breaks taken off) in each of the last
+  completed Monday–Sunday weeks, all stores combined. The current week never
+  counts.
+- **On-time** — the same percentage as the On-time badge, over those weeks.
+  Below the minimum is red.
+- **Required trainings and documents** — each must be completed or signed. One
+  that isn't assigned to a person shows "N/A — not assigned" and doesn't
+  affect their badge.
+
+Yellow means nothing is blocking but a rule isn't met yet, or there isn't
+enough Square data to judge — a badge is never green on missing data. Set
+hours or on-time to 0 to switch that rule off.

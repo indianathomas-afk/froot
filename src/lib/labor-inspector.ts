@@ -499,14 +499,8 @@ export function assembleDayInspector({
       // UNSCHEDULED — no scheduled shift of this member's overlaps this card by
       // enough to count as attendance.
       if (hasSchedule) {
-        const matched = memberShifts.some(
-          (s) =>
-            overlapMinutes(
-              tc.startAt.getTime(),
-              clockedEndMs(tc, ceilingMs),
-              s.effectiveStartAt.getTime(),
-              s.effectiveEndAt.getTime()
-            ) >= thresholds.showedUpMinOverlapMinutes
+        const matched = memberShifts.some((s) =>
+          pairsAsAttendance(tc, s, ceilingMs, thresholds.showedUpMinOverlapMinutes)
         )
         if (!matched) {
           barFlags.add("UNSCHEDULED")
@@ -555,14 +549,8 @@ export function assembleDayInspector({
         if (!noShowEligible(s.effectiveStartAt, syncedThroughMs, thresholds.noShowGraceMinutes)) {
           noShowPending++
         } else {
-          const matched = cards.some(
-            (tc) =>
-              overlapMinutes(
-                tc.startAt.getTime(),
-                clockedEndMs(tc, ceilingMs),
-                s.effectiveStartAt.getTime(),
-                s.effectiveEndAt.getTime()
-              ) >= thresholds.showedUpMinOverlapMinutes
+          const matched = cards.some((tc) =>
+            pairsAsAttendance(tc, s, ceilingMs, thresholds.showedUpMinOverlapMinutes)
           )
           if (!matched) {
             ghostFlags.add("NO-SHOW")
@@ -696,6 +684,34 @@ export function assembleDayInspector({
     noShowHorizonLabel: horizonLabel,
     durationSuppressed,
   }
+}
+
+/// THE PAIRING RULE — "did this timecard show up for this scheduled shift" — AND
+/// THE ONLY COPY OF IT IN FROOT (MS-2 F12, Gary 2026-10-16).
+///
+/// Extracted from the two loops above (UNSCHEDULED and NO-SHOW) so that
+/// src/lib/attendance.ts, the Staff Milestones on-time %, pairs with literally
+/// the same code rather than a restatement that could drift. BEHAVIOUR-IDENTICAL
+/// MOVE: scripts/verify-ms2.ts recomputes seeded inspector days and asserts the
+/// output is byte-identical to scripts/ms2-inspector-golden.json, which was
+/// written from the pre-move code.
+///
+/// The caller supplies member and store: both reads are per store and grouped by
+/// member, so pairing never crosses either. An open card runs to `ceilingMs`.
+export function pairsAsAttendance(
+  card: { startAt: Date; endAt: Date | null },
+  shift: { effectiveStartAt: Date; effectiveEndAt: Date },
+  ceilingMs: number,
+  showedUpMinOverlapMinutes: number
+): boolean {
+  return (
+    overlapMinutes(
+      card.startAt.getTime(),
+      clockedEndMs(card, ceilingMs),
+      shift.effectiveStartAt.getTime(),
+      shift.effectiveEndAt.getTime()
+    ) >= showedUpMinOverlapMinutes
+  )
 }
 
 /// Overlap of two half-open intervals, in minutes. Zero where they merely touch or

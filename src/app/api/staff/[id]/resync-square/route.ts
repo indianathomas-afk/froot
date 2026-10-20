@@ -5,6 +5,7 @@ import { getUserStoreScope } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { fetchSquareTeamMember, mapAssignedStores } from "@/lib/square"
 import { terminateStaffMember } from "@/lib/staff-termination"
+import { squareStartDateData, squareStartZone } from "@/lib/milestones-square"
 
 // POST /api/staff/[id]/resync-square — pull ONE member's current Square record
 // and make Square authoritative for this person's Square-linked fields: email,
@@ -69,7 +70,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const stores = await prisma.store.findMany({
     where: { organizationId: org.id },
-    select: { id: true, squareLocationId: true },
+    select: { id: true, squareLocationId: true, timezone: true },
   })
   const { assignedStoreIds, primaryStoreId } = mapAssignedStores(squareMember, stores)
   // Keep a manually-set primary if it survives in Square's location set;
@@ -84,6 +85,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const squareFullName =
     [squareMember.given_name, squareMember.family_name].filter(Boolean).join(" ") || null
 
+  const startDateUpdate = squareStartDateData(
+    member.startDateManual,
+    squareMember.created_at,
+    squareStartZone(primary, stores, org.timezone)
+  )
+
   await prisma.$transaction([
     prisma.staffMember.update({
       where: { id: member.id },
@@ -94,6 +101,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         ...(member.fullNameLocked ? {} : { fullName: squareFullName }),
         squareFullName,
         email: squareMember.email_address || null,
+        // MS-1 (F6). Square's created_at is always recorded in squareStartDate
+        // (the squareFullName shape) and seeds startDate — never over a hand
+        // edit (startDateManual), the fullNameLocked discipline above.
+        ...startDateUpdate,
       },
     }),
     prisma.storeStaffAssignment.deleteMany({ where: { staffMemberId: member.id } }),

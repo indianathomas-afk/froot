@@ -44,14 +44,32 @@ export default async function ChecklistExecutionPage({ params }: { params: Promi
   // even by guessing the checklist ID directly.
   if (!isAdmin && !storeIds.includes(checklist.storeId)) return notFound()
 
+  // The "Who completed this task?" picker. CHK-15: ACTIVE only — the task-log
+  // route refuses a terminated name (src/lib/task-log-staff.ts), so listing one
+  // would offer a choice that is always rejected.
   const staff = await prisma.staffMember.findMany({
     where: {
       organizationId: org.id,
+      status: "ACTIVE",
       storeAssignments: { some: { storeId: checklist.storeId } },
     },
     select: { id: true, displayName: true },
     orderBy: { displayName: "asc" },
   })
+
+  // CHK-15 — NAMES FOR TICKS ALREADY SAVED, display only. The picker list above
+  // no longer contains someone terminated (or moved) since they did the work,
+  // so their "completed by" line would go blank on reopen. History keeps its
+  // credit (F12 is forward-only); this resolves those names, org-scoped.
+  const loggedStaffIds = [
+    ...new Set(checklist.taskLogs.map((l) => l.completedByStaffId).filter((s): s is string => s != null)),
+  ]
+  const staffNames = loggedStaffIds.length
+    ? await prisma.staffMember.findMany({
+        where: { organizationId: org.id, id: { in: loggedStaffIds } },
+        select: { id: true, displayName: true },
+      })
+    : []
 
   // Handoff note targets (I-14): every active checklist available to this
   // store — the "Post to…" picker in the next-shift composer.
@@ -66,5 +84,7 @@ export default async function ChecklistExecutionPage({ params }: { params: Promi
     orderBy: { name: "asc" },
   })
 
-  return <ChecklistExecutionClient checklist={checklist} staff={staff} handoffTargets={handoffTargets} />
+  return (
+    <ChecklistExecutionClient checklist={checklist} staff={staff} staffNames={staffNames} handoffTargets={handoffTargets} />
+  )
 }

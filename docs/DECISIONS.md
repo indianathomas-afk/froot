@@ -5,6 +5,1173 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-19 — MS-5b: one milestone button per role on /staff (Gary)
+
+**RATIFIED BY GARY, 2026-10-19, at the MS-5b PRE-PUSH-CHECK, with one
+correction.** The entry was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify, with
+one correction: only the first passage ("Remove the Milestone report button
+from the /staff page… is getting cluttered.") is my words. The "Scope: …"
+passage was drafted in chat with Claude and approved by me when I pasted it —
+record it as my approved scope, not as my quoted words. The permission-based
+condition (showOnTime && !canSetUpMilestones) is ratified as written."* The
+draft quoted both passages as his words; the scope bullet below is rewritten
+to his correction, and nothing else in the entry changed.
+
+**Gary's words, recorded exactly** (session prompt, 2026-10-19, saved as
+`docs/prompts/2026-10-19_MS-5b_staff_report_button.md`):
+
+- *"Remove the Milestone report button from the /staff page and leave it on
+  the /staff/milestones page. The reason is that /staff is getting
+  cluttered."*
+
+**Scope approved by Gary — drafted in chat with Claude, approved by Gary when
+he pasted it into the session prompt. NOT his quoted words:** on /staff, ADMINs
+no longer see the "Milestone report" button (they reach it from
+/staff/milestones). MANAGERs, who can't open /staff/milestones, keep the
+"Milestone report" button on /staff as their only route to the report. Each
+role sees one milestone button.
+
+This narrows MS-5's "Links: /staff header (ADMIN + MANAGER on the badges'
+gate)" to MANAGER only. The report page and its gates are unchanged.
+
+**Claude's choice (for the record):** the /staff flag is written as "the
+badges' gate AND NOT the Milestones button" (`showOnTime &&
+!canSetUpMilestones`) rather than naming the MANAGER role, so whoever lacks
+the route through /staff/milestones keeps the direct link. Today that
+condition and "MANAGER" pick out the same people, because `milestones.manage`
+is ADMIN_ONLY.
+
+## 2026-10-19 — MS-5: the Milestone Report; F9 a MANAGER never sees their own Raise status (Gary)
+
+**RATIFIED BY GARY, 2026-10-19, at the MS-5 PRE-PUSH-CHECK.** The entry was
+printed verbatim and put to him as "Ratify as written, or give me your
+wording." His reply, recorded exactly (it arrived cut off mid-sentence, and is
+recorded as it arrived): *"Ratify as written, in my words, including C1: the
+report shows a neutral grey "Recent raise" label (dates only for viewers with
+pay access) so the F10 cooldown filter works; amber never appears. Also file
+three rows: (1) link every manager's login to their staff record, which closes
+the MS-4b self-exclusion gap and the MS-5 C2 own-row gap; (2) a help article
+for /staff/milestones/report; (3) switch the MS-4b daily job to the batched
+checklist reader. Mark the MS-3a "manager's own badge"*
+
+So C1–C9 are ratified as written, and C1 is also Gary's ruling in his words
+above. The three rows are DEBT-116, DEBT-117 and DEBT-118 in
+`docs/ROADMAP.yaml`. The cut-off last sentence was read as "mark the MS-3a
+manager's-own-badge question answered by F9", and the MS-3 row carries that
+mark; if Gary meant more, it is his to say. Only the heading and this
+paragraph changed: the heading ended "(Gary — DRAFT entry)", and the banner
+below is kept as written and superseded by this paragraph.
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE MS-5 PRE-PUSH-CHECK.**
+The forks are in `docs/prompts/2026-10-19_MS-5_AUDIT.md` (Part 1). Work commit
+`511f321`.
+
+**Gary's words, recorded exactly** (chat, 2026-10-19, headed "MS-5 rulings
+(Gary, 2026-10-19, my words)"):
+
+- *"F1: Yes — /staff/milestones/report, ADMIN + MANAGER (own stores), linked
+  from /staff and the setup page."*
+- *"F2: Columns as leaned."*
+- *"F3: Leave amber "Raise in progress" OFF the report, same as /staff. Lists
+  show green and red only; the person's Milestones tab shows the full
+  picture. Consistent with my MS-3c ruling that raise progress isn't
+  self-governed."*
+- *"F4: Filters as leaned."*
+- *"F5: Terminated hidden by default, toggle shows achieved history only."*
+- *"F6: CSV for ADMIN only, built from the page's already-redacted data."*
+- *"F7, F8: As leaned."*
+- *"F9: A MANAGER never sees their own Raise status — hide it on their own row
+  on /staff, on the report, and on their own Milestones tab. ADMINs see
+  everyone. Apply to /staff too in this phase; this answers the open MS-3a
+  question."*
+- *"F10: Allow the cooldown filter for pay-confidential people; dates stay
+  hidden."*
+- *"Go: build MS-5. No migration expected — STOP if one is needed."*
+
+The leans F2, F4, F7 and F8 point to are the audit's Part 1 wording, which is
+the prompt's own lean text: F2 columns — name, home store, start date, days
+employed, last milestone reached + date, next milestone + date + days to go,
+checklist count and next threshold (switch on only), On-Time, Raise; F4 —
+store, milestone type, reached in the last 30 / 90 days, coming up in the
+next 30 days, raise status; F7 — next milestone soonest first, every column
+clickable; F8 — cards on a phone, a table on desktop.
+
+No migration was needed.
+
+**Claude's choices (for ratification):**
+
+- **C1. Cooldown is shown on the report.** F3 says lists show "green and red
+  only", and F10 allows "the cooldown filter". A filter needs a status to
+  match, so the report keeps a grey "Recent raise" pill, with "Eligible again
+  <date>" only where the date survived redaction. Amber is absent everywhere
+  on the report and in its payload and CSV. If Gary meant no cooldown pill,
+  that is one line in `raiseForRow` and the filter option goes with it.
+- **C2. "Own" is resolveSelfStaff's answer** — the same resolver as the
+  /staff "You" marker (linked login first, then a single email match). A
+  MANAGER whose login resolves to no staff record, or to two, hides nothing.
+  One pure function, `raiseHiddenForViewer`, decides it on all three surfaces.
+- **C3. F9 drops the WHOLE result, not just the badge.** On /staff the
+  viewer's entry is removed from the raise map, on the tab the card is not
+  computed into props, and on the report the row's raise is null — so the
+  status is absent from the payload, not hidden in it. Only the Raise status:
+  the manager's own On-Time badge is unchanged (F9 names Raise only).
+- **C4. The report payload is one builder's return value.** The fixture's
+  leak checks run on `JSON.stringify` of it and on the raw CSV text, with an
+  ADMIN positive control.
+- **C5. A batched checklist reader** (`namedTaskDatesForMembers`) for the
+  report only; the tab and the MS-4b cron keep the per-member reader. The
+  fixture asserts the two agree for every member.
+- **C6. Store filter matches any of a person's stores the viewer can see;**
+  the store column shows the home store, "Corporate" for corporate staff.
+- **C7. "Coming up" is tenure only** — a checklist threshold has no date.
+  "Reached in the last N days" counts today as day 0, in the member's own
+  store zone.
+- **C8. Terminated rows carry history only:** reached milestones, no next, no
+  On-Time, no Raise, whichever toggle state.
+- **C9. Links.** /staff header for ADMIN and MANAGER on the badges' gate
+  (Milestones on); the setup page header for ADMIN.
+
+## 2026-10-19 — MS-4b: built on the pipeline; N1 and N2 ruled (Gary)
+
+**RATIFIED BY GARY, 2026-10-19, at the MS-4b PRE-PUSH-CHECK.** His reply,
+recorded exactly: *"Ratify as written, in my words: N1 and N2 as quoted, and
+C1–C15 plus the two build choices as listed — including C2 (each run
+recomputes everything and sends any milestone reached within the last 7 days,
+so missed days lose nothing) and C3 (the hourly sweep never makes a first
+milestone send, only retries failures)."*
+
+So C1–C15 and the two build choices are ratified as written. Gary's glosses on
+C2 and C3 are his own words and agree with the code at `9e608ab`: the producer
+re-counts every run and enqueues everything reached within ruling 2's window
+(verify-ms4b J1–J4 cover the skipped days), and the hourly `notify-dispatch`
+sweep (`15 * * * *`) skips grouped intents with `attempts = 0`. Only the banner
+and the heading changed. The heading ended "(Gary — DRAFT entry)" and the
+banner read "DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE MS-4b
+PRE-PUSH-CHECK." The prose below is unchanged.
+
+The rulings MS-4b builds on are in the entry directly below (rulings 1–5) and
+in the MS-4, MS-4a, NOTIFY-5 and NOTIFY-6 entries, unchanged. The audit is
+`docs/prompts/2026-10-19_MS-4b_v2_AUDIT.md`.
+
+**Gary's words, recorded exactly** (chat, 2026-10-19, headed "Approved (Gary,
+2026-10-19, my words):"):
+
+- *"N1 — option (a): add an intentIds list column to NotificationMessage so a
+  dry-run summary logs each milestone to each person once. Migration:
+  Organization.milestoneAlertsEnabled (default false) and
+  NotificationMessage.intentIds (default empty)."*
+- *"N2 — freshness backstop is 8 days (11,520 minutes), so my ruling "more
+  than 7 days ago is recorded as known and never sent" stays exactly as
+  worded."*
+- *"Go: build MS-4b. Stop at the migration."*
+- The apply, second report (the first did not hold — see
+  `docs/MIGRATIONS.md`): *"I ran npx prisma migrate deploy myself from
+  /Users/garythomas/Claude_Projects/Froot/froot. Host ep-late-water-a6k53nv2.
+  Applying migration 20261019211518_ms4b_milestone_alerts — "All migrations
+  have been successfully applied." Check the diff and continue the build."*
+
+**What N1 and N2 settle.** N1: the grouped mode's dry-run rows record every
+intent they cover, so production's default dry run logs each milestone to each
+person once rather than daily for a week. N2: the prompt's 7-day (10080-minute)
+freshness would have expired a milestone reached exactly 7 days ago in the very
+run that should send it, because eventAt is the store-local midnight of the
+reach date and the cron runs at 08:00 Pacific. The producer judges ruling 2 on
+store-local days; the 8-day freshness is only a backstop.
+
+**What was built** (`1bc01cf`): see the MS-4b row in `docs/ROADMAP.yaml`.
+
+**Claude implementation choices, for ratification** (audit numbering):
+
+- **C1 — Claude** — kind id `milestone.reached`, label "Milestone reached";
+  dedupeKey `{staffMemberId}:{tenure|checklist}:{milestoneId}`.
+- **C2 — Claude** — the producer dispatches only the intents it queued or
+  refreshed in this run, so a queued checklist milestone whose count dropped is
+  not re-announced; it ages out.
+- **C3 — Claude** — the sweep never makes a grouped FIRST send; it retries
+  intents with `attempts > 0` and still expires by freshness and switch. This
+  keeps ruling 1's "one email per person per day".
+- **C4 — Claude** — eventAt = `localMidnightUtc(reachedOn, displayTimeZone(member,
+  org))`, the Milestones tab's zone.
+- **C5 — Claude** — `known` is create-only (`recordKnownNotification`): any
+  existing intent, in any state, is left alone.
+- **C6 — Claude** — `exclude` may be async and reads the member's current
+  `userId`/`email` (one query per pair); `enabled` receives the intent.
+- **C7 — Claude** — F13 at both ends: with the checklist switch off, no
+  checklist intent is written at all (neither queued nor known); a queued one
+  expires at dispatch if the switch goes off.
+- **C8 — Claude** — F9 at both ends: the producer skips archived history and
+  non-ACTIVE members; the resolver returns nobody if either changes before
+  dispatch.
+- **C9 — Claude** — the email: subject "{Name} reached {Title}" for one,
+  "{n} new staff milestones" for several; one block per milestone (name and
+  store, title, threshold and reach date, recognition, the suggested message
+  verbatim), each linking `/staff/{id}?tab=milestones` through a new optional
+  `EmailRow.url`; CTA `/staff/milestones`.
+- **C10 — Claude** — "Send a sample to me" is a second button on the milestone
+  card, posting `/api/notify/test?kind=milestone.reached`; the sample renders
+  through the `test` kind, so it keeps that kind's caller-only rule.
+- **C11 — Claude** — `processMilestoneAlerts` in `src/lib/milestone-alerts.ts`,
+  called from the pace cron after its store loop, own try/catch, result key
+  `milestones`.
+- **C12 — Claude** — the card is shown where HR exists; Milestones off → one
+  disabled line. Writes go through new `PUT /api/milestone-alerts/settings`
+  (Milestones gate → 404, then ADMIN-only → 403).
+- **C13 — Claude** — `?tab=milestones` is honoured only when the tab renders.
+- **C14 — Claude** — the send log labels from the registry (`kindLabel`);
+  `KIND_LABELS` is left exported and unread for one release.
+- **C15 — Claude** — grid line "Milestone reached", area "Email
+  notifications"; `GRANTS` = ADMIN + MANAGER; not grantable.
+
+Two further **Claude** choices made during the build:
+
+- **`NotificationOrg` grew by five fields, not one** — `clerkOrgId`,
+  `activeModules`, `milestonesEnabled`, `milestoneAlertsEnabled` and the
+  checklist switch (read through the `milestoneSettings` relation in the same
+  org query) — because the kind's switch is `milestoneAlertsEnabled AND
+  milestonesActive()`.
+- **A summary's audit copy has no `entityId`**, since it is about several
+  people; its `NotificationMessage` has `intentId` null and the covered ids in
+  `intentIds`.
+
+## 2026-10-19 — MS-4b re-scoped onto the NOTIFY-6 pipeline (Gary)
+
+**Gary's words, recorded exactly** (session prompt, 2026-10-19, headed
+"MS-4b rulings (Gary, 2026-10-19, my words)"):
+
+1. *"Build the daily summary: one email per person per day, via a new
+   grouping mode in the dispatcher."*
+2. *"Milestones reached more than 7 days before the job runs are recorded as
+   known without sending, and each milestone is dated the day it was reached,
+   never "today"."*
+3. *"P2 replaces F5: on staging, milestone emails go only to the allowlist,
+   like every other email type."*
+4. *"F15: yes — never email the employee about their own milestone, excluded
+   by linked account and by matching email."*
+5. *"Hold lifted: production's NOTIFY_EMAIL_PROVIDER is unset (confirmed in
+   Vercel 2026-10-18), so production dry-runs safely."*
+
+And: *""Held behind NOTIFY-6" means on staging, which it is."*
+
+**What they settle.** Ruling 1 keeps F4 (one email per recipient per day) and
+puts it in the dispatcher as a new batch mode. Today NOTIFY-6 only knows
+`"per-intent"`. Ruling 2 restates F3 for the pipeline: the producer writes
+`known` intents, and an intent's `eventAt` is the reach date. Ruling 3
+retires F5's "production only, dry-run elsewhere" send rule; the delivery
+mode table (`deliveryMode()`, NOTIFY-5) now decides for milestones too.
+Ruling 4 rules the MS-4b audit's F15 lean (`docs/prompts/2026-10-17_MS-4b_AUDIT.md`)
+as written. Ruling 5 lifts the 2026-10-17 hold ("MS-4b: don't build until I
+confirm production's NOTIFY_EMAIL_PROVIDER."). With the provider unset,
+production is a dry run that consumes nothing (NOTIFY-5), which also answers
+the MS-4b audit's F14. The last line settles P0's "hold MS-4b behind NOTIFY-6":
+NOTIFY-6 on staging is enough. It does not wait for promotion.
+
+**Not Gary's words.** The Remove / Keep list these rulings answer was Claude's
+review of the 2026-10-17 prompt against NOTIFY-6, given in chat the same day.
+It is written into the v2 prompt
+(`docs/prompts/2026-10-19_MS-4b_v2_on_pipeline.md`) as Claude's, not as a
+ruling.
+
+## 2026-10-18 — NOTIFY-6: one notification pipeline (Gary)
+
+**RATIFIED BY GARY, 2026-10-18.** His reply, recorded exactly: *"Ratify as
+written, in my words: R1 — sandbox never changes a send's status; R2 — the
+hourly retry never sends in sandbox; and the 18 implementation choices as
+listed."*
+
+So R1 and R2 are now **Gary's rulings in his own words**, as quoted there.
+The "18 implementation choices" are the 16 numbered choices plus the two build
+choices below, all ratified as written. Only the banner and the heading changed.
+The heading read "NOTIFY-6: one notification pipeline (DRAFT — pending Gary's
+ratification)", and the banner read "DRAFT ENTRY — AWAITING GARY'S
+RATIFICATION AT THE NOTIFY-6 PRE-PUSH-CHECK." The prose below is unchanged,
+including the "approved by click" markings. They are true about how the build
+go arrived, and this ratification supersedes them.
+
+**Gary's words, recorded exactly** — the rulings the phase was built under, as
+the session prompt quotes them (`docs/prompts/2026-10-18_NOTIFY-6_pipeline.md`):
+
+- **P0:** *"P0 approved: adopt the pipeline, hold MS-4b behind NOTIFY-6.
+  Write the NOTIFY-5 prompt next."*
+- **P2:** *"Approved. Staging sends real email only to addresses on an
+  allowlist. Start the allowlist with just my address. Everything else on
+  staging is sandboxed or dry-run, never delivered."*
+- **P6:** *"Yes — replace MS-4b's F16: retry only the recipients who didn't
+  get it, using per-recipient delivery rows."*
+- **NOTIFY-5 test-send ruling:** *""Send a test to me" may email the admin
+  who pressed it even when the allowlist is empty, because it can only ever
+  reach the person clicking. Every other email on staging follows the
+  allowlist, and an empty allowlist means nobody is emailed."*
+- **MS-4a:** *"a milestone email that was sent stays sent — if the milestone
+  is lost and re-reached, don't send again."*
+- **The migration apply** (2026-10-18): *"I ran npx prisma migrate deploy
+  myself from froot/. Host ep-late-water-a6k53nv2.
+  20261019005116_notify6_pipeline applied ("All migrations have been
+  successfully applied")."*
+
+**Not his words.** The build go, and the two rulings the audit asked for
+(R1, R2), came through a reply button whose text Claude wrote: *"Go. Build
+NOTIFY-6 as planned in the audit. R1: the design wins; sandbox never moves an
+intent's state, and the staging checklist step is corrected. R2: the sweep
+never makes a sandbox send; producer dispatches keep NOTIFY-5 choice 4."* Read
+it as: Gary approved the audit's leans by clicking. They are marked **Claude
+(approved by click)** below until he ratifies this entry in his own words. A
+second reply-button message reporting the migration applied was ALSO Claude's
+text, and the level check after it showed the migration not yet applied; the
+session stopped until Gary's own message above.
+
+**Rulings the audit raised** (`docs/prompts/2026-10-18_NOTIFY-6_AUDIT.md`):
+
+- **R1 — Claude (approved by click).** Sandbox never moves an intent's state
+  and never writes a delivery. The prompt's staging checklist said a sandbox
+  signing "writes one intent `sent`"; that step is corrected on the NOTIFY-6
+  row: the intent stays `queued`, with one sandbox `NotificationMessage`.
+- **R2 — Claude (approved by click).** The hourly sweep never makes a sandbox
+  send. Without it, the sweep would re-mail the allowlist every hour while a
+  sandbox intent stayed queued. Dispatches a producer starts keep NOTIFY-5
+  choice 4 (a hand-fire re-sends).
+
+**Claude implementation choices, for ratification** (audit numbering):
+
+1. **Claude** — States, kinds and modes are `TEXT`, not Postgres enums.
+2. **Claude** — A `pending` delivery older than 15 minutes is reclaimed and
+   retried: a one-round-trip duplicate window, accepted over losing a notice.
+3. **Claude** — Freshness in minutes: pace 1440, hr.ack 10080, test 15 (the
+   prompt's "test immediate" would expire every test before its own send).
+4. **Claude** — All recipients failed → `queued`; some → `partial`. Freshness
+   expires `queued` only; the org switch expires both.
+5. **Claude** — Retry cap 5; backoff 1 / 2 / 4 / 8 hours.
+6. **Claude** — One parallel AuditLog row per `NotificationMessage`, carrying
+   `notificationMessageId`; the reader's legacy section is rows older than the
+   org's first message.
+7. **Claude** — Recent emails shows one row per message, so one per recipient.
+8. **Claude** — A pre-pipeline `PaceAlertLog` row still gates the pace
+   producer during the parallel release (prevents a second alert in the deploy
+   month); `PaceAlertLog` is written when a pace intent becomes `sent`.
+9. **Claude** — hr.ack with an empty list enqueues nothing (row-less, F3).
+10. **Claude** — `processPaceAlertForStore` and `sendAckNotification` keep
+    their signatures and wrap enqueue + dispatch.
+11. **Claude** — The payload holds facts computed at enqueue; `render` is pure.
+12. **Claude** — The caller passes the transport (mode + sender) to dispatch;
+    it is required, not read from the environment inside.
+13. **Claude** — No `sample()`; `batch` is `"per-intent"` only (MS-4b adds both).
+14. **Claude** — `NotificationDelivery.userId` is plain text, no FK.
+15. **Claude** — `NotificationEvent.at` is required: provider time, else
+    receipt time.
+16. **Claude** — The sweep is its own route, `/api/cron/notify-dispatch`, at
+    `15 * * * *`.
+
+Two further **Claude** choices made during the build:
+
+- **P6 is enforced twice.** The dispatcher drops recipients with a `sent`
+  delivery, and the per-recipient claim never re-claims a `sent` row. The
+  first negative control (filter only) failed nothing until a check on the
+  retry's own recipient list was added; both guards are now tested on their
+  own.
+- **A direct pace call now honours the org switch.** Before, only the cron's
+  store query checked `paceAlertsEnabled`; dispatch now checks it too (the
+  prompt's step 2). Production is unchanged — the cron only passes enabled
+  orgs — but `verify-f5-polish.ts` now switches its org on for the pace checks
+  and asserts the F1 default on the row as created.
+
+## 2026-10-18 — NOTIFY-3 audit forks P1, P3–P6 ruled; NOTIFY-6 to NOTIFY-9 filed (Gary)
+
+**Gary's words, recorded exactly** (session prompt, 2026-10-18, headed
+"Rulings (Gary, 2026-10-18, my words)"):
+
+- **P1:** *"Yes — one-click unsubscribe on every operational email, before a
+  second tenant."*
+- **P3:** *"Yes — sender shows "{Org name} via Froot"."*
+- **P4:** *"Yes — optional per-org reply-to, unset by default."*
+- **P5:** *"Yes — 180 days for messages, events and deliveries; sent-once
+  locks kept forever."*
+- **P6:** *"Yes — replace MS-4b's F16: retry only the recipients who didn't
+  get it, using per-recipient delivery rows."*
+
+The forks are in `docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md` ("Forks for
+Gary"; design in § 4.2, § 4.3 and § 5). P0 and P2 were ruled earlier and are
+recorded in the NOTIFY-5 entry below.
+
+**What each one reverses or replaces.**
+
+- **P1** reverses NOTIFY-2c's "no unsubscribe anywhere" (Gary, 2026-09-20).
+  That ruling is not edited; this one supersedes it for operational email.
+- **P4** reopens HR-16's "no per-merchant reply address". The default is
+  unchanged (unset = no-reply).
+- **P6** replaces the MS-4b audit's **F16 lean** (`docs/prompts/2026-10-17_MS-4b_AUDIT.md`).
+  F16 was never ruled. Its lean was to mark a partly failed milestone
+  `failed` and never retry it.
+
+**Where they land** (`docs/ROADMAP.yaml`): P6 on **NOTIFY-6** and **MS-4b**
+(F16 marked superseded, preserve-and-mark); P1, P3, P4 and P5 on
+**NOTIFY-8**. **NOTIFY-7** and **NOTIFY-9** carry no ruling. All four new rows
+are `planned`, filed from the audit's § 7 phase table.
+
+**Not his words.** The audit's design details quoted on the rows (header
+sanitising, the `List-Unsubscribe` mechanism, `engagement-prune` as the prune
+host) are the audit's leans. Gary approved the forks. He did not rule on those
+details one by one.
+
+## 2026-10-18 — NOTIFY-5: one delivery mode; staging sends only to an allowlist (Gary)
+
+**RATIFIED BY GARY, 2026-10-18, at the NOTIFY-5 PRE-PUSH-CHECK.** His reply,
+recorded exactly: *"Ratify as written, plus one ruling in my words: "Send a
+test to me" may email the admin who pressed it even when the allowlist is
+empty, because it can only ever reach the person clicking. Every other email
+on staging follows the allowlist, and an empty allowlist means nobody is
+emailed."*
+
+The seven numbered choices and the two build choices below are therefore
+ratified, not only approved by click. The banner that stood here read "DRAFT
+ENTRY — AWAITING GARY'S RATIFICATION AT THE NOTIFY-5 PRE-PUSH-CHECK." The
+prose below it is unchanged.
+
+**The test-send ruling matches the code as built (`07e9253`), checked at
+source by this check, not inferred.** `POST /api/notify/test` takes its only
+recipient from the caller's own Clerk primary email and never consults
+`NOTIFY_SANDBOX_ALLOWLIST` (`src/app/api/notify/test/route.ts`). The only
+other senders are pace alerts and HR acknowledgments. Both filter with
+`sandboxAllows` in sandbox mode (`src/lib/pace-alerts.ts`,
+`src/lib/hr-ack-notification.ts`), and an empty filtered list takes the
+dry-run path on the console sender. No code changed.
+
+**Gary's words, recorded exactly.**
+
+- **P0** (NOTIFY-3 audit session, quoted in the NOTIFY-5 prompt as his words
+  exactly): *"P0 approved: adopt the pipeline, hold MS-4b behind NOTIFY-6.
+  Write the NOTIFY-5 prompt next."*
+- **P2** (the NOTIFY-5 session prompt, 2026-10-18): *"Approved. Staging sends
+  real email only to addresses on an allowlist. Start the allowlist with just
+  my address. Everything else on staging is sandboxed or dry-run, never
+  delivered."*
+
+**Not his words.** The build go and the ratification of the seven
+implementation choices came through a reply button. Claude wrote its text
+("Go. Build NOTIFY-5 as planned in the audit. The choices are ratified as
+written."), so it is not quoted as Gary's (same rule as the MS-4a entry
+below). Read it as: Gary approved the plan in
+`docs/prompts/2026-10-18_NOTIFY-5_AUDIT.md` by clicking it. The choices below
+are therefore marked **Claude**, approved by click, until he ratifies this
+entry in his own words.
+
+**What was built** (`07e9253`). `deliveryMode()` in `src/lib/notify.ts` is the
+one decision for every email type:
+
+- unset or `console` → **dry-run**;
+- `resend` with `VERCEL_ENV=production` → **live**;
+- `resend` anywhere else → **sandbox**, which mails only
+  `NOTIFY_SANDBOX_ALLOWLIST`.
+
+Dry-run writes an `email.dryrun` row ("Dry run — not sent"). It never writes
+a pace lock or an `email.sent` row. See the NOTIFY-5 row in
+`docs/ROADMAP.yaml`.
+
+**Claude implementation choices** (audit "Choices for ratification", numbered
+as there):
+
+1. **Claude** — `mode` is a required option of `processPaceAlertForStore`. The
+   cron resolves it once, next to the sender.
+2. **Claude** — `deliveryMode()` throws on an unknown provider, the same way
+   `getEmailSender()` does.
+3. **Claude** — Sandbox `email.sent` rows carry `withheld: <count>`, never the
+   withheld addresses. Those go to the function log only.
+4. **Claude** — Sandbox pace sends are not deduplicated. Every hand-fire on
+   staging re-sends to the allow-listed addresses, and production (`live`)
+   keeps its lock.
+5. **Claude** — The fixture stubs `fetch` for `api.resend.com` instead of
+   adding a test-only seam to `sendAckNotification`.
+6. **Claude** — Dry-run still prints the `[notify:console]` line.
+7. **Claude** — Two concurrent dry-run evaluations can write two dry-run rows.
+   This is accepted as cosmetic.
+
+Two further **Claude** choices made during the build:
+
+- A failed sandbox acknowledgment send records only the addresses it
+  attempted.
+- The test button's result line names the HTTP status and a probable expired
+  session when the route returns no JSON. Before this it read "unknown
+  error". Found while checking the button signed out.
+
+## 2026-10-17 — MS-4a: checklist milestones built; CHK-16 ruled (Gary)
+
+**RATIFIED BY GARY, 2026-10-17, in the MS-4a session after the build
+report.** His reply, recorded exactly: *"Ratify as written, plus two additions
+in my words:"*
+
+1. *"CHK-15: verified on staging by Gary on 2026-10-17 — refusal message on a
+   stale screen, terminated staff hidden from the picker, history kept,
+   un-tick works. Mark the row's "UNVERIFIED ON STAGING" line superseded."*
+2. *"Live count: accepted for MS-4a. For MS-4b, a milestone email that was
+   sent stays sent — if the milestone is lost and re-reached, don't send
+   again."*
+
+"As written" covers this whole entry, including Claude's implementation
+choices below. Nothing below was changed. This paragraph was added at the
+head, and the "DRAFT ENTRY" marker below is kept as it was and superseded by
+it. Until this ratification the heading read "(Gary — DRAFT entry)". Addition
+2 binds MS-4b: its sent-once record is never deleted or re-armed because a
+count dropped. The MS-4 entry below keeps its own draft marker; this reply
+was given to the MS-4a entry.
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE MS-4a PRE-PUSH-CHECK.**
+The rulings MS-4a builds on are in the MS-4 entry below (F0, F1, F7 addition,
+F8, F11, F13), unchanged. Gary's words in the MS-4a session, recorded exactly:
+
+- The MS-4a prompt: *"NOT the picker fixes: CHK-15 already shipped and
+  verified them on staging. Confirm, don't redo."*
+- The build go, in chat, 2026-10-17, typed by Gary with the migration
+  confirmed applied: *"Confirm with migrate diff, then build. CHK-16: ship
+  without covering-staff credit."* (An earlier go with the same CHK-16
+  sentence was a reply button whose wording Claude wrote, so it is not quoted
+  as his.)
+
+**What was built** (`70365c6`): see the MS-4a row in `docs/ROADMAP.yaml`. A
+member's checklist count is the TaskLog rows naming them on checklists in
+their org (F0); thresholds are a list (F1) in a new `ChecklistMilestone`
+table; the "Checklist milestones" switch is
+`MilestoneSettings.checklistMilestonesEnabled`, OFF by default (F13); Copy
+copies the stored message unchanged (F8); the pay warning is on
+/staff/milestones and in the add/edit dialog (F7 addition). Covering staff
+get no named credit (CHK-16).
+
+**Claude implementation choices (for ratification):**
+
+- The switch is a column on `MilestoneSettings` (the "Milestones settings"
+  row on /staff/milestones), not on `Organization`. No row reads OFF.
+- With the switch off, the checklist CRUD routes answer 404 (like the module
+  gate), the setup page reads no rows, and the tab reads no tasks. Turning it
+  off deletes and archives nothing.
+- The checklist section appears on the tab only with the switch on AND at
+  least one active checklist milestone; otherwise the tab is exactly as
+  before. It still shows for a member with no start date or no tenure
+  milestones, since it needs neither.
+- Milestone N is reached on the store-local date of the member's Nth named
+  task, in the member's zone (the zone tenure uses), not the checklist's
+  store's zone. Ties on `completedAt` break by id.
+- The count is live and CAN GO DOWN: un-ticking deletes the TaskLog, so a
+  reached milestone can un-reach. Nothing is stored as achieved (the MS-1
+  design). MS-4b's sent-once record is what will stop an email repeating.
+- Tenure's rules carry over unchanged: duplicate active thresholds refused in
+  code (409), archive never delete, an archived milestone stays in history if
+  reached on or before its archive date, a terminated member has no "next".
+- Old named tasks count, including CHK-15's pre-fix rows that name a
+  same-company person not assigned to that store (forward-only, Gary F12).
+  Rows naming another company's staff (0 on production and staging) never
+  count: the count is org-scoped through the checklist.
+- A `TaskLog(completedByStaffId)` index was added in the same migration for
+  the per-member count.
+- The Copy button sits under every achieved message, tenure and checklist; on
+  a clipboard refusal it says to select the text instead. 44 px tall.
+- The tenure list card was moved, unchanged in behaviour, into a shared
+  `milestone-list.tsx` used by both kinds.
+- `scripts/verify-ms1.ts` C7's route census moved 5 → 8, with a dated note,
+  as MS-2 and MS-3a did.
+
+## 2026-10-17 — CHK-15: a checklist tick names only an active staff member of this store (Gary)
+
+**RATIFIED BY GARY, 2026-10-17, at the CHK-15 PRE-PUSH-CHECK.** The entry was
+printed verbatim and put to him as "Ratify as written, or give me your
+wording." His reply, recorded exactly: *"Ratify as written."* That covers the
+whole entry, including the approved forks F-A to F-D and Claude's further
+choices. Nothing below was changed. This paragraph was added at the head, and
+the "DRAFT ENTRY" marker below is kept as it was and superseded by it. Until
+this ratification the heading read "(Gary — DRAFT entry)". The "to triage"
+line below is as written at the time; the triage has since filed F-F as
+CAL-3 and the covering-staff gap as CHK-16 (`92dad4d`).
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** Gary's
+words, recorded exactly:
+
+- MS-4 F12 (see the MS-4 entry below): *"F12: Approved, and treat the
+  cross-company staff id as a security fix."*
+- *"F12 is forward-only. Ship it ahead of MS-4a as its own small phase, no
+  schema change."*
+- *"Lean: allow corporate staff; refuse other same-company staff who aren't
+  assigned to the store, with a clear message on the checklist screen rather
+  than a silent failure."*
+- The CHK-15 build go, in chat, 2026-10-17: *"Go. Build CHK-15 with your
+  recommended F-A (b), F-B (b), F-C and F-D. F-E not now, F-F to triage."*
+
+The forks F-A to F-F are in `docs/prompts/2026-10-17_CHK-15_AUDIT.md`. Gary
+approved the recommendations; the wording of each fork is Claude's.
+
+**What was built** (`329526d`): `resolveTaskLogStaff`
+(`src/lib/task-log-staff.ts`) accepts a name only if the person is in this
+org, ACTIVE, and assigned to the checklist's store or `isCorporate`. The
+task-log route calls it on a tick only, before any write. The picker lists
+ACTIVE staff only. No schema change, no migration, and no existing row is
+touched.
+
+**Claude implementation choices (for the record, approved as forks):**
+
+- F-A (b): the `existing` lookup moves above the Pending → In Progress write.
+  The resolver runs only when `!existing`, so a refused first tick leaves a
+  Pending checklist untouched and an un-tick is never refused.
+- F-B (b): a separate org-scoped query resolves names already on saved ticks,
+  for display only. A person terminated or moved since the tick keeps their
+  "completed by" line, and the picker never lists them.
+- F-C: the status test is `!== "ACTIVE"`, after `src/lib/auth.ts:215`.
+- F-D: a non-string id is refused with the generic sentence instead of
+  reaching Prisma and returning a 500.
+
+**Further choices made in the build, not put to Gary as forks:**
+
+- An unknown id and a foreign-company id get the SAME sentence, so the
+  refusal cannot be used to probe whether an id exists elsewhere.
+- Status is checked before the store rule, so a terminated corporate member
+  is refused as terminated.
+- Every refusal returns 400 with the prompt's sentences, the person's
+  `displayName` included where the person is in this org.
+
+**Not done here:** F-E (widening the picker to corporate staff with no
+assignment): Gary, "not now". F-F (the calendar completion route checks the
+org only): to triage. The covering-staff product gap (no named credit for
+covered shifts under MS-4 F0) is reported, not fixed.
+
+## 2026-10-17 — MS-4: rulings on the audit; split into MS-4a / MS-4b; F12 becomes CHK-15 (Gary)
+
+**RATIFIED BY GARY, 2026-10-17, in the MS-4a session.** Asked "Ratify the
+MS-4 rulings entry as written too?", he chose the reply, recorded exactly:
+*"Ratify the MS-4 entry (2026-10-17 — MS-4: rulings on the audit) as
+written."* That reply's wording was a button Claude drafted; the choice to
+send it is Gary's, and it is recorded as his ratification, not as a ruling
+in his own words. It covers the whole entry, including Claude's answers and
+choices. Nothing below was changed. This paragraph was added at the head,
+the "DRAFT ENTRY" marker below is kept and superseded by it, and until now
+the heading read "(Gary — DRAFT entry)". The MS-4a entry's line "The MS-4
+entry below keeps its own draft marker" was true when written and is
+superseded by this.
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE MS-4a PRE-PUSH-CHECK.**
+The forks (F0–F12) are in `docs/prompts/2026-10-17_MS-4_AUDIT.md`
+(`64569a4`), each with Claude's lean. Gary's replies in the MS-4 session chat,
+recorded exactly. Nothing has been built under them yet.
+
+**First pass:**
+
+- *"F0: Count TASKS where the person is named (not whole checklists).
+  Thresholds therefore mean "N tasks completed"."*
+- *"F13 (new): Add a separate ADMIN on/off switch "Checklist milestones" in
+  the Milestones settings, OFF by default, independent of the main
+  Milestones toggle. Off = no checklist milestones on the tab, no checklist
+  milestone emails, and the setup section shows only the switch. Reason
+  (Gary): "just in case the data sucks and we don't want to confuse people."
+  I'll switch it on once I've checked name-picking rates on production."*
+- *"F1–F9: Approved as your leans. F7 addition: the settings page warns
+  admins not to type pay into recognition or message text."*
+- *"F10: Approved — org-level milestone email switch, off by default."*
+- *"F11: Approved — split into MS-4a (checklist milestones + F13 switch, Copy
+  button, picker fixes) and MS-4b (notifications). Write the MS-4b prompt
+  during MS-4a."*
+- *"F12: Approved, and treat the cross-company staff id as a security fix.
+  Tell me: when it was introduced, whether any existing TaskLog rows
+  reference a staff member from another org (give me a read-only query for
+  the Neon console, staging and production), and whether it should ship
+  ahead of MS-4a on its own."*
+- *"Tommy/Southgate open item: resolved, not a bug. Gary had assigned Tommy
+  to Southgate earlier, then moved him to Las Brisas only. Record it as
+  closed in the MS-3b row note (preserve-and-mark) in the MS-4a docs
+  commit."*
+- *"MS-4b: don't build until I confirm production's NOTIFY_EMAIL_PROVIDER."*
+
+**Second pass, after the F12 queries:**
+
+- *"F12 is forward-only. Ship it ahead of MS-4a as its own small phase, no
+  schema change."*
+- *"Before building it: check how corporate staff (isCorporate) and staff
+  covering at another store are handled by the "must be assigned to this
+  store" rule. Lean: allow corporate staff; refuse other same-company staff
+  who aren't assigned to the store, with a clear message on the checklist
+  screen rather than a silent failure. Tell me if that breaks a real
+  workflow."*
+
+**What the approved leans F1–F9 say** (the audit's wording, condensed —
+Claude's leans that Gary approved, not his own sentences): F1 a list of
+thresholds, same shape as tenure; F2 tenure and checklist milestones email,
+raise-eligible does not; F3 nothing reached more than 7 days before the check
+is ever emailed, it is recorded as known; F4 daily, inside the pace-alerts
+cron, store-local, one email per recipient per day, sent-once per (employee,
+milestone); F5 milestone emails send from production only (`VERCEL_ENV`),
+plus an ADMIN "Send a test to me"; F6 ADMINs + MANAGERs of any of the
+employee's stores, never the employee, never a manager about themselves,
+corporate staff to ADMINs only, each subject to the per-user grid; F7 no pay,
+rates or raise dates in the email; F8 Copy copies the message as written; F9
+no email for archived milestones or terminated staff.
+
+**F0 supersedes the audit's F0 lean** (checklists with ≥1 named task). The
+F13 switch is new and was not in the audit.
+
+**F12 evidence**, from the queries Gary ran in the Neon console (read-only),
+labelled as he reported them:
+
+```
+production br-sparkling-block-a620qvg4  TaskLog naming another company's staff: 0 rows
+production br-sparkling-block-a620qvg4  same company, staff not at checklist's store: 28 rows, 0 after termination, 2026-06-30 17:31 UTC → 2026-08-13 22:09 UTC
+preview/staging br-square-feather-a63z92vz  naming another company's staff: 0 rows
+preview/staging br-square-feather-a63z92vz  same company, not at store: 12 rows, 0 after termination, 2026-07-22 17:20:38 UTC → 2026-08-08 20:36:41 UTC
+```
+
+`br-sparkling-block-a620qvg4` is recorded as production on the repo's own
+docs: CLAUDE.md § Browser Evidence (the 2026-08-06 correction names it as
+production SQL) and docs/DEPLOY_LOG.md (production's Vercel build applied
+migrations to it). It was NOT checked against the Vercel Production
+`DATABASE_URL` endpoint — this repo cannot read that (`vercel env pull` is
+banned). The gap was introduced in `d930d44` (2026-06-28 10:01:49 PDT /
+17:01:49 UTC).
+
+**Claude's answers and choices (flagged for ratification):**
+
+- **F12 is CHK-15**, a new row on the checklists track; prompt
+  `docs/prompts/2026-10-17_CHK-15_task_log_staff_guard.md`, to be run by
+  Gary in a fresh session.
+- **The store rule breaks no workflow the app offers today.** The picker
+  already lists only staff assigned to the checklist's store, so covering
+  staff can't be picked now either; they use "Team Member". The new message
+  is reachable from the app only on a screen opened before someone was
+  unassigned or terminated. **Product gap, not a regression:** covering
+  staff earn no named credit, so under F0 they get no checklist-milestone
+  progress for covered shifts.
+- **Corporate staff already pass a store rule in practice** — the Square
+  sync gives a corporate member one assignment per store. Gary's "allow
+  corporate" matters only for a member flagged corporate by hand with no
+  assignments; the route will allow them, the picker will still not list
+  them.
+- **The refusal message never reveals that an id exists in another
+  company.**
+
+## 2026-10-17 — MS-3c: no amber "Raise in progress" badge on /staff (Gary)
+
+**RATIFIED BY GARY, 2026-10-17, in the MS-3c session**, with one addition. His
+reply, recorded exactly: *"Ratify, with one addition to my words: my scope
+answer was "Only amber 'Raise in progress' — keep green and red on the
+list." Record that as my wording too, not the prompt's."* So the scope is
+also Gary's ruling, in his words:
+
+- *"Only amber 'Raise in progress' — keep green and red on the list."*
+
+The scope paragraph below said it was "the prompt's wording, not a further
+quote of Gary". That attribution was wrong and is corrected in place; the
+scope itself is unchanged. The "DRAFT ENTRY" marker is kept as it was and
+superseded by this paragraph. Until this ratification the heading read
+"(Gary — DRAFT entry)".
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** Gary's
+ruling, as given in the MS-3c session prompt, recorded exactly:
+
+- *"Get rid of the 'Raise in progress' badge on the staff page. Leave it only
+  on the Milestone page. Managers should be directed by us to the Milestone
+  page. I don't want 'Raise in progress' self-governed."*
+
+**Scope, as the session prompt states it** (Gary's ruling — his own answer
+was *"Only amber 'Raise in progress' — keep green and red on the list."*, see
+the ratification above): hide ONLY the amber "Raise in progress" compact badge
+on the /staff list. Green "Raise eligible" and red "Raise blocked" stay on the
+list. The Milestones tab on /staff/[id] is unchanged and still shows every
+state.
+
+**What was built** (`6eabef1`): the compact `RaiseBadge` renders nothing for
+status "yellow", the same way it already renders nothing for cooldown (MS-3b
+F7). This amends MS-3a's "compact badge beside On-Time on /staff" for the
+amber state only. No schema, no route, no gate change. The compact size has
+one caller, `src/app/(app)/staff/page.tsx`.
+
+**Claude implementation choices (for the record):** the change sits in the
+component's compact branch, not in the page, so the rule lives beside the
+cooldown rule it mirrors. The hover tooltip that explained an amber result
+on /staff goes with the badge; the same explanation is on the tab's card.
+
+## 2026-10-16 — MS-3b: raise detection, manual date, cooldown, wage sync (Gary)
+
+**RATIFIED BY GARY, 2026-10-16, at the MS-3b PRE-PUSH-CHECK.** The entry was
+printed verbatim and put to him as "Ratify as written, or give me your
+wording." His reply, recorded exactly: *"Ratify as written."* That covers the
+whole entry, including the approved G1–G5 leans and Claude's implementation
+choices. Nothing below was changed. This paragraph was added at the head, and
+the "DRAFT ENTRY" marker below is kept as it was and superseded by it. Until
+this ratification the heading read "(Gary — DRAFT entry)".
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** The
+forks (G1–G5) are in `docs/prompts/2026-10-16_MS-3b_AUDIT.md` (`cd650f7`), each
+with Claude's lean. Gary's replies in the session chat, recorded exactly:
+
+- *"G1–G5: approved as your leans. Go: build MS-3b. Stop at the migration as
+  written."*
+- After applying the migration to dev: *"Applied. Host ep-late-water-a6k53nv2,
+  20261017002340_ms3b_last_raise applied. Go."*
+
+**What the approved leans say** (the audit's wording, condensed — these are
+Claude's leans that Gary approved, not his own sentences):
+
+- **G1** — the manual last-raise date lives in its own table,
+  `StaffLastRaise`, not in `StaffMember` columns. Thirty whole-row
+  `StaffMember` reads exist, and `GET /api/staff` returns them to every
+  in-scope MANAGER. A column there would leak the date.
+- **G2** — the detected raise date is the sync that first saw the new rate,
+  as a calendar date in the member's display zone. It is not Square's own
+  "wage updated" time.
+- **G3** — who may see raise dates: `canSeeWages`, then
+  `compVisibleForMember`. With no wage row, an ADMIN sees the date and a
+  MANAGER does not.
+- **G4** — a salaried member's manual date still counts. Only detection is
+  off for them.
+- **G5** — cooldown beats red. During cooldown there is no /staff badge,
+  whatever the other rules say. The tab still lists every rule.
+
+The rulings this phase was built under (F5, F6, F7, F10, F15, and the wage
+sync in the daily timecard cron) are in the MS-3 entry below. They are not
+repeated here.
+
+**Claude's implementation choices (flagged for ratification):**
+
+- **No raise on record = no cooldown criterion at all.** This leaves an MS-3a
+  result byte-identical (verify-ms3 92/92, unchanged). Once a raise is on
+  record, the criterion reads "N days since the last raise". It is "In
+  cooldown" or "Met".
+- **No criterion text ever carries a date.** Dates exist only in the
+  `lastRaise` and `cooldownUntil` keys, so `redactForViewer` only deletes
+  keys. The tab's "eligible again from <date>" line is built from
+  `cooldownUntil`, and only when that key survived redaction.
+- **The eligibility result carries no rates, even for an ADMIN (F7).**
+  `detectRaises` returns the from/to rates for MS-4 and MS-5.
+- **A tie between a detected and a manual date reads as detected.**
+- **The manual date cannot be in the future** (the member's store-local
+  today). There is no lower bound.
+- **Clearing keeps the row,** with the date null and who cleared it and when.
+- **The last-raise route** returns 404 when Milestones or the Square labor
+  overlay is off, and 403 for MANAGER, STORE and STAFF. It also returns 403
+  for an ADMIN who may not see this member's pay. Nobody writes a value they
+  could not be shown.
+- **The ADMIN control is a card under the Raise card on the Milestones tab.**
+  It is rendered only for an ADMIN who may see that member's pay.
+- **The cron's `ok` and `failed` still count timecards only.** Wage results
+  are reported under a separate `wages` key.
+- **The cooldown help text on /staff/milestones** now explains where the
+  cooldown counts from. It replaces MS-3a's "starts counting once raise
+  detection is live".
+
+## 2026-10-16 — MS-3: raise eligibility, split into MS-3a and MS-3b (Gary)
+
+**RATIFIED BY GARY, 2026-10-16, at the MS-3 PRE-PUSH-CHECK.** The entry was
+printed verbatim and put to him as "Ratify as written, or give me your
+wording." His reply, recorded exactly: *"Ratify as written."* That covers the
+whole entry, including both passes of rulings and Claude's implementation
+choices. Nothing below was changed. This paragraph was added at the head, and
+the "DRAFT ENTRY" marker below is kept as it was and superseded by it. Until
+this ratification the heading read "(Gary — DRAFT entry)".
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** The
+rulings below are Gary's own words in the session chat on 2026-10-16, after the
+MS-3 audit (`docs/prompts/2026-10-16_MS-3_AUDIT.md`, `3870fb2`), recorded
+exactly. The forks and leans they answer are in the audit file and in the
+session's one-line restatement of them. Anything Gary did not rule on is listed
+separately as a Claude implementation choice.
+
+**First-pass rulings — Gary, in chat 2026-10-16, recorded exactly:**
+
+- *"Split: Approved. Build MS-3a now (settings, criteria, badge, no wage
+  reads). Write the MS-3b prompt into docs/prompts/ for a later session.
+  Promote together."*
+- *"Design: Extend my "no design bundle" ruling to MS-3a and MS-3b."*
+- *"Compliance gate: Check whether compliance items have due dates. If yes, the
+  gate fails only on OVERDUE items. If no, use your lean (100% on the live
+  score, or nothing assigned). Report which applies."*
+- *"Square labor off: Approved — no Raise badge, settings page explains why."*
+- *"Wage sync in the daily timecard cron: Approved (goes in MS-3b)."*
+- *"Testing raise detection: Approved — fixture on dev, cooldown on staging via
+  the manual date (MS-3b)."*
+- *"Required doc not assigned to the person: Skip it for that person, shown as
+  "N/A — not assigned". Not yellow."*
+- *"Badge vanishing after a raise: Accepted. Amounts and dates stay hidden from
+  anyone without pay access."*
+- *"Defaults: 20 hours/week, 3 consecutive weeks, 90% on-time, 90-day
+  cooldown."*
+- *"FIX NOW (2): Approved."*
+- *"COMMENT "timecard sync looks back only 3 days": Upgrade to a ROW — it can
+  decide raise eligibility via the hours criterion."* (Filed as DEBT-115.)
+
+**Second-pass rulings — Gary, in chat 2026-10-16, recorded exactly.** The
+session reported that trainings carry an optional due date and documents never
+do, and put two readings to him:
+
+- *"Compliance: (b) — trainings fail the gate only when overdue; documents fail
+  whenever unsigned, per my 2026-09-07 ruling."*
+- *"F11: Yes — extend "N/A — not assigned" to required trainings that aren't
+  assigned."*
+- *"All other forks (F1, F3–F5, F9–F10, F12–F15): approved as listed."*
+- *"Go: build MS-3a. Stop at the migration as written."*
+
+**What the forks approved "as listed" say, in brief** (the session's one-line
+list, with the rulings applied): F1 red = compliance gate fails or on-time
+below the minimum with enough shifts; yellow = no blocker but a rule unmet or
+without data; green = every applicable rule met; N/A left out; terminated staff
+no badge. F3 paid hours ≥ X in each of the last Y completed Monday–Sunday weeks,
+all stores. F4 the MS-2 % over those weeks, org's grace; below = red; grey
+states = yellow. F5 (MS-3b) a raise is an hourly rate above the previous
+snapshot; decreases reset nothing; salaried = criteria only. F9 never green on
+missing data. F10 colour to every ADMIN/MANAGER who can see the member; dates
+and amounts only to those who can see that member's pay. F12 Square labor off =
+no badge. F13 the defaults above. F14 nothing to judge = green unless in
+cooldown, settings warn. F15 (MS-3b) ADMIN-only manual last-raise date.
+
+**Claude's implementation choices (flagged for ratification):**
+
+- **0 switches a rule off** for hours and for on-time (F14 needed a way to turn
+  them off). Bounds: hours 0–60, weeks 1–26, on-time 0–100, custom cooldown
+  1–730 days, at most 50 required trainings and 50 documents.
+- **Coverage (F9):** a week counts as "no data" unless Froot holds timecards at
+  the person's stores from on or before its Monday, AND the person's start date
+  is on or before that Monday. A person who started mid-week is "no data" for
+  that week, not "not met". A corporate member (no store) uses the org's
+  earliest timecard. A covered week with no hours is a real zero.
+- **A timecard belongs to the week of its START**, dated in its own store's
+  zone; "this week" is the member's display zone. Open (still clocked-in) cards
+  are not counted — only completed weeks are judged.
+- **The compliance gate reads the whole live compliance list**, not only the
+  required trainings/documents: any overdue training or unsigned document
+  anywhere fails it, per (b).
+- **Not linked to Square = yellow** (hours and on-time have no data), never red.
+- **Badge words:** "Raise eligible", "Raise in progress", "Raise blocked".
+  Yellow renders in the AMBER preset, as the On-Time badge does.
+- **Required lists hold only live items.** The pickers offer active,
+  non-archived trainings and the documents the compliance engine counts; a save
+  naming an archived, foreign or non-compliance id is refused with a 400; an
+  item archived later is skipped on read and dropped on the next save.
+- **The cooldown saves in MS-3a and is not read until MS-3b**, which detects
+  raises. The settings form says so.
+- **/staff computes compliance once.** `summariesFromDetails` was lifted out of
+  `getStaffComplianceSummaries` (behaviour-identical) so the % column and the
+  Raise badge share one engine run.
+- **The ROADMAP id `MS-3` carries MS-3a**; MS-3b is a new row. Cross-references
+  to "MS-3" elsewhere stay valid.
+
+## 2026-10-16 — MS-2: on-time % and the On-Time badge (Gary)
+
+**RATIFIED BY GARY, 2026-10-16, at the MS-2 PRE-PUSH-CHECK.** The entry was
+printed verbatim and put to him as "Ratify as written, or give me your
+wording." His reply, recorded exactly: *"Ratify as written."* That covers the
+whole entry, including the display-rounding ruling and Claude's implementation
+choices. Nothing below was changed. This paragraph was added at the head, and
+the "DRAFT ENTRY" marker below is kept as it was and superseded by it. Until
+this ratification the heading read "(Gary — DRAFT entry)".
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** The fork
+rulings below are Gary's own words in the session chat on 2026-10-16, after the
+MS-2 audit (`docs/prompts/2026-10-16_MS-2_AUDIT.md`), recorded exactly. The
+forks and leans they answer are in the audit file. Anything Gary did not rule
+on is listed separately as a Claude implementation choice.
+
+**Fork rulings — Gary, in chat 2026-10-16, recorded exactly:**
+
+- F0: *"Use the fallback — existing Froot components (BADGE_PRESETS, the status
+  pill). No design bundle for MS-2. This supersedes my 2026-10-15 F0 wording
+  for MS-2 only."*
+- F1: *"Approved — rolling 30 days, admin-set."*
+- F2: *"New admin setting "Grace period" in the On-Time section of
+  /staff/milestones: a choice of 5, 10 or 15 minutes, default 5. A clock-in
+  within the grace period after scheduled start counts as on time. Changing it
+  recalculates badges going forward. The inspector's 20-minute no-show wait
+  stays separate and unchanged."*
+- *"F3–F8: Approved as your leans. F7: compact badge beside the name."*
+- *"F9, F10, F11: Approved as your leans."*
+- F12: *"Approved, on condition that the fixture proves the inspector's output
+  is identical before and after the move, on the same seeded data."*
+- F2 detail: *"F2 detail (9:05:59 on time, 9:06:00 late at 5 min): Approved."*
+
+**Triage rulings — Gary, in chat 2026-10-16, recorded exactly:**
+
+- *"FIX NOW 1, 2, 3: Approved as your leans."*
+- *"RULING NOW (schedule cron): Register it in MS-2, not MS-3. Reason: each sync
+  only reaches 3 days back, so days a store's dashboard isn't opened are lost
+  permanently, and MS-3 needs weeks of complete schedule history. Daily run,
+  cost ~5 Square requests per store accepted. Record this as superseding the
+  CRON-1 parking of the schedule cron. Note in the report that Vercel crons
+  only run on production, so it activates at promotion."*
+- *"COMMENT (Day Inspector "today" uses browser clock): Don't drop it. Add it as
+  a note on the existing BUG-16 row, same bug class. No new row."*
+
+**SUPERSEDES** the 2026-08-20 "CRON-1 activation, phantom opens" bullet *"The
+schedule cron stays parked …"*. That entry is a claim of its date and is not
+edited. `/api/cron/labor-scheduled-shifts` is registered in `vercel.json` at
+`45 11 * * *` UTC.
+
+**What the leans Gary approved say, in brief** (the audit has them in full):
+F3: a no-show counts as not on time, unscheduled cards are left out, and a
+no-show counts only once the timecard sync is past start + 20 minutes. F4: grey
+"Not enough shifts" below the minimum (default 5). F5: grey "No schedule data",
+including when the Square labor overlay is off, with no rows read. F6: the
+Milestones tab's gate (ADMIN, MANAGER for their stores). F7: the compact badge on
+/staff. F8: red below, green at or above, amber between, red >= green refused.
+F9: published shifts only. F10: same-store pairing, % across all of a person's
+stores. F11: grey "Not linked to Square", and a terminated member's window ends
+at termination. F12: one shared pairing predicate in labor-inspector.ts.
+
+**Display rounding — Gary, in chat 2026-10-16, after the build, recorded
+exactly:** *"the displayed % must never disagree with the badge colour. Round
+DOWN for display (89.6% shows "89%", amber). Colour still decided on the exact
+percentage."* This replaces Claude's earlier choice to round to nearest
+(89.6% printed "90%" on an amber badge). The percentage is computed as
+`onTime × 100 / total`, so a whole-number result is exact and is never floored
+down by one (29 of 50 shows 58%, not 57%).
+
+**Claude's implementation choices (flagged for ratification):**
+
+- **Bounds:** percentages 1–100, look-back 7–90 days, minimum shifts 1–50. The
+  grace period accepts 5, 10 or 15 only.
+- **Grey states read through the same eligibility rule.** A shift whose
+  timecards Froot has not heard about yet is in neither number.
+- **"No schedule data" vs "Not enough shifts".** No published shift at any of
+  the member's assigned stores (or anywhere they had a shift) inside their
+  window → "No schedule data". Otherwise, below the minimum → "Not enough
+  shifts".
+- **The window's "today" is the member's display zone** (primary store, then
+  org, MS-1's rule). Each shift is dated in its own store's zone.
+- **The F12 proof is a golden file**, `scripts/ms2-inspector-golden.json`,
+  written by `scripts/ms2-inspector-seed.ts --write` from the unmodified
+  inspector at `76b857c`. `scripts/verify-ms2.ts` re-runs the same 11 seeded
+  scenarios after the move and asserts byte-identical output.
+- **The cron runs at 45 11 UTC,** fifteen minutes after labor-timecards
+  (30 11), so the two Square sweeps never share a minute.
+- **The On-time section saves while the overlay is off.** It explains that the
+  badges stay grey until Square labor and published schedules exist.
+
+## 2026-10-15 — MS-1: Staff Milestones foundation (Gary)
+
+**RATIFIED BY GARY, 2026-10-15, at the MS-1 PRE-PUSH-CHECK.** The entry was
+printed verbatim and put to him as "Ratify as written, or give me your
+wording." His reply, recorded exactly: *"Ratify as written."* That covers the
+whole entry, including rulings 1–5 in the prompt's wording. Nothing below was
+changed. This paragraph was added at the head; the "FINAL" paragraph and the
+"DRAFT ENTRY" marker below are kept as they were and superseded by it.
+
+**FINAL — GARY, IN CHAT 2026-10-15, after the MS-1 build.** He reviewed the
+two implementation choices below and wrote, exactly: *"Rulings on the two
+DECISIONS items: both accepted, with additions."* and *"Update the DECISIONS
+draft to final with these rulings, then continue."* The heading was de-drafted
+and this paragraph was added at the head. The "DRAFT ENTRY" marker below is
+kept as written and superseded by this paragraph. Until now the heading read
+"(Gary — DRAFT entry)". Rulings 1–5 still carry the PROMPT'S wording, now
+ratified by that instruction.
+
+**Additions ruled with the acceptance — Gary's words, recorded exactly:**
+
+- *"Wage snapshots (change-only): accepted. Also write one baseline snapshot
+  per employee on the first sync after this ships, so everyone has a starting
+  row even if their pay never changes. Confirm wage history is only visible to
+  roles and stores already allowed to see that employee's pay."*
+- *"Start date editable while Milestones is off: accepted. Also add a
+  "manually set" flag when an admin edits the start date, and show the
+  Square-synced value next to it so a later Square correction is visible."*
+- *"Calculate tenure in each store's time zone, not hardcoded Pacific. The
+  Colorado Springs stores are Mountain time. Add a test for a Mountain-time
+  store at late evening, and one that crosses a DST change."*
+- *"Define and test what happens to milestones an employee already reached
+  when that milestone is archived. Past achievements should stay on record."*
+
+**How each was carried out (Claude):**
+
+- **Baseline snapshot.** Already the behaviour. "Changed" is measured against
+  the member's latest snapshot, and a member with none counts as changed, so
+  the first sync after MS-1 ships writes one row for every member, including
+  anyone whose pay never changes. The fixture pins it with two never-changing
+  members (one baseline each, nothing on the next sync).
+- **Wage history visibility.** Today it is visible to NOBODY. WageSnapshot has
+  no reader, no route and no page, and its writer returns only a count. The
+  fixture fails if any file in `src/` other than `src/lib/labor-roster.ts`
+  names the table. MS-3's reader must apply all three existing pay gates:
+  `canSeeWages` (labor.costs.view and the overlay), the viewer's store scope,
+  and COMP-1 `compConfidential`. It must also be added to that check
+  deliberately.
+- **"Manually set" flag and Square's value.** The flag already existed
+  (`startDateManual`). It now shows on the profile as a "Manually set" badge.
+  A new column, `StaffMember.squareStartDate`, records Square's date on every
+  import and resync, whether or not the date was set by hand (the
+  `squareFullName` shape). The profile shows "Square: <date>" under a hand-set
+  date, in warning text with "differs from the date set here" when the two
+  disagree. Tenure never counts from `squareStartDate`.
+- **Each store's time zone.** The MS-1 code already counted in the member's
+  primary store's own `Store.timezone`, then the org's (`displayTimeZone`).
+  Nothing assumed Pacific; only the fixture did. Measured on dev
+  (`br-broad-wave-a6vpjdw0`), org `cf888f2d-f234-48c7-8097-fd5b44b5b3dd` has 2
+  stores on `America/Denver` and 7 on `America/Los_Angeles`. The fixture now
+  covers Mountain time at 23:30 and 00:30 (the hour when Denver and Pacific
+  disagree), fall-back and spring-forward crossings, and which zone a member is
+  counted in. A corporate member is counted in the org's zone.
+- **Archived milestones.** DEFINED: an archived milestone stays in a member's
+  achieved list, labelled "Archived milestone", when they reached it on or
+  before the store-local date it was archived. Nobody reaches it after that
+  date, and it is never anyone's "next". This needs the archive's DATE, so
+  `TenureMilestone.archivedAt` was added BESIDE `isArchived`, which stays the
+  flag every query filters on (the earlier ruling stands). It is stamped on
+  archive, unchanged by a later re-save, and cleared on restore. An archived row
+  with no date counts for nobody. That only arises for rows archived before
+  this column existed, and there are none outside dev.
+
+**DRAFT ENTRY — AWAITING GARY'S RATIFICATION AT THE PRE-PUSH-CHECK.** Rulings
+1–5 reached the build session through the session prompt
+(`docs/prompts/2026-10-15_MS-1_milestones_foundation.md`, "Gary's rulings
+(2026-10-15)"). The wording below is the PROMPT'S, transcribed as given. The
+fork rulings that follow are Gary's own words in the session chat, quoted
+exactly.
+
+1. Toggle stays on /settings. Only ADMINs see the Milestone setup page.
+2. The Raise Eligibility badge is visible to ADMIN and MANAGER only.
+   STORE and STAFF never see it.
+3. Notifications go to ADMINs and MANAGERs only. Froot never emails
+   employees. Each milestone carries a suggested employee message with a
+   Copy button; the manager pastes it into an existing email system
+   (e.g. mail.keva.com).
+4. Once a raise is completed, the Raise Eligibility badge goes away. An
+   ADMIN sets a cooldown on the setup page (30 / 60 / 90 / 180 / custom
+   days) before the employee can become eligible again.
+5. The 100%-initial-compliance gate is an ADMIN toggle. Tenure milestones
+   ALWAYS count from the start date, whatever the toggle says. The gate
+   applies to raise eligibility only.
+
+**Fork rulings — Gary, in chat 2026-10-15, after the MS-1 audit
+(`docs/prompts/2026-10-15_MS-1_AUDIT.md`).** Recorded exactly:
+
+- F0: *"Build without the bundle. Use existing Froot screens as the pattern
+  (Calendar card, /staff/engagement layout). I'll review on staging. The
+  design bundle comes before MS-2/MS-3."*
+- F1: *"Approved as your lean. Same gate as Compliance; STORE and STAFF see
+  no tab at all."*
+- F2: *"Approved as your lean. ADMIN, and MANAGER for their stores. Raise
+  eligibility runs on hours and on-time %, not tenure, so a start-date edit
+  doesn't move the raise clock."*
+- F3: *"Yes. Snapshot on every sync, accepting that syncs are manual for
+  now."*
+- F4: *"Approved, including the rehire note. Tenure counts through the gap
+  until an admin edits the start date."*
+- F5: *"Yes. Milestones is part of HR; HR off means Milestones off
+  everywhere."*
+- F6: *"Yes. Fill start date from Square created_at only when it hasn't been
+  hand-edited."*
+- *"Relabel "Member Since" to "Added to Froot": yes."*
+- *"isArchived instead of archivedAt, and duplicate day counts blocked in
+  code: yes."*
+
+**Claude's implementation choices — the first two ACCEPTED by Gary
+2026-10-15 with the additions above; the rest stand unchallenged:**
+
+- **F3's "on every sync" means a snapshot is ATTEMPTED on every sync and
+  WRITTEN only when pay type or rate changed.** That is the audit's lean
+  ("only when the wage differs from the last snapshot"), and the ruling's
+  wording doesn't settle it. jobId and wageVersion are stored but don't
+  trigger a row: a version bump at the same pay isn't a raise. If Gary meant
+  one row per member per sync, it is a one-line change in `writeWageSnapshots`.
+- **Any hand edit of the start date, including clearing it, sets
+  `startDateManual`.** A cleared date then stays cleared, and Square doesn't
+  refill it.
+- **The start date shows and is editable whether or not Milestones is on.**
+  It sits on /staff/[id], which is already HR-gated. It is staff data that
+  Milestones reads, not a Milestones control, so an admin can enter dates
+  before switching the feature on. The ruled "off" list (tab, page, link,
+  APIs) is all off.
+- **Square `created_at` becomes a date in the member's primary-store zone,
+  else the org's**, never by slicing the UTC string.
+- **The /staff/[id] tab row wraps at phone width** (`flex-wrap h-auto`, the
+  inventory/reports precedent). With six tabs the row was wider than a phone.
+
 ## 2026-09-29 — DOC-11: Preview on the Document Library (Gary)
 
 **RATIFIED BY GARY, 2026-09-29, at the DOC-11 PRE-PUSH-CHECK.** The entry was

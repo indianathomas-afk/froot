@@ -152,10 +152,12 @@ interface Props {
     taskLogs: TaskLog[]
   }
   staff: StaffMember[]
+  // CHK-15: names for ticks already saved — display only, never the picker.
+  staffNames: StaffMember[]
   handoffTargets: HandoffTarget[]
 }
 
-export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: Props) {
+export function ChecklistExecutionClient({ checklist, staff, staffNames, handoffTargets }: Props) {
   const router = useRouter()
   const tasks = checklist.template.tasks
 
@@ -381,7 +383,10 @@ export function ChecklistExecutionClient({ checklist, staff, handoffTargets }: P
     }
   }
 
-  const staffById = Object.fromEntries(staff.map((s) => [s.id, s.displayName]))
+  // CHK-15: `staffNames` first, so a name from a saved tick survives that
+  // person leaving the picker (terminated or moved since); the picker list
+  // covers this session's own picks.
+  const staffById = Object.fromEntries([...staffNames, ...staff].map((s) => [s.id, s.displayName]))
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] pb-24">

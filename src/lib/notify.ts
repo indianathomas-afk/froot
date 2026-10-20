@@ -151,6 +151,59 @@ function requiredEnv(name: string): string {
   return value
 }
 
+// ─── NOTIFY-5: delivery mode ──────────────────────────────────────────────────
+// THE ONE FUNCTION THAT DECIDES WHETHER AN EMAIL REALLY LEAVES, for every email
+// type, from the environment alone:
+//
+//   NOTIFY_EMAIL_PROVIDER unset | "console"         → "dry-run"  (any VERCEL_ENV)
+//   "resend" and VERCEL_ENV === "production"        → "live"
+//   "resend" and anything else (preview, local)     → "sandbox"
+//
+// dry-run renders and logs, records "Dry run — not sent", and NEVER writes a
+// lock or a "sent" row. Before NOTIFY-5 console mode was a provider rather than
+// a mode, and two of the three callers treated its success as delivery: pace
+// alerts burned their one-per-month lock and acknowledgments were recorded as
+// sent and lost (MS-4b audit B2, NOTIFY-3 audit § 4.4).
+//
+// sandbox sends real mail ONLY to NOTIFY_SANDBOX_ALLOWLIST, and consumes
+// nothing. Ruled by Gary 2026-10-18 (P2): "Staging sends real email only to
+// addresses on an allowlist."
+//
+// AN UNKNOWN PROVIDER THROWS, exactly as getEmailSender() does. This function
+// does NOT validate the Resend key or from-address — getEmailSender() still
+// does, and every live/sandbox path still calls it, so fail-closed is not
+// relaxed. Dry-run never needs Resend config.
+function unknownProvider(provider: string): Error {
+  return new Error(
+    `[notify] NOTIFY_EMAIL_PROVIDER="${provider}" is not a provider. ` +
+      `Accepted values: "${CONSOLE_PROVIDER}" (the default when unset) or "${RESEND_PROVIDER}".`
+  )
+}
+
+export type DeliveryMode = "live" | "sandbox" | "dry-run"
+
+export function deliveryMode(): DeliveryMode {
+  const provider = emailProviderName()
+  if (provider === CONSOLE_PROVIDER) return "dry-run"
+  if (provider === RESEND_PROVIDER) {
+    return process.env.VERCEL_ENV === "production" ? "live" : "sandbox"
+  }
+  throw unknownProvider(provider)
+}
+
+/** NOTIFY_SANDBOX_ALLOWLIST, trimmed and lower-cased. Unset or empty = nobody. */
+export function sandboxAllowlist(): string[] {
+  return (process.env.NOTIFY_SANDBOX_ALLOWLIST ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+/** Case-insensitive. Only meaningful in "sandbox" mode; callers check the mode. */
+export function sandboxAllows(email: string): boolean {
+  return sandboxAllowlist().includes(email.trim().toLowerCase())
+}
+
 export function getEmailSender(): EmailSender {
   const provider = emailProviderName()
 
@@ -158,19 +211,16 @@ export function getEmailSender(): EmailSender {
 
   if (provider === RESEND_PROVIDER) {
     // CONFIG IS VALIDATED HERE, NOT INSIDE send(), AND THAT IS DELIBERATE.
-    // pace-alerts.ts writes the PaceAlertLog idempotency row BEFORE it sends,
-    // so a throw at send() time would burn a store's one-alert-per-month lock
-    // with no email delivered — unrecoverable until the month rolls. The cron
-    // calls getEmailSender() once, before the store loop, so a missing key
-    // fails the run with zero rows written instead of poisoning every store.
+    // The pace cron calls getEmailSender() once, before the store loop, so a
+    // missing key fails the run with zero rows written instead of poisoning
+    // every store. (Before NOTIFY-6 the stronger reason was that pace wrote its
+    // PaceAlertLog lock BEFORE sending; the lock is now the intent's state,
+    // which only a real send moves, but failing early is still the right shape.)
     return createResendEmailSender({
       apiKey: requiredEnv("RESEND_API_KEY"),
       from: requiredEnv("NOTIFY_FROM_EMAIL"),
     })
   }
 
-  throw new Error(
-    `[notify] NOTIFY_EMAIL_PROVIDER="${provider}" is not a provider. ` +
-      `Accepted values: "${CONSOLE_PROVIDER}" (the default when unset) or "${RESEND_PROVIDER}".`
-  )
+  throw unknownProvider(provider)
 }

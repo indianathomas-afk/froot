@@ -54,6 +54,14 @@ model Organization {
   // DEFAULT false, so every existing org lands inert and the migration needs no
   // backfill.
   calendarEnabled         Boolean   @default(false)
+  // MS-1 (Gary, 2026-10-15). STAFF MILESTONES — a plain per-org column on the
+  // calendarEnabled pattern above, toggled on /settings by an ADMIN (ruling 1).
+  // F5: MILESTONES IS PART OF HR. This column is only ever read together with
+  // hrModuleAvailable() + activeModules "hr" (src/lib/milestones-access.ts), so
+  // HR off means Milestones off everywhere whatever this says.
+  // Off = no Milestones tab, /staff/milestones unreachable, APIs 404.
+  // DEFAULT false: every existing org lands inert, no backfill.
+  milestonesEnabled       Boolean   @default(false)
   // F-5b (Gary, 2026-09-20). THE PER-ORG SWITCH FOR BEHIND-PACE ALERT EMAILS.
   // A DEDICATED COLUMN on the calendarEnabled pattern above, and deliberately
   // NOT an activeModules entry: activeModules is the BILLABLE ADD-ON list
@@ -94,6 +102,15 @@ model Organization {
   // PaceAlertLog.thresholdPct records it per row (F-5), so changing this value
   // does not rewrite history.
   paceAlertThresholdPct   Int?
+  // MS-4b (F10, Gary 2026-10-17: "org-level milestone email switch, off by
+  // default"). THE PER-ORG SWITCH FOR MILESTONE-REACHED EMAILS. A column, not
+  // a generic setting row, because NOTIFY-8's setting table does not exist yet.
+  // Only meaningful while milestonesActive() passes (HR available, HR on,
+  // milestonesEnabled). Off = the pace cron's milestone leg never reads the
+  // org, and a queued milestone intent expires at dispatch. Default false for
+  // paceAlertsEnabled's reason: nothing starts emailing managers as a side
+  // effect of a deploy or an env flip.
+  milestoneAlertsEnabled  Boolean   @default(false)
   // Days an unacknowledged handoff note keeps surfacing past its target day.
   handoffNoteExpireDays   Int       @default(2)
   // HR-11b: governs inline `Date:` field stamps ONLY ("dateOnly" | "dateTime").
@@ -171,6 +188,8 @@ model Organization {
   teamMessages                  TeamMessage[]
   corporateUpdates              CorporateUpdate[]
   paceAlertLogs                 PaceAlertLog[]
+  notificationIntents           NotificationIntent[]
+  notificationMessages          NotificationMessage[]
   hrDocuments                   HrDocument[]
   hrDocumentCategories          HrDocumentCategory[]
   hrReturnEvents                HrReturnEvent[]
@@ -197,6 +216,11 @@ model Organization {
   usageDaily                    UsageDaily[]
   calendarEvents                CalendarEvent[]
   calendarOccurrences           CalendarOccurrence[]
+  tenureMilestones              TenureMilestone[]
+  checklistMilestones           ChecklistMilestone[]
+  wageSnapshots                 WageSnapshot[]
+  staffLastRaises               StaffLastRaise[]
+  milestoneSettings             MilestoneSettings?
 }
 
 model User {
@@ -403,6 +427,10 @@ model PendingInvite {
   @@unique([organizationId, email])
 }
 
+// NEVER PUT PAY OR OTHER PER-VIEWER DATA ON THIS MODEL (MS-3b audit, B6).
+// About thirty reads load the WHOLE row, and GET /api/staff returns it to every
+// in-scope MANAGER, so any new column here is in that response automatically.
+// Pay-adjacent facts live in their own tables (StaffLastRaise, WageSnapshot).
 model StaffMember {
   id                 String    @id @default(cuid())
   organizationId     String
@@ -456,6 +484,21 @@ model StaffMember {
   // false — the default, and every pre-existing row — means "homed at a store",
   // which is the behaviour everyone has today.
   isCorporate        Boolean   @default(false)
+  // MS-1. The date this person started — a CALENDAR DATE, not an instant
+  // (@db.Date, the CAL-1 S5-D77 precedent). Tenure milestones are computed from
+  // it against the member's store-local today; nothing reads it in UTC. Null =
+  // not entered yet. Square seeds it from the team member's created_at (F6) —
+  // which is when the Square PROFILE was made, not a hire date, so a hand edit
+  // always wins.
+  startDate          DateTime? @db.Date
+  // MS-1. fullNameLocked's shape: a hand edit sets true, and the Square import
+  // and both resync routes then never touch startDate. false = Square may fill.
+  startDateManual    Boolean   @default(false)
+  // MS-1 (Gary, 2026-10-15). The start date SQUARE last reported, written on
+  // every import/resync WHETHER OR NOT startDateManual is set — the
+  // squareFullName shape. It is never the value tenure counts from; it exists so
+  // a hand-set date and a later Square correction can be seen side by side.
+  squareStartDate    DateTime? @db.Date
   createdAt          DateTime  @default(now())
 
   organization        Organization             @relation(fields: [organizationId], references: [id])
@@ -472,6 +515,8 @@ model StaffMember {
   hrDocumentGrants    HrDocumentGrant[]
   hrReturnEvents      HrReturnEvent[]
   calendarCompletions CalendarOccurrence[]     @relation("CalendarOccurrenceCompletedByStaff")
+  // MS-3b. PAY DATA — never `include` this outside src/lib/raise-history.ts.
+  lastRaise           StaffLastRaise?
 
   @@unique([organizationId, squareTeamMemberId])
 }
@@ -823,6 +868,9 @@ model TaskLog {
   completedByStaff StaffMember? @relation(fields: [completedByStaffId], references: [id])
 
   @@index([sectionId])
+  /// MS-4a: checklist milestones count a member's named tasks (F0) on every
+  /// Milestones tab render. Additive.
+  @@index([completedByStaffId])
 }
 
 model AuditLog {
@@ -857,6 +905,120 @@ model PaceAlertLog {
   store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, month])
+}
+
+// ─── NOTIFY-6: ONE NOTIFICATION PIPELINE ─────────────────────────────────────
+// docs/prompts/2026-10-18_NOTIFY-6_AUDIT.md. A producer enqueues an INTENT
+// ("this happened, someone should hear about it"); the dispatcher decides who,
+// in which mode, and records one MESSAGE per provider call and one DELIVERY per
+// live recipient. Additive only: PaceAlertLog and the Notification AuditLog
+// rows keep being written in parallel for one release (NOTIFY-9 stops them).
+//
+// States, kinds and modes are TEXT, not Postgres enums (audit choice 1): the
+// registry (src/lib/notifications/registry.ts) is the validation, and a new
+// kind or state (NOTIFY-7's `suppressed`) must not need a migration.
+
+// One row per event. The sent-once lock for EVERY kind is `state`, never the
+// row's existence: queued | sent | partial | failed | expired | known. Kept
+// forever (P5); nothing prunable has a foreign key that points here from
+// the intent side.
+model NotificationIntent {
+  id             String    @id @default(cuid())
+  organizationId String
+  kind           String
+  dedupeKey      String
+  entityId       String?
+  eventAt        DateTime
+  payload        Json
+  state          String    @default("queued")
+  attempts       Int       @default(0)
+  lastError      String?
+  nextAttemptAt  DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization           @relation(fields: [organizationId], references: [id])
+  deliveries   NotificationDelivery[]
+  messages     NotificationMessage[]
+
+  @@unique([organizationId, kind, dedupeKey])
+  // The hourly sweep: queued/partial intents whose nextAttemptAt has passed.
+  @@index([state, nextAttemptAt])
+}
+
+// One row per (intent, recipient), LIVE recipients only. The unique row is
+// also the per-recipient send lock (audit C8): claimed as `pending` before the
+// provider call, settled to `sent` or `failed` after it. P6 (Gary,
+// 2026-10-18): a retry sends only to recipients with no `sent` row.
+// `recipient` is lower-cased. `userId` is plain text with no FK, like
+// AuditLog.userId — a deleted user must not block a ledger row.
+model NotificationDelivery {
+  id        String   @id @default(cuid())
+  intentId  String
+  recipient String
+  userId    String?
+  messageId String?
+  state     String
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  intent  NotificationIntent   @relation(fields: [intentId], references: [id], onDelete: Cascade)
+  message NotificationMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@unique([intentId, recipient])
+  @@index([messageId])
+}
+
+// One row per provider call (or per would-be call in dry-run): exactly one
+// recipient in `to`. "Recent emails" reads this. `providerMessageId` is a real
+// indexed column so the Resend webhook lookup is an index hit (NOTIFY-3 audit
+// finding 2). mode: live | sandbox | dry-run. status: sent | failed | dry-run.
+model NotificationMessage {
+  id                String   @id @default(cuid())
+  organizationId    String
+  kind              String
+  mode              String
+  provider          String
+  providerMessageId String?  @unique
+  to                String
+  subject           String
+  status            String
+  error             String?
+  intentId          String?
+  // MS-4b (N1(a), Gary 2026-10-19). Every intent a GROUPED message covers —
+  // one daily summary lists several milestones, and `intentId` holds one. A
+  // summary leaves `intentId` null and fills this; a per-intent kind keeps
+  // `intentId` and leaves this empty, so its rows are unchanged. What it is for:
+  // dry-run and sandbox write no NotificationDelivery rows (R1), so this is the
+  // only record of which milestones a dry-run summary already logged to `to`.
+  // No FK — intents are kept forever (P5), so a dangling id cannot occur.
+  intentIds         String[] @default([])
+  createdAt         DateTime @default(now())
+
+  organization Organization           @relation(fields: [organizationId], references: [id])
+  intent       NotificationIntent?    @relation(fields: [intentId], references: [id], onDelete: SetNull)
+  deliveries   NotificationDelivery[]
+  events       NotificationEvent[]
+
+  @@index([organizationId, createdAt])
+  @@index([intentId])
+}
+
+// One row per webhook event. Append, never update (Gary, 2026-09-20);
+// idempotent on (message, type). The org is the message's, never the body's.
+model NotificationEvent {
+  id        String   @id @default(cuid())
+  messageId String
+  type      String
+  reason    String?
+  at        DateTime
+  createdAt DateTime @default(now())
+
+  message NotificationMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, type])
 }
 
 // ─── ENG-1: ENGAGEMENT TRACKING ──────────────────────────────────────────────
@@ -1944,22 +2106,25 @@ model HrDocument {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  organization  Organization           @relation(fields: [organizationId], references: [id])
+  organization      Organization             @relation(fields: [organizationId], references: [id])
   // onDelete: Restrict ANNOTATED, not defaulted — the TPL-1a/HR-20 drift lesson:
   // an optional relation left unannotated reads as SetNull, and every later
   // migrate diff would try to relax the live RESTRICT constraint. Deletion in
   // use is blocked by a 409 in the route; RESTRICT is the backstop.
   // Named docCategory because the legacy scalar above already owns `category`.
-  docCategory   HrDocumentCategory?    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  versions      HrDocumentVersion[]
-  checkpoints   HrDocumentCheckpoint[]
-  formFields    FormField[]
-  grants        HrDocumentGrant[]
+  docCategory       HrDocumentCategory?      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  versions          HrDocumentVersion[]
+  checkpoints       HrDocumentCheckpoint[]
+  formFields        FormField[]
+  grants            HrDocumentGrant[]
   // HR-32 back-relation. A document may be linked from many lessons; the
   // "one document per lesson" rule is the scalar column's cardinality on
   // TrainingLesson, not a uniqueness claim about the document.
-  linkedLessons TrainingLesson[]
-  returnEvents  HrReturnEvent[]
+  linkedLessons     TrainingLesson[]
+  returnEvents      HrReturnEvent[]
+  // MS-3a back-relation: the orgs whose raise eligibility requires this
+  // document. Cascades on delete; an archived document is skipped on read.
+  raiseRequirements MilestoneRaiseDocument[]
 
   @@index([organizationId])
   @@index([categoryId])
@@ -2432,12 +2597,15 @@ model TrainingModule {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization     Organization                    @relation(fields: [organizationId], references: [id])
-  category         TrainingCategory?               @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  lessons          TrainingLesson[]
-  quizzes          TrainingQuiz[]
-  assignments      TrainingAssignment[]
-  storeAssignments TrainingModuleStoreAssignment[]
+  organization      Organization                    @relation(fields: [organizationId], references: [id])
+  category          TrainingCategory?               @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  lessons           TrainingLesson[]
+  quizzes           TrainingQuiz[]
+  assignments       TrainingAssignment[]
+  storeAssignments  TrainingModuleStoreAssignment[]
+  // MS-3a back-relation: the orgs whose raise eligibility requires this
+  // module. Cascades on delete; an archived module is skipped on read.
+  raiseRequirements MilestoneRaiseTraining[]
 
   @@index([organizationId])
   @@index([categoryId])
@@ -3587,4 +3755,246 @@ model CalendarOccurrence {
   /// in P2002, which the cron catches and counts rather than failing the run.
   @@unique([eventId, storeId, dueDate])
   @@index([organizationId, storeId, status, dueDate])
+}
+
+/// ── MS-1 — STAFF MILESTONES (Gary, 2026-10-15) ───────────────────────────────
+///
+/// A tenure milestone an ADMIN defines on /staff/milestones: "at N days from a
+/// member's startDate, recognise them like this".
+///
+/// THERE IS NO "ACHIEVED" TABLE, AND THAT IS THE DESIGN. Achieved and upcoming
+/// milestones are COMPUTED from StaffMember.startDate + dayCount in the member's
+/// store-local date (src/lib/milestones.ts), so a start-date correction re-flows
+/// instantly and nothing can drift out of agreement with it. MS-4 adds whatever
+/// it needs to send a notification exactly once.
+///
+/// NO TWO NON-ARCHIVED MILESTONES IN AN ORG SHARE A dayCount — ENFORCED IN THE
+/// WRITE ROUTES, NOT BY AN INDEX (Gary, 2026-10-15). A partial unique index
+/// (WHERE NOT "isArchived") is not expressible in schema.prisma, so every later
+/// `migrate diff` would propose dropping it — the one precedent in this repo,
+/// LaborSettings_org_default_key, is hand-added SQL for that reason.
+model TenureMilestone {
+  id              String    @id @default(cuid())
+  organizationId  String
+  /// Days from startDate. > 0, checked by the routes' Zod schema.
+  dayCount        Int
+  title           String
+  /// What the business does for the person — shown on the Milestones tab.
+  recognition     String    @db.Text
+  /// The suggested message a manager copies into their own email (ruling 3:
+  /// Froot never emails employees).
+  employeeMessage String    @db.Text
+  /// House style (Template, CalendarEvent, TrainingModule…), ruled over the
+  /// prompt's archivedAt. Archived = excluded from every computation.
+  isArchived      Boolean   @default(false)
+  /// MS-1 (Gary, 2026-10-15: "Past achievements should stay on record"). When
+  /// the row was archived; null while active, cleared on restore. A member who
+  /// reached the milestone on or before the store-local date of this instant
+  /// keeps it in their achieved list; nobody reaches it after. isArchived stays
+  /// the flag every query filters on (ruled); this only dates it.
+  archivedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, isArchived])
+}
+
+/// MS-4a (Gary, 2026-10-17). A CHECKLIST milestone an ADMIN defines on
+/// /staff/milestones: "at N named tasks, recognise them like this".
+///
+/// F0 (Gary): "Count TASKS where the person is named (not whole checklists).
+/// Thresholds therefore mean "N tasks completed"." A member's count is the
+/// TaskLog rows naming them (completedByStaffId) on checklists in their org.
+/// "Team Member" ticks save no name and count for nobody. Who a tick may name
+/// is CHK-15's rule (src/lib/task-log-staff.ts).
+///
+/// Its own table, not a `kind` column on TenureMilestone, so dayCount never
+/// means two things. Same shape and the same rules otherwise: COMPUTED, never
+/// stored as achieved; no two non-archived rows in an org share a taskCount,
+/// ENFORCED IN THE WRITE ROUTES, NOT BY AN INDEX (see TenureMilestone);
+/// archived rows keep past achievements (archivedAt dates the archive).
+///
+/// F13 (Gary): shown only while MilestoneSettings.checklistMilestonesEnabled
+/// is on, which is OFF by default and independent of the Milestones toggle.
+model ChecklistMilestone {
+  id              String    @id @default(cuid())
+  organizationId  String
+  /// Named tasks completed. > 0, checked by the routes' Zod schema.
+  taskCount       Int
+  title           String
+  recognition     String    @db.Text
+  /// Copied as written by the Copy button (F8) — no placeholder substitution.
+  employeeMessage String    @db.Text
+  isArchived      Boolean   @default(false)
+  archivedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, isArchived])
+}
+
+/// MS-1 (F3, Gary 2026-10-15). APPEND-ONLY HISTORY of a member's CURRENT wage as
+/// SquareTeamMemberWage saw it at each roster sync. Square returns only the
+/// current wage, so raise detection (MS-3) can only work from the first snapshot
+/// forward — this table starts that clock early.
+///
+/// WRITTEN ONLY WHEN THE WAGE DIFFERS from the member's latest snapshot, by
+/// writeRoster in src/lib/labor-roster.ts. Syncs are MANUAL today (no cron), so
+/// a wage set and changed again between two syncs is never seen — accepted.
+///
+/// NO READER IN MS-1. COMP-1: whoever adds one MUST apply
+/// SquareTeamMemberWage.compConfidential for the same
+/// (organizationId, squareTeamMemberId) — this table carries no flag of its own,
+/// on the LaborSalariedPerson precedent, so one admin toggle governs every
+/// surface that shows this person's pay.
+model WageSnapshot {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  /// Joins to SquareTeamMemberWage and StaffMember on the same key.
+  squareTeamMemberId String
+  /// Square's HOURLY | SALARY | NONE, verbatim.
+  payType            String?
+  /// Dollars. NULL = not set in Square, never $0.
+  hourlyRate         Decimal? @db.Decimal(10, 2)
+  annualRate         Decimal? @db.Decimal(12, 2)
+  jobId              String?
+  wageVersion        Int?
+  capturedAt         DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, squareTeamMemberId, capturedAt])
+}
+
+/// MS-3b (F6, F15; Gary G1 2026-10-16). An ADMIN-entered "last raise date" for
+/// raises Froot did not see — before the daily wage sync existed, or from
+/// before Square was connected. The raise cooldown counts from the LATER of
+/// this and the last raise detected in the wage history.
+///
+/// PAY DATA UNDER COMP-1: shown only where canSeeWages and
+/// compVisibleForMember both pass. ITS OWN TABLE ON PURPOSE, not columns on
+/// StaffMember: thirty StaffMember reads return the whole row and
+/// GET /api/staff sends it to every in-scope MANAGER, so a column there would
+/// leak (docs/prompts/2026-10-16_MS-3b_AUDIT.md, B6). ONLY
+/// src/lib/raise-history.ts may name this model — scripts/verify-ms3b.ts pins
+/// it — and nothing may `include` the StaffMember.lastRaise relation.
+model StaffLastRaise {
+  id             String    @id @default(cuid())
+  organizationId String
+  staffMemberId  String    @unique
+  /// Store-local CALENDAR date (@db.Date). NULL = cleared by an ADMIN; the row
+  /// is kept so it still says who cleared it and when.
+  lastRaiseDate  DateTime? @db.Date
+  /// User.id of the ADMIN who last set or cleared it.
+  setByUserId    String
+  setAt          DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  staffMember  StaffMember  @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+/// MS-2 (Gary, 2026-10-16). STAFF MILESTONES SETTINGS — ONE ROW PER ORG, created
+/// on the first save from /staff/milestones. No row = the code defaults
+/// (DEFAULT_MILESTONE_SETTINGS in src/lib/attendance.ts), which
+/// scripts/verify-ms2.ts asserts equal the @defaults below, so the two cannot
+/// drift. The LaborSettings pattern (A7): a module with several knobs gets its
+/// own model rather than a row of Organization columns. MS-3 adds its raise
+/// settings to this same row.
+///
+/// NOT THE ON/OFF SWITCH. Organization.milestonesEnabled stays the gate, read
+/// with HR availability + activeModules "hr" (src/lib/milestones-access.ts).
+///
+/// Nothing derived is stored here or anywhere: on-time % is computed on read
+/// from the mirrored SquareScheduledShift / SquareTimecard rows. Changing a
+/// value re-colours every badge from the next render — there is no history to
+/// rewrite.
+model MilestoneSettings {
+  id                   String @id @default(cuid())
+  organizationId       String @unique
+  /// Red STRICTLY BELOW this whole percentage (F8). The write route refuses
+  /// onTimeRedBelow >= onTimeGreenAtOrAbove.
+  onTimeRedBelow       Int    @default(80)
+  /// Green AT OR ABOVE this whole percentage; amber in between (F8).
+  onTimeGreenAtOrAbove Int    @default(90)
+  /// Rolling window in store-local days ending today, each shift dated in its
+  /// own store's zone (F1).
+  onTimeLookbackDays   Int    @default(30)
+  /// Fewer eligible shifts than this in the window = grey "Not enough shifts"
+  /// (F4).
+  onTimeMinShifts      Int    @default(5)
+  /// F2 (Gary, 2026-10-16): 5, 10 or 15 — the route accepts nothing else. A
+  /// clock-in at or before scheduled start + this many minutes, compared to the
+  /// minute, is on time (at 5: 9:05:59 on time, 9:06:00 late). SEPARATE FROM
+  /// the Day Inspector's 20-minute NO-SHOW wait, which is unchanged.
+  onTimeGraceMinutes   Int    @default(5)
+
+  // ── MS-3a RAISE ELIGIBILITY (Gary, 2026-10-16). Defaults are his ruling
+  // (F13): 20 h/week, 3 weeks, 90% on time, 90-day cooldown. Computed on read
+  // by src/lib/raise-eligibility.ts; nothing derived is stored.
+  /// Ruling 5: ADMIN toggle, raise eligibility only (tenure always counts from
+  /// the start date). Ruled (b): a TRAINING fails the gate only when OVERDUE;
+  /// a required DOCUMENT fails it whenever unsigned (Gary 2026-09-07: a
+  /// document is owed from the day it applies). Nothing assigned passes.
+  raiseComplianceGate        Boolean  @default(true)
+  /// Paid hours (gross minus unpaid breaks), all stores combined, that EACH of
+  /// the last raiseConsecutiveWeeks COMPLETED Monday–Sunday weeks must reach.
+  raiseMinHoursPerWeek       Int      @default(20)
+  raiseConsecutiveWeeks      Int      @default(3)
+  /// The MS-2 exact on-time % over those same weeks must be at or above this.
+  raiseMinOnTimePct          Int      @default(90)
+  /// Ruling 4: days after a raise before the member can be eligible again —
+  /// 30 / 60 / 90 / 180 or a custom value. Saved by MS-3a; READ from MS-3b on
+  /// (raise detection lands there).
+  raiseCooldownDays          Int      @default(90)
+  /// MS-4a F13 (Gary, 2026-10-17): "a separate ADMIN on/off switch "Checklist
+  /// milestones" in the Milestones settings, OFF by default, independent of
+  /// the main Milestones toggle." Off = no checklist milestones on the tab and
+  /// the setup section shows only the switch. Read only once
+  /// Organization.milestonesEnabled (and HR) already pass.
+  checklistMilestonesEnabled Boolean  @default(false)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  organization           Organization             @relation(fields: [organizationId], references: [id])
+  raiseRequiredTrainings MilestoneRaiseTraining[]
+  raiseRequiredDocuments MilestoneRaiseDocument[]
+}
+
+/// MS-3a. A training module an org requires before a raise. Completed means
+/// TrainingAssignment.status === "Completed"; a member with no assignment for
+/// it shows "N/A — not assigned" and the module is skipped for them (F11).
+/// Two join tables rather than one polymorphic one, so each carries a real
+/// foreign key and cascades when its module or document is deleted.
+model MilestoneRaiseTraining {
+  milestoneSettingsId String
+  trainingModuleId    String
+  createdAt           DateTime @default(now())
+
+  settings MilestoneSettings @relation(fields: [milestoneSettingsId], references: [id], onDelete: Cascade)
+  module   TrainingModule    @relation(fields: [trainingModuleId], references: [id], onDelete: Cascade)
+
+  @@id([milestoneSettingsId, trainingModuleId])
+  @@index([trainingModuleId])
+}
+
+/// MS-3a. A document an org requires before a raise. Completed means the
+/// compliance engine's documentCompletion() === "signed" for the member's
+/// current signing cycle; a document outside the member's audience shows
+/// "N/A — not assigned" and is skipped for them (F11).
+model MilestoneRaiseDocument {
+  milestoneSettingsId String
+  hrDocumentId        String
+  createdAt           DateTime @default(now())
+
+  settings MilestoneSettings @relation(fields: [milestoneSettingsId], references: [id], onDelete: Cascade)
+  document HrDocument        @relation(fields: [hrDocumentId], references: [id], onDelete: Cascade)
+
+  @@id([milestoneSettingsId, hrDocumentId])
+  @@index([hrDocumentId])
 }

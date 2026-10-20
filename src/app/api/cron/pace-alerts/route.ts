@@ -1,13 +1,17 @@
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { paceThresholdPct, processPaceAlertForStore, type PaceAlertResult } from "@/lib/pace-alerts"
-import { getEmailSender } from "@/lib/notify"
+import { deliveryMode, getEmailSender } from "@/lib/notify"
+import { processMilestoneAlerts, type MilestoneOrgResult } from "@/lib/milestone-alerts"
 
 // GET /api/cron/pace-alerts — once daily, alert admins + assigned managers
 // when a store falls below its org's alert threshold (NOTIFY-2a:
 // Organization.paceAlertThresholdPct, else PACE_ALERT_THRESHOLD_PCT, else 90%)
 // of its MTD goal, measured through yesterday. At most one alert per store per
-// month (PaceAlertLog unique constraint). Registered in vercel.json; Vercel
+// month — since NOTIFY-6 the lock is the store-month NotificationIntent's state
+// (each store is evaluated, enqueued and dispatched inline by
+// processPaceAlertForStore; failures are retried by /api/cron/notify-dispatch).
+// Registered in vercel.json; Vercel
 // calls it with "Authorization: Bearer ${CRON_SECRET}". Runs after the nightly
 // sales-reconcile so yesterday's actuals are settled.
 
@@ -28,6 +32,10 @@ export async function GET(req: Request) {
   // evaluated at exactly the number it was evaluated at before this phase.
   const fallbackPct = paceThresholdPct()
   const sender = getEmailSender()
+  // NOTIFY-5. Resolved once, here, beside the sender and before the loop — an
+  // unknown provider fails the whole run with zero rows written, exactly as a
+  // bad sender config already does. Every store in this run uses this mode.
+  const mode = deliveryMode()
 
   // Only stores that could have an MTD goal: active, with DailyGoal rows this
   // month (UTC month start is close enough — per-store timezones are resolved
@@ -87,7 +95,7 @@ export async function GET(req: Request) {
       source: orgThreshold === null ? "env" : "org",
     })
     try {
-      results.push(await processPaceAlertForStore(store, { thresholdPct, sender }))
+      results.push(await processPaceAlertForStore(store, { thresholdPct, sender, mode }))
     } catch (e) {
       const msg = e instanceof Error ? e.message : "pace alert failed"
       results.push({ storeId: store.id, storeName: store.name, pacePct: null, alerted: false, reason: `error: ${msg.slice(0, 200)}` })
@@ -107,13 +115,38 @@ export async function GET(req: Request) {
       ? `no org evaluated (fallback ${fallbackPct}%)`
       : thresholds.map((t) => `${t.organizationId}=${t.thresholdPct}%(${t.source})`).join(" ")
 
+  // MS-4b — THE MILESTONE LEG (F4: once a day, inside this cron). Its own
+  // function, its own result key, its own try/catch: a failure in either leg
+  // never stops the other, and the pace loop above has already finished. Same
+  // sender and mode as the pace loop, so one run cannot mix modes.
+  let milestones: MilestoneOrgResult[] | { error: string }
+  try {
+    milestones = await processMilestoneAlerts({ sender, mode })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "milestone alerts failed"
+    console.error(`[cron:pace-alerts] milestone leg: ${msg}`)
+    milestones = { error: msg.slice(0, 200) }
+  }
+  if (Array.isArray(milestones)) {
+    // ORGS BY ID (CLAUDE.md § Database Evidence).
+    console.log(
+      `[cron:pace-alerts] milestones mode=${mode} ${milestones.length} org(s)` +
+        (milestones.length
+          ? ": " + milestones.map((m) => `${m.organizationId} queued=${m.queued} known=${m.known} sent=${m.sent} failed=${m.failed} dryRun=${m.dryRun}${m.error ? ` error=${m.error}` : ""}`).join("; ")
+          : "")
+    )
+  }
+
   const alerted = results.filter((r) => r.alerted).length
   console.log(
-    `[cron:pace-alerts] ${enabledOrgs.length} orgs enabled, ${stores.length} stores evaluated, ` +
+    `[cron:pace-alerts] mode=${mode} ${enabledOrgs.length} orgs enabled, ${stores.length} stores evaluated, ` +
       `${alerted} alerted, ${skippedDisabled} skipped (org disabled) (thresholds ${thresholdSummary})`
   )
   return NextResponse.json({
     ok: true,
+    // NOTIFY-5: "live" | "sandbox" | "dry-run". In dry-run, `alerted` counts
+    // nothing and each would-be alert reads reason "dry-run".
+    mode,
     // NOTIFY-2a CHANGED THIS SHAPE: `thresholdPct` was one scalar for the whole
     // run and cannot be, now that the number is per org. The fallback is
     // reported separately so a run where every org falls back is still
@@ -127,5 +160,6 @@ export async function GET(req: Request) {
     alerted,
     skippedDisabled,
     results,
+    milestones,
   })
 }

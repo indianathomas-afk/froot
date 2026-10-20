@@ -9,6 +9,10 @@ import type { EmailLogEntry, EmailLogStatus } from "@/lib/notification-log"
 //
 // F2 (Gary, 2026-09-20): the newest 50, not the last 30 days. It is a glance
 // surface; a window shows an empty card to any org that had a quiet month.
+//
+// NOTIFY-6: TWO LISTS. The pipeline's messages first — one row per recipient,
+// so a bounce marks one person — then the pre-pipeline AuditLog rows beneath,
+// under their own heading, rendered exactly as before.
 
 // Tinted backgrounds come from the -bg/-text token pairs in globals.css, and
 // the red states from `bg-red-50`, which is the tint the rest of /settings
@@ -28,6 +32,10 @@ const STATUS_STYLE: Record<EmailLogStatus, { label: string; className: string }>
   // was composed and logged, nothing left the building" is the correct
   // behaviour there rather than a fault to fix.
   "logged only": { label: "Logged only", className: "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]" },
+  // NOTIFY-5. Same not-an-error styling as "Logged only", which it replaces for
+  // every row written from this phase on: the email was composed and nothing
+  // left this environment, by design.
+  "dry run": { label: "Dry run — not sent", className: "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]" },
   unknown: { label: "Unknown", className: "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]" },
 }
 
@@ -71,6 +79,24 @@ export function RecentEmails({
     )
   }
 
+  const pipeline = entries.filter((e) => e.section === "pipeline")
+  const legacy = entries.filter((e) => e.section === "legacy")
+  return (
+    <div>
+      {pipeline.length > 0 && <EmailTable entries={pipeline} timeZone={timeZone} />}
+      {legacy.length > 0 && (
+        <div className={pipeline.length > 0 ? "mt-6" : undefined}>
+          <h3 className="text-sm font-medium text-[var(--color-foreground)] mb-2">
+            Before the notification pipeline
+          </h3>
+          <EmailTable entries={legacy} timeZone={timeZone} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EmailTable({ entries, timeZone }: { entries: EmailLogEntry[]; timeZone: string }) {
   return (
     // overflow-x-auto + a min-width on the TABLE, not just the wrapper. With
     // `w-full` alone the table compresses to the container instead of

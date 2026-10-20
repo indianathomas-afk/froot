@@ -15,6 +15,8 @@ type SquareTeamMember = {
   given_name?: string
   family_name?: string
   email_address?: string
+  /** Square's profile creation instant — MS-1 seeds startDate from it (F6). */
+  created_at?: string
   alreadyImported: boolean
   assignedStoreIds: string[]
   primaryStoreId: string | null
@@ -254,6 +256,9 @@ export function ImportStaffButton({ stores }: { stores: Store[] }) {
                 squareTeamMemberId: m.id,
                 storeIds: Array.from(storeMap[m.id] ?? []),
                 primaryStoreId: primaryMap[m.id] || null,
+                // MS-1 (F6). The INSTANT, not a date: the route converts it to
+                // a store-local date server-side, where the zone is known.
+                squareCreatedAt: m.created_at || null,
               }),
             })
             if (!res.ok) {

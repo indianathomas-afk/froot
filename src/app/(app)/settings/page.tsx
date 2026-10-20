@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock, CalendarDays, Mail } from "lucide-react"
+import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock, CalendarDays, Mail, Award } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import Link from "next/link"
 import { getCurrentUser, hrModuleAvailable, laborModuleAvailable, squareLaborAvailable } from "@/lib/auth"
@@ -14,6 +14,7 @@ import { HrModuleToggle } from "./hr-actions"
 import { LaborModuleToggle } from "./labor-actions"
 import { SquareLaborToggle } from "./square-labor-actions"
 import { CalendarModuleToggle } from "./calendar-actions"
+import { MilestonesModuleToggle } from "./milestones-actions"
 
 async function getOrgData() {
   const { orgId } = await auth()
@@ -69,6 +70,11 @@ export default async function SettingsPage() {
   const showSquareLabor = laborAvailable && laborActive && squareLaborAvailable(org?.clerkOrgId)
   // CAL-1 (ruling 9). One column, no availability gate — see the card below.
   const calendarActive = !!org?.calendarEnabled
+  // MS-1 (F5). Milestones is part of HR: the card exists only where HR is
+  // available AND on for this org — the same two conditions requireMilestones()
+  // checks — so an admin is never offered a switch nothing can read.
+  const showMilestones = hrAvailable && hrActive
+  const milestonesOn = !!org?.milestonesEnabled
 
   const addOns = [
     { name: "Inventory Management", desc: "Physical counts, COGS tracking, storage areas, and adjustments", module: "inventory" },
@@ -352,6 +358,54 @@ export default async function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* MS-1. Same shape as the Calendar card above (ruling 1: the toggle
+              lives on /settings, ADMIN only — this page is settings.access and
+              the route re-checks). Rendered only where HR is on (F5). */}
+          {showMilestones && (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle>Staff Milestones</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-start justify-between p-4 border border-[var(--color-border)] rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded bg-[var(--color-primary)] flex items-center justify-center text-white">
+                      <Award className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-[var(--color-foreground)]">Milestones</h3>
+                      <p className="text-sm text-[var(--color-muted-foreground)]">
+                        Tenure milestones on each staff profile, counted from their start date.
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        {milestonesOn ? (
+                          <>
+                            <CheckCircle className="h-4 w-4 text-[var(--color-success)]" />
+                            <span className="text-sm text-[var(--color-success-text)] font-medium">Enabled</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                            <span className="text-sm text-[var(--color-muted-foreground)]">Disabled</span>
+                          </>
+                        )}
+                      </div>
+                      {milestonesOn && (
+                        <Link
+                          href="/staff/milestones"
+                          className="inline-block text-xs font-medium text-[var(--color-primary)] hover:underline mt-1.5"
+                        >
+                          Set up milestones →
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                  <MilestonesModuleToggle enabled={milestonesOn} />
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* NOTIFY-2a (F3, Gary 2026-09-20). THE ONLY EMAIL CONTROL LEFT ON
               THIS PAGE, AND IT IS A LINK, NOT A SWITCH. F-5b's behind-pace

@@ -109,7 +109,10 @@ export type RosterResult = {
 
 // ─── THE SYNC (ONE CALL FOR THE WHOLE ROSTER) ─────────────────────────────────
 
-export type RosterSyncResult = { members: number; written: number; pages: number }
+/// `snapshots` (MS-1, F3): WageSnapshot rows appended by this sync — members
+/// whose wage differed from their latest snapshot. -1 = the snapshot step
+/// failed and was logged; the roster write itself still stands.
+export type RosterSyncResult = { members: number; written: number; pages: number; snapshots: number }
 
 /// SearchTeamMembers RETURNS wage_setting INLINE, which is the finding that made
 /// this phase cheap. Square's own docs recommend it over RetrieveWageSetting, and
@@ -182,10 +185,22 @@ export async function syncTeamMemberWages(
   }
 
   const written = await writeRoster(org, collected, fallbackRates, new Date())
+
+  // MS-1 (F3, Gary 2026-10-15): "Snapshot on every sync." AFTER the roster
+  // write and ISOLATED FROM IT: a snapshot failure must not fail a roster sync
+  // that already succeeded, so it is caught, logged loudly, and counted as -1.
+  let snapshots: number
+  try {
+    snapshots = await writeWageSnapshots(org.id, collected, fallbackRates)
+  } catch (e) {
+    console.error(`[labor-roster] org=${org.id} WAGE SNAPSHOT FAILED — raise history has a gap at this sync`, e)
+    snapshots = -1
+  }
+
   console.log(
-    `[labor-roster] org=${org.id} status=${status}: ${collected.length} members, ${written} written, ${pages} page(s)`
+    `[labor-roster] org=${org.id} status=${status}: ${collected.length} members, ${written} written, ${pages} page(s), ${snapshots} wage snapshot(s)`
   )
-  return { members: collected.length, written, pages }
+  return { members: collected.length, written, pages, snapshots }
 }
 
 /// GET /v2/labor/team-member-wages — the GA hourly-only source. One paginated
@@ -322,6 +337,89 @@ async function writeRoster(
     RETURNING "id"
   `
   return won.length
+}
+
+// ─── MS-1 — WAGE SNAPSHOTS (F3) ───────────────────────────────────────────────
+
+export type WageFields = {
+  payType: string | null
+  hourlyRate: number | null
+  annualRate: number | null
+}
+
+/// THE ONE DEFINITION OF "THE WAGE CHANGED". Pay type, hourly rate and annual
+/// rate, compared to the cent. jobId and wageVersion are STORED on the snapshot
+/// but do NOT trigger one: a version bump or a job re-key with the same pay is
+/// not a raise, and MS-3 is reading this table for raises.
+/// No previous snapshot = changed (the first snapshot is the baseline).
+export function wageChanged(prev: WageFields | null | undefined, next: WageFields): boolean {
+  if (!prev) return true
+  const cents = (v: number | null) => (v === null ? null : Math.round(v * 100))
+  return (
+    (prev.payType ?? null) !== (next.payType ?? null) ||
+    cents(prev.hourlyRate) !== cents(next.hourlyRate) ||
+    cents(prev.annualRate) !== cents(next.annualRate)
+  )
+}
+
+/// Append a WageSnapshot for every member whose current wage differs from their
+/// latest snapshot. The values are derived EXACTLY as writeRoster derives the
+/// SquareTeamMemberWage row (first job assignment, ListTeamMemberWages fallback
+/// for the hourly rate), so a snapshot can never disagree with the row it
+/// shadows. Write-only: NOTHING READS THIS TABLE IN MS-1, and COMP-1 binds
+/// whoever adds a reader — see the WageSnapshot schema note.
+export async function writeWageSnapshots(
+  organizationId: string,
+  members: SquareRosterMember[],
+  fallback: Map<string, { hourlyRate: number | null; jobTitle: string | null; jobId: string | null }>
+): Promise<number> {
+  if (members.length === 0) return 0
+
+  const latest = await prisma.$queryRaw<
+    { squareTeamMemberId: string; payType: string | null; hourlyRate: Prisma.Decimal | null; annualRate: Prisma.Decimal | null }[]
+  >`
+    SELECT DISTINCT ON ("squareTeamMemberId")
+      "squareTeamMemberId", "payType", "hourlyRate", "annualRate"
+    FROM "WageSnapshot"
+    WHERE "organizationId" = ${organizationId}
+    ORDER BY "squareTeamMemberId", "capturedAt" DESC
+  `
+  const prevById = new Map(
+    latest.map((r) => [
+      r.squareTeamMemberId,
+      {
+        payType: r.payType,
+        hourlyRate: r.hourlyRate === null ? null : Number(r.hourlyRate),
+        annualRate: r.annualRate === null ? null : Number(r.annualRate),
+      },
+    ])
+  )
+
+  const seen = new Set<string>()
+  const rows: Prisma.WageSnapshotCreateManyInput[] = []
+  for (const m of members) {
+    if (seen.has(m.id)) continue
+    seen.add(m.id)
+    const primary = m.wage_setting?.job_assignments?.[0]
+    const fb = fallback.get(m.id)
+    const next: WageFields = {
+      payType: primary?.pay_type ?? null,
+      hourlyRate: moneyToDollars(primary?.hourly_rate) ?? fb?.hourlyRate ?? null,
+      annualRate: moneyToDollars(primary?.annual_rate),
+    }
+    if (!wageChanged(prevById.get(m.id), next)) continue
+    rows.push({
+      organizationId,
+      squareTeamMemberId: m.id,
+      ...next,
+      jobId: primary?.job_id ?? fb?.jobId ?? null,
+      wageVersion: m.wage_setting?.version ?? null,
+    })
+  }
+
+  if (rows.length === 0) return 0
+  const { count } = await prisma.wageSnapshot.createMany({ data: rows })
+  return count
 }
 
 function moneyToDollars(m: SquareMoney): number | null {

@@ -645,7 +645,14 @@ export async function getStaffComplianceSummaries(
   organizationId: string,
   staffIds: string[]
 ): Promise<Map<string, StaffComplianceSummary>> {
-  const details = await computeStaffComplianceDetails(organizationId, staffIds)
+  return summariesFromDetails(await computeStaffComplianceDetails(organizationId, staffIds))
+}
+
+/// MS-3a: the summary rule above, lifted so /staff can compute the details ONCE
+/// and hand the same objects to both the % column and raise eligibility
+/// (HR-8's "never a second pass"). getStaffComplianceSummaries is now this plus
+/// the read — behaviour-identical.
+export function summariesFromDetails(details: StaffComplianceDetail[]): Map<string, StaffComplianceSummary> {
   const map = new Map<string, StaffComplianceSummary>()
   for (const d of details) {
     map.set(
@@ -954,7 +961,11 @@ export async function getOrgComplianceRollup(
 // DOC-2's excluded-document note, so "which documents are compliance
 // documents" is written once ─────────────────────────────────────────────────
 
-function complianceDocumentWhere(organizationId: string) {
+// EXPORTED FOR MS-3a: the raise settings' required-document picker lists
+// exactly the documents this filter admits, and the raise criterion skips any
+// required document it no longer admits (archived, or no longer requiring
+// acknowledgment) — one definition of "a compliance document".
+export function complianceDocumentWhere(organizationId: string) {
   return {
     organizationId,
     kind: "Acknowledgment",

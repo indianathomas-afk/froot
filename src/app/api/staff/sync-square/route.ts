@@ -5,6 +5,7 @@ import { getUserStoreScope } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { fetchSquareTeamMembers, mapAssignedStores } from "@/lib/square"
 import { terminateStaffMember } from "@/lib/staff-termination"
+import { squareStartDateData, squareStartZone } from "@/lib/milestones-square"
 
 // Re-syncs every Square-imported staff member from Square:
 // - store assignments (Square doesn't expose a home location, so an existing
@@ -51,10 +52,11 @@ export async function POST() {
         email: true,
         userId: true,
         status: true,
+        startDateManual: true,
         storeAssignments: { where: { isPrimary: true }, select: { storeId: true } },
       },
     }),
-    prisma.store.findMany({ where: { organizationId: org.id }, select: { id: true, squareLocationId: true } }),
+    prisma.store.findMany({ where: { organizationId: org.id }, select: { id: true, squareLocationId: true, timezone: true } }),
   ])
 
   if (!teamMembers || !inactiveMembers) {
@@ -91,7 +93,19 @@ export async function POST() {
     const existingPrimary = member.storeAssignments[0]?.storeId
     const primary =
       existingPrimary && assignedStoreIds.includes(existingPrimary) ? existingPrimary : primaryStoreId
+    // MS-1 (F6). Record Square's created_at date in squareStartDate always, and
+    // fill startDate from it unless it was edited by hand. created_at rarely
+    // changes, so rewriting it is idempotent; a Square correction surfaces as
+    // squareStartDate differing from a hand-set startDate.
+    const startData = squareStartDateData(
+      member.startDateManual,
+      squareMember.created_at,
+      squareStartZone(primary, stores, org.timezone)
+    )
     await prisma.$transaction([
+      ...("squareStartDate" in startData
+        ? [prisma.staffMember.update({ where: { id: member.id }, data: startData })]
+        : []),
       prisma.storeStaffAssignment.deleteMany({ where: { staffMemberId: member.id } }),
       prisma.storeStaffAssignment.createMany({
         data: assignedStoreIds.map((storeId) => ({

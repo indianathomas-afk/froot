@@ -23,7 +23,8 @@
 
 import { prisma } from "@/lib/prisma"
 import { writeAuditLog } from "@/lib/audit"
-import { emailProviderName } from "@/lib/notify"
+import { deliveryMode, emailProviderName, type DeliveryMode } from "@/lib/notify"
+import { kindLabel } from "@/lib/notifications/registry"
 
 export const NOTIFICATION_ENTITY_TYPE = "Notification"
 
@@ -33,9 +34,21 @@ export const ACTION_DELIVERED = "email.delivered"
 export const ACTION_BOUNCED = "email.bounced"
 export const ACTION_COMPLAINED = "email.complained"
 export const ACTION_DELAYED = "email.delayed"
+// NOTIFY-5. Written INSTEAD of `email.sent` when deliveryMode() is "dry-run"
+// (or a sandbox send whose allowlist filtered everyone out). It is a record of
+// an email that was composed and deliberately NOT handed to any provider —
+// never a claim that one was sent.
+export const ACTION_DRY_RUN = "email.dryrun"
 
 /** The rows an admin's "Recent emails" list is built from — one per attempt. */
-export const ATTEMPT_ACTIONS = [ACTION_SENT, ACTION_FAILED] as const
+export const ATTEMPT_ACTIONS = [ACTION_SENT, ACTION_FAILED, ACTION_DRY_RUN] as const
+/**
+ * The attempts a PROVIDER could have produced a message id for. NOTIFY-5 keeps
+ * this separate from ATTEMPT_ACTIONS on purpose: a dry-run row never carries a
+ * resendId, so the JSON-path filter alone would already exclude it — but that
+ * is an accident of shape, and findAttemptByResendId says it explicitly.
+ */
+export const PROVIDER_ATTEMPT_ACTIONS = [ACTION_SENT, ACTION_FAILED] as const
 /** Rows written by the Resend webhook, correlated to an attempt by resendId. */
 export const DELIVERY_ACTIONS = [
   ACTION_DELIVERED,
@@ -46,6 +59,9 @@ export const DELIVERY_ACTIONS = [
 
 export type NotificationKind = "hr.ack" | "pace.alert" | "test"
 
+// MS-4b: THE READER LABELS FROM THE REGISTRY (kindLabel), so a new kind is
+// labelled by its own definition. This map is no longer read and is kept for
+// one release; every key in it is also a registry entry with the same label.
 export const KIND_LABELS: Record<string, string> = {
   "hr.ack": "Signed acknowledgment",
   "pace.alert": "Behind-pace alert",
@@ -68,13 +84,22 @@ export async function recordEmailAttempt(args: {
   /** The thing the email is ABOUT, where there is one. Nullable by design. */
   entityId?: string | null
   kind: NotificationKind
-  action: typeof ACTION_SENT | typeof ACTION_FAILED
+  action: typeof ACTION_SENT | typeof ACTION_FAILED | typeof ACTION_DRY_RUN
   recipients: string[]
   subject: string
   resendId?: string | null
   error?: string
+  /** NOTIFY-5: sandbox only — how many resolved recipients the allowlist held back. */
+  withheld?: number
+  /**
+   * NOTIFY-6: set on the PARALLEL row the dispatcher writes for each
+   * NotificationMessage (one release; NOTIFY-9 stops it). It is what tells the
+   * reader a row is a copy of a pipeline message rather than pre-pipeline
+   * history.
+   */
+  notificationMessageId?: string
 }): Promise<void> {
-  const { organizationId, entityId, kind, action, recipients, subject, resendId, error } = args
+  const { organizationId, entityId, kind, action, recipients, subject, resendId, error, withheld, notificationMessageId } = args
   try {
     await writeAuditLog({
       organizationId,
@@ -88,14 +113,30 @@ export async function recordEmailAttempt(args: {
       metadata: {
         kind,
         provider: emailProviderName(),
+        // NOTIFY-5: stamped here, like provider, so no caller can forget it.
+        mode: currentModeOrNull(),
         recipients,
         subject,
         ...(resendId !== undefined ? { resendId: resendId ?? null } : {}),
         ...(error ? { error } : {}),
+        ...(withheld !== undefined ? { withheld } : {}),
+        ...(notificationMessageId ? { notificationMessageId } : {}),
       },
     })
   } catch (err) {
     console.error(`[notify-log] ${action} (${kind}) audit write failed:`, err)
+  }
+}
+
+// deliveryMode() THROWS on an unknown provider, and recordEmailAttempt runs on
+// exactly that failure path (the test route records the 502). This function
+// must never throw, so an invalid provider is recorded as mode null — the row's
+// `provider` field already names the bad value.
+function currentModeOrNull(): DeliveryMode | null {
+  try {
+    return deliveryMode()
+  } catch {
+    return null
   }
 }
 
@@ -108,11 +149,18 @@ export type EmailLogStatus =
   | "delayed"
   | "sent"
   | "logged only"
+  | "dry run"
   | "unknown"
   | "failed"
 
 export type EmailLogEntry = {
   id: string
+  /**
+   * NOTIFY-6. "pipeline" rows are NotificationMessage rows, one per recipient.
+   * "legacy" rows are pre-pipeline AuditLog attempts, shown beneath as history
+   * with their NOTIFY-2a / NOTIFY-5 derivations untouched.
+   */
+  section: "pipeline" | "legacy"
   at: Date
   kind: string
   kindLabel: string
@@ -146,22 +194,116 @@ function strings(v: unknown): string[] {
 }
 
 /**
- * The newest `limit` attempts for an org, each resolved against its delivery
- * events. F2 (Gary, 2026-09-20): a count, not a window — it is a glance
- * surface, so "the last 50" always fills the card, where "the last 30 days"
- * shows an empty list to any org that had a quiet month.
+ * NOTIFY-6: what "Recent emails" shows. The newest `limit` NotificationMessage
+ * rows — ONE PER RECIPIENT, so a bounce marks one person — each resolved
+ * against its latest NotificationEvent; then, beneath them, up to `limit`
+ * pre-pipeline AuditLog attempts as history.
+ *
+ * "PRE-PIPELINE" MEANS OLDER THAN THE ORG'S FIRST NotificationMessage. Every
+ * AuditLog attempt written after that is the dispatcher's parallel copy of a
+ * message already listed above, so it is excluded by that cutoff — and by its
+ * `notificationMessageId`, belt and braces — rather than shown twice.
+ *
+ * F2 (Gary, 2026-09-20) still holds: a count, not a window.
  */
 export async function listRecentEmails(organizationId: string, limit = 50): Promise<EmailLogEntry[]> {
-  const attempts = await prisma.auditLog.findMany({
+  const messages = await prisma.notificationMessage.findMany({
+    where: { organizationId },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: {
+      id: true,
+      createdAt: true,
+      kind: true,
+      mode: true,
+      provider: true,
+      to: true,
+      subject: true,
+      status: true,
+      error: true,
+      intentId: true,
+      intent: { select: { state: true, attempts: true } },
+      // Latest event WINS, by the row's own createdAt — the NOTIFY-2b rule.
+      events: { orderBy: { createdAt: "desc" }, take: 1, select: { type: true, reason: true } },
+    },
+  })
+
+  // The "gave up" note goes on the NEWEST failed row of a failed intent only
+  // (audit C5): that is the row an admin reads first.
+  const gaveUpNoted = new Set<string>()
+  const pipeline: EmailLogEntry[] = messages.map((m) => {
+    let status: EmailLogStatus
+    let detail: string | null = null
+    const event = m.events[0]
+    if (m.status === "failed") {
+      status = "failed"
+      detail = m.error
+      if (m.intentId && m.intent?.state === "failed" && !gaveUpNoted.has(m.intentId)) {
+        gaveUpNoted.add(m.intentId)
+        detail = `${detail ?? "send failed"} — gave up after ${m.intent.attempts} attempts`
+      }
+    } else if (m.status === "dry-run") {
+      status = "dry run"
+      // NOTIFY-11. The dispatcher names a provider on a dry-run row only when
+      // the transport was sandbox, so a non-console provider here means the
+      // allowlist held this address back. Rows from before NOTIFY-11 say
+      // "console" whatever happened, and get no detail.
+      if (m.mode === "dry-run" && m.provider !== "console") {
+        detail = "Held back by the staging allowlist (NOTIFY_SANDBOX_ALLOWLIST)"
+      }
+    } else if (event) {
+      status = DELIVERY_STATUS[event.type] ?? "sent"
+      detail = event.reason
+    } else {
+      status = "sent"
+    }
+    return {
+      id: m.id,
+      section: "pipeline",
+      at: m.createdAt,
+      kind: m.kind,
+      kindLabel: kindLabel(m.kind),
+      recipients: [m.to],
+      subject: m.subject,
+      provider: m.provider,
+      status,
+      detail,
+    }
+  })
+
+  const first = await prisma.notificationMessage.findFirst({
+    where: { organizationId },
+    orderBy: { createdAt: "asc" },
+    select: { createdAt: true },
+  })
+  const legacy = await listLegacyEmails(organizationId, limit, first?.createdAt ?? null)
+  return [...pipeline, ...legacy]
+}
+
+/**
+ * The pre-pipeline log: the newest `limit` AuditLog attempts for an org, each
+ * resolved against its delivery events. THIS IS THE NOTIFY-2b/NOTIFY-5 READER,
+ * MOVED UNCHANGED — the "unknown" and "Logged only" derivations below are
+ * rulings and must not drift. `before` is the org's first pipeline message
+ * (NOTIFY-6); rows from then on are parallel copies and are not history.
+ */
+async function listLegacyEmails(
+  organizationId: string,
+  limit: number,
+  before: Date | null
+): Promise<EmailLogEntry[]> {
+  const fetched = await prisma.auditLog.findMany({
     where: {
       organizationId,
       entityType: NOTIFICATION_ENTITY_TYPE,
       action: { in: [...ATTEMPT_ACTIONS] },
+      ...(before ? { createdAt: { lt: before } } : {}),
     },
     orderBy: { createdAt: "desc" },
     take: limit,
     select: { id: true, action: true, metadata: true, createdAt: true },
   })
+  const attempts = fetched.filter((a) => !str(meta(a.metadata).notificationMessageId))
   if (attempts.length === 0) return []
 
   // Correlate by resendId (F3). A JSON-path filter rather than a column,
@@ -210,6 +352,10 @@ export async function listRecentEmails(organizationId: string, limit = 50): Prom
     if (a.action === ACTION_FAILED) {
       status = "failed"
       detail = str(m.error)
+    } else if (a.action === ACTION_DRY_RUN) {
+      // NOTIFY-5. Checked before any provider rule: a dry-run row is never a
+      // send, whatever provider was configured when it was written.
+      status = "dry run"
     } else if (event) {
       status = DELIVERY_STATUS[event.action] ?? "sent"
       detail = event.reason
@@ -231,9 +377,10 @@ export async function listRecentEmails(organizationId: string, limit = 50): Prom
 
     return {
       id: a.id,
+      section: "legacy",
       at: a.createdAt,
       kind,
-      kindLabel: KIND_LABELS[kind] ?? kind,
+      kindLabel: kindLabel(kind),
       recipients: strings(m.recipients),
       subject: str(m.subject),
       provider,
@@ -253,7 +400,7 @@ export async function findAttemptByResendId(
   const row = await prisma.auditLog.findFirst({
     where: {
       entityType: NOTIFICATION_ENTITY_TYPE,
-      action: { in: [...ATTEMPT_ACTIONS] },
+      action: { in: [...PROVIDER_ATTEMPT_ACTIONS] },
       metadata: { path: ["resendId"], equals: resendId },
     },
     orderBy: { createdAt: "desc" },
@@ -303,4 +450,55 @@ export async function recordDeliveryEvent(args: {
       ...(args.at ? { at: args.at } : {}),
     },
   })
+}
+
+// ── NOTIFY-6: webhook correlation against NotificationMessage ───────────────
+
+/**
+ * The pipeline message a Resend event belongs to, by its INDEXED provider id
+ * (NOTIFY-3 audit finding 2 — the AuditLog JSON-path lookup scanned every org).
+ * Null for a pre-pipeline send; the webhook then falls back to
+ * findAttemptByResendId.
+ */
+export async function findMessageByProviderId(providerMessageId: string): Promise<{
+  id: string
+  organizationId: string
+  kind: string
+  to: string
+  entityId: string | null
+} | null> {
+  const row = await prisma.notificationMessage.findUnique({
+    where: { providerMessageId },
+    select: { id: true, organizationId: true, kind: true, to: true, intent: { select: { entityId: true } } },
+  })
+  if (!row) return null
+  return { id: row.id, organizationId: row.organizationId, kind: row.kind, to: row.to, entityId: row.intent?.entityId ?? null }
+}
+
+/**
+ * Append one NotificationEvent. Idempotent on (message, type): returns false
+ * when that pair was already recorded (a Svix retry). Append, never update.
+ */
+export async function recordMessageEvent(args: {
+  messageId: string
+  type: string
+  reason?: string | null
+  at?: string | null
+}): Promise<boolean> {
+  const parsed = args.at ? new Date(args.at) : null
+  try {
+    await prisma.notificationEvent.create({
+      data: {
+        messageId: args.messageId,
+        type: args.type,
+        reason: args.reason ?? null,
+        // The provider's timestamp, or receipt time when it sent none (choice 15).
+        at: parsed && !Number.isNaN(parsed.getTime()) ? parsed : new Date(),
+      },
+    })
+    return true
+  } catch (e) {
+    if (typeof e === "object" && e !== null && (e as { code?: unknown }).code === "P2002") return false
+    throw e
+  }
 }

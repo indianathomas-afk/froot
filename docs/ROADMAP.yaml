@@ -3455,6 +3455,128 @@ phases:
       (section-level reposition, one of the candidate answers above), DEBT-2b
       (free-text sections — why a section of one is legal in the first place).
 
+  - id: CHK-15
+    track: checklists
+    size: S
+    # `in_progress` -> `staging` 2026-10-17 BY THE PRE-PUSH-CHECK. None of the
+    # three CHK-15 commits was pushed when the check ran; this check's own
+    # commit (the one immediately after 92dad4d, which cannot name itself) is
+    # not pushed either — Claude never pushes.
+    # `in_progress` at 329526d, set 2026-10-17 by the CHK-15 build session
+    # (TIER 3). Not pushed — Claude never pushes.
+    status: staging
+    title: "Task route accepts any staff id — refuse other-company, terminated, and not-at-this-store staff (security fix)"
+    commits:
+      - "329526d"
+      - "adc56a9"
+      - "92dad4d"
+    blockers:
+      - >
+        MUST REACH STAGING BEFORE MS-4a IS BUILT. MS-4a counts named tasks
+        toward checklist milestones (MS-4 F0).
+      - >
+        SUPERSEDED 2026-10-17 — verified on staging by Gary (see notes).
+        UNVERIFIED ON STAGING. Dev-level evidence only: verify-chk15 28/28 on
+        dev br-broad-wave-a6vpjdw0 (structural checks with negative controls
+        A5-A9; live negative control with the ACTIVE rule disabled gave 3
+        FAIL, then restored to 28/28), plus verify-ms1 97/97, verify-ms2 90/90,
+        verify-ms3 95/95 and verify-ms3b 80/80, all unchanged, and a green
+        build. No page was opened. Staging must check, naming the org id on
+        every observation: a tick naming an assigned active person saves; a
+        "CHK-15 Staff" member terminated while the checklist screen is open,
+        then picked, gives the clear message and the tick rolls back; "Team
+        Member" still saves; after reload the terminated person is gone from
+        the picker, and a task they ticked earlier still shows their name.
+      - >
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-17 — CHK-15, to be
+        ratified at the PRE-PUSH-CHECK.
+    notes: >
+      ── 2026-10-20 (DOCS-CLOSEOUT-2), Gary's ruling: the "CHK-15 Test" staff
+      member on preview/staging (org cmr54z65v000105jxczpt72w1) is LEFT
+      TERMINATED ON PURPOSE, as the terminated-staff fixture (MS-5's staging
+      pass used it). Not a cleanup item. Prepended; NOTHING BELOW IS EDITED.
+      ── VERIFIED ON STAGING — recorded 2026-10-17 in the MS-4a session.
+      Prepended; NOTHING BELOW IS EDITED. Status stays `staging` (no
+      "verified on staging" value exists). Gary, exactly: "CHK-15: verified on
+      staging by Gary on 2026-10-17 — refusal message on a stale screen,
+      terminated staff hidden from the picker, history kept, un-tick works.
+      Mark the row's "UNVERIFIED ON STAGING" line superseded." The blocker
+      above is marked SUPERSEDED at its head; its text is kept. The
+      "2026-10-17, MS-4a session" note below, which left the blocker for
+      Gary, is closed by this.
+      ── 2026-10-17, MS-4a session. Prepended; NOTHING BELOW IS EDITED. Gary,
+      in the MS-4a prompt: "NOT the picker fixes: CHK-15 already shipped and
+      verified them on staging. Confirm, don't redo." Confirmed from the repo
+      only: 329526d is on origin/staging, the picker filters ACTIVE, and the
+      route resolves names through resolveTaskLogStaff; verify-chk15 28/28 on
+      dev br-broad-wave-a6vpjdw0. No staging observation was taken by Claude,
+      so the UNVERIFIED-ON-STAGING blocker above is left for Gary to close on
+      his own observation.
+      ── PRE-PUSH-CHECK 2026-10-17 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs commits adc56a9 and 92dad4d added; this
+      check's own commit is the one immediately after 92dad4d. RULINGS
+      RATIFIED by Gary at this check: the DECISIONS entry (2026-10-17 —
+      CHK-15) was printed verbatim and he replied, exactly: "Ratify as
+      written." The entry is unchanged apart from the ratification paragraph
+      at its head, so the RULINGS-ARE-A-DRAFT blocker above is superseded.
+      Docs sync audit: no drift. DEPLOY_LOG entry written by this check
+      (UNPROMOTED, 2026-10-17). Still unverified on staging.
+      BUILT 2026-10-17 (TIER 3), 329526d. Audit:
+      docs/prompts/2026-10-17_CHK-15_AUDIT.md. Gary's go: "Go. Build CHK-15
+      with your recommended F-A (b), F-B (b), F-C and F-D. F-E not now, F-F to
+      triage." WHAT SHIPPED: src/lib/task-log-staff.ts resolveTaskLogStaff
+      (in org, ACTIVE, and assigned to the store or isCorporate; null, "" and
+      "manager" save null; unknown and foreign ids get one generic sentence;
+      a non-string id is refused). The task-log route reads `existing` first
+      and resolves on a tick only, before the Pending write (F-A b). The
+      store-view checklist picker lists ACTIVE only, and saved-tick names come
+      from a separate org-scoped query (F-B b). Forward-only: no row changed.
+      No schema, no migration. OPEN, NOT FIXED HERE: F-F (calendar
+      occurrence completion checks the org only, with no ACTIVE or store
+      rule) is to triage. Covering staff still get no named credit (a product
+      gap under F0). The picker still omits a corporate member with no
+      assignment (F-E, Gary "not now"). ── FILING NOTE BELOW, UNEDITED ──
+      FILED 2026-10-17 by the MS-4 session, from MS-4 fork F12. Gary: "treat
+      the cross-company staff id as a security fix" and "F12 is forward-only.
+      Ship it ahead of MS-4a as its own small phase, no schema change."
+      POST /api/checklists/[id]/task-log saves completedByStaffId unchecked
+      (since d930d44, 2026-06-28); the picker lists terminated staff. Existing
+      rows, Gary in the Neon console: production br-sparkling-block-a620qvg4
+      0 cross-company rows; preview/staging br-square-feather-a63z92vz 0. No
+      cleanup. Harm today: a planted foreign id blocks the other company's
+      staff deletion; no name leaks. Must land before MS-4a, which counts
+      named tasks toward checklist milestones (F0). Prompt:
+      docs/prompts/2026-10-17_CHK-15_task_log_staff_guard.md (TIER 3, to be
+      run in a fresh session). Audit: docs/prompts/2026-10-17_MS-4_AUDIT.md
+      A1. DECISIONS 2026-10-17 — MS-4 (draft). Cross-refs: MS-4.
+
+  - id: CHK-16
+    track: checklists
+    size: S
+    status: planned
+    title: "Covering staff can't be named on a checklist tick — no named credit for covered shifts"
+    notes: >
+      ── RULED 2026-10-17 by Gary, in the MS-4a session. Prepended; NOTHING
+      BELOW IS EDITED. His words, exactly: "CHK-16: ship without
+      covering-staff credit." MS-4a (70365c6) shipped on that basis: covering
+      staff earn no named credit and no checklist-milestone progress for
+      covered shifts. The row stays planned — the gap is real, just not a
+      blocker for checklist milestones.
+      FILED 2026-10-17 by the CHK-15 session. Gary approved the row as the
+      session wrote it, linked to MS-4a planning: "Covering-staff gap: approve
+      the ROW as written, linked to MS-4a planning." The finding, as written
+      in the CHK-15 report: staff covering at a store they aren't assigned to
+      can't be named on a tick, so under MS-4 F0 they earn no checklist
+      milestone for covered shifts. This is not a CHK-15 regression. The
+      store-view picker has always listed only staff assigned to the
+      checklist's store (src/app/(app)/store-view/checklist/[id]/page.tsx),
+      and since 329526d the task-log route refuses the same people
+      (src/lib/task-log-staff.ts), so they use "Team Member", which saves no
+      name. MS-4a planning must decide whether covered shifts should count
+      before checklist milestones ship. Any fix widens BOTH the picker and
+      resolveTaskLogStaff together, never one alone. Cross-refs: MS-4
+      (MS-4a), CHK-15.
+
   # ---- Inventory ----
 
   - id: I-1
@@ -6735,6 +6857,7 @@ phases:
     commits:
       - "65ca616"
       - "a2c7153"
+      - "73c1a59"
     open:
       - >
         PRODUCTION READ-ONLY QUERY — owed at promotion, NOT CONFIRMED. The
@@ -6945,12 +7068,34 @@ phases:
     # d329389 were ALREADY PUSHED to origin/staging when the check ran; this
     # check's own commit (the one immediately after d329389, which cannot name
     # itself) is not pushed — Claude never pushes.
-    status: staging
+    # `staging` -> `shipped` 2026-09-29, stamped 2026-10-20 by DOCS-CLOSEOUT-2
+    # from stash@{0} "main docs WIP" (merge 0d51496, DEPLOY_LOG entry
+    # `0d51496`). The comment above is spent, kept.
+    status: shipped
+    shipped: 2026-09-29
     title: "Preview button on the Document Library — PDFs and images in a dialog, no download"
     commits:
       - "c5b472e"
       - "d329389"
+      - "5bc3008"
+    open:
+      - >
+        NOT OBSERVED ON STAGING: rotate/refit. The opt-in refitOnResize
+        (ResizeObserver) path was not exercised on a device rotation.
+      - >
+        NOT OBSERVED ON STAGING: the phone signing regression check. PdfViewer
+        is shared with the signing screen. Sign on a phone as Tommy and confirm
+        that pages render and the checkpoint overlays sit correctly.
     notes: >
+      ── SHIPPED 2026-09-29 in merge 0d51496 ("Merge branch 'staging'", 13:38
+      PDT; parents 760524e and 27c67b3; 0d51496^1..0d51496^2 is exactly
+      27c67b3, 5bc3008, d329389, c5b472e; no prisma diff). Prepended; NOTHING
+      BELOW IS EDITED. Rollback: git revert -m 1 0d51496. Evidence (Gary, on
+      27c67b3-staging): Key Agreement preview on desktop; a 4-page test
+      handbook scrolled to the last page on desktop, and its pages past page 1
+      drew on iPhone Safari. Rotate/refit and phone signing as Tommy were not
+      observed; both are in `open:`. Written into stash@{0} on 2026-09-29,
+      never committed; folded in 2026-10-20 by DOCS-CLOSEOUT-2.
       ── PRE-PUSH-CHECK 2026-09-29 — in_progress -> staging. Prepended;
       NOTHING BELOW IS EDITED. Docs SHA d329389 added; this check's own commit
       is the one immediately after it. RULINGS RATIFIED by Gary: the DECISIONS
@@ -7024,6 +7169,1016 @@ phases:
       /my/documents/page.tsx already links its Download to that same route
       (:188, :278), so the audience check that serves it is the one preview
       would get. Cross-refs: DOC-11.
+
+  - id: MS-1
+    track: hr
+    size: L
+    # `in_progress` -> `staging` 2026-10-15 BY THE PRE-PUSH-CHECK. None of the
+    # five MS-1 commits was pushed when the check ran; this check's own commit
+    # (the one immediately after 9287680, which cannot name itself) is not
+    # pushed either — Claude never pushes.
+    status: staging
+    title: "Staff Milestones foundation — toggle, tenure milestones, start date, Milestones tab"
+    commits:
+      - "4f21157"
+      - "6d8c52a"
+      - "145fc74"
+      - "9287680"
+    blockers:
+      - >
+        UNVERIFIED ON STAGING — RE-STATED 2026-10-15 AFTER 145fc74, WHICH IS THE
+        CURRENT EVIDENCE: verify-ms1 97/97 on dev br-broad-wave-a6vpjdw0 and a
+        green build, both still dev-level. The staging pass must ALSO cover:
+        Gary's Neon-console checks on the staging branch BEFORE and AFTER the
+        deploy (latest five _prisma_migrations rows, both MS-1 migrations
+        finished, none rolled back; Store name/timezone, the Colorado stores on
+        America/Denver); and REAL-REQUEST API checks from the browser console
+        as Tommy (STORE) and as an out-of-scope MANAGER (GET/POST
+        /api/milestones/tenure and POST /api/milestones/toggle: 403 with
+        Milestones on, 404 for the tenure routes with it off, the toggle 403
+        either way; out-of-scope /staff/[id] is a 404 page). Also: the
+        "Manually set" badge and the Square date beneath it; an archived
+        milestone staying in a veteran's history. The entry below is the
+        original and is kept as written.
+      - >
+        UNVERIFIED ON STAGING. Everything below is dev-level evidence: the
+        fixture (70/70 on dev br-broad-wave-a6vpjdw0) and a green build. No
+        route was refused by a real request and no pixel was looked at. Staging
+        must check: /settings toggle on/off; /staff/milestones add, edit,
+        archive and restore; a staff member's Milestones tab at desktop and
+        phone width; Tommy (STORE) sees no tab; a start-date edit persists.
+      - resolved: true
+        text: >
+          RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-15 — MS-1, to be
+          ratified at the PRE-PUSH-CHECK.
+    notes: >
+      ── VERIFIED ON STAGING — recorded 2026-10-17 by DOCS-CLOSEOUT (TIER 1).
+      Prepended; NOTHING BELOW IS EDITED. Status stays `staging`: the schema
+      has no "verified on staging" value, and `verified` means shipped.
+      Evidence is Gary's, in chat, 2026-10-15 to 2026-10-17: staging, Neon
+      branch br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1 (Clerk
+      org org_3G02wO4QlVVSWppi8aqlnSZnsDa), Clerk development instance.
+      Deployed SHA read from the page footer: 7010995. Both MS-1 migrations
+      finished 2026-10-16 01:32 UTC, no rollback. Toggle on/off; add, edit,
+      archive, restore; duplicate day count refused; "Manually set" start date
+      with the Square date warning, survives resync; tab next/achieved/progress
+      at desktop and phone. STORE (Tommy) has no Staff access, APIs 403 on and
+      404 off; out-of-scope MANAGER (gary@keva.com, Carson) not-found and 403.
+      Full block in docs/DEPLOY_LOG.md (MS-1 entry, still UNPROMOTED). The
+      UNVERIFIED-ON-STAGING blockers below are left unflagged: the evidence
+      does not name the Store-timezone Neon check or the archived-milestone
+      history check, so closing them is Gary's call. Promotion: see the MS-3b
+      row note (five Milestones migrations ride together).
+      ── PRE-PUSH-CHECK 2026-10-15 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs SHA 9287680 added; this check's own commit
+      is the one immediately after it. RULINGS RATIFIED by Gary: the DECISIONS
+      entry (2026-10-15 — MS-1) was printed verbatim and put to him; his reply,
+      exactly: "Ratify as written." Ratification paragraph added at its head;
+      nothing else in the entry changed. DEPLOY_LOG: UNPROMOTED MS-1 entry
+      written in four chunks (headings 67 -> 68, lines 5809 -> 5873, +64/-0).
+      CLAUDE.md untouched. Prompt and audit committed (6d8c52a, 9a9b9c3).
+      Staging evidence pending — the blockers below stand.
+      ── RIDER 2026-10-15 (145fc74). PREPENDED; NOTHING BELOW IS EDITED. ──
+      GARY MADE THE DECISIONS ENTRY FINAL, IN CHAT: "Rulings on the two
+      DECISIONS items: both accepted, with additions." His additions were folded
+      into MS-1 before the PRE-PUSH-CHECK. (1) StaffMember.squareStartDate
+      records Square's date on every import and resync, and the profile shows
+      "Manually set" with the Square date beneath a hand-set date. (2) An
+      archived milestone stays in a member's history when they reached it on or
+      before its store-local archive date. TenureMilestone.archivedAt sits
+      BESIDE isArchived, which every query still filters on. (3) Tenure was
+      already counted in each member's own store zone. The fixture now proves
+      Mountain time and both DST crossings. Dev has 2 America/Denver stores in
+      org cf888f2d-f234-48c7-8097-fd5b44b5b3dd. (4) A baseline wage snapshot
+      per member on the first sync is pinned. WageSnapshot has no reader, so
+      nobody can see wage history. (5) /staff/milestones help is claimed in
+      docs/guide/staff.md; the guide warning still lists 43 routes, all
+      unclaimed before MS-1. (6) The stale .next/dev/types stubs were deleted
+      and tsc is clean. SECOND MIGRATION:
+      20261015183554_ms1_start_date_square_archived_at, applied to DEV ONLY by
+      Gary. NO STAGING CREDENTIALS ON DISK (agreed by Gary): staging migration
+      state is checked by Gary in the Neon console, not by prisma from here.
+      TIER 3, 2026-10-15. Prompt: docs/prompts/2026-10-15_MS-1_milestones_foundation.md.
+      Audit and plan: docs/prompts/2026-10-15_MS-1_AUDIT.md (9a9b9c3). Migration
+      20261015171226_ms1_milestones_foundation is applied to DEV ONLY, by Gary
+      (docs/MIGRATIONS.md). WHAT SHIPPED: Organization.milestonesEnabled
+      (/settings card, Calendar shape, ADMIN route); milestones.manage
+      (ADMIN_ONLY, not grantable, not deniable); /staff/milestones with the
+      tenure milestone list (add, edit, archive, restore) and "Coming soon"
+      cards with no controls for Attendance, Raise eligibility and Checklists;
+      StaffMember.startDate (@db.Date) and startDateManual, editable in the
+      staff Edit dialog under staff.manage (F2), filled from Square created_at
+      in the store-local date only while not hand-edited (F6); "Member Since"
+      relabelled "Added to Froot"; the Milestones tab on /staff/[id] (F1:
+      Compliance tier, and no trigger at all for anyone else); WageSnapshot (F3),
+      written in the roster sync when pay changes, with no reader yet.
+      MILESTONES IS PART OF HR (F5): HR unavailable or off means every
+      milestone surface is off, and the APIs answer 404. Achieved milestones
+      are COMPUTED from startDate + dayCount in the store-local date
+      (src/lib/milestones.ts). There is no achieved table. NO DESIGN BUNDLE
+      EXISTED (F0). The UI is composed from existing Froot screens, and Gary
+      reviews it on staging. The bundle is owed before MS-2 and MS-3.
+
+  - id: MS-2
+    track: hr
+    size: L
+    # `in_progress` -> `staging` 2026-10-16 BY THE PRE-PUSH-CHECK. None of the
+    # four MS-2 commits was pushed when the check ran; this check's own commit
+    # (the one immediately after b0fa415, which cannot name itself) is not
+    # pushed either — Claude never pushes.
+    status: staging
+    title: "Staff Milestones — on-time % and On-Time badge, On-time settings, schedule cron"
+    commits:
+      - "15765c7"
+      - "c8e302f"
+      - "b0fa415"
+    blockers:
+      - >
+        UNVERIFIED ON STAGING. Everything is dev-level evidence: verify-ms2
+        87/87 on dev br-broad-wave-a6vpjdw0 (inside the commit gate),
+        verify-ms1 97/97, verify-labor-inspector PASS, and a green build. Dev
+        holds NO Square labor rows, so no badge has been seen on real data.
+        Staging must check: the On-time section saves and refuses red >= green;
+        a badge on a staff member with many shifts, one with few (grey "Not
+        enough shifts"), one at a store with no schedule data (grey "No
+        schedule data"); compact badges on /staff; Milestones toggle off hides
+        every badge and GET/PUT /api/milestones/attendance answer 404; console
+        fetch checks of that route as Tommy (STORE) and gary@keva.com (MANAGER,
+        Carson); /staff, the tab and the section at phone width. Gary checks
+        staging _prisma_migrations in the Neon console before and after.
+      - >
+        THE SCHEDULE CRON ACTIVATES AT PROMOTION, NOT ON STAGING. Vercel runs
+        crons on production deployments only (Gary, 2026-10-16). Until
+        promotion, staging schedule rows still come only from dashboard loads.
+      - >
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-16 — MS-2, to be
+        ratified at the PRE-PUSH-CHECK.
+    notes: >
+      ── VERIFIED ON STAGING — recorded 2026-10-17 by DOCS-CLOSEOUT (TIER 1).
+      Prepended; NOTHING BELOW IS EDITED. Status stays `staging` (no "verified
+      on staging" value exists). Gary, in chat: staging, Neon branch
+      br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1 (Clerk org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa), Clerk development instance. Deployed
+      SHA read from the page footer: 06b5bba. Migration finished 2026-10-16
+      15:39 UTC. Settings save; red >= green refused; green, red and grey
+      badges on real data; full badge "8 of 8 shifts"; toggle off hides all;
+      403s as STORE and as an out-of-scope MANAGER; phone width. Full block in
+      docs/DEPLOY_LOG.md (MS-2 entry, still UNPROMOTED). The
+      UNVERIFIED-ON-STAGING blocker below is left unflagged for Gary to close.
+      The schedule cron still activates only at promotion (see the MS-3b row
+      note).
+      ── PRE-PUSH-CHECK 2026-10-16 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED except the restoration at the foot. Commits
+      c8e302f (docs) and b0fa415 (the display-rounding follow-up, a WORK
+      commit the row was missing) added; this check's own commit is the one
+      immediately after b0fa415. RULINGS RATIFIED by Gary: the DECISIONS entry
+      (2026-10-16 — MS-2) was printed verbatim and put to him; his reply,
+      exactly: "Ratify as written." DOCS-SYNC DRIFT FOUND AND FIXED on Gary's
+      go-ahead: c8e302f had reworded the row's original "planned" notes and
+      deleted their text — restored verbatim below, marked superseded.
+      b0fa415: the displayed % rounds DOWN, colour on the exact value (Gary,
+      2026-10-16); verify-ms2 90/90 on dev br-broad-wave-a6vpjdw0, which
+      supersedes the 87/87 in the first blocker. DEPLOY_LOG: UNPROMOTED MS-2
+      entry written by this check. CLAUDE.md untouched. Prompt and audit
+      committed (c8e302f, 76b857c). Staging evidence pending — the blockers
+      stand.
+      TIER 3, 2026-10-16. Prompt: docs/prompts/2026-10-16_MS-2_attendance_on_time_badge.md.
+      Audit and plan: docs/prompts/2026-10-16_MS-2_AUDIT.md (76b857c). Migration
+      20261016140411_ms2_milestone_settings is applied to DEV ONLY, by Gary
+      (docs/MIGRATIONS.md). WHAT SHIPPED: one on-time function,
+      src/lib/attendance.ts getOnTimeForStaff (staff + any store-local date
+      range, batched, so MS-3 calls it with its own weeks); the FIRST definition
+      of on time in Froot, since the Day Inspector has none (audit A1): the
+      earliest paired clock-in is at or before scheduled start + grace,
+      compared to the minute (at 5 min, 9:05:59 on time, 9:06:00 late);
+      no-shows count late once the timecard sync is past start + the
+      inspector's 20-minute wait; unscheduled cards and draft-only shifts are
+      left out. PAIRING IS THE INSPECTOR'S: pairsAsAttendance() was extracted
+      from labor-inspector.ts, behaviour-identical, proven against
+      scripts/ms2-inspector-golden.json written from the pre-move code (F12).
+      MilestoneSettings, one row per org (red 80, green 90, 30 days, 5 shifts,
+      grace 5 of 5/10/15). /staff/milestones On-time section replaces the
+      Attendance placeholder (PUT/GET /api/milestones/attendance,
+      milestones.manage, 404 when off). Full badge on the Milestones tab;
+      compact badge beside the name on /staff; both gated by Milestones on +
+      ADMIN/MANAGER. BADGE_PRESETS and the status pill, no design bundle (F0
+      superseded for MS-2 by Gary 2026-10-16). With the Square labor overlay
+      off every badge is grey and no Square labor row is read.
+      /api/cron/labor-scheduled-shifts REGISTERED (45 11 * * * UTC), superseding
+      the CRON-1 parking (Gary, 2026-10-16). /staff tables scroll sideways at
+      phone width. verify-ms1 C7 now counts four milestone routes.
+      FILED 2026-10-15 by the MS-1 build session as "attendance milestones",
+      DESIGN BUNDLE REQUIRED FIRST. Both are superseded by the 2026-10-16
+      rulings above. Cross-refs: MS-1, MS-3, CRON-1, BUG-16.
+      ── ORIGINAL "planned" NOTES, RESTORED VERBATIM 2026-10-16 by the
+      PRE-PUSH-CHECK (c8e302f had deleted them). SUPERSEDED by the 2026-10-16
+      rulings; kept as the record of what was filed. ──
+      FILED 2026-10-15 by the MS-1 build session, from the MS-1 prompt's scope
+      list ("Attendance (MS-2)"). The /staff/milestones placeholder card is the
+      only thing built. DESIGN BUNDLE REQUIRED FIRST (Gary, F0 2026-10-15:
+      "The design bundle comes before MS-2/MS-3"). Cross-refs: MS-1.
+
+  - id: MS-3
+    track: hr
+    size: L
+    # `in_progress` -> `staging` 2026-10-16 BY THE PRE-PUSH-CHECK. None of the
+    # four MS-3 commits was pushed when the check ran; this check's own commit
+    # (the one immediately after 9917412, which cannot name itself) is not
+    # pushed either — Claude never pushes.
+    # `planned` -> `in_progress` 2026-10-16 by the MS-3a build session. THIS ID
+    # CARRIES MS-3a; MS-3b is its own row below. Neither commit is pushed —
+    # Claude never pushes.
+    # SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): both "not pushed" comments above
+    # are spent. Pushed 2026-10-16, deployed 4cb60b0 (DOCS-CLOSEOUT, recorded
+    # in notes 2026-10-17; the DEPLOY_LOG MS-3a line was marked then).
+    status: staging
+    title: "Staff Milestones — raise eligibility (MS-3a): settings, compliance/hours/on-time/trainings/documents criteria, Raise badge"
+    commits:
+      - "3870fb2"
+      - "3a3f210"
+      - "99cab10"
+      - "9917412"
+    blockers:
+      - >
+        PROMOTES TOGETHER WITH MS-3b (Gary, 2026-10-16: "Promote together").
+        MS-3a alone shows green for someone who was just given a raise, because
+        raise detection and the cooldown are MS-3b's.
+      - >
+        UNVERIFIED ON STAGING. Everything is dev-level evidence: verify-ms3
+        92/92 on dev br-broad-wave-a6vpjdw0 (inside the commit gate), verify-ms1
+        97/97, verify-ms2 90/90, a green build, and the new components rendered
+        with sample data at 375 px on a temporary local page (no sideways
+        scroll; the custom-cooldown refusal shown client-side, no request sent).
+        No real page was seen signed in. Staging must check: the Raise section
+        saves and refuses bad input (hours 61, cooldown 0 or 731, an archived
+        training); one member per colour; Square labor off hides every Raise
+        badge and the section says why; Milestones off hides it and GET/PUT
+        /api/milestones/raise answer 404; console fetch of that route as Tommy
+        (STORE) and gary@keva.com (MANAGER, Carson) — 403 with Milestones on;
+        /staff, the tab and the section at phone width. Gary checks staging
+        _prisma_migrations in the Neon console before and after.
+      - >
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-16 — MS-3, to be
+        ratified at the PRE-PUSH-CHECK.
+    notes: >
+      ── MARKED 2026-10-19 BY THE MS-5 PRE-PUSH-CHECK. Prepended; NOTHING
+      BELOW IS EDITED. The "PENDING RULING (Gary): should a MANAGER see their
+      own Raise badge?" below is ANSWERED by MS-5 F9, Gary 2026-10-19: "A
+      MANAGER never sees their own Raise status — hide it on their own row on
+      /staff, on the report, and on their own Milestones tab. ADMINs see
+      everyone. Apply to /staff too in this phase; this answers the open MS-3a
+      question." Built in 511f321 (raiseHiddenForViewer). See the MS-5 row and
+      docs/DECISIONS.md 2026-10-19 — MS-5.
+      ── VERIFIED ON STAGING — recorded 2026-10-17 by DOCS-CLOSEOUT (TIER 1).
+      Prepended; NOTHING BELOW IS EDITED. Status stays `staging` (no "verified
+      on staging" value exists). Gary, in chat: staging, Neon branch
+      br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1 (Clerk org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa), Clerk development instance. Deployed
+      SHA read from the page footer: 4cb60b0. Migration finished 2026-10-16
+      22:14 UTC. All checklist items confirmed by Gary. Full block in
+      docs/DEPLOY_LOG.md (MS-3a entry, still UNPROMOTED; its "not pushed"
+      line is marked superseded: pushed 2026-10-16, deployed 4cb60b0). The
+      UNVERIFIED-ON-STAGING blocker below is left unflagged for Gary to close.
+      PROMOTE TOGETHER WITH MS-3b — MS-3a must not reach main without it.
+      PENDING RULING (Gary): should a MANAGER see their own Raise badge? On
+      staging, Tommy (MANAGER, Las Brisas) sees "Raise blocked" on his own row
+      on /staff. Recorded here, not as a new row, because the badge is MS-3a's.
+      ── PRE-PUSH-CHECK 2026-10-16 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Commits 99cab10 (docs) and 9917412 (CLAUDE.md
+      Database step 3 is migrate deploy — the MS-3a session's RULING NOW)
+      added; this check's own commit is the one immediately after 9917412.
+      RULINGS RATIFIED by Gary: the DECISIONS entry (2026-10-16 — MS-3) was
+      printed verbatim and put to him; his reply, exactly: "Ratify as
+      written." The "RULINGS ARE A DRAFT" blocker is superseded by that.
+      DOCS-SYNC: no drift. DEPLOY_LOG: UNPROMOTED MS-3a entry written by this
+      check, marked NOT TO BE PROMOTED WITHOUT MS-3b. CLAUDE.md changed only by
+      9917412, which quotes Gary's ruling. Prompts and audit committed
+      (3870fb2, 99cab10). Staging evidence pending — the other blockers stand.
+      TIER 3, 2026-10-16. Prompt: docs/prompts/2026-10-16_MS-3_raise_eligibility.md.
+      Audit and plan: docs/prompts/2026-10-16_MS-3_AUDIT.md (3870fb2). SPLIT
+      (Gary, 2026-10-16): MS-3a = settings, criteria, badge, NO wage reads;
+      MS-3b = raise detection, manual last-raise date, cooldown, daily wage
+      sync, COMP-1 redaction (prompt: docs/prompts/2026-10-16_MS-3b_raise_detection.md).
+      NO DESIGN BUNDLE for MS-3a or MS-3b (Gary extended his MS-2 ruling).
+      Migration 20261016190415_ms3a_raise_settings is applied to DEV ONLY, by
+      Gary with migrate deploy (docs/MIGRATIONS.md). WHAT SHIPPED (3a3f210):
+      src/lib/raise-eligibility.ts getRaiseEligibility — ONE batched function
+      for /staff, the tab, MS-4 and MS-5. Compliance gate ruled (b): a training
+      fails only when OVERDUE, a document whenever unsigned. Hours: paid hours
+      (paidMinutesOf) in each of the last Y COMPLETED Monday–Sunday weeks, all
+      stores, each card dated by its start in its own store's zone; current
+      week ignored. On-time: getOnTimeForStaff over the same weeks. Required
+      trainings/documents with "N/A — not assigned" (F11) left out of the
+      colour. Never green on missing data (F9). Square labor off = no badge
+      anywhere (F12); terminated = no badge. Defaults (F13): gate on, 20 h, 3
+      weeks, 90%, 90-day cooldown. MilestoneSettings gains five raise columns;
+      MilestoneRaiseTraining / MilestoneRaiseDocument join tables. Raise
+      section on /staff/milestones (GET/PUT /api/milestones/raise,
+      milestones.manage, 404 when off); full RaiseCard on the Milestones tab and
+      a compact badge beside On-Time on /staff, on the On-Time gate. Reads NO
+      wage table — verify-ms3 C14 and D20 assert it. verify-ms1 C7 now counts
+      five milestone routes. hr-compliance exports complianceDocumentWhere and
+      summariesFromDetails (behaviour-identical lift).
+      ── ORIGINAL "planned" NOTES, KEPT VERBATIM. SUPERSEDED by the 2026-10-16
+      rulings above (no design bundle; split). ──
+      FILED 2026-10-15 by the MS-1 build session. Draft rulings 2, 4 and 5
+      (docs/DECISIONS.md 2026-10-15 — MS-1) govern it: the badge is for
+      ADMIN and MANAGER only, the cooldown is set by an ADMIN, and the
+      100%-initial-compliance gate applies to raise eligibility only. Gary,
+      F2: "Raise eligibility runs on hours and on-time %, not tenure". THE
+      RAISE HISTORY INPUT EXISTS: WageSnapshot (MS-1, F3) has been written on
+      every roster sync since MS-1 shipped. Any reader MUST apply
+      SquareTeamMemberWage.compConfidential (COMP-1). DESIGN BUNDLE REQUIRED
+      FIRST (F0). Cross-refs: MS-1, COMP-1.
+
+  - id: MS-3b
+    track: hr
+    size: M
+    # `in_progress` -> `staging` 2026-10-16 BY THE PRE-PUSH-CHECK. None of the
+    # four MS-3b commits was pushed when the check ran; this check's own commit
+    # (the one immediately after f5aad38, which cannot name itself) is not
+    # pushed either — Claude never pushes.
+    # `planned` -> `in_progress` 2026-10-16 by the MS-3b build session. Neither
+    # commit is pushed — Claude never pushes.
+    status: staging
+    title: "Staff Milestones — raise detection, manual last-raise date, cooldown, daily wage sync, COMP-1 redaction"
+    commits:
+      - "cd650f7"
+      - "d2897ed"
+      - "f3965f9"
+      - "f5aad38"
+    blockers:
+      - >
+        PROMOTES TOGETHER WITH MS-3 (Gary, 2026-10-16: "Promote together").
+        The MS-3a DEPLOY_LOG entry is already marked NOT TO BE PROMOTED
+        WITHOUT MS-3b.
+      - >
+        UNVERIFIED ON STAGING. Evidence so far is dev-level only:
+        verify-ms3b 78/78, verify-ms1 97/97, verify-ms2 90/90 and verify-ms3
+        92/92, all on dev br-broad-wave-a6vpjdw0; a green build; and the
+        cooldown card, the redacted card and the ADMIN control rendered with
+        sample data at 375 px on a temporary local /menu page (no sideways
+        scroll; page deleted before the commit). Raise DETECTION is not
+        exercised on staging, which is connected to the real Keva Square
+        account; Froot never writes to Square. Staging must check:
+        - set a manual last-raise date on one member: the badge is gone from
+          /staff and the tab says "Recent raise";
+        - the day-before / day-of boundary, by choosing the date;
+        - as gary@keva.com (MANAGER, Carson), the tab shows NO date for a
+          confidential member, and a console fetch of PUT
+          /api/staff/[id]/last-raise returns 403;
+        - as Tommy (STORE), the route returns 403 and the tab does not exist;
+        - phone width;
+        - Gary checks staging _prisma_migrations in the Neon console before
+          and after.
+        The cron change activates only at promotion (Vercel runs crons on
+        production only).
+      - >
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-16 — MS-3b, to be
+        ratified at the PRE-PUSH-CHECK.
+    notes: >
+      ── TOMMY / SOUTHGATE: CLOSED, NOT A BUG — recorded 2026-10-17 in the
+      MS-4a docs commit, as Gary ruled. Prepended per preserve-and-mark;
+      NOTHING BELOW IS EDITED, including the "OPEN — GARY TO CONFIRM
+      (possible store-scope bug)" paragraph, which this closes. Gary, exactly
+      (MS-4 session): "Tommy/Southgate open item: resolved, not a bug. Gary
+      had assigned Tommy to Southgate earlier, then moved him to Las Brisas
+      only. Record it as closed in the MS-3b row note (preserve-and-mark) in
+      the MS-4a docs commit." No row is filed for it.
+      ── VERIFIED ON STAGING — recorded 2026-10-17 by DOCS-CLOSEOUT (TIER 1).
+      Prepended; NOTHING BELOW IS EDITED. Status stays `staging` (no "verified
+      on staging" value exists). Gary, in chat: staging, Neon branch
+      br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1 (Clerk org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa), Clerk development instance. Deployed
+      SHA read from the page footer: 029e4ba. Migration finished 2026-10-17
+      02:14 UTC. Manual last-raise 2026-08-04 -> "Recent raise, eligible again
+      from Nov 2, 2026", badge hidden on /staff; 2026-07-01 -> cooldown met,
+      badge back. Privacy: Deon Hazelton marked pay-confidential; Tommy
+      (MANAGER, Las Brisas) saw the cooldown but no dates on the tab and none
+      in page source; ADMIN saw both dates (positive control). Test data
+      cleaned up. Full block in docs/DEPLOY_LOG.md (MS-3b entry, still
+      UNPROMOTED). The UNVERIFIED-ON-STAGING blocker below is left unflagged
+      for Gary to close. PROMOTE TOGETHER WITH MS-3.
+      OPEN — GARY TO CONFIRM (possible store-scope bug): on 2026-10-16/17
+      Tommy (MANAGER, Las Brisas only) appeared to see a Southgate card on
+      /staff and the Southgate dashboard. Unconfirmed. If real, it is a
+      store-scope bug and gets its own row.
+      PROMOTION PENDING: five Milestones migrations ride the next promotion of
+      staging — 20261015171226_ms1_milestones_foundation,
+      20261015183554_ms1_start_date_square_archived_at,
+      20261016140411_ms2_milestone_settings, 20261016190415_ms3a_raise_settings
+      and 20261017002340_ms3b_last_raise — plus the schedule cron (MS-2) and
+      the wage sync in the labor-timecards cron (MS-3b), which only run on
+      production. MS-3a must not reach main without MS-3b. BUG-15 rides the
+      same promotion.
+      ── PRE-PUSH-CHECK 2026-10-16 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Commits f3965f9 (docs) and f5aad38 added; this
+      check's own commit is the one immediately after f5aad38. f5aad38 is
+      TEST-ONLY: D22b, a positive control for the raise-date redaction (an
+      ADMIN must see both dates on the D18/D19 members, so a redaction that
+      strips dates for everyone fails). verify-ms3b is now 79/79 on dev
+      br-broad-wave-a6vpjdw0 — this SUPERSEDES the "78/78" in the staging
+      blocker above, which is left as written. f5aad38 landed after the docs
+      commit, so the row could not record it; the check found it as DRIFT and
+      Gary approved the fix: "Go ahead with the proposed fix." RULINGS
+      RATIFIED by Gary: the DECISIONS entry (2026-10-16 — MS-3b) was printed
+      verbatim and put to him; his reply, exactly: "Ratify as written." The
+      "RULINGS ARE A DRAFT" blocker is superseded by that. DEPLOY_LOG:
+      UNPROMOTED MS-3b entry written by this check; promotes together with
+      MS-3a. CLAUDE.md untouched. Prompt (99cab10) and audit (cd650f7)
+      committed. Staging evidence pending — the other blockers stand.
+      ── BUILD 2026-10-16. TIER 3. Audit and plan:
+      docs/prompts/2026-10-16_MS-3b_AUDIT.md (cd650f7). Gary: "G1–G5:
+      approved as your leans." WHAT SHIPPED (d2897ed):
+      - src/lib/raise-history.ts is the ONLY reader of the wage snapshot
+        table and the only file that names StaffLastRaise. verify-ms1 C18's
+        allow-list gained it deliberately; C20 is unchanged.
+      - Detection (F5): the latest hourly rate above the immediately
+        previous snapshot, both non-null. It is dated by the capture sync in
+        the member's zone (G2). Salaried = detection off.
+      - getRaiseEligibility gains the cooldown. The raise on record is the
+        later of the detected date and the manual date (F6). A member is in
+        cooldown while today < raise date + cooldown days. Status
+        "cooldown" beats red (G5), and /staff shows no badge (F7).
+      - redactForViewer deletes the lastRaise and cooldownUntil keys for any
+        viewer who fails canSeeWages or compVisibleForMember (G3). Both
+        pages call it before rendering. No rate ever enters the result.
+      - New table StaffLastRaise (G1; migration
+        20261017002340_ms3b_last_raise, applied to DEV ONLY by Gary).
+      - PUT/DELETE /api/staff/[id]/last-raise: milestones.manage,
+        org-scoped, 404 when the overlay is off, 403 for an ADMIN without
+        pay visibility, no future dates.
+      - An ADMIN card on the Milestones tab to set or clear the date.
+      - The labor-timecards cron runs syncTeamMemberWages(org, "ACTIVE") per
+        org in its own try/catch, outside `ok`. EMPLOYEES_READ only, no new
+        scope, no vercel.json change.
+      - The roster sync route header is corrected (FIX NOW from the MS-3
+        audit).
+      ── ORIGINAL "planned" NOTES, KEPT VERBATIM. ──
+      FILED 2026-10-16 by the MS-3a build session, per Gary's split ruling
+      ("Write the MS-3b prompt into docs/prompts/ for a later session. Promote
+      together."). Prompt: docs/prompts/2026-10-16_MS-3b_raise_detection.md.
+      Rulings already given (docs/DECISIONS.md 2026-10-16 — MS-3): wage sync in
+      the daily timecard cron; raise detection proven by fixture on dev, the
+      cooldown checked on staging via the manual date; the badge vanishing
+      after a raise is accepted, amounts and dates hidden from anyone without
+      pay access; F5, F6, F7, F10, F15 approved as listed. MS-3a's
+      getRaiseEligibility is the function it extends. Cross-refs: MS-3, MS-1,
+      COMP-1, DEBT-115.
+
+  - id: MS-3c
+    track: hr
+    size: S
+    # `in_progress` -> `staging` 2026-10-17 BY THE PRE-PUSH-CHECK. None of the
+    # three MS-3c commits was pushed when the check ran; this check's own
+    # commit (the one immediately after 7d53b1b, which cannot name itself) is
+    # not pushed either — Claude never pushes.
+    # `in_progress` at 6eabef1, set 2026-10-17 by the MS-3c build session
+    # (TIER 2, written at the end from what was done). Not pushed — Claude
+    # never pushes.
+    status: staging
+    title: "Staff Milestones — no amber \"Raise in progress\" badge on /staff (tab unchanged)"
+    commits:
+      - "6eabef1"
+      - "3d675b4"
+      - "7d53b1b"
+    blockers:
+      - >
+        PROMOTES WITH MS-3 AND MS-3b. It amends MS-3a's /staff badge, so it
+        must not reach main ahead of them.
+      - >
+        UNVERIFIED ON STAGING. Dev-level evidence only: verify-ms3 95/95 (new
+        C17-C19 call RaiseBadge per status; C17 fails with the change removed,
+        negative control run), verify-ms3b 80/80 (new C14b), verify-ms1 97/97,
+        verify-ms2 90/90, all on dev br-broad-wave-a6vpjdw0; a green build. No
+        page was opened. Staging must check: a member who is amber on the tab
+        shows NO Raise badge on /staff; a green and a red member still show
+        theirs; the tab still shows "Raise in progress" for the amber member.
+      - >
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-17 — MS-3c, to be
+        ratified at the PRE-PUSH-CHECK.
+    notes: >
+      ── PRE-PUSH-CHECK 2026-10-17 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs commits 3d675b4 and 7d53b1b added; this
+      check's own commit is the one immediately after 7d53b1b. RULINGS
+      RE-RATIFIED by Gary at this check: the DECISIONS entry (2026-10-17 —
+      MS-3c) was printed verbatim and he replied, exactly: "Ratify as
+      written." The entry is unchanged. Docs sync audit: no drift.
+      DEPLOY_LOG entry written by this check (UNPROMOTED, 2026-10-17). Still
+      unverified on staging; promotes with MS-3 and MS-3b.
+      ── RULINGS RATIFIED 2026-10-17 by Gary, in the MS-3c session. Prepended;
+      NOTHING BELOW IS EDITED. His reply, exactly: "Ratify, with one addition
+      to my words: my scope answer was "Only amber 'Raise in progress' — keep
+      green and red on the list." Record that as my wording too, not the
+      prompt's." DECISIONS 2026-10-17 — MS-3c now quotes the scope as his
+      ruling. The "RULINGS ARE A DRAFT" blocker is superseded by this.
+      TIER 2, 2026-10-17. Prompt:
+      docs/prompts/2026-10-17_MS-3c_hide_amber_raise_badge.md. Gary's ruling
+      (DECISIONS 2026-10-17 — MS-3c): "Get rid of the 'Raise in progress'
+      badge on the staff page. Leave it only on the Milestone page." WHAT
+      SHIPPED (6eabef1): src/app/(app)/staff/raise-badge.tsx — the compact
+      RaiseBadge returns null for status "yellow", as it already does for
+      "cooldown" (MS-3b F7). Green and red still render on /staff. The full
+      badge and RaiseCard on the Milestones tab are unchanged. No schema, no
+      migration, no route, no gate change; the compact size has one caller
+      (/staff/page.tsx). Display-driven, but it decides WHAT renders, which
+      is why this is TIER 2 and not TIER 1. Cross-refs: MS-3, MS-3b.
+
+  - id: MS-4
+    track: hr
+    status: planned
+    title: "Staff Milestones — checklist milestones, ADMIN/MANAGER notifications, Copy-message button"
+    notes: >
+      ── MS-4 RULINGS RATIFIED 2026-10-17 by Gary, in the MS-4a session.
+      Prepended; NOTHING BELOW IS EDITED. He chose the reply "Ratify the MS-4
+      entry (2026-10-17 — MS-4: rulings on the audit) as written." (a button
+      Claude worded; the choice is his). DECISIONS 2026-10-17 — MS-4 now
+      reads "(Gary)". With the MS-4a entry already ratified, every ruling
+      MS-4a rests on is ratified; any "MS-4 entry keeps its draft marker"
+      wording on this row is superseded.
+      ── 2026-10-17, MS-4a session. Prepended; NOTHING BELOW IS EDITED. MS-4
+      is now carried by two rows: MS-4a (built, 70365c6, in_progress) and
+      MS-4b (planned, prompt written). This row stays as the umbrella and is
+      closed when both are.
+      2026-10-17, CHK-15 session — FOR MS-4a PLANNING: read CHK-16 (covering
+      staff can't be named on a tick, so they earn no checklist milestone
+      for covered shifts under F0). Prepended; nothing below is edited.
+      2026-10-17, MS-4 session — AUDITED AND RULED, NOTHING BUILT. Prepended;
+      nothing below is edited. Audit: docs/prompts/2026-10-17_MS-4_AUDIT.md
+      (64569a4). Gary's rulings: DECISIONS 2026-10-17 — MS-4 (draft). Split
+      into MS-4a (checklist milestones counting NAMED TASKS, F0; a separate
+      "Checklist milestones" switch, OFF by default, F13; Copy button;
+      picker fixes) and MS-4b (notifications; its prompt is written during
+      MS-4a; NOT to be built until Gary confirms production's
+      NOTIFY_EMAIL_PROVIDER). F12 became CHK-15 and ships first. The
+      Tommy/Southgate item on the MS-3b row is closed (Gary: "resolved, not
+      a bug"), to be marked there in the MS-4a docs commit.
+      FILED 2026-10-15 by the MS-1 build session. Draft ruling 3: notifications
+      go to ADMINs and MANAGERs only, Froot never emails employees, and the
+      Copy button copies the milestone's suggested employee message
+      (TenureMilestone.employeeMessage, already stored by MS-1). MS-4 adds
+      whatever it needs to notify exactly once. MS-1 deliberately has no
+      "achieved" table. Cross-refs: MS-1.
+
+  - id: MS-4a
+    track: hr
+    size: M
+    # `in_progress` -> `staging` 2026-10-17 BY THE PRE-PUSH-CHECK. None of the
+    # four MS-4a commits was pushed when the check ran; this check's own
+    # commit (the one immediately after 2ca8b64, which cannot name itself) is
+    # not pushed either — Claude never pushes.
+    # `in_progress` at 70365c6, set 2026-10-17 by the MS-4a build session
+    # (TIER 3). Not pushed — Claude never pushes.
+    status: staging
+    title: "Staff Milestones — checklist milestones (named tasks), the Checklist milestones switch, Copy message, pay warning"
+    commits:
+      - "70365c6"
+      - "e90ca16"
+      - "f295ea1"
+      - "2ca8b64"
+    blockers:
+      - >
+        PROMOTES WITH THE REST OF MILESTONES (MS-1 to MS-3c), none of which is
+        promoted. Migration 20261017204956_ms4a_checklist_milestones rides the
+        next promotion with the five Milestones migrations already on staging.
+      - >
+        UNVERIFIED ON STAGING. Dev-level evidence only: verify-ms4a 52/52 on
+        dev br-broad-wave-a6vpjdw0 (structural negative controls A9-A14 and
+        A16; live negative control with the org scope removed from
+        namedTaskDates gave 5 FAIL, restored), verify-ms1 97/97 (C7 census
+        5 -> 8), verify-ms2 90/90, verify-ms3 95/95, verify-ms3b 80/80,
+        verify-chk15 28/28; a green build; 375 px checked on a temporary
+        public /menu page with sample data (no sideways scroll, Copy wrote the
+        exact text including a newline, the refusal message showed; page
+        deleted before the commit). Staging must check, naming the org id on
+        every observation: /staff/milestones shows the Checklists card with
+        the switch OFF and no list; switching it on shows the list, and
+        off hides it again with nothing deleted; add 1- and 2-task milestones,
+        then tick tasks naming "MS-4a Staff" on a checklist and see the tab
+        count, the achieved card and its Copy message button; a "Team Member"
+        tick does not count; un-ticking lowers the count; Copy pastes the
+        message as written; the pay warning shows on the page and in the
+        dialog; as Tommy switched to STORE and as gary@keva.com (MANAGER), a
+        console PUT to /api/milestones/checklist/switch returns 404 or 403;
+        phone width. Gary checks staging _prisma_migrations in the Neon
+        console before and after the deploy.
+      - >
+        SUPERSEDED 2026-10-17 for the MS-4a entry — ratified by Gary (see
+        notes); the MS-4 entry keeps its own draft marker.
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-17 — MS-4 (Gary's
+        rulings) and 2026-10-17 — MS-4a (build choices), to be ratified at the
+        MS-4a PRE-PUSH-CHECK.
+    notes: >
+      ── PRE-PUSH-CHECK 2026-10-17 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs commits e90ca16, f295ea1 and 2ca8b64
+      added; this check's own commit is the one immediately after 2ca8b64.
+      RULINGS RE-RATIFIED at this check: the DECISIONS entries 2026-10-17 —
+      MS-4a and 2026-10-17 — MS-4 were printed verbatim and Gary answered
+      "Ratify as written" (the reply button carrying the check's own
+      prescribed phrase). Both entries unchanged. Docs sync audit: no drift.
+      DEPLOY_LOG entry written by this check (UNPROMOTED, 2026-10-17). Still
+      unverified on staging; promotes with MS-1 to MS-3c and with or after
+      CHK-15.
+      ── MS-4 RULINGS RATIFIED 2026-10-17 by Gary, in the MS-4a session.
+      Prepended; NOTHING BELOW IS EDITED. He chose the reply "Ratify the MS-4
+      entry (2026-10-17 — MS-4: rulings on the audit) as written." (a button
+      Claude worded; the choice is his). DECISIONS 2026-10-17 — MS-4 now
+      reads "(Gary)". With the MS-4a entry already ratified, every ruling
+      MS-4a rests on is ratified; any "MS-4 entry keeps its draft marker"
+      wording on this row is superseded.
+      ── RULINGS RATIFIED 2026-10-17 by Gary, in the MS-4a session.
+      Prepended; NOTHING BELOW IS EDITED. His reply, exactly: "Ratify as
+      written, plus two additions in my words:" — (1) CHK-15 verified on
+      staging (recorded on the CHK-15 row); (2) "Live count: accepted for
+      MS-4a. For MS-4b, a milestone email that was sent stays sent — if the
+      milestone is lost and re-reached, don't send again." DECISIONS
+      2026-10-17 — MS-4a now carries both at its head. Still unverified on
+      staging; the PRE-PUSH-CHECK is still owed.
+      BUILT 2026-10-17 (TIER 3), 70365c6. Prompt:
+      docs/prompts/2026-10-17_MS-4a_build.md. Audit:
+      docs/prompts/2026-10-17_MS-4_AUDIT.md (64569a4). Rulings: DECISIONS
+      2026-10-17 — MS-4 (F0 named TASKS, F1 a list, F8 copy as written, F13
+      the separate switch OFF by default, F7 addition the pay warning, F11
+      the split) and CHK-16 (Gary: "ship without covering-staff credit").
+      WHAT SHIPPED: migration 20261017204956_ms4a_checklist_milestones
+      (ChecklistMilestone table; MilestoneSettings.checklistMilestonesEnabled
+      default false; TaskLog(completedByStaffId) index), applied to dev by
+      Gary. checklistProgress (pure) and namedTaskDates (org-scoped through
+      the checklist, store-local). /api/milestones/checklist GET/POST,
+      /[id] PATCH, /switch PUT — milestones.manage behind the module gate,
+      CRUD 404 while the switch is off. /staff/milestones: Checklists section
+      (switch only while off); the tenure list card moved into
+      milestone-list.tsx and is shared. /staff/[id] Milestones tab: checklist
+      progress and achieved list, and a Copy message button on every achieved
+      message, tenure and checklist. NOT HERE: the picker fixes (CHK-15,
+      already on staging); notifications (MS-4b). Cross-refs: MS-4, MS-4b,
+      CHK-15, CHK-16.
+
+  - id: MS-4b
+    track: hr
+    # `in_progress` -> `staging` 2026-10-19 BY THE PRE-PUSH-CHECK. None of the
+    # MS-4b commits was pushed when the check ran; this check's own commit
+    # (the one immediately after 9e608ab, which cannot name itself) is not
+    # pushed either — Claude never pushes.
+    # planned -> in_progress 2026-10-19 by the MS-4b v2 build session. Work
+    # commit 1bc01cf is on local `staging` and NOT pushed (Claude never
+    # pushes). PRE-PUSH-CHECK owns the flip to `staging`.
+    # SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2): both "not pushed" comments above
+    # are spent. Gary pushed 2026-10-19 15:21 PDT; staging served 9a70f52.
+    # 9a70f52 (C2 comment fix in src/lib/milestone-alerts.ts) added to commits.
+    status: staging
+    commits:
+      - "1bc01cf"
+      - "5517d60"
+      - "9e608ab"
+      - "9a70f52"
+    title: "Staff Milestones — ADMIN/MANAGER milestone emails (production only, sent once, per-user switch-off)"
+    blockers:
+      - >
+        RE-SCOPED 2026-10-19 — BUILD FROM THE v2 PROMPT. Prepended per
+        preserve-and-mark; nothing below is edited. Prompt:
+        docs/prompts/2026-10-19_MS-4b_v2_on_pipeline.md (TIER 3, fresh
+        session). It supersedes docs/prompts/2026-10-17_MS-4b_notifications.md,
+        which is not edited. Gary's rulings, 2026-10-19, his words (DECISIONS
+        2026-10-19, MS-4b re-scoped): (1) "Build the daily summary: one email
+        per person per day, via a new grouping mode in the dispatcher." (2)
+        "Milestones reached more than 7 days before the job runs are recorded
+        as known without sending, and each milestone is dated the day it was
+        reached, never "today"." (3) "P2 replaces F5: on staging, milestone
+        emails go only to the allowlist, like every other email type." (4)
+        "F15: yes — never email the employee about their own milestone,
+        excluded by linked account and by matching email." (5) "Hold lifted:
+        production's NOTIFY_EMAIL_PROVIDER is unset (confirmed in Vercel
+        2026-10-18), so production dry-runs safely." And: ""Held behind
+        NOTIFY-6" means on staging, which it is." EFFECT ON THE ENTRIES BELOW.
+        "DO NOT BUILD until Gary confirms production's NOTIFY_EMAIL_PROVIDER"
+        is DISCHARGED by ruling 5. "HELD BEHIND NOTIFY-6" is DISCHARGED:
+        NOTIFY-6 is on staging. "Builds on MS-4a" is met: MS-4a is on staging.
+        "F16 SUPERSEDED" stands (P6). The title's "production only" is F5's
+        wording and is superseded by ruling 3; the title is left as filed. MS-4b
+        is still `planned`; nothing is built.
+      - >
+        F16 SUPERSEDED, 2026-10-18 (fork P6, NOTIFY-3 audit). Prepended per
+        preserve-and-mark; nothing below is edited. Gary's words exactly: "P6:
+        Yes — replace MS-4b's F16: retry only the recipients who didn't get it,
+        using per-recipient delivery rows." F16 in
+        docs/prompts/2026-10-17_MS-4b_AUDIT.md was a lean, never ruled: a
+        milestone where some emails went and some failed is set to `failed` and
+        NOT retried. That lean is dead. Under NOTIFY-6 each (intent, recipient)
+        has a NotificationDelivery row; a partial send leaves the intent
+        `partial` and the retry mails only recipients with no `sent` row. MS-4b
+        builds no partial-failure rule of its own. The 2026-10-17 MS-4b prompt's
+        "sent-once row ... removed if the send fails" shape and its `failed`
+        state are superseded with it; that prompt is a claim wholesale and is
+        not edited.
+      - >
+        DO NOT BUILD until Gary confirms production's NOTIFY_EMAIL_PROVIDER
+        (Gary, MS-4 session: "MS-4b: don't build until I confirm production's
+        NOTIFY_EMAIL_PROVIDER.").
+      - >
+        Builds on MS-4a (checklist milestones are one of the two email
+        events), which must be on staging first.
+      - >
+        HELD BEHIND NOTIFY-6 (fork P0, NOTIFY-3 audit, 2026-10-18). Gary's
+        words, exactly: "P0 approved: adopt the pipeline, hold MS-4b behind
+        NOTIFY-6. Write the NOTIFY-5 prompt next." MS-4b does NOT build its own
+        MilestoneNotice table, guard or test button; it becomes the first new
+        kind on the NOTIFY-6 pipeline (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md
+        section 4.7 and 7). Recorded by the NOTIFY-5 docs commit.
+    notes: >
+      ── STAGING EVIDENCE 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
+      EDITED. ── Staging footer 9a70f52; Neon branch preview/staging
+      (br-square-feather-a63z92vz); org cmr54z65v000105jxczpt72w1. The footer
+      SHA equals local HEAD 9a70f52 when this was recorded. The first build after the 15:21 PDT push (9e608ab)
+      stalled at Initializing; 9a70f52 built and is serving. DISCHARGED by
+      this evidence, from the "STAGING VERIFICATION OWED" list below:
+      (a) the migration — 20261019211518_ms4b_milestone_alerts finished
+      2026-10-19 22:30:59 UTC, rolled_back_at null (_prisma_migrations on
+      preview/staging); (b) the "Milestone emails" card — found on
+      /settings/notifications (not /staff/milestones), the org switch starts
+      OFF; (c) "Send a sample to me" — delivered to Gary only; (d) the
+      BUILT block's "no phone-width observation was taken" — phone width
+      checked for the milestone card and a Milestones tab. Also observed:
+      Edit User shows the "Milestone reached" line. STILL OPEN, not covered
+      by this evidence: (1) the card's "Milestones off → one disabled line"
+      state — no observation with the Milestones module off; (2) the
+      ?tab=milestones link on /staff/[id] — a Milestones tab was seen at
+      phone width, but following the link (the sample email's or a direct
+      ?tab=milestones URL) and landing on that tab is not recorded; (3) the
+      pace-alerts cron run with the switch on — NOT RUN. Gary's evidence
+      lists the daily summary, the 7-day window, skipped days,
+      self-exclusion and sweep behaviour as accepted as fixture-proven
+      (verify-ms4b 59/59, J1–J4, negative controls); that acceptance is
+      recorded here, but no staging run exists, so the ruling-3 claim that
+      the cron summary reaches only NOTIFY_SANDBOX_ALLOWLIST addresses has
+      no staging observation. FOR THE PROMOTION PASS: 9a70f52 (comment-only
+      fix to src/lib/milestone-alerts.ts, the C2 comment) is the serving
+      commit but is NOT in the DEPLOY_LOG "UNPROMOTED — 2026-10-19 — MS-4b"
+      payload table yet, nor in this row's commits list; that entry's
+      "Staging evidence: pending" line is likewise not updated by this
+      commit.
+      ── PRE-PUSH-CHECK 2026-10-19. PREPENDED; NOTHING BELOW IS EDITED. ──
+      Status to `staging` (not pushed; Gary pushes). Commits: 1bc01cf (work),
+      5517d60 (docs), 9e608ab (test), and this check's own commit, the one
+      immediately after 9e608ab. 9e608ab WAS MISSING FROM THIS ROW; added on
+      Gary's go-ahead, his words: "Yes — add 9e608ab (the skipped-day test I
+      asked for) to the MS-4b row, preserve-and-mark, in this check's one docs
+      commit along with my ratification." It adds section J (skipped days) to
+      scripts/verify-ms4b.ts, no product code: reached D and run first on D+3
+      → sent once, dated D; D+4 does not resend; down until D+7 → still sent;
+      down until D+8 → known, never sent. verify-ms4b 59/59 on dev
+      (br-broad-wave-a6vpjdw0), so the "54/54" below is the build session's
+      count before J. Negative controls `>=` and window 0 each failed and
+      were restored. C1-C15 and the two build choices RATIFIED by Gary at
+      this check (DECISIONS 2026-10-19, "MS-4b: built on the pipeline").
+      STAGING VERIFICATION OWED (staging-SHA precondition first): the
+      "Milestone emails" card on /settings/notifications (ADMIN; Milestones
+      off → one disabled line), "Send a sample to me", the ?tab=milestones
+      link on /staff/[id], and one pace-alerts cron run with the switch on —
+      the summary goes only to NOTIFY_SANDBOX_ALLOWLIST addresses (ruling 3).
+      Migration 20261019211518_ms4b_milestone_alerts reaches staging through
+      the Vercel build on push.
+      ── BUILT 2026-10-19 (work 1bc01cf). PREPENDED; NOTHING BELOW IS EDITED. ──
+      TIER 3. Audit docs/prompts/2026-10-19_MS-4b_v2_AUDIT.md. Gary's words,
+      2026-10-19: "N1 — option (a): add an intentIds list column to
+      NotificationMessage so a dry-run summary logs each milestone to each
+      person once." and "N2 — freshness backstop is 8 days (11,520 minutes), so
+      my ruling "more than 7 days ago is recorded as known and never sent"
+      stays exactly as worded." Migration 20261019211518_ms4b_milestone_alerts
+      (Organization.milestoneAlertsEnabled, NotificationMessage.intentIds),
+      additive, APPLIED TO DEV ONLY by Gary; level confirmed by an empty
+      migrate diff (a first apply report did not hold; see MIGRATIONS.md).
+      WHAT EXISTS: kind milestone.reached on batch "per-recipient-daily" (one
+      email per recipient per dispatch, deliveries per (milestone, recipient),
+      P6 per item); recordKnownNotification (create-only); producer
+      processMilestoneAlerts in the pace-alerts cron (own try/catch, result key
+      `milestones`); capability notify.milestone.receive + grid line "Milestone
+      reached"; "Milestone emails" card + PUT /api/milestone-alerts/settings;
+      "Send a sample to me" via /api/notify/test?kind=milestone.reached;
+      ?tab=milestones on /staff/[id]. THE SWEEP NEVER MAKES A GROUPED FIRST
+      SEND (C3). VERIFICATION: scripts/verify-ms4b.ts 54/54 on dev
+      (br-broad-wave-a6vpjdw0), negative control (email exclusion removed)
+      failed B4 + 2 counts, restored, green. Re-run green on dev: verify-notify6
+      78, verify-notify5 55, verify-f5-polish 63, verify-notify-template 35,
+      verify-ms1 97, ms2 90, ms3 95, ms3b 80, ms4a 52, chk15 28. npm run build
+      green. NOT VERIFIED: nothing on staging; the new card and the staff tab
+      link were NOT opened in a browser (authed pages; no phone-width
+      observation was taken) — on the staging checklist. Choices C1-C15 for
+      ratification: DECISIONS 2026-10-19, "MS-4b: built on the pipeline".
+      ── v2 PROMPT 2026-10-19. PREPENDED; NOTHING BELOW IS EDITED. ── The
+      prompt for this row is now docs/prompts/2026-10-19_MS-4b_v2_on_pipeline.md.
+      The "Prompt: docs/prompts/2026-10-17_MS-4b_notifications.md" pointer
+      below is superseded. MS-4b becomes the first new kind on the NOTIFY-6
+      pipeline (NOTIFY-3 audit section 4.7). It drops its own MilestoneNotice
+      table, guard, dry-run log and test button. It keeps the
+      notify.milestone.receive capability and grid line,
+      Organization.milestoneAlertsEnabled (default false), the producer leg in
+      the pace-alerts cron, the org switch card and ?tab=milestones. It adds a
+      daily per-recipient grouping mode and a `known` write to the dispatcher.
+      The scope summary below ("production-only with a dry-run log elsewhere
+      and an ADMIN "Send a test to me"", "sent-once per (employee,
+      milestone)") is superseded on those points by the rulings in the first
+      blocker. The rulings are in DECISIONS 2026-10-19; the Remove / Keep list
+      in the v2 prompt is Claude's, not a ruling.
+      ── RULED 2026-10-17 by Gary, in the MS-4a session. Prepended; NOTHING
+      BELOW IS EDITED. His words, exactly: "For MS-4b, a milestone email that
+      was sent stays sent — if the milestone is lost and re-reached, don't
+      send again." The MS-4b prompt already designs it that way (sent-once
+      row never deleted because a count dropped); this makes it his ruling.
+      DECISIONS 2026-10-17 — MS-4a.
+      FILED 2026-10-17 by the MS-4a session, from Gary's F11 split ("Write
+      the MS-4b prompt during MS-4a."). Prompt:
+      docs/prompts/2026-10-17_MS-4b_notifications.md (TIER 3, fresh session).
+      Scope per the approved leans F2-F7, F9, F10 in
+      docs/prompts/2026-10-17_MS-4_AUDIT.md: tenure and checklist milestone
+      emails (raise-eligible OFF), the 7-day back-fill rule, a daily leg in
+      the pace-alerts cron, one email per recipient per day, sent-once per
+      (employee, milestone), production-only with a dry-run log elsewhere and
+      an ADMIN "Send a test to me", ADMINs plus MANAGERs of any of the
+      employee's stores (never the employee), the "Milestone reached" grid
+      line, no pay in the email, an org switch OFF by default. Checklist
+      milestone emails only while MS-4a's switch is on (F13). Cross-refs:
+      MS-4, MS-4a.
+
+  - id: MS-5
+    track: hr
+    size: M
+    # `in_progress` -> `staging` 2026-10-19 BY THE PRE-PUSH-CHECK. None of the
+    # three MS-5 commits was pushed when the check ran; this check's own
+    # commit (the one immediately after 041834b, which cannot name itself) is
+    # not pushed either — Claude never pushes.
+    # `in_progress` at 511f321, set 2026-10-19 by the MS-5 build session
+    # (TIER 3). Not pushed — Claude never pushes.
+    status: staging
+    title: "Staff Milestones — Milestone Report (/staff/milestones/report), and F9: a MANAGER never sees their own Raise status"
+    commits:
+      - "60c8468"
+      - "511f321"
+      - "041834b"
+    blockers:
+      - >
+        STAGING VERIFICATION, 2026-10-19 (Gary). Prepended per preserve-and-mark;
+        nothing below is edited. Staging footer 80af7e2 = local HEAD, branch
+        preview/staging br-square-feather-a63z92vz, org
+        cmr54z65v000105jxczpt72w1, Clerk dev instance (serves staging). The
+        "UNVERIFIED ON STAGING" checklist below, item by item. DONE: (1) ADMIN
+        view: 43 people, all stores, Download CSV shown; positive control Deon
+        (pay-confidential, last raise 2026-10-10) shows "Recent raise" with
+        "Eligible again Jan 8, 2027". (2) Tommy as MANAGER (Las Brisas) sees
+        only Las Brisas people, and his own row on the REPORT shows no Raise
+        status (F9). (3) Pay-confidential member to a manager: Deon shows
+        "Recent raise" with no date; view-source as Tommy searched for
+        2026-10-10, Oct 10, 2027-01-08 and Jan 8 and found none. (4) CSV is
+        ADMIN only: shown to the ADMIN, absent for Tommy. (5) Terminated:
+        CHK-15 Test terminated is hidden from Tommy's report (26 -> 25) and
+        "Show terminated (1)" appears. Also seen: Aubree shows "Raise blocked"
+        to Tommy, red visible to a manager (F3). STILL OPEN, not in the
+        evidence: F9 on Tommy's own row on /staff and on his own Milestones
+        tab (only the report was checked); gary@keva.com (MANAGER, Carson)
+        sees only Carson; Tommy switched to STORE is redirected; the filters;
+        turning the terminated toggle ON; the CSV opened and read (only its
+        visibility was checked); phone width; Milestones off -> 404. Test data
+        undone: Deon's last raise date cleared and pay confidentiality
+        removed. CHK-15 Test was not reported as un-terminated.
+      - resolved: true
+        text: >
+          RESOLVED 2026-10-19 AT THE PRE-PUSH-CHECK: Gary ratified the
+          DECISIONS entry as written, C1 also in his own words
+          (docs/DECISIONS.md 2026-10-19 — MS-5). The original entry follows,
+          unedited. ──
+          RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-19 — MS-5 records
+          Gary's F1–F10 exactly and lists Claude's choices separately; it awaits
+          ratification at the MS-5 PRE-PUSH-CHECK. Two readings in it need his
+          eye: C1 (cooldown is shown on the report, because F10 allows the
+          cooldown filter, though F3 says lists show "green and red only") and
+          C2 (F9 rides on resolveSelfStaff — an unresolved or ambiguous login
+          hides nothing).
+      - >
+        PROMOTES WITH THE REST OF MILESTONES (MS-1 to MS-4b). No migration.
+      - >
+        UNVERIFIED ON STAGING. Dev-level evidence only: verify-ms5 49/49 on dev
+        br-broad-wave-a6vpjdw0, with three live negative controls run and
+        restored (redaction forced off → C12, C13, C14, C14b, C19 FAIL; amber
+        kept → A2, C10 FAIL; F9 test removed → B7, C11, C19 FAIL);
+        verify-ms1 97/97, ms2 90/90, ms3 95/95, ms3b 80/80, ms4a 52/52, ms4b
+        all passed; a green build; 375 px checked on a temporary public /menu
+        page with sample data (no sideways scroll, cards not table, terminated
+        toggle 4 → 5; page deleted before the commit). Staging must check, on
+        branch br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1,
+        naming the org id on every observation: the ADMIN view; Tommy as
+        MANAGER (Las Brisas) sees only Las Brisas people and NO raise on his
+        own row there, on /staff and on his own Milestones tab; gary@keva.com
+        (MANAGER, Carson) sees only Carson; Tommy switched to STORE is
+        redirected; filters; the terminated toggle; the CSV (ADMIN only) opened
+        and read; a pay-confidential member shows no raise dates to a manager
+        (view-source search for the date); phone width; Milestones off → 404.
+    notes: >
+      ── STAGING EVIDENCE 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
+      EDITED. ── Status stays `staging`; this records evidence and does not
+      promote. On staging 80af7e2 (= local HEAD), org
+      cmr54z65v000105jxczpt72w1: ADMIN and MANAGER scope, F9 on the report,
+      pay-confidential redaction (view-source clean, ADMIN positive control),
+      CSV visibility and terminated hiding all held. Eight checklist items
+      are still open; item-by-item status is in the first blocker.
+      ── PRE-PUSH-CHECK 2026-10-19 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs SHA 041834b added; this check's own commit
+      is the one immediately after it. RULINGS RATIFIED by Gary: the DECISIONS
+      entry was printed verbatim; his reply ratified it as written, C1 in his
+      own words, and filed DEBT-116 (link every manager's login to their staff
+      record), DEBT-117 (help article for this route) and DEBT-118 (MS-4b daily
+      job on the batched checklist reader); the MS-3 row carries the F9 mark.
+      DEPLOY_LOG: UNPROMOTED MS-5 entry written by this check. CLAUDE.md
+      untouched. Prompt and audit committed (041834b, 60c8468). Staging
+      evidence pending — the blockers above stand.
+      TIER 3, 2026-10-19. Prompt: docs/prompts/2026-10-19_MS-5_milestone_report.md.
+      Audit and plan: docs/prompts/2026-10-19_MS-5_AUDIT.md (60c8468). Rulings
+      F1–F10: Gary, 2026-10-19 (docs/DECISIONS.md 2026-10-19 — MS-5). WHAT
+      SHIPPED (511f321): /staff/milestones/report, read-only. Gates: the /staff
+      layout (staff.view), requireMilestones() with no capability (Milestones
+      off = 404), then ADMIN or MANAGER. MANAGER scope is /staff's roster
+      query, "also works here" included. src/lib/milestone-report.ts
+      buildMilestoneReport — its return value IS the client's props; raise per
+      member goes through redactForViewer (F10), drops amber (F3) and drops a
+      MANAGER's own row (F9). src/lib/milestone-report-view.ts holds the row
+      type, filters, sort and the CSV builder (pure, client-safe).
+      namedTaskDatesForMembers in milestones-db.ts reads every member's named
+      tasks in ONE query (the per-member reader stays for the tab and the
+      MS-4b cron). F9 is also applied on /staff and the profile Milestones tab
+      through raiseHiddenForViewer in raise-eligibility.ts — this answers the
+      open MS-3a question ("should a MANAGER see their own Raise badge?").
+      Links: /staff header (ADMIN + MANAGER on the badges' gate) and the setup
+      page. CSV: ADMIN only, built in the browser from the same rows. No
+      schema, no migration, no email, nothing writes. Query count is constant
+      in roster size. NOT DONE: no help article claims the new route (the
+      build's [guide] warning went 43 → 44 unclaimed routes). ── ORIGINAL
+      "planned" NOTES, KEPT VERBATIM. ── FILED 2026-10-15 by the MS-1 build
+      session, from the MS-1 prompt's scope list ("the report (MS-5)"). Scope
+      not yet defined. Cross-refs: MS-1.
+
+  - id: MS-5b
+    track: hr
+    size: S
+    # `in_progress` at dbd7482, set 2026-10-19 by the MS-5b build session
+    # (TIER 2). Not pushed — Claude never pushes. PRE-PUSH-CHECK owns the
+    # flip to `staging`.
+    # `staging`, set 2026-10-19 by the MS-5b PRE-PUSH-CHECK. Not pushed when
+    # set — Gary runs the push.
+    status: staging
+    title: "Staff Milestones — one milestone button per role on /staff (ADMIN: Milestones; MANAGER: Milestone report)"
+    commits:
+      - "dbd7482"
+      - "7feab65"
+    blockers:
+      - >
+        STAGING VERIFICATION, 2026-10-19 (Gary). Prepended per preserve-and-mark;
+        nothing below is edited. Staging footer 80af7e2 = local HEAD, branch
+        preview/staging br-square-feather-a63z92vz, org
+        cmr54z65v000105jxczpt72w1, Clerk dev instance (serves staging). The
+        "UNVERIFIED ON STAGING" blocker below is DISCHARGED: all four checks
+        in it were observed. As ADMIN, /staff shows "Milestones" only and
+        /staff/milestones shows "Milestone report"; as MANAGER (Tommy, Las
+        Brisas), /staff shows "Milestone report" only and the link opens the
+        report. Nothing in MS-5b's own checklist is still open.
+      - >
+        PROMOTES WITH THE REST OF MILESTONES (MS-1 to MS-5). No migration.
+      - >
+        UNVERIFIED ON STAGING. Dev-level evidence only: verify-ms5 51/51
+        (B11 pins the flag, B12 runs it through can() for ADMIN and MANAGER,
+        B13 confirms the setup page still links the report), with one live
+        negative control run and restored (old flag put back → B11 FAIL); a
+        green build. Not opened in a browser. Staging must check, on branch
+        br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1, naming the
+        org id on every observation: as ADMIN, /staff shows "Milestones" and
+        no "Milestone report", and /staff/milestones shows "Milestone report";
+        as MANAGER (Tommy, Las Brisas), /staff shows "Milestone report" and no
+        "Milestones", and the link opens the report.
+    notes: >
+      ── STAGING EVIDENCE 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
+      EDITED. ── Status stays `staging`; this records evidence and does not
+      promote. On staging 80af7e2 (= local HEAD), org
+      cmr54z65v000105jxczpt72w1, each role saw exactly one milestone button.
+      The staging blocker is discharged (first blocker). MS-5b promotes with
+      MS-5, which still has open staging items.
+      ── PRE-PUSH-CHECK 2026-10-19 — in_progress -> staging. Prepended;
+      NOTHING BELOW IS EDITED. Docs SHA 7feab65 added; this check's own commit
+      is the one immediately after it. RULING RATIFIED by Gary with one
+      correction: only the first passage is his quoted words; the "Scope: …"
+      passage was drafted in chat with Claude and is recorded as his APPROVED
+      SCOPE, not as his words. The flag `showOnTime && !canSetUpMilestones` is
+      ratified as written. DECISIONS entry rewritten to that correction, his
+      reply recorded exactly. DEPLOY_LOG: UNPROMOTED MS-5b entry written by
+      this check. CLAUDE.md untouched. Prompt committed (7feab65). Staging
+      evidence pending — the blockers above stand.
+      TIER 2, 2026-10-19. Prompt:
+      docs/prompts/2026-10-19_MS-5b_staff_report_button.md. Ruling: Gary,
+      2026-10-19 (docs/DECISIONS.md 2026-10-19 — MS-5b). WHAT SHIPPED
+      (dbd7482): canSeeMilestoneReport in src/app/(app)/staff/page.tsx is now
+      `showOnTime && !canSetUpMilestones` — the badges' gate minus anyone who
+      gets the Milestones button. milestones.manage is ADMIN_ONLY, so ADMINs
+      see Milestones only and reach the report from /staff/milestones;
+      MANAGERs keep the report button, their only route in. The report page
+      and its gates are unchanged. No schema, no migration, nothing writes.
+      verify-ms5 gains B12 and B13 and B11 is retargeted. Cross-refs: MS-5.
 
   - id: HR-27
     track: hr
@@ -18632,6 +19787,28 @@ phases:
       NAV-1 (the hand-rolled accordion pattern this follows), SELF-1 (the shell,
       and the other half of DEBT-100's stack), DEBT-100 (shorter now, still
       open).
+  - id: CAL-3
+    track: cal
+    size: S
+    status: planned
+    title: "Calendar completion route accepts any same-company staff id — add CHK-15's active + store/corporate check"
+    notes: >
+      FILED 2026-10-17 by the CHK-15 session, from its audit fork F-F
+      (docs/prompts/2026-10-17_CHK-15_AUDIT.md). Gary: "File as a ROW — the
+      calendar completion route should get the same staff check (active +
+      store/corporate). Not in CHK-15." POST
+      /api/calendar/occurrences/[id]/complete
+      (src/app/api/calendar/occurrences/[id]/complete/route.ts:109-119 at
+      adc56a9) checks only that completedByStaffId is in this org. It does not
+      refuse a TERMINATED member, or one who is neither assigned to the
+      occurrence's store nor isCorporate. The rule to reuse is
+      resolveTaskLogStaff in src/lib/task-log-staff.ts (CHK-15, 329526d).
+      Before building: enumerate every caller of the route (CLAUDE.md § Verifying
+      a guard covers every path), and check whether the calendar's own picker
+      lists terminated staff. Forward-only, like CHK-15 (assumed; Gary to
+      confirm when the row is taken up). TIER 3: a route that writes rows.
+      Cross-refs: CHK-15, CAL-2.
+
   - id: NOTIFY-1
     track: platform
     size: S
@@ -19446,6 +20623,772 @@ phases:
       email setting lives on one page" ruling. NOTIFY-2a deliberately left no
       placeholder for it - a card for a consumer that does not exist is a
       control over nothing.
+
+  - id: NOTIFY-5
+    track: platform
+    size: S
+    # `in_progress` -> `staging` 2026-10-18 BY THE PRE-PUSH-CHECK. None of the
+    # NOTIFY-5 commits was pushed when the check ran; this check's own commit
+    # (the one immediately after 3fb760d, which cannot name itself) is not
+    # pushed either — Claude never pushes.
+    # in_progress: work commit 07e9253 is on local `staging` and NOT pushed
+    # (Claude never pushes). PRE-PUSH-CHECK owns the flip to `staging`.
+    status: staging
+    commits:
+      - "07e9253"
+      - "0ee506f"
+      - "3fb760d"
+    title: "One delivery mode (live / sandbox / dry-run) for every email + 'Send a test to me'"
+    blockers:
+      - >
+        EVIDENCE CONTEXT 2026-10-19 (Gary). Prepended per preserve-and-mark;
+        nothing below is edited. The discharge directly below now has its
+        branch and org: preview/staging Neon branch br-square-feather-a63z92vz,
+        org cmr54z65v000105jxczpt72w1. So its sentence "no branch is named, and
+        the org id was not reported" is superseded. The sent row with provider
+        resend was seen in Recent emails (which reads NotificationMessage), not
+        by a query, and its mode column was not queried. Mode sandbox follows
+        from the code path (resend on Preview).
+      - >
+        DISCHARGED 2026-10-19 — THE RE-OPENED ALLOWLIST BLOCKER DIRECTLY BELOW,
+        on Gary's instruction. Prepended per preserve-and-mark; nothing below is
+        edited. This is the owed NOTIFY-5 acknowledgment test, now actually run.
+        NOTIFY_SANDBOX_ALLOWLIST exists in Vercel Preview only (`vercel env ls`,
+        names only, 2026-10-19). A signed acknowledgment at 11:29 PDT (18:29
+        UTC), on a staging deployment built after the save, arrived at
+        gary@kevajuice.com, and Recent emails shows it Sent · resend. Full
+        evidence: the 2026-10-19 "ALLOWLIST CREATED" note on the NOTIFY-6 row.
+        The blocker's own discharge condition asked for "a message row with
+        mode sandbox and status sent, named by org id and branch". It is met in
+        substance but not as written: no Neon query was run, so no branch is
+        named, and the org id was not reported with the observation. The
+        discharge rests on Gary's instruction plus the inbox and Recent emails
+        evidence.
+      - >
+        RE-OPENED 2026-10-19 — ALLOWLIST UNSET / UNPROVEN. Prepended per
+        preserve-and-mark; nothing below is edited. Item (2) of the DISCHARGED
+        entry directly below is SUPERSEDED. It was discharged only on the
+        signed-acknowledgment evidence from 29a32c9, and that evidence was false.
+        Gary, 2026-10-19, his words: "The NOTIFY-5 staging evidence that a
+        signed acknowledgment was delivered to gary@kevajuice.com is wrong. That
+        test was never run. I told Claude it was completed by mistake. The first
+        real acknowledgment test was today on NOTIFY-6." So the blocker
+        "NOTIFY_SANDBOX_ALLOWLIST is UNSET in Vercel Preview" (third entry
+        below) is OPEN again. Nothing on staging has ever shown the allowlist
+        working. Observed by Claude, 2026-10-19: `npx vercel env ls` (names,
+        scopes and created ages only; no values read, no pull) lists NO
+        NOTIFY_SANDBOX_ALLOWLIST in any environment of project froot. Preview
+        holds NOTIFY_EMAIL_PROVIDER, NOTIFY_FROM_EMAIL and RESEND_API_KEY (29d
+        ago). That matches Gary's 2026-10-19 NOTIFY-6 observation on staging
+        (footer 1fe1481, org cmr54z65v000105jxczpt72w1): a signed acknowledgment
+        to hrAckRecipients = gary@kevajuice.com at 07:43 PDT (14:43 UTC) recorded
+        "Dry run — not sent", provider console. "Send a test to me" bypasses the
+        allowlist by design, so its delivery says nothing about the allowlist.
+        Discharge only on a staging acknowledgment that is actually delivered
+        through the allowlist: a message row with mode sandbox and status sent,
+        named by org id and branch.
+      - >
+        DISCHARGED 2026-10-18 — THE THREE BLOCKERS BELOW, ONE OF THEM BY
+        SUBSTITUTION. Prepended per preserve-and-mark; nothing below is edited.
+        (1) NOT PUSHED: no longer true. 07e9253, 0ee506f, 3fb760d and 16832d0
+        are on origin/staging (git branch -r --contains 16832d0 -> origin/staging),
+        and Gary's staging footer read 1037b89, so the deployment he tested
+        contained the NOTIFY-5 code. (2) ALLOWLIST UNSET: Gary set it — the
+        signed acknowledgment below reached gary@kevajuice.com through the
+        sandbox allowlist. This row records that address as reached, not the
+        variable's full value. (3) STAGING VERIFICATION OWED: see the 2026-10-18
+        STAGING EVIDENCE note. Two of its four items were observed by Gary; the
+        hand-fired pace cron was NOT run and is accepted as fixture-proven
+        instead; the "non-allow-listed hrAckRecipients address reads 'Dry run —
+        not sent'" item was not reported observed on staging and rests on
+        fixture section D/F (DEV database) only.
+      - >
+        NOT PUSHED. Work commit 07e9253 and this docs commit are on local
+        staging only. Every staging check below waits on Gary's push and the
+        staging-SHA precondition.
+      - >
+        NOTIFY_SANDBOX_ALLOWLIST is UNSET in Vercel Preview. Until Gary sets it
+        to his own address (P2: "Start the allowlist with just my address"),
+        sandbox mails NOBODY on staging and every staging email reads "Dry run
+        — not sent". That is the safe direction, not a defect.
+      - >
+        Staging verification owed (the NOTIFY-5 report's checklist): the
+        button sends to Gary in sandbox; a non-allow-listed hrAckRecipients
+        address reads "Dry run — not sent"; a hand-fired pace cron reports
+        mode=sandbox, mails nobody but Gary, and writes no PaceAlertLog row
+        for the month on preview/staging (br-square-feather-a63z92vz); MANAGER
+        still redirected from /settings/notifications.
+    deferred:
+      - >
+        Everything the NOTIFY-3 audit puts in NOTIFY-6 and later: the ledger
+        and dispatcher tables, per-recipient sends, retries, the registry,
+        kind-specific test samples, suppression, milestone emails (MS-4b),
+        any change to the Resend webhook.
+    notes: >
+      ── STAGING EVIDENCE 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
+      EDITED. ── The acknowledgment test that item (b) below wrongly recorded
+      as done has now been run, on NOTIFY-6 and NOTIFY-11 code (staging
+      30923dc). A signed acknowledgment at 11:29 PDT (18:29 UTC) arrived at
+      gary@kevajuice.com through the sandbox allowlist. Evidence and its limits
+      are on the NOTIFY-6 row (2026-10-19 "ALLOWLIST CREATED" note). The
+      re-opened blocker is discharged above. Item (c) below (pace path
+      fixture-proven, not hand-fired) is unchanged.
+      ── CORRECTION 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS EDITED. ──
+      Item (b) of the 2026-10-18 STAGING EVIDENCE note directly below is
+      SUPERSEDED. That is the line "A signed HR acknowledgment DELIVERED to
+      gary@kevajuice.com via the sandbox allowlist", recorded by 29a32c9. Gary's
+      words, exactly: "The NOTIFY-5 staging evidence that a signed acknowledgment
+      was delivered to gary@kevajuice.com is wrong. That test was never run. I
+      told Claude it was completed by mistake. The first real acknowledgment test
+      was today on NOTIFY-6." Items (a), (c), (d) and (e) are unaffected. The
+      blocker that (b) discharged is re-opened above. The 29a32c9 commit message
+      repeats the claim; a commit message is not edited, and this note
+      supersedes it.
+      ── STAGING EVIDENCE 2026-10-18 (Gary). PREPENDED; NOTHING BELOW IS EDITED. ──
+      Reported by Gary, staging (Vercel Preview), footer 1037b89 — the
+      deployment contains work commit 07e9253. Status stays `staging`; this
+      note records evidence, it does not promote. (a) "Send a test to me"
+      DELIVERED to indianathomas@live.com — it landed in Outlook JUNK, not the
+      inbox; Resend id 01a15062-e6ed-7312-a501-6ae62acb9213. Junk placement is
+      a deliverability fact for NOTIFY-10, not a NOTIFY-5 defect. (b) A signed
+      HR acknowledgment DELIVERED to gary@kevajuice.com via the sandbox
+      allowlist. (c) PACE ALERT PATH: NOT hand-fired on staging. Accepted as
+      fixture-proven — scripts/verify-notify5.ts 55/55 at 3fb760d on the DEV
+      database, including section F's env-driven sandbox checks (mode resolved
+      from env, not passed as a literal). The staging claims "mode=sandbox,
+      mails nobody but Gary, writes no PaceAlertLog row on
+      br-square-feather-a63z92vz" are therefore NOT observed; no staging
+      PaceAlertLog query was run. (d) Pace alerts were switched back OFF after
+      the pass. (e) MANAGER (Tommy) pasting /settings/notifications was
+      redirected to /dashboard — the role gate holds on staging. Org id for (a),
+      (b) and (e) was not reported with the observations.
+      ── PRE-PUSH-CHECK 2026-10-18. PREPENDED; NOTHING BELOW IS EDITED. ──
+      READY TO PUSH, NOT PUSHED. Status flipped `in_progress` -> `staging` here,
+      per Step 4. RULING RATIFIED, WITH ONE ADDITION IN GARY'S WORDS. The
+      docs/DECISIONS.md NOTIFY-5 entry was printed verbatim and put to Gary;
+      his whole reply, recorded exactly: "Ratify as written, plus one ruling in
+      my words: "Send a test to me" may email the admin who pressed it even
+      when the allowlist is empty, because it can only ever reach the person
+      clicking. Every other email on staging follows the allowlist, and an
+      empty allowlist means nobody is emailed." The DRAFT banner was replaced
+      by the ratification; the entry's prose is otherwise unchanged. THE
+      RULING MATCHES THE CODE AS BUILT, checked at source: the test route's
+      only recipient is the caller's Clerk primary email and it never reads
+      the allowlist; pace alerts and HR acknowledgments filter with
+      sandboxAllows and an empty result takes the dry-run path. No code
+      changed. DOCS SYNC: NO DRIFT. One recording gap closed here rather than
+      called drift, because it is the SHA-adding this check exists to do:
+      `3fb760d` (fixture section F, made after the docs commit at Gary's
+      request) was not on this row. It is now in `commits`, with docs commit
+      `0ee506f`. The FIXTURES line below ("verify-notify5.ts 49/49") was true
+      at `0ee506f` and is superseded: 55/55 at `3fb760d`, section-F negative
+      control 6 fail. docs/DEPLOY_LOG.md entry written into the file by this
+      check, headed "UNPROMOTED — 2026-10-18", heading count 75 -> 76, 71
+      lines added and none removed. CLAUDE.md carries the two env lines from
+      `0ee506f` and already states the test-send exception. Prompt and audit
+      committed in `634eab3` and `0ee506f`. No meta.updated key. Nothing has
+      been seen in an inbox; this check read files and ran `npm run build`.
+      BUILT 2026-10-18 (TIER 3) from docs/prompts/2026-10-18_NOTIFY-5_delivery_mode.md;
+      audit docs/prompts/2026-10-18_NOTIFY-5_AUDIT.md. Phase from the NOTIFY-3
+      audit (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 4.4 and 7).
+      RULINGS, Gary's words exactly. P0: "P0 approved: adopt the pipeline,
+      hold MS-4b behind NOTIFY-6. Write the NOTIFY-5 prompt next." P2:
+      "Approved. Staging sends real email only to addresses on an allowlist.
+      Start the allowlist with just my address. Everything else on staging is
+      sandboxed or dry-run, never delivered." The build go and the
+      ratification of the audit's seven implementation choices came through a
+      reply button whose wording Claude wrote, so they are NOT quoted as his
+      words (DECISIONS 2026-10-18 - NOTIFY-5).
+      WHAT IT DOES: deliveryMode() in src/lib/notify.ts is the one decision -
+      unset/console = dry-run, resend + VERCEL_ENV=production = live, resend
+      elsewhere = sandbox (NOTIFY_SANDBOX_ALLOWLIST only). Dry-run writes an
+      email.dryrun row ("Dry run - not sent") and NEVER a PaceAlertLog lock or
+      an email.sent row, which ends the console-mode lock burn (MS-4b audit B2)
+      and the acknowledgment "sent and lost". Pace dry-run logs at most one row
+      per store per month. Sandbox writes no lock. The test route mails the
+      caller in sandbox whether or not allow-listed. /settings/notifications
+      gains "Send a test to me". No schema.
+      FIXTURES (DEV database): scripts/verify-notify5.ts 49/49, negative
+      control 12 checks fail with the dry-run branch disabled;
+      verify-f5-polish.ts 63/63 (its pace calls now pass mode "live");
+      verify-notify-template.ts 35/35.
+      GO-LIVE NOTE: NOTIFY-3 audit section 6's rollback line "until NOTIFY-5
+      lands, console mode burns pace locks again" stops being true once this
+      reaches production - console is now a dry run that consumes nothing.
+
+  - id: NOTIFY-6
+    track: platform
+    size: M-L
+    # `in_progress` -> `staging` 2026-10-18 BY THE PRE-PUSH-CHECK. None of the
+    # NOTIFY-6 commits was pushed when the check ran; this check's own commit
+    # (the one immediately after a7fed5f, which cannot name itself) is not
+    # pushed either — Claude never pushes.
+    # planned -> in_progress 2026-10-18 by the NOTIFY-6 build session. Work
+    # commit 3ffb3f6 is on local `staging` and NOT pushed (Claude never
+    # pushes). PRE-PUSH-CHECK owns the flip to `staging`.
+    status: staging
+    commits:
+      - "3ffb3f6"
+      - "9747638"
+      - "a7fed5f"
+    title: "One notification pipeline — intent ledger, dispatcher, registry, per-recipient sends, retry"
+    blockers:
+      - >
+        DISCHARGED 2026-10-19 — ITEM (3) OF "STAGING VERIFICATION OWED" BELOW,
+        on Gary's instruction. Prepended per preserve-and-mark; nothing below is
+        edited. Evidence: the 2026-10-19 "ALLOWLIST CREATED" note at the top of
+        notes. A signed acknowledgment after the allowlist reached Preview
+        arrived at gary@kevajuice.com, and Recent emails shows it Sent · resend.
+        The item's three database claims (message mode sandbox, ZERO
+        NotificationDelivery rows, intent stays queued) were NOT queried on
+        staging. They rest on the code path and on verify-notify6 (dev). Items
+        (1), (2), (4) and (5) are not addressed by this entry.
+      - >
+        NOT PUSHED. Work commit 3ffb3f6 and the docs commit after it are on
+        local staging only. The migration 20261019005116_notify6_pipeline is
+        applied to DEV only (Gary, migrate deploy; level check empty); staging
+        and production get it through `prisma migrate deploy` in the Vercel
+        build on Gary's push.
+      - >
+        STAGING VERIFICATION OWED, staging-SHA precondition first. (1) The
+        build applies the migration (check preview/staging _prisma_migrations,
+        br-square-feather-a63z92vz). (2) "Send a test to me" still arrives
+        (check Junk) and Recent emails shows it from NotificationMessage.
+        (3) CORRECTED FROM THE PROMPT (R1, approved 2026-10-18): signing a test
+        document with only Gary's address in hrAckRecipients sends one email
+        and writes one NotificationMessage (mode sandbox, status sent), ZERO
+        NotificationDelivery rows, and the intent stays `queued` — sandbox
+        never moves an intent's state. The prompt's "writes one intent `sent`"
+        contradicted its own design. (4) A non-allow-listed hrAckRecipients
+        address reads "Dry run — not sent" and the intent stays `queued`.
+        (5) As a MANAGER, /settings/notifications still redirects.
+      - >
+        CONFIRM THE CRON ALLOWANCE. vercel.json now has 8 crons (new:
+        /api/cron/notify-dispatch at "15 * * * *"). The repo does not record
+        the Vercel plan; Gary confirms an eighth cron is allowed (audit C4).
+      - >
+        DEPENDS ON NOTIFY-5 (on staging since 2026-10-18). NOTIFY-6 builds on
+        deliveryMode() / sandboxAllows() in src/lib/notify.ts; it does not
+        re-decide the mode table.
+      - >
+        SCHEMA PHASE. Four additive tables, one migration. Per CLAUDE.md
+        "A migration STOPS the session": the session generates the SQL with
+        `migrate diff`, STOPS, and commits nothing until Gary has applied it to
+        dev and the fixture has run green against the applied schema.
+    notes: >
+      ── EVIDENCE CONTEXT 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
+      EDITED. ── Gary named the context for the "ALLOWLIST CREATED" note
+      directly below: preview/staging Neon branch br-square-feather-a63z92vz,
+      org cmr54z65v000105jxczpt72w1. That note's "The org id was not reported
+      with the observations" is superseded: the 10:51, 11:15 and 11:29 PDT
+      observations were taken under that org, and Recent emails read
+      NotificationMessage on that branch. What stays true: no Neon query was
+      run for the 11:29 send. The three database claims of checklist item (3)
+      (message mode sandbox, zero NotificationDelivery rows, intent queued)
+      are still NOT queried. Naming the branch says where the rows live; it
+      does not add a query result.
+      ── STAGING EVIDENCE 2026-10-19 (Gary), ALLOWLIST CREATED; CHECKLIST
+      ITEM (3) DISCHARGED. PREPENDED; NOTHING BELOW IS EDITED. ── Reported by
+      Gary in the session prompt. Claude saw neither the inbox nor the page.
+      NOTIFY_SANDBOX_ALLOWLIST = gary@kevajuice.com was first saved to
+      Production by mistake, then moved to Preview, and staging was
+      redeployed. While it sat in Production it did nothing: deliveryMode()
+      returns live there and never reads the allowlist (src/lib/notify.ts:189).
+      CHECKED BY CLAUDE at 11:32 PDT (18:32 UTC), names and scopes only, no
+      values, no pull. `npx vercel env ls` lists NOTIFY_SANDBOX_ALLOWLIST in
+      Preview ONLY, created about 34 minutes earlier (about 10:58 PDT; the
+      CLI gives only a relative age). Staging-SHA precondition: the staging
+      alias serves dpl_F1mH3gxXFGjE1KY2yUx3SdHUH5Er, created 11:21:58 PDT
+      (18:21:58 UTC). That deployment is listed by `vercel ls --meta
+      githubCommitSha=` for 30923dc (full sha) = local HEAD = origin/staging,
+      so it carries the NOTIFY-6 and NOTIFY-11 code, and it was built after
+      the Preview save. GARY'S OBSERVATIONS. (i) Acknowledgment sends at 10:51
+      PDT (17:51 UTC) and 11:15 PDT (18:15 UTC) showed in Recent emails as
+      "Held back by the staging allowlist". That is the NOTIFY-11 label
+      (9f54bd8), so it is verified on staging; see the NOTIFY-11 row. (ii)
+      Signed acknowledgment "Test 10192026c v1", signed by Tommy Thomas, Las
+      Brisas, at 11:29 AM PDT (18:29 UTC), after the redeploy, to
+      hrAckRecipients = gary@kevajuice.com. Recent emails shows it as Sent ·
+      resend, with no allowlist note. The email arrived at gary@kevajuice.com
+      naming the document, the signer and the store, completed 2026-10-19
+      18:29:04 UTC (11:29:04 PDT). This is the first acknowledgment ever
+      delivered through the sandbox allowlist on staging. CHECKLIST ITEM (3)
+      IS DISCHARGED on Gary's instruction (blocker above). WHAT THIS COVERS:
+      one email arrived, and Recent emails, which reads NotificationMessage,
+      shows a sent row with provider resend. On Preview, resend resolves to
+      sandbox, so the mode is sandbox by the code path, not by a query. NOT
+      QUERIED: the message row's mode column, the ZERO NotificationDelivery
+      rows, and the intent staying queued. No Neon query was run for this
+      send, so no branch id and no intent id are recorded; those three rest on
+      verify-notify6 (dev, br-broad-wave-a6vpjdw0). The org id was not reported
+      with the observations; Tommy Thomas / Las Brisas was under org
+      cmr54z65v000105jxczpt72w1 in the 1fe1481 test below. The hourly-sweep
+      hand-fire was NOT run; Gary accepts it as fixture-proven (NOTIFY-11 row).
+      The do-not-hand-fire warning below (intent cmvfd7emg000j08jnr89ef48w,
+      until 2026-10-26 14:43 UTC) was written for NOTIFY-6 code. With NOTIFY-11
+      on the serving deployment, the sweep makes no sandbox send; that is
+      proven by fixture, not observed on staging.
+      ── STAGING EVIDENCE 2026-10-19, FIRST REAL ACKNOWLEDGMENT TEST.
+      PREPENDED; NOTHING BELOW IS EDITED. ── Observed by Gary on staging
+      (Vercel Preview), footer 1fe1481 = local HEAD = origin/staging, org
+      cmr54z65v000105jxczpt72w1. A signed acknowledgment (Test Document v1,
+      signed by Tommy Thomas, Las Brisas) to hrAckRecipients =
+      gary@kevajuice.com showed in Recent emails as "Dry run — not sent",
+      provider console. The NOTIFY-6 checklist (blocker item 3) expects one
+      email and one message row with mode sandbox, status sent, provider
+      resend. Six read-only queries, run by Gary in the Neon console. Every
+      result carries branch_id br-square-feather-a63z92vz (preview/staging).
+      An earlier run hit production (br-sparkling-block-a620qvg4), where the
+      NOTIFY-6 tables do not exist; that run is not evidence and is not used.
+      (1) NotificationIntent cmvfd7emg000j08jnr89ef48w, kind hr.ack, dedupeKey
+      cmvfd7e7m000i08jn6xny6lxj: state queued, attempts 0, lastError null,
+      sentAt null, nextAttemptAt null. eventAt 14:43:52 UTC (07:43:52 PDT),
+      createdAt 14:43:55 UTC. (2) One NotificationMessage
+      cmvfd7ew4000k08jnap5usal1: mode dry-run, provider console, status
+      dry-run, to gary@kevajuice.com (18 characters), 14:43:56 UTC. (3) Zero
+      NotificationDelivery rows. (4) The parallel AuditLog row
+      cmvfd7ey2000l08jn13rhsvu9, action email.dryrun, 14:43:56 UTC:
+      metadata.provider resend, metadata.mode sandbox, recipients
+      ["gary@kevajuice.com"]. (5) The most recent test intent, 04:17:12 UTC on
+      2026-10-19 (21:17 PDT on 2026-10-18): payload sha 1fe1481, env preview,
+      provider resend, message mode sandbox, status sent, Resend id
+      01a15260-b9ba-716c-bb46-5689772a0a9a. That is the same deployment as the
+      acknowledgment. (6) Organization.hrAckRecipients = {gary@kevajuice.com},
+      length 18, hex 67617279406b6576616a756963652e636f6d. No hidden
+      characters. CAUSE: NOTIFY_SANDBOX_ALLOWLIST WAS NEVER CREATED IN VERCEL.
+      `npx vercel env ls` (Claude, 2026-10-19; names only, no values, no pull)
+      lists it in no environment of project froot. Query (4) shows the
+      transport was resend and sandbox, so the per-recipient allowlist check
+      held the address back as a dry run. Query (5) shows the test button
+      reaching Gary on the same deployment, because the test kind bypasses the
+      allowlist (sandboxBypass). NO CODE DEFECT IN THIS SEND: the intent,
+      message and delivery rows are what the design produces for a
+      sandbox-withheld recipient (R1). Blocker item (3) is NOT satisfied and
+      stays owed until the variable exists, staging is redeployed after the
+      save, and a NEW document is signed. Two findings from the same
+      investigation are filed as NOTIFY-11, FIX NOW per Gary 2026-10-19. (a)
+      The R2 gap: the sweep skips only a sandbox RE-send (dispatch.ts:428), so
+      a hand-fired sweep makes a FIRST sandbox send. Do not hand-fire
+      /api/cron/notify-dispatch on staging before 2026-10-26 14:43 UTC: intent
+      cmvfd7emg000j08jnr89ef48w stays queued until then, and once the allowlist
+      exists the sweep would mail it. (b) A dry-run row always shows provider
+      console (dispatch.ts:616), which hid that resend was configured.
+      ── PRE-PUSH-CHECK 2026-10-18. PREPENDED; NOTHING BELOW IS EDITED. ──
+      Status flipped to `staging`. Docs SHAs 9747638 and a7fed5f are added, and
+      this check's own commit is the one immediately after a7fed5f. DECISIONS:
+      the NOTIFY-6 entry is RATIFIED. a7fed5f records Gary's reply in his own
+      words ("Ratify as written, in my words: R1 — sandbox never changes a
+      send's status; R2 — the hourly retry never sends in sandbox; and the 18
+      implementation choices as listed."). At this check, Step 1 asked again and
+      the answer was "Ratify as written.", given through a reply button whose
+      text Claude wrote. It is the check's own option, so the entry is left
+      unchanged. The "for ratification" wording below is superseded by that.
+      DEPLOY_LOG: UNPROMOTED entry written at this check.
+      ── BUILT 2026-10-18 (work commit 3ffb3f6). PREPENDED; NOTHING BELOW IS
+      EDITED. ── Audit: docs/prompts/2026-10-18_NOTIFY-6_AUDIT.md. Migration
+      20261019005116_notify6_pipeline: NotificationIntent, NotificationDelivery,
+      NotificationMessage, NotificationEvent; additive, no existing table
+      altered. Code: src/lib/notifications/ (define, registry, dispatch, kinds
+      pace-alert / hr-ack / test); pace-alerts.ts, hr-ack-notification.ts and
+      /api/notify/test are producers; /api/cron/notify-dispatch is the hourly
+      sweep (15 * * * *). R1 and R2 approved by reply button 2026-10-18 (the
+      text was Claude's, so it is not quoted as Gary's words): R1 sandbox never
+      moves an intent's state, and the staging checklist step is corrected
+      (blocker above); R2 the sweep never makes a sandbox send, while producer
+      dispatches keep NOTIFY-5 choice 4. P6 is enforced twice: the dispatcher
+      drops recipients with a `sent` delivery, and the per-recipient claim never
+      re-claims a `sent` row. Fixtures on dev (br-broad-wave-a6vpjdw0):
+      verify-notify6 72/0; verify-notify5 55/0 and verify-f5-polish 63/0 with
+      expectations adapted (one message/row per recipient, the intent is reset
+      with PaceAlertLog, legacy rows backdated, pace switch on for the direct
+      calls); verify-notify-template 35/0 unchanged. Choices for ratification:
+      DECISIONS.md 2026-10-18 NOTIFY-6 entry.
+      FILED 2026-10-18 from the NOTIFY-3 audit phase table
+      (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 7; design in sections
+      4.1-4.3, 4.5, 4.7). Tier lean TIER 3 (Gary declares it). Session prompt:
+      docs/prompts/2026-10-18_NOTIFY-6_pipeline.md.
+      WHAT (audit section 7, as written there): four tables (migration, STOP
+      for Gary), enqueueNotification, dispatchNotifications, the registry,
+      freshness, per-recipient sends, partial-failure retry, hourly sweep.
+      Migrate pace, hr.ack and test onto it. Parallel writes to PaceAlertLog
+      and AuditLog for one release; reader switches to NotificationMessage.
+      Webhook re-pointed at the indexed column. Shared fixture template.
+      RULING P6, Gary's words exactly (2026-10-18): "P6: Yes — replace MS-4b's
+      F16: retry only the recipients who didn't get it, using per-recipient
+      delivery rows." So: NotificationDelivery holds one row per (intent,
+      recipient); a partly failed send leaves the intent `partial`, and the
+      retry sends ONLY to resolved recipients with no `sent` delivery row.
+      Nobody who got the email gets it twice. This replaces the MS-4b audit's
+      F16 lean (see the MS-4b row).
+      RULING P0 (already recorded on NOTIFY-5 and MS-4b): "P0 approved: adopt
+      the pipeline, hold MS-4b behind NOTIFY-6."
+      NOT IN NOTIFY-6: suppression (NOTIFY-7), From display name, reply-to,
+      unsubscribe, retention, per-org cap, generic setting table (all
+      NOTIFY-8), stopping the legacy writes (NOTIFY-9), milestone emails
+      (MS-4b).
+      Cross-refs: NOTIFY-5, NOTIFY-7, NOTIFY-8, NOTIFY-9, MS-4b, NOTIFY-10.
+
+  - id: NOTIFY-7
+    track: platform
+    size: S-M
+    status: planned
+    title: "Suppression and bounce handling — hard bounces and complaints stop being mailed"
+    blockers:
+      - >
+        DEPENDS ON NOTIFY-6 and on a Resend webhook endpoint being provisioned
+        (RESEND_WEBHOOK_SECRET set) in the environment it is verified in.
+    notes: >
+      FILED 2026-10-18 from the NOTIFY-3 audit phase table
+      (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 7; design in section
+      4.6). Tier lean TIER 3 (Gary declares it).
+      WHAT (audit section 7, as written there): EmailSuppression, dispatch
+      skip, admin view and clear, user-row badge. Hard bounce or complaint ->
+      suppressed address; dispatch records the delivery as `suppressed`; soft
+      bounces and delays never suppress. Suppression is per sending domain
+      (Resend's own is per account), shown to each org only for its own
+      recipients; clearing is audited.
+      No ruling attached. Cross-refs: NOTIFY-6, NOTIFY-8, DEBT-109.
+
+  - id: NOTIFY-8
+    track: platform
+    size: M
+    status: planned
+    title: "Tenant onboarding for email — '{Org} via Froot', optional reply-to, one-click unsubscribe, 180-day retention"
+    blockers:
+      - >
+        DEPENDS ON NOTIFY-6. P1, P3, P4 and P5 are RULED (below), so no fork
+        blocks it.
+      - >
+        P1's ORDER: Gary ruled unsubscribe goes in "before a second tenant".
+        NOTIFY-8 (or at least its P1 half) must be on production before a
+        second business is onboarded to email.
+    notes: >
+      FILED 2026-10-18 from the NOTIFY-3 audit phase table
+      (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 7; design in section
+      5). Tier lean TIER 3 (Gary declares it).
+      WHAT (audit section 7, as written there): sanitised org display name in
+      From, optional reply-to (if P4), generic per-org setting table,
+      onboarding step, per-org daily cap, retention prune, and one-click
+      unsubscribe (if P1). P1 and P4 were both approved, so neither "if"
+      applies.
+      RULINGS, Gary's words exactly (2026-10-18):
+      P1: "Yes — one-click unsubscribe on every operational email, before a
+      second tenant." (Reverses NOTIFY-2c's "no unsubscribe anywhere",
+      2026-09-20. The audit's design: List-Unsubscribe + List-Unsubscribe-Post
+      on every operational email, a signed link that denies that kind's
+      notify.*.receive for that user — the same switch as the grid — and, for
+      an hrAckRecipients address, removes it from the list.)
+      P3: "Yes — sender shows "{Org name} via Froot"." (Address stays
+      noreply@notify.usefroot.com; org name sanitised before it reaches a
+      header: strip " < > CR LF, collapse whitespace, cap about 60 chars.)
+      P4: "Yes — optional per-org reply-to, unset by default." (Reopens HR-16's
+      "no per-merchant reply address"; unset = no-reply, as today.)
+      P5: "Yes — 180 days for messages, events and deliveries; sent-once locks
+      kept forever." (Pruned in the existing engagement-prune cron;
+      NotificationIntent state is never pruned.)
+      GO-LIVE NOTE: NOTIFY-10 sets NOTIFY_FROM_EMAIL to "USE Froot
+      <noreply@...>". P3 replaces that display name per org when NOTIFY-8
+      ships; it does not block NOTIFY-10.
+      Cross-refs: NOTIFY-6, NOTIFY-7, NOTIFY-10, NOTIFY-2c, HR-16, DEBT-109.
+
+  - id: NOTIFY-9
+    track: platform
+    size: S
+    status: planned
+    title: "Legacy notification retirement — stop the parallel PaceAlertLog and AuditLog writes"
+    blockers:
+      - >
+        DEPENDS ON NOTIFY-6 having been in production for one release with
+        parallel writes.
+      - >
+        RETIRE THE PACE GATE IN THE SAME CHANGE (NOTIFY-6 audit W4,
+        2026-10-18). processPaceAlertForStore (src/lib/pace-alerts.ts) still
+        reads PaceAlertLog as its "already alerted this month" gate, so a store
+        alerted by the pre-pipeline code is not alerted twice in the deploy
+        month. Once NOTIFY-9 stops the PaceAlertLog write the gate reads a table
+        nothing writes. That is not a double-send — a sent store-month intent
+        already makes enqueue a no-op — but it is dead code that looks
+        load-bearing, so remove it in the same commit and say the intent state
+        is the only lock.
+    notes: >
+      FILED 2026-10-18 from the NOTIFY-3 audit phase table
+      (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 7). Tier lean TIER 2
+      (Gary declares it).
+      WHAT (audit section 7, as written there): after one release with
+      parallel writes, stop writing PaceAlertLog and Notification AuditLog
+      rows (tables and columns stay — additive-only), mark the legacy reader
+      as history-only. No drop, ever.
+      No ruling attached. Cross-refs: NOTIFY-6.
+
+  - id: NOTIFY-10
+    track: platform
+    size: S
+    status: planned
+    title: "Production email go-live — real mail from production for the existing types (Gary-side checklist)"
+    blockers:
+      - >
+        DMARC STEP SUPERSEDED, 2026-10-18 (Gary). His replacement for the "add
+        a DMARC record for the sending domain" step in the entry below, in his
+        words exactly: "DMARC already exists at p=quarantine on usefroot.com —
+        confirm at go-live; optionally redirect rua reports to an address Gary
+        reads." EVIDENCE, Gary, 2026-10-18, via `dig TXT _dmarc.usefroot.com`:
+        "v=DMARC1; p=quarantine; adkim=r; aspf=r;
+        rua=mailto:dmarc_rua@onsecureserver.net;". `_dmarc.notify.usefroot.com`
+        has no record, so notify.usefroot.com inherits the parent policy. In
+        Gary's finding, SPF and DKIM are verified in Resend, so Froot mail
+        passes DMARC, and the Junk result is likely new-domain reputation (see
+        DEBT-109). The rest of the entry below (SPF and DKIM green, a small set
+        of internal recipients first, the Junk observation) still stands. It is
+        kept verbatim.
+      - >
+        GARY'S PRE-GO-LIVE CONDITIONS, his words exactly (2026-10-18, at the
+        NOTIFY-5 PRE-PUSH-CHECK): "Before go-live: confirm SPF and DKIM are
+        green in Resend for notify.usefroot.com; add a DMARC record for the
+        sending domain; start production sending with a small set of internal
+        recipients before all managers. The first staging test (2026-10-18)
+        delivered but landed in Outlook Junk."
+      - >
+        RESOLVED 2026-10-18. The entry below is kept verbatim. A DMARC record
+        EXISTS, and it is p=quarantine, not p=none. It is on the parent
+        usefroot.com, which notify.usefroot.com inherits because it has no
+        record of its own (Gary's dig, quoted in the first blocker above). So
+        neither half of the question below was right: Gary's original words
+        ("add a DMARC record") assumed there was none, and the audit's step 2
+        and DEBT-109's step 2 assumed p=none. The audit's step 2 ("DMARC
+        `p=none`") in the quoted checklist is therefore wrong on the policy
+        value. It stays in the quote, which is a claim of record, and this
+        entry is its correction.
+        OPEN, NOT RESOLVED HERE: does a DMARC record exist for the sending
+        domain? Gary's words say "add a DMARC record". The audit's step 2 below
+        says to confirm notify.usefroot.com shows "SPF, DKIM, DMARC `p=none`",
+        and DEBT-109's step 2 is about tightening an existing p=none. Both of
+        those assume a record exists. Gary's words are the instruction. Check
+        the DNS/Resend record before go-live to find out which is true.
+    notes: |
+      FILED 2026-10-18 by Gary's instruction at the NOTIFY-5 PRE-PUSH-CHECK
+      (TIER 1, docs only). This is the phase the NOTIFY-3 audit calls GO-LIVE
+      (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 7: "Gary-side (no
+      session needed; a TIER 1 docs session can record it)", depends on
+      nothing). The audit gave it no number.
+      WHY NOTIFY-10 AND NOT NOTIFY-7. Gary leaned NOTIFY-7 and asked for a free
+      id. NOTIFY-6 to NOTIFY-9 are already allocated by the same audit's phase
+      table (NOTIFY-6 ledger and dispatcher, NOTIFY-7 suppression and bounce
+      handling, NOTIFY-8 tenant onboarding, NOTIFY-9 legacy retirement), and
+      MS-4b's blocker already cites NOTIFY-6. No document, source file or
+      commit used NOTIFY-10 before this row.
+      ORDER. The audit recommends GO-LIVE together with NOTIFY-5 ("the pair
+      gets Gary his first email with no new way to lose one"). NOTIFY-5 is on
+      local staging at the time of filing (row above). Once it reaches
+      production, the audit's rollback note "until NOTIFY-5 lands, console
+      mode burns pace locks again" stops being true. The checklist below
+      also predates the "Send a test to me" button, which can replace step 11's
+      console fetch once NOTIFY-5 is in production.
+      DELIVERABILITY: see DEBT-109 (Outlook Junk). It carries the 2026-10-18
+      staging observation as evidence, and its Not-Junk and DMARC-tightening
+      order applies to the first production sends.
+      ── THE CHECKLIST, QUOTED VERBATIM FROM THE NOTIFY-3 AUDIT SECTION 6 ──
+      "Everything here is Gary's to do; nothing needs a code change. It is the
+      MS-4b audit's B2 list, ordered, with the steps that audit did not cover.
+      Can run before any pipeline phase: today's defaults mean the flip itself
+      emails nobody.
+      Before anything
+      1. Run the MS-4b audit's Q1, Q2, Q3 in the Neon console on `production`
+         (`br-sparkling-block-a620qvg4`). Q1 tells you which orgs would start
+         mailing at the next 15:00 UTC; Q3 tells you which stores already have a
+         burned lock this month.
+      2. In Resend: confirm `notify.usefroot.com` still shows Verified (SPF,
+         DKIM, DMARC `p=none`), and note the plan's daily and monthly limits.
+      3. In Resend: create an API key for production only, sending access,
+         restricted to that domain. Put it in the password manager in the same
+         minute (Sensitive values can never be read back).
+      Vercel, Production scope only (Preview values are separate)
+      4. `NOTIFY_EMAIL_PROVIDER` = `resend`
+      5. `NOTIFY_FROM_EMAIL` = `USE Froot <noreply@notify.usefroot.com>`
+      6. `RESEND_API_KEY` = the new key — Sensitive
+      7. Confirm `NEXT_PUBLIC_APP_URL` = `https://www.usefroot.com` (links in every
+         email are built from it; hr.ack refuses to send without it).
+      8. In Resend: add a webhook endpoint `https://www.usefroot.com/api/webhooks/resend`
+         for `email.delivered`, `email.bounced`, `email.complained`,
+         `email.delivery_delayed`. Copy its signing secret into
+         `RESEND_WEBHOOK_SECRET` (Production). Never Preview's — one secret per
+         endpoint.
+      Deploy
+      9. Redeploy production (read the branch column). A deployment keeps the
+         env it was built with; saving a variable alone changes nothing.
+      10. Confirm the new deployment's created time is after the saves.
+      Prove it
+      11. Signed in to production as an ADMIN, on any page, open the browser
+          console and run:
+          `await fetch("/api/notify/test", { method: "POST" }).then(r => r.json())`
+          Expect `provider: "resend"`, `ok: true` and an `id`. (Until the test
+          button exists, this is the only way.)
+      12. Find the email — check Junk — and mark it Not Junk (DEBT-109).
+          This is the first email Gary receives.
+      13. Within a few minutes, /settings/notifications → Recent emails shows that
+          test as Delivered. That proves the webhook end to end, which no
+          environment has done yet. If it stays Sent, the webhook secret or
+          endpoint is wrong — not the send.
+      Turn types on, one at a time
+      14. Signed acknowledgments: put one address (Gary's) in the list, sign a
+          test document, expect one email whose link opens the record.
+      15. Behind-pace alerts: turn on for Keva only, after reading Q3 — any store
+          with a lock for the current month stays quiet until next month (the
+          console-mode burn). Watch the first 15:00 UTC run in the function log:
+          `N orgs enabled, M stores evaluated, K alerted`.
+      16. Milestones: only after MS-4b is built and promoted.
+      Rollback (fastest first)
+      - Turn an org's switch off on /settings/notifications — instant, no deploy.
+      - Set `NOTIFY_EMAIL_PROVIDER=console` and redeploy production — stops all
+        mail. (Note: until NOTIFY-5 lands, console mode burns pace locks again.)"
+      ── END QUOTE. The audit's bold emphasis is dropped; the words are unchanged. ──
+
+  - id: NOTIFY-11
+    track: platform
+    size: S
+    # `in_progress` -> `staging` 2026-10-19 BY THE PRE-PUSH-CHECK. Neither
+    # NOTIFY-11 commit was pushed when the check ran; this check's own commit
+    # (the one immediately after 6f78487, which cannot name itself) is not
+    # pushed either — Claude never pushes. DEPLOY_LOG entry written by this
+    # check, headed UNPROMOTED.
+    # planned -> in_progress 2026-10-19 by the NOTIFY-11 build session. Work
+    # commit 9f54bd8 is on local `staging` and NOT pushed (Claude never
+    # pushes). PRE-PUSH-CHECK owns the flip to `staging`.
+    status: staging
+    commits:
+      - "9f54bd8"
+      - "6f78487"
+    title: "R2 enforced: the sweep never sends in sandbox; dry-run rows name the real provider"
+    blockers:
+      - >
+        EVIDENCE CONTEXT 2026-10-19 (Gary). Prepended per preserve-and-mark;
+        nothing below is edited. The staging pass in the entry directly below
+        was taken on preview/staging Neon branch br-square-feather-a63z92vz,
+        org cmr54z65v000105jxczpt72w1. Its closing sentence ("no org id was
+        reported ... not met as written") is superseded for the org and branch
+        naming. Still true: no query was run, so nothing in item (2) or (3) is
+        a query result.
+      - >
+        STAGING VERIFICATION, 2026-10-19 (Gary). Prepended per preserve-and-mark;
+        nothing below is edited. The last blocker below ("STAGING VERIFICATION
+        NEEDS NOTIFY_SANDBOX_ALLOWLIST TO EXIST") is DISCHARGED: the variable
+        is in Vercel Preview only, and the deployment the staging alias serves
+        (dpl_F1mH3gxXFGjE1KY2yUx3SdHUH5Er, 11:21:58 PDT, commit 30923dc = local
+        HEAD) was built after the save. The checklist in "STAGING VERIFICATION
+        OWED", item by item. (1) R2 ON REAL DATA: NOT RUN. Gary accepts it as
+        fixture-proven: verify-notify6 78/0 on dev, whose R2 first-send check
+        fails under the old guard (negative control in the notes). (2) A NEW
+        document signed with gary@kevajuice.com allow-listed: one email
+        arrived, and Recent emails shows Sent · resend. Mode sandbox, zero
+        delivery rows and intent queued were NOT queried. This is the item that
+        discharges NOTIFY-6 item (3) and the re-opened NOTIFY-5 blocker; both
+        are discharged on their rows. (3) THE LABEL: VERIFIED. The 10:51 and
+        11:15 PDT sends read "Held back by the staging allowlist". Note the
+        shape: those rows were gary@kevajuice.com withheld because the variable
+        was not yet on the serving deployment. They were not a
+        non-allow-listed address next to an allow-listed one, but
+        sandboxAllows() is false in both cases, so it is the same code path. No
+        query was run and no org id was reported, so the item's
+        branch-on-every-line and org-on-every-observation requirements are not
+        met as written.
+      - >
+        NOT PUSHED. Work commit 9f54bd8 and the docs commit after it are on
+        local staging only. No migration.
+      - >
+        STAGING VERIFICATION OWED, after Gary's push. Precondition:
+        NOTIFY_SANDBOX_ALLOWLIST exists in Vercel Preview and staging was
+        redeployed after the save (deployment created time postdates it); then
+        the staging-SHA precondition. (1) R2 ON REAL DATA: while intent
+        cmvfd7emg000j08jnr89ef48w is still queued (before 2026-10-26 14:43
+        UTC), Gary hand-fires /api/cron/notify-dispatch with CRON_SECRET → the
+        response reports 0 sent for it, no new sandbox message row, no email
+        arrives. ONLY AFTER NOTIFY-11 IS DEPLOYED: on NOTIFY-6 code this
+        hand-fire would send. (2) Sign a NEW test document with
+        gary@kevajuice.com allow-listed → one email, one message row mode
+        sandbox, status sent, provider resend, zero delivery rows, intent
+        queued (also discharges NOTIFY-6 item (3) and the re-opened NOTIFY-5
+        allowlist blocker). (3) A non-allow-listed hrAckRecipients address →
+        "Dry run — not sent", provider resend, detail naming
+        NOTIFY_SANDBOX_ALLOWLIST. Every query names branch
+        br-square-feather-a63z92vz on the same line
+        (current_setting('neon.branch_id', true)); every browser observation
+        names org cmr54z65v000105jxczpt72w1.
+      - >
+        DEPENDS ON NOTIFY-6 (on staging since 2026-10-18). NOTIFY-11 changes
+        src/lib/notifications/dispatch.ts and the Recent emails reader, both
+        NOTIFY-6 code. Build on staging with NOTIFY-6's commits present.
+      - >
+        STAGING VERIFICATION NEEDS NOTIFY_SANDBOX_ALLOWLIST TO EXIST in Vercel
+        Preview. As of 2026-10-19 it does not (NOTIFY-6 notes, 2026-10-19
+        STAGING EVIDENCE). Gary creates it and redeploys before the staging
+        pass.
+    notes: >
+      ── STAGING EVIDENCE 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
+      EDITED. ── Status stays `staging`; this records evidence and does not
+      promote. On staging 30923dc, after NOTIFY_SANDBOX_ALLOWLIST was moved
+      from Production (saved there by mistake, where it did nothing) to
+      Preview and staging was redeployed, the "Held back by the staging
+      allowlist" label showed on the 10:51 and 11:15 PDT sends. The 11:29 PDT
+      signed acknowledgment was delivered (Sent · resend). The sweep hand-fire
+      was not run and is accepted as fixture-proven. Item-by-item status is
+      in the first blocker; full evidence and its limits are on the NOTIFY-6
+      row (2026-10-19 "ALLOWLIST CREATED" note).
+      ── BUILT 2026-10-19 (work commit 9f54bd8). PREPENDED; NOTHING BELOW IS
+      EDITED. ── Audit: docs/prompts/2026-10-19_NOTIFY-11_AUDIT.md. Gary's go,
+      his words exactly: "Approved (Gary, 2026-10-19, my words): build
+      NOTIFY-11 with lean (a) as written, and lean (b) with your change — the
+      dry-run label comes from the mode the email was actually dispatched
+      under (configured provider only in sandbox, otherwise "console"), plus
+      the extra fixture check for a hand-passed mode. Go." (a) The sandbox
+      guard in dispatchOne is trigger "sweep" alone; producer dispatches keep
+      NOTIFY-5 choice 4; withheld dry-run rows and intent state unchanged.
+      (b) A dry-run row's provider is the configured provider when
+      transport.mode is sandbox, else "console" (the audit's amendment: the
+      dispatcher read the provider from the environment independently of the
+      injected mode, so the prompt's lean held for production callers but not
+      by construction). listRecentEmails adds detail "Held back by the staging
+      allowlist (NOTIFY_SANDBOX_ALLOWLIST)" to a dry-run row whose provider is
+      not console; status unchanged; no backfill; no UI file changed. The
+      cron route's "writes nothing else" comment corrected (it never held for
+      first dry-run rows). Fixtures on dev (br-broad-wave-a6vpjdw0):
+      verify-notify6 78/0 (6 new checks: R2 first send, choice 4 kept, label
+      sandbox row, label reader, hand-passed dry-run transport, console);
+      verify-notify5 55/0; verify-f5-polish 63/0; verify-notify-template 35/0.
+      NO EXISTING EXPECTATION CHANGED: no check asserted provider on a
+      sandbox-withheld row. Negative controls, run and reverted, not committed:
+      old guard (sweep skips only with a prior sandbox message) → 2 fail (the
+      first-send check and the choice-4 count; the pre-existing re-send check
+      PASSED, which is why the gap went unseen); forced "console" → 2 fail
+      (both sandbox label checks); environment-only provider (the prompt's
+      original lean) → 1 fail (the hand-passed check, which then read "Held
+      back by the staging allowlist" on a console dry run).
+      FILED 2026-10-19 as FIX NOW by Gary, from the NOTIFY-5/NOTIFY-6
+      acknowledgment investigation (staging, footer 1fe1481, org
+      cmr54z65v000105jxczpt72w1, branch br-square-feather-a63z92vz; evidence on
+      the NOTIFY-6 row). Session prompt:
+      docs/prompts/2026-10-19_NOTIFY-11_r2_sweep_and_label.md. Tier lean TIER 3
+      (cron path and row writes); Gary declares it. No schema expected.
+      WHAT. (a) THE R2 GAP. Gary's ruling, ratified in a7fed5f, in his words:
+      "R2 — the hourly retry never sends in sandbox". The dispatcher skips a
+      sandbox recipient on trigger "sweep" only when a sandbox message already
+      exists for that recipient (src/lib/notifications/dispatch.ts:428). So a
+      sweep makes a FIRST sandbox send whenever the producer's inline dispatch
+      did not send one, for example an address added to the allowlist after
+      the signing. Fix: on trigger "sweep" in sandbox mode, no send at all,
+      with a fixture check and a negative control. The comments in
+      dispatch.ts and api/cron/notify-dispatch/route.ts that state the rule are
+      corrected to match. (b) THE LABEL. writeMessage forces provider
+      "console" on every dry-run row (dispatch.ts:616), so Recent emails
+      shows "Dry run — not sent · console" even when resend is configured and
+      the sandbox allowlist held the address back. On 2026-10-19 that label
+      hid the real cause (NOTIFY_SANDBOX_ALLOWLIST never created) for a
+      staging test. Fix: a dry-run row stops showing provider "console" when
+      resend is configured, and a recipient held back by the sandbox allowlist
+      is told apart from a console-mode dry run.
+      NOT IN NOTIFY-11: the allowlist parser (comma-only today, while
+      hrAckRecipients accepts commas or newlines), an allowlist status banner
+      on /settings/notifications, and test-send allowlist fields. Those were
+      proposed in the same investigation and are not ruled. Cross-refs:
+      NOTIFY-5, NOTIFY-6.
 
 
 bugs:
@@ -21038,6 +22981,104 @@ bugs:
       BEHAVIOURS ARE CORRECT AND THE PAIR IS THE POINT: "clean" and "used" are
       independent, in both directions, and this is the first time the estate has
       demonstrated it rather than a fixture asserting it.
+
+  - id: BUG-15
+    # `in_progress` -> `staging` 2026-10-15 BY THE PRE-PUSH-CHECK. None of
+    # 0ddf236 / cd57d44 / 7977d43 was pushed when the check ran; this check's
+    # own commit (the one immediately after 7977d43, which cannot name itself)
+    # is not pushed either — Claude never pushes. MS-1 is still unpromoted
+    # beneath it, so a promotion of staging carries both.
+    status: staging
+    commits: [0ddf236, cd57d44, 7977d43]
+    title: >
+      /dashboard header date causes React #418 after 5 PM Pacific
+    notes: >
+      ── VERIFIED ON STAGING — recorded 2026-10-17 by DOCS-CLOSEOUT (TIER 1).
+      Prepended; NOTHING BELOW IS EDITED. Status stays `staging` (no "verified
+      on staging" value exists). Gary, in chat: staging, Neon branch
+      br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1 (Clerk org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa), Clerk development instance. Deployed
+      SHA read from the page footer: 147fa94. Incognito, console open, hard
+      reload: no React #418 on Las Brisas at 20:54 PDT (UTC already the next
+      day). Southgate and All locations clean (checked 06:34 PDT, outside the
+      bug window); the fixture covers Denver. This supersedes the
+      "UNVERIFIED ON STAGING" sentence below, kept as written. Full block in
+      docs/DEPLOY_LOG.md (BUG-15 entry, still UNPROMOTED). Promotes with the
+      Milestones batch (see the MS-3b row note).
+      FILED AND FIXED 2026-10-15 (TIER 2), on staging on top of MS-1 — Gary
+      overrode the prompt's launch gate: MS-1 was NOT promoted to main first.
+      ROOT CAUSE. src/app/(app)/dashboard/dashboard-client.tsx:296 (at e1b4620)
+      built the header date as `new Date().toLocaleDateString("en-US",
+      {weekday, month, day})` inside a useMemo with no timeZone. The server
+      formats it in UTC (Vercel), the browser in local time, and once UTC rolls
+      to the next day (5 PM PDT / 4 PM PST) the two disagree: minified React
+      #418, args[]=text. useMemo cannot help — server and browser each run it
+      once. Reproduced in the diagnosis by server-rendering DashboardClient under
+      TZ=UTC and TZ=America/Los_Angeles; exactly one line of HTML differed.
+      THE FIX. The date is formatted on the SERVER and handed down as a string.
+      src/lib/reports.ts gains dashboardHeaderDate(instant, timeZone) (Intl,
+      en-US, weekday/month/day) and dashboardAnchorTimeZone(stores) —
+      stores[0]?.timezone ?? DEFAULT_TIME_ZONE (src/lib/hr.ts). dashboard/page.tsx
+      selects Store.timezone, takes ONE `new Date()`, and passes each store a
+      headerDate in its own zone plus a rollupHeaderDate in the anchor zone.
+      DashboardClient's useMemo is gone; it reads the string. Frozen at page
+      load, as before — no midnight timer.
+      ONE ZONE RULE FOR THE ROLLUP (Gary's addition 1). /api/dashboard/rollup
+      inlined `stores[0]?.timezone ?? "America/Los_Angeles"`; it now calls the
+      same helper as the header, no behaviour change. A3 confirmed both callers
+      build the SAME list: org via clerkOrgId, scope via getCurrentUser().dbUser
+      (role ADMIN = all, else storeAssignments), isActive, orderBy name asc.
+      Edge case, not a divergence: Store.name is not unique and neither query has
+      a tie-breaker, so two same-named stores have no guaranteed order — true of
+      the route against itself too. src/app/api/calendar/due/route.ts:46 inlines
+      the same pattern and was deliberately NOT touched (out of scope).
+      ORGANIZATION.TIMEZONE IS DELIBERATELY NOT READ. The org has no display
+      zone; Organization.timezone is mint-time only, the PDF date-stamp fallback
+      for corporate staff with no store (DEBT-70a). Commented at the helper.
+      FIXTURE. scripts/bug15-dashboard-header-date-fixture.tsx, pure (no DB, no
+      network). F1 formatter at pinned instants incl. the Denver case (06:30Z:
+      Denver Friday Oct 16, Pacific Thursday Oct 15); F2 anchor helper; F3
+      renderToString of DashboardClient in child processes under TZ=UTC /
+      America/Los_Angeles / America/Denver, byte-identical, header carrying the
+      store-local date. 13/13 PASS. NEGATIVE CONTROL, run at 20:45 PDT (03:45
+      UTC Oct 16): with the HEAD client swapped back in, F3 failed 5 checks with
+      exactly the diagnosis diff (UTC "Friday, October 16" vs "Thursday, October
+      15"); the fixed client was restored and re-run green before commit.
+      cd57d44 only drops the useMemo import 0ddf236 left unused (eslint warning;
+      not amended, so 0ddf236 stays the work SHA).
+      UNVERIFIED ON STAGING — load /dashboard after 5 PM Pacific (UTC has rolled
+      over) on a Pacific store, a Colorado store and All locations, and check for
+      no #418 and the store-local date in the header.
+      COMMENT, NOT A ROW (item 4): dashboard-client.tsx:92-100, team-message
+      relative times and dates format in the browser's zone. Arguably correct for
+      the reader, and it only runs after the fetch, so it cannot mismatch.
+
+  - id: BUG-16
+    status: planned
+    title: >
+      dashboard 'today' uses browser time zone, not store time zone
+    notes: >
+      FILED 2026-10-15 from the BUG-15 diagnosis (Gary's addition 3: items 2 and
+      3 as one row).
+      ITEM 2. src/app/(app)/dashboard/use-labor-date.ts todayStr() /
+      shiftDateStr() use browser-local time. They set the labor cards' default
+      day and week, the "today" button, and the back/forward limits.
+      ITEM 3. src/app/(app)/dashboard/date-range-picker.tsx resolvePreset() uses
+      browser-local `new Date()` for the Sales "Today/Yesterday/This week/This
+      month" presets and the rollup's default "This month". Its calendar cut-off
+      `disabled={{ after: new Date() }}` is browser-local too.
+      Neither can cause #418, because both run only after hydration. Both are
+      wrong only when the viewer's zone differs from the store's (e.g. a Pacific
+      viewer on a Colorado store between 11 PM and midnight Pacific).
+      /api/dashboard/sales clamps `end > today`, which hides some of it. Fixing
+      it changes what the cards request, so it is behaviour, not display.
+      ITEM 4 — ADDED 2026-10-16 by the MS-2 session (Gary: "Add it as a note on
+      the existing BUG-16 row, same bug class. No new row."). The Labor Day
+      Inspector, src/app/(app)/labor/inspector/day-inspector-client.tsx
+      todayStr(), uses the browser's date for the default day and the "today"
+      link. A Pacific viewer on a Colorado store between 11 PM and midnight
+      Pacific lands on the wrong day. The server clamps only the future end
+      (/api/labor/day-inspector, the schedule horizon), so no data is wrong.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
@@ -29522,6 +31563,10 @@ debt:
       docs/DEPLOY_LOG.md has diverged between staging and main — staging is
       missing HELP-1b entirely, and a hand edit on main damaged HELP-1a's prose
     notes: >
+      ── 2026-10-20: the HELP-1b DEPLOY_LOG entry was restored by
+      DOCS-CLOSEOUT-2 (from bc13251, byte-identical; it had been dropped from
+      BOTH branches by merge bf5a66f, not kept on main). Prepended; NOTHING
+      BELOW IS EDITED.
       FILED 2026-09-05 by HR-33's Phase 0 audit. Gary ruled it a ROW, not a fix
       inside HR-33 (2026-09-05): "File the DEPLOY_LOG staging/main divergence as
       a ROW. Do not fix it here."
@@ -30466,6 +32511,35 @@ debt:
       Deliverability — mail from the new sending domain lands in Outlook Junk;
       there is no code fix, only a warm-up and a DMARC tightening
     notes: >
+      ── DMARC FINDING 2026-10-18 (Gary). PREPENDED; NOTHING BELOW IS EDITED. ──
+      EVIDENCE, Gary, 2026-10-18, via `dig TXT _dmarc.usefroot.com`:
+      "v=DMARC1; p=quarantine; adkim=r; aspf=r;
+      rua=mailto:dmarc_rua@onsecureserver.net;". `_dmarc.notify.usefroot.com`
+      has no record, so the sending subdomain inherits the parent policy.
+      THE OPEN DMARC QUESTION IN THE NOTE BELOW IS RESOLVED: a record exists,
+      and it is p=quarantine, not p=none. CORRECTION TO STEP 2 FURTHER DOWN
+      (the premise, not the remedy): step 2 ("TIGHTEN DMARC TO p=quarantine")
+      assumed the domain sat at p=none. It does not. The policy step 2 aims
+      for is already in force on the parent, so the "DMARC tightening" in this
+      row's title has nothing left to tighten toward. Step 2's warning about
+      ordering is kept as written. In Gary's finding, SPF and DKIM are
+      verified in Resend, so Froot mail passes DMARC, and the 2026-10-18 Junk
+      result is likely new-domain reputation. That is step 1's territory
+      (Not-Junk the first sends), and it is this row's original diagnosis.
+      NOTIFY-10's DMARC step is superseded with Gary's words: "DMARC already
+      exists at p=quarantine on usefroot.com — confirm at go-live; optionally
+      redirect rua reports to an address Gary reads."
+      ── NOTE 2026-10-18. PREPENDED; NOTHING BELOW IS EDITED. ──
+      SEE NOTIFY-10 (production email go-live), filed the same day. Its
+      blockers carry Gary's pre-go-live conditions in his words, and the
+      Not-Junk and DMARC order below applies to its first production sends.
+      EVIDENCE, 2026-10-18, staging, in Gary's words: "The first staging test
+      (2026-10-18) delivered but landed in Outlook Junk." That is the symptom
+      below, observed on a real send from the NOTIFY-1 sending domain. It is
+      consistent with this row's diagnosis (a domain with no reputation) and
+      changes neither remedy nor their order. One open question is recorded on
+      NOTIFY-10 and not resolved here: Gary's words say "add a DMARC record",
+      while step 2 below assumes a p=none record already exists to tighten.
       FILED 2026-09-20 BY GARY, in the NOTIFY-2a docs commit. NOT A BUG AND NOT
       A CODE ROW. Nothing in src/ is wrong and nothing in src/ will fix it —
       this is filed so the next person who sees an alert "not arrive" checks the
@@ -30700,6 +32774,99 @@ debt:
       Something on /hr/documents is then calling an ADMIN route for a STORE
       viewer, and that caller is the bug, not the 403.
       RELATED: SIGNED-1.
+
+  - id: DEBT-115
+    status: planned
+    title: >
+      The timecard cron re-reads only 3 days, so a Square timecard edited later never reaches Froot — and it can decide raise eligibility
+    notes: >
+      FILED 2026-10-16 by the MS-3a build session. Gary, upgrading the audit's
+      COMMENT, recorded exactly: "Upgrade to a ROW — it can decide raise
+      eligibility via the hours criterion." THE ID FILLS THE NEXT FREE SLOT —
+      no occurrence of "DEBT-115" in the repo and `git log -S DEBT-115 -- docs`
+      returns nothing.
+      WHAT IS TRUE TODAY: /api/cron/labor-timecards (30 11 * * * UTC) syncs
+      each store's last 3 store-local days (RECONCILE_DAYS = 3,
+      src/app/api/cron/labor-timecards/route.ts:47; the limit is already noted
+      at :41-43). A manager correction made in Square more than 3 days after
+      the shift never reaches SquareTimecard, and a timecard deleted in Square
+      stays as a stale row (labor-actuals.ts:749-753).
+      WHY IT NOW MATTERS: MS-3a's hours criterion (src/lib/raise-eligibility.ts)
+      sums paid hours per completed week from those rows. A late correction can
+      move a week across the minimum (default 20 h) and flip a member between
+      yellow and green — a raise decision made on a number Square no longer
+      holds. Labor actuals had the same exposure but only ever showed a
+      percentage.
+      OPTIONS (no lean recorded yet): a weekly deep sweep of the last N weeks
+      per store (Square cost ~1 search per store per sweep); or widen
+      RECONCILE_DAYS. Either is cron cost and a CRON-1-class ruling.
+      RELATED: MS-3, MS-3b, CRON-1.
+
+  - id: DEBT-116
+    status: planned
+    title: >
+      Link every manager's login to their staff record — closes the MS-4b self-exclusion gap and the MS-5 own-row gap
+    notes: >
+      FILED 2026-10-19 by the MS-5 PRE-PUSH-CHECK, on Gary's instruction,
+      recorded exactly: "link every manager's login to their staff record,
+      which closes the MS-4b self-exclusion gap and the MS-5 C2 own-row gap".
+      THE ID FILLS THE NEXT FREE SLOT — no occurrence of "DEBT-116" in docs/,
+      src/, scripts/ or CLAUDE.md, and `git log -S DEBT-116 -- docs` returns
+      nothing.
+      WHAT IS TRUE TODAY: two surfaces decide "is this person the viewer?"
+      from StaffMember.userId first and an email match second. (1) MS-4b's
+      milestone email `exclude` (src/lib/notifications/kinds/milestone.ts,
+      ruling 4 "excluded by linked account and by matching email"): a manager
+      whose staff record has no userId and a different or empty email IS
+      emailed about their own milestone. (2) MS-5 F9 (raiseHiddenForViewer,
+      decided by resolveSelfStaff in src/lib/hr.ts): a MANAGER whose login
+      resolves to no staff record, or to two (ambiguous email), sees their own
+      Raise status on /staff, the report and their own Milestones tab
+      (ratified MS-5 C2).
+      THE FIX IS DATA, NOT A NEW RULE: once every MANAGER (and ADMIN) User is
+      linked to exactly one StaffMember (StaffMember.userId), both checks hit
+      their first branch and the email fallback stops mattering. Scope to be
+      audited: how many manager logins are unlinked per org (measure by org id
+      on each branch), whether the existing self-service invite / link flow can
+      do it or an admin "link login" action is needed, and what a wrong link
+      would expose (a link grants the self view of that record). WRITES ROWS —
+      TIER 3.
+      RELATED: MS-4b, MS-5, SELF-1.
+
+  - id: DEBT-117
+    status: planned
+    title: >
+      Help article for /staff/milestones/report
+    notes: >
+      FILED 2026-10-19 by the MS-5 PRE-PUSH-CHECK, on Gary's instruction,
+      recorded exactly: "a help article for /staff/milestones/report". THE ID
+      FILLS THE NEXT FREE SLOT (checked as for DEBT-116).
+      WHAT IS TRUE TODAY: the MS-5 build's [guide] warning went from 43 to 44
+      claimable routes with no article; the new one is
+      /staff/milestones/report. The article should say who sees the page
+      (ADMIN org-wide, MANAGER their own stores), what each column means, that
+      amber "Raise in progress" is never shown (F3) and a manager never sees
+      their own Raise status (F9), that raise dates appear only with pay
+      access, that "coming up" is tenure only, and that the CSV is ADMIN-only.
+      RELATED: MS-5.
+
+  - id: DEBT-118
+    status: planned
+    title: >
+      Switch the MS-4b daily milestone job to the batched checklist reader
+    notes: >
+      FILED 2026-10-19 by the MS-5 PRE-PUSH-CHECK, on Gary's instruction,
+      recorded exactly: "switch the MS-4b daily job to the batched checklist
+      reader". THE ID FILLS THE NEXT FREE SLOT (checked as for DEBT-116).
+      WHAT IS TRUE TODAY: processMilestoneAlerts (src/lib/milestone-alerts.ts)
+      calls namedTaskDates once PER MEMBER inside its loop while the checklist
+      switch is on — N queries per org per day. MS-5 added
+      namedTaskDatesForMembers (src/lib/milestones-db.ts), one query for every
+      member, and verify-ms5 C8 asserts the two agree member by member. The
+      change swaps the call and adds the same agreement check to verify-ms4b;
+      J1–J4 must stay green. Touches a cron — TIER 3 by CLAUDE.md § Session
+      Tiers.
+      RELATED: MS-4b, MS-5.
 
 rulings:
   - id: R1

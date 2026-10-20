@@ -949,7 +949,7 @@ Schema is at `prisma/schema.prisma`. Schema changes ship as migration files comm
 **Do not use `npx prisma db push`** — retired after the 2026-07-06 staging drift incident.
 **`npx prisma migrate dev` is currently broken** — the baseline squash was never done, so shadow-DB replay fails with P3018 (and `.env` has no `SHADOW_DATABASE_URL`).
 
-**CLAUDE CODE NEVER RUNS A MIGRATION. `npx prisma migrate diff` is the ONLY prisma command a session may run against a database** — it reads, writes a file, and changes nothing. **Never `migrate dev`, never `migrate deploy`, never `migrate reset`, never `db execute`.** Step 3 of the flow below is GARY'S, in the Neon console; the session stops after step 2 with the SQL generated and reviewed, and says in its report that step 3 is owed. **It does not commit yet — see § A migration STOPS the session, below.**
+**CLAUDE CODE NEVER RUNS A MIGRATION. `npx prisma migrate diff` is the ONLY prisma command a session may run against a database** — it reads, writes a file, and changes nothing. **Never `migrate dev`, never `migrate deploy`, never `migrate reset`, never `db execute`.** Step 3 of the flow below is GARY'S, by running npx prisma migrate deploy from froot/ (see step 3); the session stops after step 2 with the SQL generated and reviewed, and says in its report that step 3 is owed. **It does not commit yet — see § A migration STOPS the session, below.**
 
 Written down 2026-09-18 because it was broken that day. The CAL-2 build session applied `20260918180000_cal2_scheduled_checklists` to the dev branch at 19:50:06Z and reported "not run locally" in the same run — so the rule was violated and the report concealed it, which are two failures and need two answers. This is the first: the act is now wrong on its face and named command by command, rather than left to be inferred from "Gary applies it". The second — every session report lists the `prisma` commands it ran, verbatim — is in `docs/WORKFLOW.md`, session completion rules. Neither prevents it; what caught it was the per-branch timestamp in `docs/MIGRATIONS.md`, which stays the backstop. `DEBT-103`.
 **WHICH PRISMA COMMANDS ARE ALLOWED (Gary, 2026-09-28, DOC-5 PRE-PUSH-CHECK).**
@@ -970,10 +970,14 @@ The working flow for every schema change (timestamp format `YYYYMMDDHHMMSS`):
 # 2. diff the schema against the live dev DB to generate the migration SQL:
 npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma \
   --script -o prisma/migrations/<timestamp>_<name>/migration.sql
-# 3. GARY RUNS THIS, NOT CLAUDE (see the rule above). Review the SQL, then
-#    apply it and record it in the migrations ledger:
-npx prisma db execute --file prisma/migrations/<timestamp>_<name>/migration.sql
-npx prisma migrate resolve --applied <timestamp>_<name>
+# 3. GARY RUNS THIS, NOT CLAUDE (see the rule above). Ruled by Gary 2026-10-16:
+#    "Gary applies the migration to dev himself, from froot/: first
+#    `env | grep -c DATABASE_URL` must print 0, then `npx prisma migrate deploy`,
+#    confirming the Datasource host is the dev endpoint. Do not suggest
+#    `db execute` + `migrate resolve` unless migrate deploy fails and Gary
+#    approves the workaround for that one case."
+env | grep -c DATABASE_URL     # must print 0
+npx prisma migrate deploy      # Datasource host must be the dev endpoint
 # 4. regenerate the client:
 npx prisma generate
 ```
@@ -1104,7 +1108,8 @@ CRON_SECRET=                   # auth for /api/cron/* (Vercel sends it on cron i
 SQUARE_WEBHOOK_SIGNATURE_KEY=  # per-app webhook subscription key (docs/FORECASTING.md § Square order webhooks)
 RESEND_WEBHOOK_SECRET=         # Svix signing secret for /api/webhooks/resend (NOTIFY-2b). ONE PER RESEND ENDPOINT, so Preview and Production hold DIFFERENT values — a secret is issued by the endpoint, not by the account, and pasting staging's into Production makes every production delivery event fail its signature with a 401 that looks exactly like an attack. Unset = the route 500s and records nothing; it never degrades to accepting unverified events. Nothing else breaks without it: mail still sends, and the send log still shows `sent` — it just never advances to `delivered`.
 PACE_ALERT_THRESHOLD_PCT=      # optional — the FALLBACK behind-pace alert threshold, default 90 (docs/FORECASTING.md § Hardening). NOT deployment-wide since NOTIFY-2a: an org that sets Organization.paceAlertThresholdPct at /settings/notifications is evaluated at ITS number and never reads this. NULL there means fall back to here. Accepts any finite value in (0,100]; the per-org input accepts integers 50–100 only.
-NOTIFY_EMAIL_PROVIDER=         # optional — "console" (default: logs only, nothing leaves) or "resend". PER-ENVIRONMENT: setting it to "resend" in Production is what makes the daily pace-alert cron start emailing real managers. Any other value throws (NOTIFY-1).
+NOTIFY_EMAIL_PROVIDER=         # optional — "console" (default) or "resend". Any other value throws (NOTIFY-1). NOTIFY-5: unset/"console" is a DRY RUN for every email type — rendered, logged, recorded "Dry run — not sent", and it CONSUMES NOTHING (no pace-alert lock, no "sent" row). "resend" is LIVE only where VERCEL_ENV=production; anywhere else (staging, local) it is SANDBOX and mails only NOTIFY_SANDBOX_ALLOWLIST. PER-ENVIRONMENT: setting it to "resend" in Production is what makes the daily pace-alert cron start emailing real managers. The one function that decides is deliveryMode() in src/lib/notify.ts.
+NOTIFY_SANDBOX_ALLOWLIST=      # optional, non-production only — comma-separated addresses that may receive REAL mail when NOTIFY_EMAIL_PROVIDER="resend" off production (P2, Gary 2026-10-18: "Staging sends real email only to addresses on an allowlist."). Trimmed, case-insensitive. UNSET OR EMPTY = NOBODY: every email becomes a dry run. Ignored in production. The admin test send ("Send a test to me") always reaches its caller regardless.
 RESEND_API_KEY=                # required when NOTIFY_EMAIL_PROVIDER="resend" — Resend API key. Missing → throws; there is NO fallback to the console sender.
 NOTIFY_FROM_EMAIL=             # required when NOTIFY_EMAIL_PROVIDER="resend" — e.g. `USE Froot <noreply@notify.usefroot.com>`. The sending domain is a SUBDOMAIN, never the root. Missing → throws.
 INSTAGRAM_APP_ID=              # Instagram app ID from the Meta app (Instagram API with Instagram Login)

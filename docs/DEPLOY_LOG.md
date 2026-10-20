@@ -2,7 +2,1080 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-09-29 — DOC-11: Preview on the Document Library (PDFs and images in a dialog)
+## UNPROMOTED — 2026-10-20 — PRODUCTION PROMOTION: Staff Milestones and one notification pipeline, fourteen phases in one merge
+
+**Merge SHA:** `<merge SHA>` — stamped post-merge on `main` from `git rev-parse`,
+never hand-typed, together with this heading.
+**Written 2026-10-20 by DOCS-CLOSEOUT-2, BEFORE THE MERGE**, in the `076ccf8`
+umbrella format. Spec: `docs/prompts/2026-10-20_PROMOTE_addendum_backlog.md`.
+Payload measured at this writing with `git log origin/main..staging`
+(`origin/main` = `0d51496`): **22 commits touching code, scripts or schema**,
+three `CLAUDE.md` commits (`9917412`, `afd2816`, `0ee506f`), and docs. Re-read
+the count from `<merge SHA>^1..<merge SHA>^2` at the stamp.
+
+**THIS IS THE UMBRELLA ENTRY. Each phase also has its own entry below**, written
+by its PRE-PUSH-CHECK and stamped with the merge SHA in the same post-merge pass.
+MS-3a's entry is carried by ROADMAP row `MS-3`.
+
+**What it carries — fourteen phases, in the order they were built:**
+
+| Phase | What reaches production | Row |
+|---|---|---|
+| MS-1 | Staff Milestones foundation: the org toggle, tenure milestones, start date (manual beside Square's), the Milestones tab | `MS-1` |
+| BUG-15 | `/dashboard` header date formatted server-side in the store's zone (React #418 after 5 PM Pacific) | `BUG-15` |
+| MS-2 | On-time % and the On-Time badge, On-time settings, the scheduled-shifts cron | `MS-2` |
+| MS-3a | Raise eligibility: Raise settings, criteria, the Raise badge | `MS-3` |
+| MS-3b | Raise detection, manual last-raise date, cooldown, daily wage sync | `MS-3b` |
+| MS-3c | No amber "Raise in progress" badge on `/staff` | `MS-3c` |
+| CHK-15 | Security fix: a checklist tick names only an active staff member of this store | `CHK-15` |
+| MS-4a | Checklist milestones (named tasks), the Checklist milestones switch, Copy message, pay warning | `MS-4a` |
+| NOTIFY-5 | One delivery mode (live / sandbox / dry-run) for every email; "Send a test to me" | `NOTIFY-5` |
+| NOTIFY-6 | One notification pipeline: intent ledger, dispatcher, per-recipient sends, hourly retry | `NOTIFY-6` |
+| NOTIFY-11 | The hourly sweep never sends in sandbox (R2); dry-run rows name the real provider | `NOTIFY-11` |
+| MS-4b | Milestone emails, the first grouped kind on the pipeline (plus `9a70f52`, see its entry) | `MS-4b` |
+| MS-5 | The Milestone Report at `/staff/milestones/report`; a MANAGER never sees their own Raise status | `MS-5` |
+| MS-5b | One milestone button per role on `/staff` | `MS-5b` |
+
+**MILESTONES ARRIVE DARK, BY DEFAULT RATHER THAN BY LUCK.** Three switches,
+all off for every org on arrival:
+
+1. `Organization.milestonesEnabled` defaults to `false` (MS-1). With it off,
+   every Milestones surface is hidden and its routes answer 404.
+2. `MilestoneSettings.checklistMilestonesEnabled` defaults to `false` (MS-4a).
+3. `Organization.milestoneAlertsEnabled` defaults to `false` (MS-4b), so the
+   milestone leg of the pace-alerts cron finds no org.
+
+**NO EMAIL LEAVES PRODUCTION.** `NOTIFY_EMAIL_PROVIDER` is UNSET in Production,
+so under NOTIFY-5 every email type is a DRY RUN: rendered, logged, recorded
+"Dry run — not sent", consuming nothing. `NOTIFY_SANDBOX_ALLOWLIST` is set in
+Preview only; production ignores it by design. So the `notify-dispatch` rows
+production writes are dry-run rows.
+
+**LIVE ON ARRIVAL, WHATEVER THE SWITCHES SAY:** CHK-15's task-log guard (a tick
+naming an inactive, other-company or not-at-this-store person gets a 400);
+BUG-15's header date; NOTIFY-5/6/11's delivery path for the existing emails
+(signing acknowledgments, pace alerts, the test send), which now runs through
+the pipeline and, with the provider unset, ends in dry-run rows; MS-2's Day
+Inspector pairing code, moved and behaviour-identical; and the two crons below.
+
+**EIGHT MIGRATIONS, all additive, applied by `prisma migrate deploy` in the
+merge's Vercel build.** Production baseline (`br-sparkling-block`, read by Gary
+in the Neon console on 2026-10-20, per the addendum): newest applied
+`20260928222624_doc6_key_return_register`, none of the eight present, no failed
+rows. No `DROP`, no type change, no backfill in any of them (each
+`migration.sql` read at this writing).
+
+| Migration | Adds | Default that matters |
+|---|---|---|
+| `20261015171226_ms1_milestones_foundation` | `Organization.milestonesEnabled`; `StaffMember.startDate`, `.startDateManual`; tables `TenureMilestone`, `WageSnapshot` | `milestonesEnabled` `false` |
+| `20261015183554_ms1_start_date_square_archived_at` | `StaffMember.squareStartDate`; `TenureMilestone.archivedAt` | nullable |
+| `20261016140411_ms2_milestone_settings` | table `MilestoneSettings` (on-time thresholds) | no rows until an admin saves |
+| `20261016190415_ms3a_raise_settings` | five raise columns on `MilestoneSettings`; tables `MilestoneRaiseTraining`, `MilestoneRaiseDocument` | column defaults |
+| `20261017002340_ms3b_last_raise` | table `StaffLastRaise` | empty |
+| `20261017204956_ms4a_checklist_milestones` | `MilestoneSettings.checklistMilestonesEnabled`; table `ChecklistMilestone` | `false` |
+| `20261019005116_notify6_pipeline` | tables `NotificationIntent`, `NotificationDelivery`, `NotificationMessage`, `NotificationEvent` | empty |
+| `20261019211518_ms4b_milestone_alerts` | `Organization.milestoneAlertsEnabled`; `NotificationMessage.intentIds` | `false`; `'{}'` |
+
+**NOT VERIFIED AGAINST THE BRANCH AFTER THE DEPLOY HERE.** A docs session does not
+read a deployed database. A post-deploy `_prisma_migrations` read on
+`br-sparkling-block` is Gary's, in the Neon console.
+
+**TWO NEW CRONS (`vercel.json`). Vercel fires crons on Production only, so this
+promotion is the first live run of both:**
+
+| Cron | Schedule (UTC) | Added by | What it does |
+|---|---|---|---|
+| `/api/cron/labor-scheduled-shifts` | `45 11 * * *` | MS-2 `15765c7` (Gary, superseding CRON-1's parking) | Re-pulls Square scheduled shifts for Square-linked stores in orgs with the Advanced Labor overlay ON. Reads only. About 5 Square requests per store per day |
+| `/api/cron/notify-dispatch` | `15 * * * *` | NOTIFY-6 `3ffb3f6` | The hourly retry sweep. Never makes a grouped FIRST send (C3), never sends in sandbox (NOTIFY-11 R2). With the provider unset, its rows are dry-run |
+
+Watch the first production run of each in the Vercel logs.
+
+**MS-5 SHIPS WITH EIGHT STAGING CHECKS UNOBSERVED.** From the MS-5 row's "STILL
+OPEN, not in the evidence" list: (1) F9 on Tommy's own row on `/staff` and on
+his own Milestones tab (only the report was checked); (2) gary@keva.com
+(MANAGER, Carson) sees only Carson; (3) Tommy switched to STORE is redirected;
+(4) the filters; (5) turning the terminated toggle ON; (6) the CSV opened and
+read (only its visibility was checked); (7) phone width; (8) Milestones off →
+404. **They ship unverified, and they are CONTAINED by milestones defaulting
+OFF:** no org can reach the report until an ADMIN turns Milestones on, so each
+check becomes a production observation at that moment, before anyone else sees
+the page.
+
+**Rollback.** `git revert -m 1 <merge SHA>` on `main` per `docs/WORKFLOW.md`,
+keeping `docs/DEPLOY_LOG.md` at `HEAD` (the revert conflicts on this file
+structurally; keeping the log is the correct resolution). **NO DATABASE STEP,
+AND NONE IS ALLOWED.** The eight migrations stay applied; the reverted code
+never reads the new columns and tables, so they sit unread. Never drop them or
+delete their `_prisma_migrations` rows. The revert also removes both cron
+entries from `vercel.json`. **What a revert does NOT undo:** rows already
+written (milestone settings, last-raise dates, notification intents and dry-run
+messages) stay, inert. CHK-15's security gap REOPENS on revert: the old
+task-log route saves any staff id sent. **Faster posture if production is
+actively broken:** Vercel → Deployments → promote the previous production
+deployment, then revert at leisure. **No-deploy switches:** Milestones off at
+`/settings` hides every milestone surface; "Milestone emails" off stops the
+milestone leg.
+
+**Still open after this promotion, none of it in this merge:**
+- Handbook: "not available yet".
+- `RESEND_API_KEY`: "Needs Attention" in Vercel.
+- NOTIFY-10: the resolved-flag warning on `blockers[2]` (`generate-roadmap`
+  prints it on every build).
+- DEBT-116, DEBT-117, DEBT-118.
+- NOTIFY-10: production email go-live (the `NOTIFY_EMAIL_PROVIDER` flip is its
+  own decision; nothing here makes it).
+
+## UNPROMOTED — 2026-10-19 — MS-5b: one milestone button per role on /staff
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **MS-5b builds on MS-5 directly below
+it** (it narrows MS-5's `/staff` report link), and a staging → main merge
+carries it together with every unpromoted entry below.
+
+**Payload: two MS-5b commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `dbd7482`, `7feab65`. **NEITHER WAS PUSHED WHEN
+THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `dbd7482` | MS-5b work: `canSeeMilestoneReport` in `src/app/(app)/staff/page.tsx` becomes `showOnTime && !canSetUpMilestones`; `scripts/verify-ms5.ts` B11 retargeted, B12 and B13 added |
+| `7feab65` | `docs(MS-5b)`: row to `in_progress`, DECISIONS draft, the session prompt |
+| the commit immediately after `7feab65` | `docs(MS-5b PRE-PUSH-CHECK)`: this entry, DECISIONS ratified with Gary's correction, row to `staging` |
+
+**Blast radius: which button one page header shows, per role. NO SCHEMA, NO
+MIGRATION, NO WRITE, NO EMAIL, NO CRON, NO ENV VAR, NO GATE CHANGE.** What
+changes:
+
+- **ADMINs no longer see "Milestone report" in the `/staff` header** (Gary,
+  2026-10-19: "/staff is getting cluttered"). They keep "Milestones" and reach
+  the report from `/staff/milestones`, which still links it.
+- **MANAGERs are unchanged** — they keep "Milestone report", their only route
+  in, since `milestones.manage` is ADMIN_ONLY and they cannot open
+  `/staff/milestones`.
+- **The report page and its gates are untouched.** The flag is a link, not a
+  gate; anyone with the URL is checked exactly as under MS-5.
+
+**Rollback:** revert `dbd7482`. It touches one expression and one fixture file;
+nothing depends on it.
+
+**Evidence: dev only, not opened in a browser.** verify-ms5 51/51 with a live
+negative control (old flag restored → B11 FAIL); a green build. Staging checks
+are in the MS-5b row's blockers.
+
+## UNPROMOTED — 2026-10-19 — MS-5: the Milestone Report, and a MANAGER never sees their own Raise status
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **MS-5 builds on MS-1 to MS-4b below it**
+(it reads their batched readers and redaction), and a staging → main merge
+carries it together with every unpromoted entry below.
+
+**Payload: three MS-5 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `60c8468`, `511f321`, `041834b`. **NONE WAS
+PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `60c8468` | `docs(MS-5)`: audit and plan, `docs/prompts/2026-10-19_MS-5_AUDIT.md` |
+| `511f321` | MS-5 work: `/staff/milestones/report` (page, client, loading); `src/lib/milestone-report.ts` builder; `src/lib/milestone-report-view.ts` (row type, filters, sort, CSV); `namedTaskDatesForMembers`; `raiseHiddenForViewer` applied on `/staff`, the profile Milestones tab and the report; report links on `/staff` and the setup page; `scripts/verify-ms5.ts` |
+| `041834b` | `docs(MS-5)`: row to `in_progress`, DECISIONS draft, the session prompt |
+| the commit immediately after `041834b` | `docs(MS-5 PRE-PUSH-CHECK)`: this entry, DECISIONS ratified, row to `staging`, MS-3 F9 mark, DEBT-116 to DEBT-118 filed |
+
+**Blast radius: one new read-only page and a change to who sees one badge. NO
+SCHEMA, NO MIGRATION, NO WRITE, NO EMAIL, NO CRON, NO ENV VAR.** What changes:
+
+- **New page `/staff/milestones/report`** (ADMIN org-wide, MANAGER their own
+  stores). Gates: the `/staff` layout (`staff.view`), `requireMilestones()`
+  (Milestones off → 404 for everyone), then ADMIN or MANAGER; STORE and STAFF
+  are redirected. Raise dates reach only viewers with pay access
+  (`redactForViewer`); amber "Raise in progress" never appears (F3). CSV
+  download is ADMIN-only, built in the browser from the page's own rows (F6).
+- **F9 — a MANAGER no longer sees their OWN Raise status** on `/staff`, the
+  report, or their own Milestones tab (Gary, 2026-10-19). This REMOVES a badge
+  managers could see before this deploy (Tommy's own "Raise blocked" on
+  staging); ADMINs are unchanged. "Own" is the `/staff` "You" resolver — a
+  manager whose login is not linked to their staff record still sees it
+  (DEBT-116).
+- **Links:** "Milestone report" in the `/staff` header (ADMIN and MANAGER,
+  Milestones on) and on the setup page.
+
+No Square call, no Clerk change, no new OAuth scope, no new capability.
+
+**Rollback:** `git revert 511f321` (the docs commits can stay). Nothing is
+stored, so nothing is left behind; F9's hidden badge returns for managers.
+Turning Milestones off at `/settings` hides the page (404) without a deploy.
+
+**Staging verification — pending (Gary, in chat, after deploy).** Branch
+`br-square-feather-a63z92vz`, org `cmr54z65v000105jxczpt72w1`; the checklist
+is on the MS-5 row in `docs/ROADMAP.yaml`.
+
+## UNPROMOTED — 2026-10-19 — MS-4b: milestone emails, the first grouped kind on the NOTIFY-6 pipeline
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **MS-4b builds on NOTIFY-6, NOTIFY-11 and
+MS-4a below it** (it extends `src/lib/notifications/dispatch.ts` and reads
+MS-4a's checklist milestones), and a staging → main merge carries it together
+with every unpromoted entry below.
+
+**Payload: three MS-4b commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `1bc01cf`, `5517d60`, `9e608ab`. **NONE WAS
+PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+> **⚠ SUPERSEDED 2026-10-20 (DOCS-CLOSEOUT-2).** The "NONE WAS PUSHED" line
+> above is the PRE-PUSH-CHECK's own, true when written and now spent. Gary
+> pushed on 2026-10-19 (15:21 PDT, per the MS-4b row's evidence note, `e79a0b6`).
+> **The payload is FIVE commits, not four:** `9a70f52` ("docs(MS-4b): correct
+> the C2 comment in milestone-alerts.ts", 15:27 PDT) came after the check
+> commit `9d39f9b`. Its subject says docs, but it edits
+> `src/lib/milestone-alerts.ts` (a comment only, no behaviour). It is the commit
+> staging served when Gary recorded the MS-4b evidence (footer `9a70f52`). Row
+> added to the table below.
+> **The rollback line below no longer applies cleanly.** `git revert 9e608ab
+> 1bc01cf` CONFLICTS on `src/lib/milestone-alerts.ts` now that `9a70f52` sits on
+> top. Tested 2026-10-20 in a throwaway worktree at `3ed5fd3`: `git revert
+> 9a70f52 9e608ab 1bc01cf` (newest first) applies cleanly. After promotion the
+> umbrella entry's `git revert -m 1` of the merge supersedes both.
+
+| Commit | What it is |
+|---|---|
+| `1bc01cf` | MS-4b work: kind `milestone.reached` on a new per-recipient daily grouping mode in the dispatcher; `recordKnownNotification`; producer `processMilestoneAlerts` in the pace-alerts cron; capability `notify.milestone.receive` and grid line "Milestone reached"; "Milestone emails" card + `PUT /api/milestone-alerts/settings`; "Send a sample to me"; `?tab=milestones` on `/staff/[id]`; migration `20261019211518_ms4b_milestone_alerts`; `scripts/verify-ms4b.ts` |
+| `5517d60` | `docs(MS-4b)`: row to `in_progress`, DECISIONS draft, MIGRATIONS entry, PERMISSIONS_INVENTORY, audit `docs/prompts/2026-10-19_MS-4b_v2_AUDIT.md` |
+| `9e608ab` | `test(MS-4b)`: section J, skipped-day checks in `verify-ms4b` (Gary asked for it). No product code |
+| the commit immediately after `9e608ab` | `docs(MS-4b PRE-PUSH-CHECK)`: this entry, DECISIONS ratified, row to `staging`, docs SHAs |
+| `9a70f52` | *(added 2026-10-20 by DOCS-CLOSEOUT-2)* `docs(MS-4b)`: corrects the C2 comment in `src/lib/milestone-alerts.ts`. Comment only, but under `src/` |
+
+**Blast radius: SCHEMA (two additive columns), the daily pace-alerts cron, and
+two pages. NO EMAIL ON DEPLOY, BY CONSTRUCTION:** the new
+`Organization.milestoneAlertsEnabled` defaults to `false`, so the producer
+finds no org until an ADMIN turns the switch on; and production's
+`NOTIFY_EMAIL_PROVIDER` is unset (Gary, ruling 5), so even a switched-on org
+in production writes "Dry run — not sent" rows and mails nobody. On staging
+the summary reaches only `NOTIFY_SANDBOX_ALLOWLIST` (ruling 3). What changes:
+
+- **Migration `20261019211518_ms4b_milestone_alerts`**, applied by `prisma
+  migrate deploy` in the Vercel build: `Organization.milestoneAlertsEnabled
+  BOOLEAN NOT NULL DEFAULT false` and `NotificationMessage.intentIds TEXT[]
+  DEFAULT '{}'`. Additive; no drop, no type change, no backfill. Applied to
+  dev only before this push (`docs/MIGRATIONS.md`).
+- **`/api/cron/pace-alerts` (daily, `0 15 * * *`) gains a milestone leg**
+  after the pace loop, in its own try/catch with result key `milestones`. A
+  failure there never stops the pace alerts, which have already run.
+- **The dispatcher gains a grouped mode** (one email per recipient per run,
+  deliveries per milestone and recipient) and a create-only `known` write. The
+  hourly `notify-dispatch` sweep never makes a grouped FIRST send, only
+  retries (C3). Per-intent kinds (signing, pace, test) are unchanged; their
+  message rows keep `intentId` and leave `intentIds` empty (verify-ms4b I3).
+- **Permissions:** new capability `notify.milestone.receive`, baseline ADMIN +
+  MANAGER, deniable from the grid ("Email notifications" → "Milestone
+  reached"), never grantable to STORE or STAFF.
+- **`/settings/notifications`:** a "Milestone emails" card where HR exists
+  (ADMIN writes via `PUT /api/milestone-alerts/settings`: Milestones gate →
+  404, non-ADMIN → 403) and a "Send a sample to me" button (caller only).
+  Recent emails now labels kinds from the registry; existing labels are
+  identical.
+- **`/staff/[id]?tab=milestones`** opens the Milestones tab when it renders.
+
+No Square call, no Clerk change, no new OAuth scope, no new env var, no new
+cron.
+
+**Rollback:** `git revert 9e608ab 1bc01cf` (the test commit first; the docs
+commits can stay). **The two columns STAY** — additive-only, nothing is ever
+dropped — and the reverted client simply does not read them. Any
+`milestone.reached` intents left behind are harmless: the reverted dispatcher
+finds no definition for the kind and skips them as `unknown kind`
+(`dispatch.ts`, NOTIFY-6), so nothing mails. Turning the org switch off is the
+no-deploy alternative: queued intents then expire at dispatch.
+
+> **Superseded 2026-10-20 (DOCS-CLOSEOUT-2):** staging evidence WAS recorded,
+> on the MS-4b row ("STAGING EVIDENCE 2026-10-19 (Gary)", `e79a0b6`, staging
+> footer `9a70f52`, branch `preview/staging` `br-square-feather-a63z92vz`, org
+> `cmr54z65v000105jxczpt72w1`). The row is the record; the line below is kept.
+
+**Staging evidence:** pending — the MS-4b row's "STAGING VERIFICATION OWED"
+note in `docs/ROADMAP.yaml`. Preconditions: the staging-SHA precondition,
+then the migration confirmed applied by the staging build log. Name org
+`cmr54z65v000105jxczpt72w1` on every browser observation and branch
+`preview/staging` (`br-square-feather-a63z92vz`) on every row:
+- the "Milestone emails" card on `/settings/notifications` (ADMIN), and "Send
+  a sample to me" → one "Test — …" email to the caller only;
+- `/staff/[id]?tab=milestones` opens the Milestones tab;
+- switch on, hand-fire `/api/cron/pace-alerts` → one summary per eligible
+  recipient on the allowlist, everyone else "Dry run — not sent"; a second
+  fire the same day sends nothing new.
+
+Dev-level evidence only so far, all on the DEV database
+(`br-broad-wave-a6vpjdw0`): verify-ms4b 59/0 (54 at the work commit plus 5
+skipped-day checks in `9e608ab`); verify-notify6 78, verify-notify5 55,
+verify-f5-polish 63, verify-notify-template 35, verify-ms1 97, ms2 90, ms3 95,
+ms3b 80, ms4a 52, chk15 28. Negative controls run and restored: email
+exclusion removed → B4 failed; `>=` window → J3 failed; window 0 → J1 failed.
+
+## UNPROMOTED — 2026-10-19 — NOTIFY-11: the hourly sweep never sends in sandbox (R2); dry-run rows name the real provider
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **NOTIFY-11 builds on NOTIFY-6 below it**
+(it changes `src/lib/notifications/dispatch.ts` and the Recent emails reader,
+both NOTIFY-6 code), and a staging → main merge carries it together with every
+unpromoted entry below.
+
+**Payload: two NOTIFY-11 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `6f78487`, `9f54bd8`. **NEITHER WAS PUSHED WHEN
+THIS CHECK RAN.** The session prompt `754ad1c` was already on origin/staging.
+Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `9f54bd8` | NOTIFY-11 work: `dispatch.ts` sandbox guard is trigger "sweep" alone; dry-run rows take their provider from `transport.mode`; `listRecentEmails` adds the allowlist detail; cron route comment corrected; 6 new checks in `scripts/verify-notify6.ts` |
+| `6f78487` | `docs(NOTIFY-11)`: row to `in_progress` with `9f54bd8`, build evidence, audit `docs/prompts/2026-10-19_NOTIFY-11_AUDIT.md` |
+| the commit immediately after `6f78487` | `docs(NOTIFY-11 PRE-PUSH-CHECK)`: this entry, row to `staging`, docs SHAs |
+
+**Blast radius: STAGING EMAIL ONLY. PRODUCTION BEHAVIOUR IS UNCHANGED BY
+CONSTRUCTION.** No migration, no new env var, no new cron, no UI file. Both
+changes act only when the transport is `sandbox`, and `deliveryMode()` never
+returns sandbox where `VERCEL_ENV=production`. What changes:
+
+- **R2 enforced (Gary's words: "the hourly retry never sends in sandbox").**
+  The hourly `/api/cron/notify-dispatch` sweep skipped a sandbox recipient only
+  when a sandbox message already existed, so it could make a FIRST send, e.g.
+  to an address allow-listed after the signing. It now never sends in sandbox,
+  first or repeat. Producer dispatches (signing, test button, pace cron, a
+  hand-fired pace cron) still send and re-send — NOTIFY-5 choice 4. Sandbox
+  still never moves an intent's state (R1).
+- **The dry-run label.** A dry-run `NotificationMessage` written under a
+  sandbox transport now names the configured provider (e.g. `resend`) instead
+  of `console`, and Recent emails on `/settings/notifications` adds "Held back
+  by the staging allowlist (NOTIFY_SANDBOX_ALLOWLIST)". Status stays "Dry run —
+  not sent". Older rows keep `console`; no backfill.
+
+No Square call, no Clerk change, no new OAuth scope, no schema.
+
+**Rollback:** `git revert 9f54bd8`. Nothing to undo in data: dry-run rows
+written with a non-console provider stay, and the reverted reader shows them
+as plain "Dry run — not sent" with no detail. After a revert the staging sweep
+can again make a first sandbox send to a newly allow-listed address. The docs
+commits can stay.
+
+**Staging evidence:** pending. This is the NOTIFY-11 row's "Staging
+verification owed" blocker in `docs/ROADMAP.yaml`. Preconditions:
+`NOTIFY_SANDBOX_ALLOWLIST` exists in Vercel Preview and staging was redeployed
+after the save (deployment created time postdates it), then the staging-SHA
+precondition. Name org `cmr54z65v000105jxczpt72w1` on every browser
+observation and branch `preview/staging` (`br-square-feather-a63z92vz`) on
+every row:
+- **R2 on real data**: while intent `cmvfd7emg000j08jnr89ef48w` is still
+  queued (before 2026-10-26 14:43 UTC), hand-fire `/api/cron/notify-dispatch`
+  → 0 sent for it, no new sandbox message row, no email. Only meaningful AFTER
+  NOTIFY-11 is deployed: on NOTIFY-6 code this hand-fire would send;
+- sign a NEW test document with `gary@kevajuice.com` allow-listed → one email,
+  one message row mode sandbox, status sent, provider resend, zero delivery
+  rows, intent queued;
+- a non-allow-listed `hrAckRecipients` address → "Dry run — not sent",
+  provider resend, detail naming `NOTIFY_SANDBOX_ALLOWLIST`.
+
+Dev-level evidence only so far, all on the DEV database
+(`br-broad-wave-a6vpjdw0`): verify-notify6 78/0 (6 new), verify-notify5 55/0,
+verify-f5-polish 63/0, verify-notify-template 35/0. Negative controls run and
+reverted: old guard → 2 fail; forced `console` → 2 fail; environment-only
+provider → 1 fail.
+
+## UNPROMOTED — 2026-10-18 — NOTIFY-6: one notification pipeline (intent ledger, dispatcher, per-recipient sends, hourly retry)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **NOTIFY-6 builds on NOTIFY-5 below it**
+(`deliveryMode()` / `sandboxAllows()`), and a staging → main merge carries it
+together with every unpromoted entry below.
+
+**Payload: three NOTIFY-6 commits plus this check's own.** Verified by `git log
+origin/staging..staging` at this check, after `git fetch origin`: exactly
+`a7fed5f`, `9747638`, `3ffb3f6`. **NONE OF THEM WAS PUSHED WHEN THIS CHECK
+RAN.** The session prompt `eae2aad` was already on origin/staging. Claude never
+pushes.
+
+| Commit | What it is |
+|---|---|
+| `3ffb3f6` | NOTIFY-6 work: migration `20261019005116_notify6_pipeline`, `src/lib/notifications/` (define, registry, dispatch, kinds pace-alert / hr-ack / test), pace, hr.ack and test-send moved onto it, `/api/cron/notify-dispatch`, Recent emails reads `NotificationMessage`, Resend webhook re-pointed, fixture `scripts/verify-notify6.ts` |
+| `9747638` | `docs(NOTIFY-6)`: audit, row to `in_progress`, MIGRATIONS entry, DECISIONS draft |
+| `a7fed5f` | `docs(NOTIFY-6)`: records Gary's ratification of R1, R2 and the 18 choices |
+| the commit immediately after `a7fed5f` | `docs(NOTIFY-6 PRE-PUSH-CHECK)`: this entry, row to `staging`, docs SHAs |
+
+**Blast radius: EVERY EMAIL FROOT SENDS, IN EVERY ENVIRONMENT, PLUS A
+MIGRATION AND A NEW CRON.** No new env var. What changes:
+
+- **Schema.** Four additive tables: `NotificationIntent`,
+  `NotificationDelivery`, `NotificationMessage`, `NotificationEvent`. No
+  existing table altered, no enum, no backfill (`docs/MIGRATIONS.md`, 2026-10-19
+  entry). Applied to DEV only. Staging and production apply it through `prisma
+  migrate deploy` in the Vercel build, so **a failed migrate fails the
+  deploy** (see the P1002 advisory-lock note if it does).
+- **Every send goes through the ledger.** Pace alerts, HR acknowledgment
+  emails and "Send a test to me" now enqueue an intent and dispatch one
+  `NotificationDelivery` + `NotificationMessage` per recipient. A partial
+  failure leaves the intent `partial`, and the retry mails ONLY recipients with
+  no `sent` delivery (P6, Gary's ruling).
+- **New hourly cron** `/api/cron/notify-dispatch` at `15 * * * *`, behind
+  `CRON_SECRET`. vercel.json now lists 8 crons; **the eighth isn't confirmed
+  against the Vercel plan** (row blocker). Retry cap 5, backoff 1/2/4/8 h. The
+  sweep never makes a sandbox send (R2), so staging sends no hourly mail.
+- **Sandbox never moves an intent's state** (R1). On staging an allow-listed
+  send writes a sandbox `NotificationMessage` and the intent stays `queued`.
+- **Parallel legacy writes for one release.** `PaceAlertLog` and the
+  Notification `AuditLog` rows are still written (NOTIFY-9 stops them), and a
+  pre-pipeline `PaceAlertLog` row still gates the pace producer, so the deploy
+  month can't send a second alert.
+- Recent emails on `/settings/notifications` reads `NotificationMessage`, one
+  row per recipient, with older `AuditLog` rows shown as a legacy section.
+  A direct pace call now honours `paceAlertsEnabled` too. In production that
+  changes nothing, because the cron only passes enabled orgs.
+
+No Square call, no Clerk change, no new OAuth scope.
+
+**Rollback:** `git revert 3ffb3f6`. **The four tables stay**, because no
+column or table is ever dropped. They are additive and nothing in the reverted
+code reads them. Because the legacy `PaceAlertLog` and `AuditLog` rows were
+written in parallel, the reverted NOTIFY-5 code finds every lock and every
+Recent-emails row it expects, so no alert repeats in the month. Pace and
+hr.ack sends that are still `queued`/`partial` at revert time are **not retried**
+once the sweep route is gone. Remove the cron by reverting, not by hand. The
+docs commits can stay.
+
+**Staging evidence:** pending. This is the NOTIFY-6 row's "Staging
+verification owed" blocker in `docs/ROADMAP.yaml`, staging-SHA precondition
+first. Name the org by id on every observation, and name branch
+`preview/staging` (`br-square-feather-a63z92vz`) on every row:
+- the build applied `20261019005116_notify6_pipeline` (`_prisma_migrations`);
+- "Send a test to me" still arrives (check Junk), and Recent emails shows it
+  from `NotificationMessage`;
+- signing a test document with only Gary's address in `hrAckRecipients` sends
+  one email, writes one `NotificationMessage` (mode sandbox, status sent) and
+  ZERO `NotificationDelivery` rows, and the intent stays `queued` (R1);
+- a recipient that isn't allow-listed reads "Dry run — not sent", and the
+  intent stays `queued`;
+- MANAGER is still redirected from `/settings/notifications`.
+
+Dev-level evidence only so far, all on the DEV database
+(`br-broad-wave-a6vpjdw0`): verify-notify6 72/0, verify-notify5 55/0,
+verify-f5-polish 63/0, verify-notify-template 35/0. Nothing from this code has
+been seen in an inbox yet.
+
+## UNPROMOTED — 2026-10-18 — NOTIFY-5: one delivery mode (live / sandbox / dry-run) for every email, and "Send a test to me"
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **NOTIFY-5 is independent of the
+Milestones payload below it** (MS-1 to MS-4a, CHK-15, BUG-15, all still
+unpromoted), but a staging → main merge carries them all together.
+
+**Payload: NOTIFY-5 plus two audit-only docs commits, on top of the
+unpromoted entries below.** Verified by `git log origin/staging..staging` at
+this check (after `git fetch origin`): exactly `3fb760d`, `0ee506f`,
+`07e9253`, `634eab3`, `93bd378`, `7673b14`. **NONE OF THEM WAS PUSHED WHEN THIS
+CHECK RAN.** All six, plus this check's own commit, are unpushed. Claude never
+pushes.
+
+| Commit | What it is |
+|---|---|
+| `7673b14` | `docs(MS-4b)`: audit only. Found that production sends no email (console provider). Forks F14–F16 |
+| `93bd378` | `docs(NOTIFY-3 AUDIT)`: email inventory and the one-pipeline proposal (P0 adopted; MS-4b held behind NOTIFY-6) |
+| `634eab3` | `docs(NOTIFY-5)`: saved session prompt |
+| `07e9253` | NOTIFY-5 work: `deliveryMode()` in `src/lib/notify.ts`, the pace-alert, acknowledgment and test-send paths on it, the `email.dryrun` row, "Send a test to me" on `/settings/notifications`, fixture `scripts/verify-notify5.ts` |
+| `0ee506f` | `docs(NOTIFY-5)`: audit, ROADMAP row, MS-4b P0 blocker, DECISIONS draft, CLAUDE.md env lines |
+| `3fb760d` | `test(NOTIFY-5)`: fixture section F, which proves staging with the allowlist unset, `""` or `" , "` resolves to sandbox and emails nobody. Fixture only, no production code |
+| the commit immediately after `3fb760d` | `docs(NOTIFY-5 PRE-PUSH-CHECK)`: DECISIONS ratified plus Gary's test-send ruling, this entry, row to `staging`, docs SHAs |
+
+**Blast radius: EVERY EMAIL FROOT SENDS, IN EVERY ENVIRONMENT. NO SCHEMA, NO
+MIGRATION.** A new optional env var, `NOTIFY_SANDBOX_ALLOWLIST`, is read
+off production only. What changes, by environment:
+
+- **Staging** (`NOTIFY_EMAIL_PROVIDER=resend`, not production): **sandbox.**
+  Real mail goes only to `NOTIFY_SANDBOX_ALLOWLIST`, which is **UNSET in
+  Preview at this check**. So from this push on, staging pace alerts and HR
+  acknowledgment emails to `hrAckRecipients` **reach nobody**, and they record
+  "Dry run — not sent". Sandbox never writes a `PaceAlertLog` lock. The ONLY
+  exception is "Send a test to me", which mails the admin who pressed it
+  whether or not they are on the list (Gary's ruling, 2026-10-18, DECISIONS).
+  Gary adds his own address to the Preview allowlist to receive staging mail.
+- **Production with `resend`** → **live**. Same recipients, lock and audit
+  rows as before.
+- **Unset or `console`, anywhere** → **dry-run**. Rendered and logged, with one
+  `email.dryrun` row per store per month for pace. **It consumes no pace lock
+  and writes no `email.sent` row.** Before this, console mode burned the
+  store's monthly lock with nothing delivered.
+- An unknown provider value still throws, now from `deliveryMode()` as well.
+
+New UI: the ADMIN-only "Send a test to me" button on `/settings/notifications`,
+calling the existing `POST /api/notify/test`. The recipient is never supplied
+by the caller. No Square call, no cron schedule change, no Clerk change.
+
+**Rollback:** `git revert 3fb760d 07e9253`. There's no migration to unwind.
+After a revert, console mode burns pace locks again (NOTIFY-3 audit §6), and
+staging `resend` emails every configured recipient again, which P2 forbids.
+**Before reverting on staging, set `NOTIFY_EMAIL_PROVIDER` to `console` in
+Preview.** The docs commits can stay.
+
+**Staging evidence:** pending. This is the NOTIFY-5 row's "Staging
+verification owed" blocker in `docs/ROADMAP.yaml`. Name the org by id on
+every observation and branch `preview/staging` (`br-square-feather-a63z92vz`)
+on every row:
+- "Send a test to me" as ADMIN delivers to Gary with the allowlist unset, and
+  the result line reads `mode: sandbox`;
+- an HR acknowledgment to an address that isn't allow-listed reads "Dry run —
+  not sent";
+- a hand-fired pace cron reports `mode=sandbox`, mails nobody but allow-listed
+  addresses, and writes no `PaceAlertLog` row for the month;
+- MANAGER is still redirected from `/settings/notifications`.
+
+Dev-level evidence only so far: verify-notify5 55/55 (negative controls: 12
+fail with the dry-run branch disabled, 6 section-F fail with `resend` forced
+to live, both restored), verify-f5-polish 63/63, verify-notify-template 35/35,
+all on the DEV database. Nothing has been seen in an inbox from this code.
+
+## UNPROMOTED — 2026-10-17 — MS-4a: checklist milestones (named tasks), the Checklist milestones switch, Copy message, pay warning
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **PROMOTES WITH THE REST OF MILESTONES
+(MS-1 to MS-3c) AND WITH OR AFTER CHK-15**, whose name check is what makes the
+named-task count trustworthy. A staging → main merge carries them all together.
+
+**Payload: MS-4a only, on top of CHK-15, MS-3c, MS-3b, MS-3a, MS-2, BUG-15 and
+MS-1** (all also unpromoted, with their own entries below). Verified by `git log
+origin/staging..staging` at this check (after `git fetch origin`): exactly
+`70365c6`, `e90ca16`, `f295ea1`, `2ca8b64`. **NONE OF THE MS-4a COMMITS WAS
+PUSHED WHEN THIS CHECK RAN.** All four, plus this check's own commit, are
+unpushed. Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `70365c6` | MS-4a work: migration `20261017204956_ms4a_checklist_milestones`, `checklistProgress` / `namedTaskDates`, `/api/milestones/checklist` (GET, POST), `/[id]` (PATCH), `/switch` (PUT), the Checklists section on `/staff/milestones`, checklist progress and Copy message on the `/staff/[id]` Milestones tab, the pay warning, fixture `scripts/verify-ms4a.ts`, `verify-ms1` C7 census 5 → 8 |
+| `e90ca16` | `docs(MS-4a)`: MS-4a / MS-4b rows, DECISIONS draft, MIGRATIONS entry, saved prompt, MS-4b prompt; Tommy/Southgate closed on MS-3b; CHK-16 ruling |
+| `f295ea1` | `docs(MS-4a)`: MS-4a rulings ratified; CHK-15 verified on staging (blocker superseded); MS-4b sent-stays-sent ruling |
+| `2ca8b64` | `docs(MS-4)`: MS-4 rulings entry ratified |
+| the commit immediately after `2ca8b64` | `docs(MS-4a PRE-PUSH-CHECK)`: ratification recorded, this entry, row to `staging`, docs SHAs |
+
+**Blast radius: ONE ADDITIVE MIGRATION, THREE NEW ADMIN ROUTES, TWO PAGES.**
+The migration adds `MilestoneSettings.checklistMilestonesEnabled` (default
+false), a new `ChecklistMilestone` table and an index on
+`TaskLog(completedByStaffId)`. No drops, no backfill. It applies on the Vercel
+build through `prisma migrate deploy`. Watch the build log for it, and Gary
+checks `_prisma_migrations` in the Neon console before and after; the
+advisory-lock P1002 failure is the known risk. No env var, no cron, no email,
+no Square call. The new routes are `milestones.manage` (ADMIN) behind the
+Milestones module gate, and the CRUD routes 404 while the switch is off. With
+the switch OFF (every org, by default) nothing new shows anywhere except the
+switch itself, the pay warning, and the Copy message button on achieved
+TENURE messages, which appears for every org with Milestones on.
+
+**Rollback:** `git revert 70365c6`. That removes the code but NOT the migration
+already applied: the new table, column and index stay, unused and harmless
+(additive). Never drop them by hand (no column drops, ever). The docs commits
+can stay.
+
+**Staging evidence:** pending. The checklist is the MS-4a row's
+UNVERIFIED-ON-STAGING blocker in `docs/ROADMAP.yaml`, with the org named by id
+on every observation:
+- `/staff/milestones` shows the Checklists card with the switch OFF and no list;
+  on shows the list, off hides it again with nothing deleted;
+- add 1- and 2-task milestones, tick tasks naming "MS-4a Staff", and see the
+  tab count, the achieved card and its Copy message button;
+- a "Team Member" tick does not count; un-ticking lowers the count;
+- Copy pastes the message as written; the pay warning shows on the page and in
+  the dialog;
+- as Tommy switched to STORE and as gary@keva.com (MANAGER), a console PUT to
+  `/api/milestones/checklist/switch` returns 404 or 403;
+- phone width.
+
+Dev-level evidence only so far: verify-ms4a 52/52 (live negative control
+5 FAIL, restored), verify-ms1 97/97, verify-ms2 90/90, verify-ms3 95/95,
+verify-ms3b 80/80 and verify-chk15 28/28, all on dev `br-broad-wave-a6vpjdw0`;
+375 px checked on a temporary page with sample data, deleted before the commit.
+
+## UNPROMOTED — 2026-10-17 — CHK-15: a checklist tick names only an active staff member of this store
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **A SECURITY FIX (MS-4 F12). MUST REACH
+`main` BEFORE OR WITH MS-4a**, which counts named tasks toward checklist
+milestones. It has no code dependency on the MS-1 to MS-3c entries below, but a
+staging → main merge carries them all together.
+
+**Payload: CHK-15 only, on top of MS-3c, MS-3b, MS-3a, MS-2, BUG-15 and MS-1** (all
+also unpromoted, with their own entries below). Verified by `git log
+origin/staging..staging` at this check (after `git fetch origin`): exactly
+`329526d`, `adc56a9`, `92dad4d`. **NONE OF THE CHK-15 COMMITS WAS PUSHED WHEN
+THIS CHECK RAN.** All three, plus this check's own commit, are unpushed. Claude
+never pushes.
+
+| Commit | What it is |
+|---|---|
+| `329526d` | CHK-15 work: `src/lib/task-log-staff.ts` (`resolveTaskLogStaff`), the task-log route calls it on a tick before any write, the store-view checklist picker lists ACTIVE only, a display-only names query, fixture `scripts/verify-chk15.ts` |
+| `adc56a9` | `docs(CHK-15)`: row, DECISIONS draft, audit |
+| `92dad4d` | `docs(CHK-15 triage)`: CAL-3 and CHK-16 filed, pointer on MS-4 |
+| the commit immediately after `92dad4d` | `docs(CHK-15 PRE-PUSH-CHECK)`: ratification recorded, this entry, row to `staging`, docs SHAs |
+
+**Blast radius: ONE WRITE ROUTE AND ONE PAGE.** No migration, no schema, no env
+var, no cron, no Square call, and no existing row changed (forward-only).
+`POST /api/checklists/[id]/task-log` now refuses, with a 400 and a sentence
+shown on the task, a tick naming someone who is not in this org, not ACTIVE, or
+neither assigned to the checklist's store nor `isCorporate`. A non-string id is
+refused too (before, it caused a 500). "Team Member" and no name save as before.
+An un-tick is never refused. `/store-view/checklist/[id]`'s "Who completed this
+task?" picker lists ACTIVE staff only. A task ticked earlier by someone since
+terminated or moved still shows their name. Watch: any 400 on task-log in the
+runtime logs, and that the refusal message appears on a task when it happens.
+
+**Rollback:** `git revert 329526d`. No database step. That restores the old
+route, which saves any id sent, so the security gap reopens. `adc56a9`,
+`92dad4d` and this check's commit are docs only and can stay.
+
+**Staging evidence:** pending. The checklist is the CHK-15 row's
+UNVERIFIED-ON-STAGING blocker in `docs/ROADMAP.yaml`, with the org named by id
+on every observation:
+- a tick naming an assigned, active person saves;
+- a "CHK-15 Staff" member terminated while the checklist screen is open, then
+  picked, gives the clear message and the tick rolls back;
+- "Team Member" still saves;
+- after a reload the terminated person is gone from the picker, and a task they
+  ticked earlier still shows their name.
+
+> **Recorded 2026-10-20 (DOCS-CLOSEOUT-2), Gary's ruling:** the "CHK-15 Test"
+> staff member on `preview/staging` (org `cmr54z65v000105jxczpt72w1`) is LEFT
+> TERMINATED ON PURPOSE. It is the fixture the terminated-staff paths are
+> checked against, and MS-5's staging pass used it ("CHK-15 Test terminated is
+> hidden from Tommy's report (26 -> 25)"). Not a cleanup item. Its name says
+> which phase made it (CLAUDE.md § Name every test principal).
+
+Dev-level evidence only so far: verify-chk15 28/28 (live negative control
+3 FAIL, restored), verify-ms1 97/97, verify-ms2 90/90, verify-ms3 95/95 and
+verify-ms3b 80/80, all on dev `br-broad-wave-a6vpjdw0`.
+
+## UNPROMOTED — 2026-10-17 — MS-3c: no amber "Raise in progress" badge on /staff (tab unchanged)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **PROMOTES WITH MS-3a AND MS-3b** — it
+amends MS-3a's `/staff` badge, so it must not reach `main` ahead of them.
+
+**Payload: MS-3c only, on top of MS-3b, MS-3a, MS-2, BUG-15 and MS-1** (all also
+unpromoted, with their own entries below). Verified by `git log
+origin/staging..staging` at this check (after `git fetch origin`): exactly
+`6eabef1`, `3d675b4`, `7d53b1b`. **NONE OF THE MS-3c COMMITS WAS PUSHED WHEN
+THIS CHECK RAN** — all three plus this check's own commit are unpushed. Claude
+never pushes.
+
+| Commit | What it is |
+|---|---|
+| `6eabef1` | MS-3c work: `src/app/(app)/staff/raise-badge.tsx` — compact `RaiseBadge` returns nothing for status "yellow"; fixtures `scripts/verify-ms3.ts` (C17–C19) and `scripts/verify-ms3b.ts` (C14b) |
+| `3d675b4` | `docs(MS-3c)`: row, DECISIONS draft, saved prompt |
+| `7d53b1b` | `docs(MS-3c)`: rulings ratified by Gary, scope recorded as his wording |
+| the commit immediately after `7d53b1b` | `docs(MS-3c PRE-PUSH-CHECK)`: ratification recorded, this entry, row to `staging`, docs SHAs |
+
+**Blast radius: ONE COMPONENT, DISPLAY ONLY.** No migration, no route, no gate,
+no env var, no cron, no Square call. The compact `RaiseBadge` has one caller,
+`src/app/(app)/staff/page.tsx`. On `/staff` the amber "Raise in progress" badge
+(and its hover tooltip) no longer renders; green "Raise eligible" and red
+"Raise blocked" still do. The Milestones tab on `/staff/[id]` is unchanged and
+still shows every state. Watch: an amber member on the list.
+
+**Rollback:** `git revert 6eabef1`. No database step. `3d675b4`, `7d53b1b` and
+this check's commit are docs only and can stay.
+
+**Staging evidence:** pending. The checklist is the MS-3c row's
+UNVERIFIED-ON-STAGING blocker in `docs/ROADMAP.yaml`: a member who is amber on
+the tab shows NO Raise badge on `/staff`; a green and a red member still show
+theirs; the tab still shows "Raise in progress" for the amber member.
+Dev-level evidence only so far (verify-ms3 95/95, verify-ms3b 80/80, verify-ms1
+97/97, verify-ms2 90/90, all on dev `br-broad-wave-a6vpjdw0`).
+
+## UNPROMOTED — 2026-10-16 — MS-3b: raise detection, manual last-raise date, cooldown, daily wage sync
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **PROMOTES TOGETHER WITH MS-3a** (Gary,
+2026-10-16: "Promote together") — the MS-3a entry below is marked not to be
+promoted without this one, and the reverse holds too.
+
+**Payload: MS-3b only, on top of MS-3a, MS-2, BUG-15 and MS-1** (all also
+unpromoted, with their own entries below). Verified by `git log
+origin/staging..staging` at this check (after `git fetch origin`): exactly
+`cd650f7`, `d2897ed`, `f3965f9`, `f5aad38`. **NONE OF THE MS-3b COMMITS WAS
+PUSHED WHEN THIS CHECK RAN** — all four plus this check's own commit are
+unpushed. Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `cd650f7` | `docs(MS-3b)`: audit and plan (`docs/prompts/2026-10-16_MS-3b_AUDIT.md`), stopped for Gary's G1–G5 rulings |
+| `d2897ed` | MS-3b work: `src/lib/raise-history.ts` (raise detection; the only reader of the wage snapshot table and of `StaffLastRaise`), cooldown and `redactForViewer` in `src/lib/raise-eligibility.ts`, `PUT`/`DELETE /api/staff/[id]/last-raise`, ADMIN last-raise card on the Milestones tab, daily wage sync in the labor-timecards cron, roster sync route header corrected, migration `20261017002340_ms3b_last_raise` |
+| `f3965f9` | `docs(MS-3b)`: row, DECISIONS draft, MIGRATIONS entry |
+| `f5aad38` | `test(MS-3b)`: D22b positive control for the raise-date redaction (`scripts/verify-ms3b.ts` only; 79/79 on dev) |
+| the commit immediately after `f5aad38` | `docs(MS-3b PRE-PUSH-CHECK)`: ruling ratified, this entry, row to `staging`, docs SHAs |
+
+**Blast radius: ONE MIGRATION (additive only), ONE NEW ROUTE, A CHANGE TO A
+PRODUCTION CRON, and the HR-gated staff pages.** No env var, no new dependency,
+no new Square scope, no Square write, no `vercel.json` change. This is the first
+Milestones phase that READS WAGE DATA — the result carries dates only, never a
+rate, and `redactForViewer` strips them for anyone without pay visibility.
+- **Migration** `20261017002340_ms3b_last_raise`, applied by `prisma migrate
+  deploy` in the Vercel build: creates table `StaffLastRaise` (one row per
+  staff member, unique on `staffMemberId`, cascade on member delete, nullable
+  `lastRaiseDate DATE`, `setByUserId`, `setAt`). Nothing existing is altered.
+  Applied to DEV only before this push, by Gary with `migrate deploy`. Watch:
+  the staging build log, and the Neon-console check of `_prisma_migrations`
+  before and after.
+- **Cron** `/api/cron/labor-timecards` now also runs
+  `syncTeamMemberWages(org, "ACTIVE")` per org — one `POST
+  /v2/team-members/search` (a READ, `EMPLOYEES_READ`, already held) — in its
+  own try/catch, reported under a new `wages` key. `ok` / `failed` still count
+  timecards only. **Vercel runs crons on production only, so this activates AT
+  PROMOTION, not on staging.** Watch, after promotion: the production cron log
+  line `[cron:labor-timecards] wages N/M orgs synced`, and no change to the
+  timecard result.
+- **New route** `PUT`/`DELETE /api/staff/[id]/last-raise`
+  (`milestones.manage`, org-scoped). 404 with Milestones or the Square labor
+  overlay off; 403 for MANAGER, STORE and STAFF, and for an ADMIN who may not
+  see this member's pay; refuses a future date.
+- **UI**: the Raise card gains "Recent raise" / cooldown state; during cooldown
+  `/staff` shows no Raise badge (G5). ADMIN-only last-raise card under the
+  Raise card on the Milestones tab. Cooldown help text on `/staff/milestones`
+  reworded. Watch: a MANAGER sees no date for a confidential member.
+
+**Rollback:** `git revert f5aad38 d2897ed` (newest first — `f5aad38` edits a
+file `d2897ed` created). **NO DATABASE STEP, AND NONE IS ALLOWED.** The schema
+is additive-only, so `StaffLastRaise` STAYS and the reverted code simply stops
+reading it. Do not drop it or delete the `_prisma_migrations` row: a later
+re-apply of MS-3b brings the migration back under the same name. Note that
+reverting MS-3b alone leaves MS-3a live without the cooldown — the state Gary's
+"Promote together" ruling exists to prevent. `cd650f7`, `f3965f9` and this
+check's commit are docs only and can stay.
+
+**Staging evidence:** pending. The checklist is the MS-3b row's
+UNVERIFIED-ON-STAGING blocker in `docs/ROADMAP.yaml`: the Neon-console
+migration check before and after; a manual last-raise date removing the
+`/staff` badge and showing "Recent raise"; the day-before / day-of cooldown
+boundary; as gary@keva.com (MANAGER, Carson) no date for a confidential member
+and a 403 from the route; as Tommy (STORE) a 403 and no tab; and phone width.
+Raise DETECTION is fixture-proven on dev only (verify-ms3b 79/79,
+`br-broad-wave-a6vpjdw0`) and is not exercised on staging.
+
+**Staging evidence (Gary, chat), recorded 2026-10-17 by DOCS-CLOSEOUT.** The
+"pending" line above is kept as written and is superseded by this block. Still
+UNPROMOTED. Environment: staging, Neon branch `br-square-feather-a63z92vz`, org
+`cmr54z65v000105jxczpt72w1` (Clerk org `org_3G02wO4QlVVSWppi8aqlnSZnsDa`),
+Clerk development instance (staging keys). Deployed SHA read from the page
+footer: `029e4ba`.
+- Migration finished 2026-10-17 02:14 UTC.
+- Manual last-raise 2026-08-04 → "Recent raise, eligible again from Nov 2,
+  2026", badge hidden on `/staff`; 2026-07-01 → cooldown met, badge back.
+- Privacy: Deon Hazelton marked pay-confidential; Tommy (MANAGER, Las Brisas)
+  saw the cooldown but no dates on the tab and none in page source; ADMIN saw
+  both dates (positive control).
+- Test data cleaned up.
+
+## UNPROMOTED — 2026-10-16 — MS-3a: raise eligibility (Raise settings, criteria, Raise badge)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. **DO NOT PROMOTE WITHOUT MS-3b** (Gary,
+2026-10-16: "Promote together"): MS-3a alone shows green for someone who was
+just given a raise, because raise detection and the cooldown are MS-3b's.
+
+**Payload: MS-3a only, on top of MS-2, BUG-15 and MS-1** (all also unpromoted,
+with their own entries below). Verified by `git log origin/staging..staging` at
+this check (after `git fetch origin`): exactly `3870fb2`, `3a3f210`, `99cab10`,
+`9917412`. **NONE OF THE MS-3 COMMITS WAS PUSHED WHEN THIS CHECK RAN** — all
+four plus this check's own commit are unpushed. Claude never pushes.
+**SUPERSEDED 2026-10-17 (DOCS-CLOSEOUT): pushed 2026-10-16, deployed
+`4cb60b0`.** The "not pushed" line above is kept as written; it was true when
+the check ran.
+
+| Commit | What it is |
+|---|---|
+| `3870fb2` | `docs(MS-3)`: audit and plan (`docs/prompts/2026-10-16_MS-3_AUDIT.md`) |
+| `3a3f210` | MS-3a work: `src/lib/raise-eligibility.ts` (one batched eligibility function), `src/lib/raise-settings.ts`, `/api/milestones/raise`, Raise section on `/staff/milestones`, Raise card on the Milestones tab, compact Raise badge on `/staff`, `summariesFromDetails` lifted out of `hr-compliance.ts`, migration `20261016190415_ms3a_raise_settings` |
+| `99cab10` | `docs(MS-3a)`: row, MS-3b row and prompt, DEBT-115, DECISIONS draft, MIGRATIONS entry, session prompt |
+| `9917412` | `docs(CLAUDE.md)`: Database step 3 is `migrate deploy`, per Gary's 2026-10-16 ruling |
+| the commit immediately after `9917412` | `docs(MS-3 PRE-PUSH-CHECK)`: ruling ratified, this entry, row to `staging`, docs SHAs |
+
+**Blast radius: ONE MIGRATION (additive only), ONE NEW ROUTE, a
+behaviour-identical lift in the compliance engine, and the HR-gated staff
+pages.** No cron, no env var, no new dependency, no new Square scope, no Square
+write, and NO wage read — `verify-ms3` C14 and D20 assert that no wage table is
+touched.
+- **Migration** `20261016190415_ms3a_raise_settings`, applied by `prisma
+  migrate deploy` in the Vercel build: adds five defaulted columns to
+  `MilestoneSettings` (`raiseComplianceGate` true, `raiseMinHoursPerWeek` 20,
+  `raiseConsecutiveWeeks` 3, `raiseMinOnTimePct` 90, `raiseCooldownDays` 90)
+  and creates join tables `MilestoneRaiseTraining` and
+  `MilestoneRaiseDocument` (cascade on delete). Applied to DEV only before this
+  push, by Gary with `migrate deploy`. Watch: the staging build log, and the
+  Neon-console check of `_prisma_migrations` before and after.
+- **Compliance engine** (`src/lib/hr-compliance.ts`): `summariesFromDetails`
+  and `complianceDocumentWhere` exported; `getStaffComplianceSummaries`
+  behaviour-identical, so `/staff` runs the engine once for both the % column
+  and the badge. Watch: the `/staff` compliance % column unchanged.
+- **New route** `/api/milestones/raise` (GET/PUT, `milestones.manage`). 404
+  with Milestones off; refuses out-of-bounds values and archived, foreign or
+  non-compliance ids with a 400.
+- **UI**: Raise section on `/staff/milestones`, full Raise card on the
+  Milestones tab, compact badge beside On-Time on `/staff`, all on the On-Time
+  gate (ADMIN/MANAGER, Milestones on). With the Square labor overlay off there
+  is no Raise badge anywhere and the section says why.
+
+**Rollback:** `git revert 3a3f210`. **NO DATABASE STEP, AND NONE IS
+ALLOWED.** The schema is additive-only, so the migration STAYS applied and the
+reverted code simply stops reading the raise columns and join tables. Do not
+drop them or delete the `_prisma_migrations` row: a later re-apply of MS-3a
+brings the migration back under the same name. `3870fb2`, `99cab10`,
+`9917412` and this check's commit are docs only and can stay.
+
+**Staging evidence:** pending. The checklist is the MS-3 row's
+UNVERIFIED-ON-STAGING blocker in `docs/ROADMAP.yaml`: the Neon-console
+migration check before and after; the Raise section saving and refusing bad
+input (hours 61, cooldown 0 or 731, an archived training); one member per
+colour; Square labor off hiding every Raise badge with the section saying why;
+Milestones off hiding it with the route 404ing; console fetch checks as Tommy
+(STORE) and gary@keva.com (MANAGER, Carson); and phone width.
+
+**Staging evidence (Gary, chat), recorded 2026-10-17 by DOCS-CLOSEOUT.** The
+"pending" line above is kept as written and is superseded by this block. Still
+UNPROMOTED, and still NOT TO BE PROMOTED WITHOUT MS-3b. Environment: staging,
+Neon branch `br-square-feather-a63z92vz`, org `cmr54z65v000105jxczpt72w1`
+(Clerk org `org_3G02wO4QlVVSWppi8aqlnSZnsDa`), Clerk development instance
+(staging keys). Deployed SHA read from the page footer: `4cb60b0`.
+- Migration finished 2026-10-16 22:14 UTC.
+- All checklist items confirmed by Gary.
+
+## UNPROMOTED — 2026-10-16 — MS-2: on-time % and the On-Time badge (On-time settings, schedule cron)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge.
+
+**Payload: MS-2 only, on top of MS-1 and BUG-15** (both also unpromoted, with
+their own entries below). Verified by `git log origin/staging..staging` at this
+check (after `git fetch origin`): exactly `76b857c`, `15765c7`, `c8e302f`,
+`b0fa415`. `origin/main..staging` additionally holds the five MS-1 commits, the
+MS-1 check `7010995`, and the five BUG-15 commits through `147fa94`. **NONE OF
+THE MS-2 COMMITS WAS PUSHED WHEN THIS CHECK RAN** — all four plus this check's
+own commit are unpushed. Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `76b857c` | `docs(MS-2)`: audit and plan (`docs/prompts/2026-10-16_MS-2_AUDIT.md`) |
+| `15765c7` | MS-2 work: `src/lib/attendance.ts` on-time function, `pairsAsAttendance()` extracted from the Day Inspector, `MilestoneSettings`, `/api/milestones/attendance`, On-time section, badges on `/staff` and the Milestones tab, schedule cron registered, `/staff` tables scroll sideways, migration `20261016140411_ms2_milestone_settings` |
+| `c8e302f` | `docs(MS-2)`: row, DECISIONS draft, MIGRATIONS entry, BUG-16 item 4, session prompt |
+| `b0fa415` | MS-2 follow-up: displayed % rounds down, colour on the exact value |
+| the commit immediately after `b0fa415` | `docs(MS-2 PRE-PUSH-CHECK)`: ruling ratified, this entry, row to `staging`, docs SHAs, original row notes restored |
+
+**Blast radius: ONE MIGRATION (additive only), ONE NEW CRON, the Day
+Inspector's pairing code (moved, behaviour-identical), and the HR-gated staff
+pages.** No env var, no new dependency, no new Square scope, and no Square
+write.
+- **Migration** `20261016140411_ms2_milestone_settings`, applied by `prisma
+  migrate deploy` in the Vercel build: creates table `MilestoneSettings` (one
+  row per org, every column defaulted). Applied to DEV only before this push.
+  Watch: the staging build log, and the Neon-console check of
+  `_prisma_migrations` before and after.
+- **Cron** `/api/cron/labor-scheduled-shifts` registered at `45 11 * * *` UTC
+  (Gary, superseding CRON-1's parking). **Vercel runs crons on production
+  only, so it does nothing on staging and activates at promotion.** Cost: about
+  5 Square requests per Square-linked store per day, for orgs with the Square
+  labor overlay on. Watch at promotion: the first production run's log.
+- **Day Inspector** (`src/lib/labor-inspector.ts`): the timecard/shift pairing
+  rule moved into `pairsAsAttendance()`. Output proven byte-identical against a
+  golden file written from the pre-move code. Watch: `/labor/inspector`
+  flags unchanged.
+- **New route** `/api/milestones/attendance` (GET/PUT, `milestones.manage`,
+  ADMIN_ONLY). 404 with Milestones off.
+- **UI**: On-time section on `/staff/milestones`, full badge on the Milestones
+  tab, compact badge beside names on `/staff` (ADMIN/MANAGER, Milestones on),
+  `/staff` tables scroll sideways at phone width. With the Square labor overlay
+  off every badge is grey and no Square labor row is read.
+
+**Rollback:** `git revert b0fa415 15765c7` (newest first). That also removes
+the cron entry from `vercel.json`. **NO DATABASE STEP, AND NONE IS ALLOWED.**
+The schema is additive-only, so the migration STAYS applied and the reverted
+code simply stops reading `MilestoneSettings`. Do not drop the table or delete
+its `_prisma_migrations` row: a later re-apply of MS-2 brings the migration
+back under the same name. Schedule rows the cron wrote are ordinary mirrored
+rows the dashboard sync writes anyway. `76b857c`, `c8e302f` and this check's
+commit are docs only and can stay.
+
+**Staging evidence:** pending. The checklist is the MS-2 row's
+UNVERIFIED-ON-STAGING blocker in `docs/ROADMAP.yaml`: the Neon-console
+migration check before and after; the On-time section saving and refusing red
+>= green; coloured, "Not enough shifts" and "No schedule data" badges; compact
+badges on `/staff`; Milestones off hiding every badge with the route 404ing;
+console fetch checks as Tommy (STORE) and gary@keva.com (MANAGER, Carson); and
+phone width.
+
+**Staging evidence (Gary, chat), recorded 2026-10-17 by DOCS-CLOSEOUT.** The
+"pending" line above is kept as written and is superseded by this block. Still
+UNPROMOTED. Environment: staging, Neon branch `br-square-feather-a63z92vz`, org
+`cmr54z65v000105jxczpt72w1` (Clerk org `org_3G02wO4QlVVSWppi8aqlnSZnsDa`),
+Clerk development instance (staging keys). Deployed SHA read from the page
+footer: `06b5bba`.
+- Migration finished 2026-10-16 15:39 UTC.
+- Settings save; red ≥ green refused.
+- Green / red / grey badges on real data; full badge "8 of 8 shifts".
+- Toggle off hides all.
+- 403s as STORE and as an out-of-scope MANAGER.
+- Phone width.
+
+## UNPROMOTED — 2026-10-15 — BUG-15: /dashboard header date no longer causes React #418 after 5 PM Pacific
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge.
+
+**Payload: BUG-15, ON TOP OF UNPROMOTED MS-1.** Gary overrode the BUG-15
+prompt's launch gate ("do not launch until MS-1 has been promoted to main"), so
+BUG-15 was built on staging with MS-1 still unpromoted. Verified at this check
+by `git fetch` then `git log origin/main..staging`: the four BUG-15 commits
+below PLUS MS-1's six (`9a9b9c3` .. `7010995`, see the MS-1 entry below). **A
+promotion of staging now carries both.** Unpushed at this check
+(`git log origin/staging..staging`): `0ddf236`, `cd57d44`, `7977d43`, and this
+check's own commit.
+
+| Commit | What it is |
+|---|---|
+| `e1b4620` | `docs(BUG-15)`: session prompt (already on `origin/staging`) |
+| `0ddf236` | BUG-15 work: `dashboardAnchorTimeZone` + `dashboardHeaderDate` in `src/lib/reports.ts`, rollup route uses the helper, `page.tsx` formats the header date server-side per store zone, client `useMemo` removed, fixture `scripts/bug15-dashboard-header-date-fixture.tsx` |
+| `cd57d44` | drops the `useMemo` import `0ddf236` left unused |
+| `7977d43` | `docs(BUG-15)`: ROADMAP row, BUG-16 filed planned |
+| the commit immediately after `7977d43` | `docs(BUG-15 PRE-PUSH-CHECK)`: this entry, row to `staging`, docs SHA |
+
+**Blast radius: `/dashboard` header text, and one read-only route refactor.** No
+migration, no env var, no new route, no permission change, no new dependency,
+no rows written.
+- **`/dashboard`**: the header date is now formatted on the server in the
+  selected store's zone (All locations: the rollup's anchor zone) and passed as
+  a string. Frozen at page load, as before. The page query adds
+  `Store.timezone` to its `select`.
+- **`/api/dashboard/rollup`**: inline `stores[0]?.timezone ?? "America/Los_Angeles"`
+  replaced by `dashboardAnchorTimeZone(stores)`, which returns the same value
+  (`DEFAULT_TIME_ZONE` is `"America/Los_Angeles"`). No behaviour change.
+
+**Rollback:** `git revert cd57d44 0ddf236`. No database step. The docs commits
+can stay.
+
+**Staging evidence:** pending. After 5 PM Pacific (UTC has rolled over), load
+`/dashboard` on a Pacific store, a Colorado store and All locations; check for
+no #418 in the console and the store-local date in the header.
+
+**Staging evidence (Gary, chat), recorded 2026-10-17 by DOCS-CLOSEOUT.** The
+"pending" line above is kept as written and is superseded by this block. Still
+UNPROMOTED. Environment: staging, Neon branch `br-square-feather-a63z92vz`, org
+`cmr54z65v000105jxczpt72w1` (Clerk org `org_3G02wO4QlVVSWppi8aqlnSZnsDa`),
+Clerk development instance (staging keys). Deployed SHA read from the page
+footer: `147fa94`.
+- Incognito, console open, hard reload: no React #418 on Las Brisas at
+  20:54 PDT (UTC already the next day).
+- Southgate and All locations clean (checked 06:34 PDT, outside the bug
+  window); the fixture covers Denver.
+
+## UNPROMOTED — 2026-10-15 — MS-1: Staff Milestones foundation (toggle, tenure milestones, start date, Milestones tab)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge.
+
+**Payload: MS-1 only.** Verified by `git log origin/main..staging` at this
+check (after `git fetch origin`): exactly `9a9b9c3`, `4f21157`, `6d8c52a`,
+`145fc74`, `9287680`. **NONE WAS PUSHED WHEN THIS CHECK RAN** — all five plus
+this check's own commit are unpushed. Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `9a9b9c3` | `docs(MS-1)`: audit and plan (`docs/prompts/2026-10-15_MS-1_AUDIT.md`) |
+| `4f21157` | MS-1 work: `milestonesEnabled` toggle, `/staff/milestones`, tenure milestones, `StaffMember.startDate`, Milestones tab, `WageSnapshot` writer, migration `20261015171226_ms1_milestones_foundation` |
+| `6d8c52a` | `docs(MS-1)`: row, MS-2..MS-5 planned, DECISIONS draft, MIGRATIONS entry, session prompt |
+| `145fc74` | MS-1 work (Gary's additions): `squareStartDate` beside the manual date, archived-milestone history via `archivedAt`, store-zone fixtures, migration `20261015183554_ms1_start_date_square_archived_at` |
+| `9287680` | `docs(MS-1)`: DECISIONS final, row at `145fc74`, second MIGRATIONS entry |
+| the commit immediately after `9287680` | `docs(MS-1 PRE-PUSH-CHECK)`: ruling ratified, this entry, row to `staging`, docs SHA |
+
+**Blast radius: TWO MIGRATIONS (additive only), the roster sync, the staff
+import paths, and the HR-gated staff pages.** No env var, no new dependency, no
+new Square scope, and no Square write (`square.ts` gains only the `created_at`
+read field).
+- **Migrations**, applied by `prisma migrate deploy` in the Vercel build, in
+  order: `20261015171226_ms1_milestones_foundation` (adds
+  `Organization.milestonesEnabled`, `StaffMember.startDate` and
+  `startDateManual`, and creates tables `TenureMilestone` and `WageSnapshot`)
+  and `20261015183554_ms1_start_date_square_archived_at` (adds
+  `StaffMember.squareStartDate` and `TenureMilestone.archivedAt`). Every new
+  column is nullable or defaulted. Applied to DEV only before this push.
+  Watch: the staging build log, and the Neon-console check of
+  `_prisma_migrations` before and after (the row's blocker).
+- **Roster sync** (`src/lib/labor-roster.ts`, `/api/square/labor/roster/sync`):
+  every sync now also calls `writeWageSnapshots`, which writes a row only when a
+  member's pay type or rate changed. The FIRST sync after deploy writes one
+  baseline row per member. `WageSnapshot` has no reader.
+- **Staff import and resync** (`/api/staff`, `/api/staff/sync-square`,
+  `/api/staff/[id]/resync-square`, `/api/staff/[id]`): fill `startDate` from
+  Square `created_at` while `startDateManual` is false, always record
+  `squareStartDate`, and set `startDateManual` on a hand edit.
+- **New routes**: `/api/milestones/toggle`, `/api/milestones/tenure`,
+  `/api/milestones/tenure/[id]` (ADMIN, `milestones.manage`, ADMIN_ONLY and not
+  grantable). With HR off they answer 404.
+- **UI**: a `/settings` toggle card, `/staff/milestones`, a Milestones tab and
+  start date on `/staff/[id]`, and "Member Since" relabelled "Added to Froot".
+  Default `milestonesEnabled = false`, so no org sees the tab or page until an
+  ADMIN turns it on. The start date shows regardless.
+
+**Rollback:** `git revert 145fc74 4f21157` (newest first). **NO DATABASE STEP,
+AND NONE IS ALLOWED.** Schema is additive-only, so the two migrations STAY
+applied, and the reverted code simply stops reading the new columns and tables.
+Do not drop them. Do not delete their `_prisma_migrations` rows either: the
+migration folders leave the tree with the revert, and a later re-apply of MS-1
+brings them back under the same names. `WageSnapshot` rows written in the
+meantime are harmless, because nothing reads them. `9a9b9c3`, `6d8c52a`,
+`9287680` and this check's commit are docs only and can stay.
+
+**Staging evidence:** pending. The checklist is the MS-1 row's two
+UNVERIFIED-ON-STAGING blockers in `docs/ROADMAP.yaml`: the Neon-console
+migration and Store-timezone checks before and after the deploy; the
+`/settings` toggle; `/staff/milestones` add, edit, archive and restore; the
+Milestones tab at desktop and phone width; Tommy (STORE) seeing no tab; and
+real-request 403 and 404 checks as STORE and as an out-of-scope MANAGER.
+
+**Staging evidence (Gary, chat), recorded 2026-10-17 by DOCS-CLOSEOUT.** The
+"pending" line above is kept as written and is superseded by this block. Still
+UNPROMOTED. Environment: staging, Neon branch `br-square-feather-a63z92vz`, org
+`cmr54z65v000105jxczpt72w1` (Clerk org `org_3G02wO4QlVVSWppi8aqlnSZnsDa`),
+Clerk development instance (staging keys). Deployed SHA read from the page
+footer: `7010995`.
+- Both MS-1 migrations finished 2026-10-16 01:32 UTC, no rollback.
+- Toggle on/off; add / edit / archive / restore; duplicate day count refused.
+- Start date "Manually set" with the Square date warning, survives resync.
+- Tab next / achieved / progress, desktop and phone.
+- Permissions: STORE (Tommy) has no Staff access, APIs 403 with Milestones on
+  and 404 with it off; out-of-scope MANAGER (gary@keva.com, Carson) gets
+  not-found and 403.
+
+## 0d51496 — 2026-09-29 — DOC-11: Preview on the Document Library (PDFs and images in a dialog)
+
+**PROMOTED — stamped late, 2026-10-17, by DOCS-CLOSEOUT.** The heading
+previously read "UNPROMOTED — 2026-09-29 — DOC-11: Preview on the Document
+Library (PDFs and images in a dialog)"; it was stamped with the merge SHA as the
+"Status" line below instructs, and everything below is kept as written.
+**Merge SHA:** `0d5149658e3dc406549dc84ec84dd1803d3e1ac9`, committed
+2026-09-29 13:38:19 -0700 (Pacific), which is `2026-09-29T20:38:19Z`
+("Merge branch 'staging'"), parents `760524e` (prior tip of `main`) and
+`27c67b3` (tip of `staging`). **4 commits** in `0d51496^1..0d51496^2`, read out
+of `git log` at this stamp: `c5b472e`, `d329389`, `5bc3008`, `27c67b3`.
+`git merge-base --is-ancestor 0d51496 origin/main` succeeds, so it is on
+`origin/main`. No production verification of DOC-11 is recorded here.
+
+**Rollback:** `git revert -m 1 0d51496` on `main`, then push. No database step.
+Note this merge also carried `27c67b3` (the DOC-6 promotion stamp, docs only).
+This supersedes the pre-merge `git revert c5b472e` line below, kept in place.
+
+> **⚠ SUPERSEDED AT PROMOTION 2026-09-29.** The "Status: staging only" line and
+> the "Staging evidence: pending" paragraph below are the PRE-PUSH-CHECK's own.
+> They were written before the push and are now spent. Marked in place, not
+> deleted. The check's own commit, which the payload table could not name, is
+> `5bc3008`.
+>
+> **Staging evidence (Gary, 2026-09-29, on `27c67b3-staging`):** the Key Agreement
+> preview on desktop. A 4-page test handbook on desktop, scrolled to the last
+> page. The same file on iPhone Safari drew the pages past page 1. **Not observed
+> on staging:** rotate/refit, and a phone signing as Tommy (the `PdfViewer`
+> regression check). Both are open on the ROADMAP row.
+>
+> *(Adapted 2026-10-20 by DOCS-CLOSEOUT-2 from `stash@{0}` "main docs WIP",
+> where both paragraphs sat uncommitted. The stash's heading stamp and payload
+> paragraph are not folded in: DOCS-CLOSEOUT stamped this heading on 2026-10-17,
+> above, with the same SHAs.)*
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge.
@@ -85,6 +1158,12 @@ the Save sends and who a document reaches are unchanged.
 
 **Rollback:** `git revert -m 1 e4be68a` on `main`, then push (merge `e4be68a28a0b983b246b4b7a38b994e42a25aabc`; stamped late on 2026-09-29).
 
+> **Correction 2026-09-29: promoted in `e4be68a`.** The paragraph below is the
+> PRE-PUSH-CHECK's own. It is kept as written and is now spent.
+> *(Folded in 2026-10-20 by DOCS-CLOSEOUT-2 from `stash@{0}` "main docs WIP",
+> where it sat uncommitted. `e4be68a^1..e4be68a^2` is exactly `65ca616`,
+> `a2c7153`, `73c1a59`.)*
+
 **Unpromoted — staging only.** Written by the PRE-PUSH-CHECK before Gary's push.
 It gets the merge SHA at promotion, on `main`, after the merge.
 
@@ -135,7 +1214,7 @@ literal in the same output.
 - **Staff DELETE** now also refuses a person with return events, with the
   existing 409.
 
-**Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **The code
+**Rollback:** `git revert -m 1 e4be68a` on `main`, then push. **The code
 revert is safe without a database step.** The migration is additive: reverted
 code never reads the new columns or the new table, so both stay behind and go
 unread. Any return events recorded before the revert stay in `HrReturnEvent`,
@@ -302,7 +1381,7 @@ ADMIN.
 `br-broad-wave-a6vpjdw0` (throwaway org, removed and re-queried). `npm run
 build` clean after the final commit.
 
-**Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **No database
+**Rollback:** `git revert -m 1 5c3c6c6` on `main`, then push. **No database
 step** — nothing was migrated and nothing was written.
 
 **Staging evidence pending.** Gary tests after push as `indianathomas` on
@@ -394,7 +1473,7 @@ non-zero result means an unexpected legacy value, and goes back to Gary.
   The document and form create and PATCH bodies now take `categoryId`, not
   `category`.
 
-**Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **The code
+**Rollback:** `git revert -m 1 92df26b` on `main`, then push. **The code
 revert is safe without a database step.** The migration is additive, the
 legacy `category` column was kept NOT NULL and is written on every create, so
 reverted code reads it as before. The new table and column simply go unread.
@@ -463,7 +1542,7 @@ not see their own missed answers for now). The graders used by quiz submit and
 trainer review moved file but not behaviour (50,000-case HEAD comparison, 0
 differences).
 
-**Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **No database
+**Rollback:** `git revert -m 1 d929d1d` on `main`, then push. **No database
 step** — nothing was migrated and nothing was written.
 
 > **⚠ CORRECTED AT PROMOTION 2026-09-27 — the NAV-2 line immediately below was
@@ -529,7 +1608,7 @@ the header exactly as before. Fails closed to the STAFF header if the role
 cannot be read. Reported from production by Neesha Hartman (manager, Carson),
 2026-09-23.
 
-**Rollback:** `git revert -m 1 <merge SHA>` on `main`, then push. **No database
+**Rollback:** `git revert -m 1 3c0ffc9` on `main`, then push. **No database
 step** — nothing was migrated and nothing was written.
 
 **Staging evidence pending** — Gary tests after push: ADMIN (`indianathomas`)
@@ -1605,6 +2684,13 @@ after the 09:05 merge, so its three commits — `9936610`, the docs commit
 `00db87e` and the check commit `dfbfe6e` — are on `origin/staging` and nowhere
 else; `git log --oneline origin/main..origin/staging` returns those three and
 nothing more. This carry line gets its own stamp when CAL-1b is promoted.
+
+> **Correction 2026-10-20 (DOCS-CLOSEOUT-2): CAL-1b was promoted later, in
+> `d2b8d79`** ("promote: CAL-1b, DOCS-4, CAL-2, CAL-2a, DOCS-5, CAL-2b",
+> 2026-09-18). `git merge-base --is-ancestor 9936610 d2b8d79` succeeds and the
+> same check against `d2b8d79^1` fails, so `d2b8d79` is the merge that carried
+> it. The "STILL UNPROMOTED" paragraph above is kept as written and is now
+> spent. Rollback for CAL-1b is the `d2b8d79` entry's.
 **STAMPED 2026-09-19 BY DOCS-6 — THIS IS THE STAMP THE LINE ABOVE ASKS FOR.**
 CAL-1b reached production 2026-09-18 in `d2b8d79` ("promote: CAL-1b, DOCS-4,
 CAL-2, CAL-2a, DOCS-5, CAL-2b"), the entry at the head of this log, with all
@@ -1739,6 +2825,27 @@ unfiltered `/users` is unchanged.
 
 **Rollback is code-only and needs no database step.** Reverting the work commit
 removes the two controls and restores the previous page; nothing was written.
+
+## 10c9cf5 — 2026-09-13 — CHK-8: template task sort order — RETROACTIVE ENTRY, written 2026-10-20 by DOCS-CLOSEOUT-2
+
+**RETROACTIVE ENTRY, written 2026-10-20 by DOCS-CLOSEOUT-2.** No entry was
+written at promotion time. Sourced from `git` and from the CHK-8 row in
+`docs/ROADMAP.yaml` ("PROMOTED TO PRODUCTION IN "10c9cf5", merging "509fe62"").
+Nothing here was observed in a browser or a database by this session.
+
+**Merge SHA:** `10c9cf5596bb80e86ae53ed577569c5169442acd`
+**Promoted 2026-09-13 14:53:07 -0700** in `10c9cf5` ("merge: CHK-8 template
+task sort order (509fe62)"), parents `53b5a7c` (prior tip of `main`) and
+`509fe62`. `10c9cf5^1..10c9cf5^2` is exactly **1 commit**, `509fe62`, read out of
+`git log` at this writing. `git diff --stat 10c9cf5^1 10c9cf5 -- prisma` is
+empty: no migration.
+
+**What it does.** On the template editor, a task drag is constrained to its own
+section, a Sort Order field sits beside Est. Time, and the unsaved state is
+loud. The CHK-8 row holds the audit, the promotion gate (passed on staging,
+measured by Gary before promoting) and the post-promotion production report.
+
+**Rollback:** `git revert -m 1 10c9cf5` on `main`, then push. No database step.
 
 ## 53b5a7c — 2026-09-09 — Take Photo: the button now opens a camera
 
@@ -2308,6 +3415,166 @@ edited.
   article as a STORE login to watch the contents list renumber.
 - Nothing here proves browser rendering generally, and the assertions exercise
   the policy functions the routes call rather than HTTP responses over the wire.
+
+## f863259 — 2026-09-05 — HELP-1b: eleven help articles (HR and checklists batches)
+
+> **RESTORED ENTRY, restored 2026-10-20 by DOCS-CLOSEOUT-2. NOTHING BELOW IS
+> EDITED.** Written on `main` in `28cd3e1` (2026-09-05) and DROPPED the same
+> day by the HR-33 promotion merge `bf5a66f`, together with the ENG-1 and NAV-1
+> entries below (`bf5a66f^1` = `bc13251` holds it, `bf5a66f^2` = `d1fa739`
+> never did). DEBT-90 recorded it as "exists ONLY on `main`"; by then it existed
+> on neither branch. The text below is `git show bc13251:docs/DEPLOY_LOG.md`,
+> byte-identical to `28cd3e1`'s; only its position is new.
+
+**Merge SHA:** `f863259baa8bc2a3eb1bc775ffaceb0470eea1dd`
+**Same merge as the HELP-1a entry above.** One promotion carried both — the
+machine and the first two batches of articles written into it. Recorded as a
+separate entry because they are separate phases with separate rows and separate
+rollback consequences.
+
+**Payload:** content plus two new verification scripts. **No schema, no
+migration, no cron, no Square call, no writes to any existing table.** Rolling
+this back removes articles from a help surface that keeps working.
+
+### What ships to readers
+
+Eleven articles across HR and checklists, plus the three from HELP-1a. Per-role
+visibility: **ADMIN 14, MANAGER 12, STORE 7, STAFF 6.** The checklists batch was
+weighted at STORE deliberately — it was the thinnest-covered role at 3, and the
+store view, checklist review, dashboard and messages are a STORE login's whole
+shift.
+
+Coverage: 72 routes, 24 claimed, 7 exempt, **41 unclaimed**. That warn list is
+the remaining scope and shrinks per batch; it is not a defect.
+
+### Two bugs this phase found in production-bound code, both by looking
+
+Neither was visible to any assertion in the repo, and both had shipped to
+staging before a human opened the page.
+
+- **The guide image 404'd** because the code read `GUIDE_BLOB_READ_WRITE_TOKEN`
+  while Vercel had created `GUIDE_READ_WRITE_TOKEN` — Blob stores auto-name from
+  the prefix chosen at connect time. It worked locally because `.env` had been
+  hand-typed with the name the code expected, so the mismatch existed only where
+  nothing tested. `GUIDE_READ_WRITE_TOKEN` is set for Production; the resolution
+  now accepts either name and lives in one exported function.
+- **A bullet wrapped across source lines ended its list**, rendering the tail as
+  a full-width paragraph. It affected five of nine articles at the time.
+
+### What is knowingly open
+
+- **Two `pending:` claims** warn on every build — a handoff-scope claim and
+  "a Missed checklist cannot be submitted late". Both were drafted, judged
+  unverified, and PULLED from the prose rather than shipped hedged. No unverified
+  statement reaches a reader; the warning is the to-do.
+- **Three rulings in `DECISIONS.md` are Claude-drafted and await Gary's wording** —
+  section absence, the permanent-warn coverage gate, and all-images-authenticated.
+  They govern shipped code. Their prose must not be quoted as his.
+- **DEBT-85, 86, 87, 88** filed and open. 85 and 87 both make help articles
+  stricter than the pages they document — help hides more than the product shows,
+  the safe direction. 86 is the deployed-env gap the image bug came through.
+
+### Rollback
+
+`git revert -m 1 f863259` — parent 1 is `main`, verified after the merge rather
+than assumed. Pair it with `git checkout HEAD -- docs/DEPLOY_LOG.md` per
+WORKFLOW.md: that revert conflicts on this file for the same structural reason
+this merge did, and keeping the log is the correct resolution both times.
+
+## 8c25084 — 2026-08-30 — ENG-1: engagement tracking
+
+> **RESTORED ENTRY, restored 2026-10-20 by DOCS-CLOSEOUT-2. NOTHING BELOW IS
+> EDITED.** This entry was written on `main` in `b65a76b` (2026-08-30) and was
+> silently DROPPED on 2026-09-05 by the HR-33 promotion merge `bf5a66f`, which
+> resolved this file to the `staging` side (`bf5a66f^1` = `bc13251` holds it,
+> `bf5a66f^2` = `d1fa739` never did). It has been absent from both branches
+> since. The text below is `git show bc13251:docs/DEPLOY_LOG.md`,
+> byte-identical; only its position is new.
+> **Payload, re-read from `git` at this restoration:** parents `66ea10e` (prior
+> tip of `main`) and `835b213`. `8c25084^1..8c25084^2` is exactly **4 commits**:
+> `f1e9833` (work), `e2ed2d0` (row), `5421762` (NAV-1's pre-push check prompt,
+> riding along), `835b213` (pre-push check). **The first parent is `66ea10e`, NOT
+> `e6149f8`:** `git log --oneline e6149f8..66ea10e` returns exactly one commit,
+> `66ea10e` "docs(deploy): NAV-1 promotion recorded" — the NAV-1 entry below,
+> committed directly to `main` two minutes after the NAV-1 merge. Nothing else
+> was committed directly to `main` in that window.
+> **Migration** `20260830120000_eng1_engagement_tracking`: present in production
+> `_prisma_migrations` (measured in chat 2026-10-20, recorded in the
+> DOCS-CLOSEOUT-2 addendum; not re-run by this session, which has no
+> production access).
+> **Rollback:** `git revert -m 1 8c25084` on `main`, then push. Code-only: the
+> additive columns and `UsageDaily` stay behind, unread (as the entry says).
+
+**Merge SHA:** `8c250846a43a3c4d05df3c569b9188690c5549a3`
+**Written before the merge existed**, per the ritual — the heading's two tokens
+and the Merge SHA line's one are stamped from `git rev-parse` and `date`,
+never hand-typed.
+
+**READ THIS FIRST IF YOU ARE ROLLING BACK.** This promotion carries an ADDITIVE
+MIGRATION and a NEW CAPABILITY. The migration
+(`20260830120000_eng1_engagement_tracking`) is two nullable `ADD COLUMN`s on
+`User` plus one new table `UsageDaily`. Reverting the code leaves all three
+unread and harmless — do NOT drop them (WORKFLOW.md § Rolling a promotion back).
+Nothing existing reads or writes them.
+
+**Blast radius is small and one-directional.** No existing query changed, no
+existing route changed behaviour, no permission baseline moved. The new
+capability `engagement.view` is ADMIN_ONLY, is not grantable and is not
+deniable, so no role gains or loses anything on promotion day. The one edit to a
+shipped surface is a link added to `/staff`'s header and an icon added to each
+`/stores` row, both behind `can(actor, "engagement.view")` — invisible to
+everyone but an admin.
+
+**What is new.** `POST /api/usage` (a beacon written by every authenticated
+page view), `GET /api/staff/engagement` (ADMIN-only read), `/staff/engagement`
+(the page), `GET /api/cron/engagement-prune` (retention), and a client beacon
+mounted in both the `(app)` and `(my)` shells.
+
+**The one thing to watch on the first day.** `POST /api/usage` fires on every
+client-side route change for every authenticated user, so it is the highest-QPS
+write this app has. It is one indexed upsert against
+`@@unique([userId, path, date])` plus, at most once per user per 15 minutes, one
+`User` update. If Neon connection pressure shows up after this promotion, that
+is the first place to look — and the safe mitigation is to stop mounting
+`<UsageBeacon />` in `src/app/(app)/layout.tsx` and `src/app/(my)/layout.tsx`,
+which disables collection without touching the schema or any read path.
+
+**A new cron.** `/api/cron/engagement-prune` at `0 12 * * *`, deleting
+`UsageDaily` rows older than 180 days. Vercel crons fire on Production only, so
+this promotion is its first live run. `CRON_SECRET` is unchanged and already
+held.
+
+**Verified before the push, on the dev branch** (`ep-late-water-a6k53nv2`):
+prune end-to-end (401 without the secret, deleted exactly a seeded 200-day-old
+row and kept today's), the rollup incrementing rather than duplicating, path
+normalization collapsing two staff ids onto one row, the 15-minute throttle
+writing once, and 28 fixture checks. NOT verified on staging by that session —
+Claude does not push.
+
+**Still open after this promotion.** The per-role 403 capture by request, and
+the geo headers, which cannot appear under `next dev` and are only observable on
+a Vercel-served request. Expect `lastSeenLocation` to stay null for every row
+until the first real Vercel traffic.
+
+## 2026-08-30 — NAV-1 promotion e6149f8
+
+> **RESTORED ENTRY, restored 2026-10-20 by DOCS-CLOSEOUT-2. NOTHING BELOW IS
+> EDITED.** Written on `main` in `66ea10e`, stamped `e6149f8` and moved to its
+> date position in `b65a76b`, then DROPPED by the same `bf5a66f` merge as the
+> ENG-1 entry above. The six lines below are `bc13251`'s, byte-identical; the
+> heading keeps its original format rather than the SHA-first one.
+> **Payload, re-read from `git` at this restoration:** merge `e6149f8`,
+> 2026-08-30 09:21:58 -0700, parents `849e410` (prior tip of `main`) and
+> `16f6f6b`. `e6149f8^1..e6149f8^2` is exactly **4 commits**: `a005cba` (work),
+> `16f6f6b` (docs), plus two closeout docs commits riding along, `10439b3`
+> (PERM-8) and `e4c8c69` (COMP-1). `git diff --stat e6149f8^1 e6149f8 -- prisma`
+> is empty: no migration. NAV-1 row: `docs/ROADMAP.yaml`, `id: NAV-1`.
+
+Sidebar regrouped 15 → 9 top-level (Checklists/Stores/Forecasting groups,
+INVENTORY pattern reused). Daily Tasks button added to /dashboard → /checklists.
+No route, schema, or API changes. Per-role URL sets verified identical
+(work a005cba); /settings/labor hidden without labor.access per NAV-1 ruling.
+Rollback: git revert -m 1 e6149f8
 
 ## 849e410 — 2026-08-29 — PERM-8: the Square staff import becomes grantable to specific managers
 

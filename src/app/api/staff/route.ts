@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { getUserStoreScope } from "@/lib/auth"
 import { can } from "@/lib/permissions"
+import { squareStartZone, startDateFromSquare } from "@/lib/milestones-square"
 
 const postSchema = z.object({
   displayName: z.string().trim().min(1).max(200),
@@ -15,6 +16,9 @@ const postSchema = z.object({
   squareTeamMemberId: z.string().min(1).nullish(),
   storeIds: z.array(z.string().min(1)).default([]),
   primaryStoreId: z.string().min(1).nullish(),
+  // MS-1 (F6). Square's created_at INSTANT, passed through by the import
+  // dialog; converted to a store-local date below. Ignored for a manual add.
+  squareCreatedAt: z.string().max(64).nullish(),
 })
 
 export async function GET() {
@@ -58,7 +62,7 @@ export async function POST(req: Request) {
 
   const parsed = postSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
-  const { displayName, fullName, email, squareTeamMemberId, primaryStoreId } = parsed.data
+  const { displayName, fullName, email, squareTeamMemberId, primaryStoreId, squareCreatedAt } = parsed.data
 
   // PERM-6 Task 1. Before this, storeIds flowed from the request body straight
   // into the nested storeAssignments.create with NO ownership query anywhere,
@@ -92,6 +96,18 @@ export async function POST(req: Request) {
   const cleanFullName = (typeof fullName === "string" && fullName.trim()) || null
   const fromSquare = !!squareTeamMemberId
 
+  // MS-1 (F6). A Square import seeds startDate from created_at, in the primary
+  // store's zone (else the org's). startDateManual stays false, so a resync may
+  // keep it current until someone edits it by hand. A manual add starts with no
+  // date — the Milestones tab's empty state asks for one.
+  let startDate: Date | null = null
+  if (fromSquare && squareCreatedAt) {
+    const zoneStores = primaryStoreId
+      ? await prisma.store.findMany({ where: { id: primaryStoreId, organizationId: org.id }, select: { id: true, timezone: true } })
+      : []
+    startDate = startDateFromSquare(squareCreatedAt, squareStartZone(primaryStoreId ?? null, zoneStores, org.timezone))
+  }
+
   const member = await prisma.staffMember.create({
     data: {
       organizationId: org.id,
@@ -101,6 +117,8 @@ export async function POST(req: Request) {
       squareFullName: fromSquare ? cleanFullName : null,
       email: (typeof email === "string" && email.trim()) || null,
       squareTeamMemberId: squareTeamMemberId || null,
+      startDate,
+      squareStartDate: startDate,
       storeAssignments: {
         create: storeIds.map((storeId) => ({ storeId, isPrimary: storeId === primaryStoreId })),
       },

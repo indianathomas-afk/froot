@@ -1,14 +1,17 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { ChevronLeft, BriefcaseBusiness, CheckCircle, TrendingDown, XCircle } from "lucide-react"
+import { ChevronLeft, Award, BriefcaseBusiness, CheckCircle, TrendingDown, XCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { paceThresholdPct } from "@/lib/pace-alerts"
 import { listRecentEmails } from "@/lib/notification-log"
 import { HrAckRecipientsField } from "./hr-ack-recipients"
-import { PaceAlertsToggle, PaceAlertThresholdField } from "./pace-alerts-actions"
+import { MilestoneAlertsToggle, PaceAlertsToggle, PaceAlertThresholdField } from "./pace-alerts-actions"
+import { milestonesActive } from "@/lib/milestones-access"
+import { MILESTONE_KIND } from "@/lib/notifications/kinds/milestone"
 import { RecentEmails } from "./recent-emails"
+import { TestSendButton } from "./test-send-button"
 
 // NOTIFY-2a — every email setting on one page (Gary's ruling, 2026-09-20).
 // Before this, HR-16's acknowledgment recipients and F-5b's behind-pace toggle
@@ -72,6 +75,11 @@ export default async function NotificationSettingsPage() {
   const recentEmails = await listRecentEmails(org.id)
 
   const paceAlertsActive = org.paceAlertsEnabled
+  // MS-4b. Milestones is part of HR (MS-1 F5), so the card follows the HR card's
+  // two gates: no card where HR does not exist here; a disabled line where
+  // Milestones is off for this org; the switch only when Milestones is on.
+  const milestonesOn = milestonesActive(org)
+  const milestoneAlertsActive = org.milestoneAlertsEnabled
   // The fallback an empty threshold resolves to, read here rather than assumed
   // to be 90 — see the field's own comment.
   const paceDefaultPct = paceThresholdPct()
@@ -89,6 +97,11 @@ export default async function NotificationSettingsPage() {
         <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
           Who Froot emails, and when. Every email the app sends is configured here.
         </p>
+        {/* NOTIFY-5. Near the top because it answers the question this page is
+            usually opened to ask — does email work here at all. */}
+        <div className="mt-4">
+          <TestSendButton />
+        </div>
       </div>
 
       {hrAvailable && (
@@ -191,6 +204,77 @@ export default async function NotificationSettingsPage() {
         </CardContent>
       </Card>
 
+      {hrAvailable && (
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>Milestone emails</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {milestonesOn ? (
+              <>
+                <div className="flex items-start justify-between gap-3 p-4 border border-[var(--color-border)] rounded-lg">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-10 h-10 shrink-0 rounded bg-[var(--color-primary)] flex items-center justify-center text-white">
+                      <Award className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-medium text-[var(--color-foreground)]">Milestone reached emails</h3>
+                      <p className="text-sm text-[var(--color-muted-foreground)]">
+                        At most one email a day to admins and each store&apos;s managers, listing staff
+                        in their stores who reached a tenure or checklist milestone. Froot never
+                        emails the employee. Milestones reached more than 7 days earlier are not emailed.
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        {milestoneAlertsActive ? (
+                          <>
+                            <CheckCircle className="h-4 w-4 text-[var(--color-success)]" />
+                            <span className="text-sm text-[var(--color-success-text)] font-medium">Enabled</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                            <span className="text-sm text-[var(--color-muted-foreground)]">Disabled</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <MilestoneAlertsToggle enabled={milestoneAlertsActive} />
+                </div>
+                <p className="text-sm text-[var(--color-muted-foreground)] mt-4">
+                  <span className="font-medium text-[var(--color-foreground)]">Recipients:</span>{" "}
+                  every admin, and the managers of the employee&apos;s stores. Turn this off for an
+                  individual user from their row on the{" "}
+                  <Link href="/users" className="underline hover:text-[var(--color-foreground)]">
+                    Users page
+                  </Link>
+                  .
+                </p>
+                {/* MS-4b choice C10: the sample is rendered through the test
+                    kind, so it can only ever reach the admin pressing it. */}
+                <div className="mt-4">
+                  <TestSendButton kind={MILESTONE_KIND} label="Send a sample to me" />
+                </div>
+              </>
+            ) : (
+              <div className="p-4 border border-[var(--color-border)] rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 shrink-0 rounded bg-[var(--color-muted)] flex items-center justify-center text-[var(--color-muted-foreground)]">
+                    <Award className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-[var(--color-foreground)]">Milestone reached emails</h3>
+                    <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
+                      Turn on Milestones in Settings to use milestone emails.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="mt-4">
         <CardHeader>
           <CardTitle>Recent emails</CardTitle>
@@ -200,7 +284,9 @@ export default async function NotificationSettingsPage() {
             The last {recentEmails.length === 1 ? "email" : `${recentEmails.length} emails`} Froot sent
             for this organization, newest first. <span className="font-medium text-[var(--color-foreground)]">Delivered</span>{" "}
             means the receiving mail server accepted it; <span className="font-medium text-[var(--color-foreground)]">Sent</span>{" "}
-            means it was handed to the provider and no delivery result has come back yet.
+            means it was handed to the provider and no delivery result has come back yet;{" "}
+            <span className="font-medium text-[var(--color-foreground)]">Dry run</span> means the email was
+            composed and logged, and nothing left this environment. Each recipient has their own row.
           </p>
           <RecentEmails entries={recentEmails} timeZone={org.timezone} />
         </CardContent>

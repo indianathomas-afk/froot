@@ -41,6 +41,8 @@ export function StaffEditActions({
     email: string | null
     assignedStoreIds: string[]
     primaryStoreId: string | null
+    /** MS-1. "YYYY-MM-DD" or null. */
+    startDate: string | null
   }
 }) {
   const router = useRouter()
@@ -54,6 +56,7 @@ export function StaffEditActions({
   const [email, setEmail] = useState(current.email ?? "")
   const [selectedStores, setSelectedStores] = useState<Set<string>>(new Set(current.assignedStoreIds))
   const [primaryStore, setPrimaryStore] = useState(current.primaryStoreId ?? "")
+  const [startDate, setStartDate] = useState(current.startDate ?? "")
 
   function reset() {
     setDisplayName(current.displayName)
@@ -61,6 +64,7 @@ export function StaffEditActions({
     setEmail(current.email ?? "")
     setSelectedStores(new Set(current.assignedStoreIds))
     setPrimaryStore(current.primaryStoreId ?? "")
+    setStartDate(current.startDate ?? "")
     setError(null)
   }
 
@@ -90,6 +94,11 @@ export function StaffEditActions({
           email: email.trim() || null,
           storeIds: [...selectedStores],
           primaryStoreId: primaryStore || null,
+          // MS-1. SENT ONLY WHEN IT CHANGED. The route marks any startDate it
+          // receives as a hand edit (startDateManual), so sending the
+          // unchanged value on every save would lock out Square's fill the
+          // first time anyone fixed a typo in an email.
+          ...((startDate || null) !== current.startDate ? { startDate: startDate || null } : {}),
         }),
       })
       if (!res.ok) {
@@ -188,6 +197,13 @@ export function StaffEditActions({
               <Label>Email</Label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" />
               <p className="text-xs text-[var(--color-muted-foreground)]">Needed to invite them to a self-service login.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="staff-start-date">Start Date</Label>
+              <Input id="staff-start-date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                Tenure milestones count from this date. Editing it means a Square resync won&apos;t change it.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Assigned Stores</Label>

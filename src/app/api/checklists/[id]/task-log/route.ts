@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
+import { resolveTaskLogStaff } from "@/lib/task-log-staff"
 import { NextResponse } from "next/server"
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -51,6 +52,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "That task does not belong to this checklist" }, { status: 400 })
   }
 
+  // CHK-15 — the existing log is read HERE, above the Pending write, so the
+  // staff refusal below can run before anything is written. Moved up from the
+  // toggle branch, which is otherwise unchanged and still decides on it.
+  const existing = await prisma.taskLog.findFirst({ where: { checklistId: id, taskId } })
+
+  // CHK-15 (MS-4 F12, Gary 2026-10-17) — WHO THIS TICK MAY NAME. Ticks only:
+  // an un-tick is never refused, even of a log naming someone since terminated
+  // or moved. And BEFORE the Pending → In Progress write, so a refused first
+  // tick leaves the checklist exactly as it was. Rules: src/lib/task-log-staff.ts.
+  let staffId: string | null = null
+  if (!existing) {
+    const resolved = await resolveTaskLogStaff({
+      organizationId: org.id,
+      storeId: checklist.storeId,
+      staffId: completedByStaffId,
+    })
+    if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: 400 })
+    staffId = resolved.staffId
+  }
+
   // Update checklist to In Progress if Pending
   if (checklist.status === "Pending") {
     // CHK-1 — THE AS-EXECUTED FREEZE. DEBT-36's whole complaint is that a
@@ -94,14 +115,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     : null
 
   // Upsert task log (toggle: delete if exists, create if not)
-  const existing = await prisma.taskLog.findFirst({ where: { checklistId: id, taskId } })
   if (existing) {
     await prisma.taskLog.delete({ where: { id: existing.id } })
     return NextResponse.json({ action: "uncompleted" })
   }
 
-  // completedByStaffId may be "manager" (generic label) — only store real DB IDs
-  const staffId = completedByStaffId && completedByStaffId !== "manager" ? completedByStaffId : null
+  // completedByStaffId may be "manager" (generic label) — only store real DB IDs.
+  // CHK-15: `staffId` is resolved above; this used to save any id sent.
 
   // CHK-1: stamp the section the task belongs to. An ID, not a name — the name
   // is in the snapshot above, in one place (DEBT-26's discipline; see the

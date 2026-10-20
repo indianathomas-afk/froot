@@ -120,6 +120,9 @@ export type SquareTeamMember = {
   given_name?: string
   family_name?: string
   email_address?: string
+  /** When the Square PROFILE was created — not a hire date. MS-1 seeds
+   *  StaffMember.startDate from it only while startDateManual is false (F6). */
+  created_at?: string
   assigned_locations?: {
     assignment_type?: "ALL_CURRENT_AND_FUTURE_LOCATIONS" | "EXPLICIT_LOCATIONS"
     location_ids?: string[]

@@ -1,13 +1,12 @@
 import { prisma } from "@/lib/prisma"
-import { Prisma, type Store } from "@prisma/client"
+import type { Store } from "@prisma/client"
 import { getMonthGoal } from "@/lib/month-goal"
-import { projectMonthEnd, round2 } from "@/lib/pacing"
+import { projectMonthEnd } from "@/lib/pacing"
 import { addDaysStr } from "@/lib/goal-engine"
 import { localDateStr, dbDate } from "@/lib/reports"
-import type { EmailSender } from "@/lib/notify"
-import { renderEmail } from "@/lib/email-template"
-import { ACTION_FAILED, ACTION_SENT, recordEmailAttempt } from "@/lib/notification-log"
-import { can, grantsFrom, overridesFrom } from "@/lib/permissions"
+import type { DeliveryMode, EmailSender } from "@/lib/notify"
+import { dispatchNotifications, enqueueNotification } from "@/lib/notifications/dispatch"
+import type { PaceAlertPayload } from "@/lib/notifications/kinds/pace-alert"
 
 // ─── Behind-pace alerts (Phase F-5) ──────────────────────────────────────────
 // A store is "behind pace" when MTD actual ÷ MTD goal drops below the
@@ -15,8 +14,16 @@ import { can, grantsFrom, overridesFrom } from "@/lib/permissions"
 // doesn't compare a full MTD goal against half a morning of sales. The goal
 // math is the same shared helpers the dashboard uses (month-goal.ts +
 // pacing.ts) so the alert and the Monthly Goal card can't drift.
-// Non-spammy: at most ONE alert per store per month, enforced by the
-// PaceAlertLog unique constraint.
+// Non-spammy: at most ONE alert per store per month.
+//
+// NOTIFY-6: THIS FILE IS NOW A PRODUCER. It evaluates the store exactly as
+// before and, while the store is behind, ENQUEUES one "pace.alert" intent per
+// store-month (dedupeKey "{storeId}:{YYYY-MM}"); the dispatcher in
+// src/lib/notifications/dispatch.ts decides who gets it, in which mode, and
+// records it. The sent-once lock is the intent's state. The email itself —
+// subject and text byte for byte — lives in src/lib/notifications/kinds/
+// pace-alert.ts, which also writes PaceAlertLog in parallel when the intent
+// becomes sent (one release; NOTIFY-9 stops it).
 
 export const DEFAULT_PACE_THRESHOLD_PCT = 90
 
@@ -47,13 +54,25 @@ export type PaceAlertResult = {
   recipients?: string[]
 }
 
-// Evaluates one store and sends at most one alert per store-month.
+// Evaluates one store and alerts at most once per store-month.
+//
+// NOTIFY-6: SAME SIGNATURE AND RESULT AS BEFORE (audit choice 10), so the cron
+// and every fixture keep their entry point: evaluate → enqueue → dispatch this
+// one intent with the caller's sender and mode as the transport. The reasons
+// are NOTIFY-5's strings wherever the situation is the same one.
 export async function processPaceAlertForStore(
   store: Store,
-  opts: { thresholdPct: number; sender: EmailSender; now?: Date }
+  // NOTIFY-5: `mode` is REQUIRED and comes from the caller, next to `sender`.
+  // The cron resolves both once, before its store loop, so one run cannot mix
+  // modes; deliveryMode() is still the only thing that decides it. Not
+  // defaulted from the environment on purpose: verify-f5-polish.ts asserts
+  // live behaviour, and a default would silently turn it into a dry-run test on
+  // any machine without NOTIFY_EMAIL_PROVIDER set.
+  opts: { thresholdPct: number; sender: EmailSender; mode: DeliveryMode; now?: Date }
 ): Promise<PaceAlertResult> {
   const base = { storeId: store.id, storeName: store.name }
-  const today = localDateStr(opts.now ?? new Date(), store.timezone)
+  const now = opts.now ?? new Date()
+  const today = localDateStr(now, store.timezone)
   const asOf = addDaysStr(today, -1) // last complete day
   if (asOf.slice(0, 7) !== today.slice(0, 7)) {
     return { ...base, pacePct: null, alerted: false, reason: "month just started" }
@@ -71,9 +90,14 @@ export async function processPaceAlertForStore(
   })
   const mtdActual = mtdAgg._sum.netSales ?? 0
 
-  const monthKey = dbDate(mStart)
+  // THE PaceAlertLog GATE STAYS FOR THE PARALLEL-WRITE RELEASE (audit W4). On
+  // deploy day the intent table is empty, so a store alerted this month by the
+  // pre-pipeline code has a PaceAlertLog row and no intent; without this read it
+  // would be enqueued fresh and alerted a second time. It also keeps honouring
+  // locks burned before NOTIFY-5. NOTIFY-9, which stops the PaceAlertLog write,
+  // must move this gate onto the intent state in the same change.
   const already = await prisma.paceAlertLog.findUnique({
-    where: { storeId_month: { storeId: store.id, month: monthKey } },
+    where: { storeId_month: { storeId: store.id, month: dbDate(mStart) } },
   })
 
   const verdict = evaluatePaceAlert({
@@ -90,96 +114,7 @@ export async function processPaceAlertForStore(
       reason: already ? "already alerted this month" : "on pace",
     }
   }
-
-  // NOTIFY-2c — ROLE ARM IN SQL, PER-USER DENIAL IN can(), AND IT IS STILL ONE
-  // QUERY. The `where` is untouched: every ADMIN plus the store's assigned
-  // MANAGERs, exactly as before. What is new is three more COLUMNS on the same
-  // round trip and a filter through can() on the rows that come back — so the
-  // "post-filter" costs no second query, and the choice between the two
-  // placements is about correctness alone (F2, 2026-09-20).
-  //
-  // WHY NOT `NOT: { deniedCapabilities: { has: … } }` IN THE QUERY. It would be
-  // right today and quietly wrong later. can() is not a single array test — it
-  // is a fail-closed load (overridesFrom), a role baseline, and an elevation
-  // branch gated on GRANTABLE_CAPABILITIES, evaluated in that order. An SQL
-  // predicate can express today's snapshot of that and cannot express the
-  // ordering, so the day a precedence rule moves, the grid and the mailing list
-  // would disagree with nothing to say which was right. The rule this file
-  // follows is the registry's own: ask can(), never re-derive it.
-  //
-  // THE THREE COLUMNS ARE ALL REQUIRED. `deniedCapabilities` is the answer;
-  // `role` is what the baseline is read against; `grantedCapabilities` is
-  // selected even though notify.pace.receive is NOT in GRANTABLE_CAPABILITIES
-  // today — a select that omits it would become an under-mail the moment that
-  // changed, and overridesFrom's three-state contract exists precisely because
-  // a forgotten column looks identical to an empty one.
-  const users = await prisma.user.findMany({
-    where: {
-      organizationId: store.organizationId,
-      OR: [{ role: "ADMIN" }, { role: "MANAGER", storeAssignments: { some: { storeId: store.id } } }],
-    },
-    select: { email: true, role: true, deniedCapabilities: true, grantedCapabilities: true },
-  })
-  const recipients = [
-    ...new Set(
-      users
-        .filter((u) =>
-          can(
-            {
-              role: u.role,
-              overrides: overridesFrom(u.deniedCapabilities),
-              grants: grantsFrom(u.grantedCapabilities),
-            },
-            "notify.pace.receive"
-          )
-        )
-        .map((u) => u.email)
-        .filter(Boolean)
-    ),
-  ]
-  if (recipients.length === 0) {
-    // TWO DIFFERENT SILENCES, AND THE CRON LOG MUST TELL THEM APART. "Nobody
-    // holds the role" is a setup problem; "every eligible person has the row
-    // unticked" is an admin's deliberate choice, and reading the first when it
-    // was the second is how someone goes looking for a bug in the query. No
-    // lock is written on either path, so tomorrow re-evaluates from scratch.
-    const reason =
-      users.length === 0
-        ? "no admin/manager recipients"
-        : "every admin/manager has behind-pace alerts denied"
-    return { ...base, pacePct: verdict.pacePct, alerted: false, reason }
-  }
-
-  // ORDERING: LOCK -> SEND -> RELEASE ON FAILURE (DEBT-105, F3, Gary 2026-09-20).
-  //
-  // The log row is the idempotency lock — write it BEFORE sending so a crash
-  // or concurrent run can't double-alert. A unique violation means another
-  // run got here first. That half is unchanged and was never the defect.
-  //
-  // What was missing is the release. Until F-5b nothing undid this row when the
-  // send then threw, so a single runtime failure — a non-2xx from Resend, the
-  // 10s AbortController timeout — burned the store's one-alert-per-month lock
-  // and the NEXT day's run reported the reassuring "already alerted this month"
-  // for a mail that never left. See the release at the send below.
-  let lock: { id: string }
-  try {
-    lock = await prisma.paceAlertLog.create({
-      data: {
-        organizationId: store.organizationId,
-        storeId: store.id,
-        month: monthKey,
-        pacePct: round2(verdict.pacePct!),
-        thresholdPct: opts.thresholdPct,
-        recipients,
-      },
-      select: { id: true },
-    })
-  } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      return { ...base, pacePct: verdict.pacePct, alerted: false, reason: "already alerted this month" }
-    }
-    throw e
-  }
+  const pacePct = verdict.pacePct!
 
   const projected = projectMonthEnd({
     mtdActual,
@@ -188,121 +123,105 @@ export async function processPaceAlertForStore(
     daysElapsed: goal.daysElapsed,
     daysInMonth: goal.daysInMonth,
   })
-  const monthName = new Date(`${mStart}T12:00:00Z`).toLocaleDateString("en-US", { month: "long" })
-  const usd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.usefroot.com"
-
-  // NOTIFY-2b. THE ORG NAME IS FETCHED HERE RATHER THAN WIDENING THE SIGNATURE.
-  // processPaceAlertForStore is typed `store: Store` and NOTIFY-2a deliberately
-  // kept it that way — including `organization` on the cron's store query would
-  // make every caller, the fixture included, carry a payload the function does
-  // not read. This query runs ONLY on the alert path, which by construction
-  // happens at most once per store per month, so it is one round trip a year
-  // per store and not one per cron run. A missing row cannot happen (the store
-  // has a foreign key to it) but is tolerated rather than thrown on: an
-  // untitled header is not worth losing the alert over.
-  const orgRow = await prisma.organization.findUnique({
-    where: { id: store.organizationId },
-    select: { name: true },
-  })
-  const orgName = orgRow?.name ?? store.name
-
-  // THE SUBJECT AND TEXT ARE UNCHANGED FROM F-5, BYTE FOR BYTE. They are
-  // assembled here instead of inline at the send so the audit row below can
-  // name the subject and the template can take the text verbatim. Anything
-  // that edits these lines is changing the wording of a live alert, which is
-  // NOT what NOTIFY-2b was asked to do — the phase adds an HTML alternative
-  // body and nothing else about what this email says.
-  const subject = `${store.name} is behind pace for ${monthName} — ${verdict.pacePct!.toFixed(1)}% of MTD goal`
-  const headline = `${store.name} is trailing its ${monthName} sales goal (through ${asOf}).`
-  const mtdLine = `${usd(mtdActual)} of ${usd(goal.mtdGoal)} goal (${verdict.pacePct!.toFixed(1)}%)`
-  const projectedLine =
-    goal.goalAmount !== null
-      ? `${usd(projected)} vs ${usd(goal.goalAmount)} goal (${((projected / goal.goalAmount) * 100).toFixed(1)}%)`
-      : null
-  const text = [
-    headline,
-    ``,
-    `Month to date: ${mtdLine}`,
-    projectedLine !== null ? `Projected month end: ${projectedLine}` : null,
-    ``,
-    `Alert threshold: ${opts.thresholdPct}% of MTD goal. You'll get at most one alert per store per month.`,
-    `Dashboard: ${appUrl}/dashboard`,
-  ]
-    .filter((l) => l !== null)
-    .join("\n")
-
-  const { html } = renderEmail({
-    orgName,
-    heading: headline,
-    intro: "",
-    rows: [
-      { label: "Month to date", value: mtdLine },
-      ...(projectedLine !== null ? [{ label: "Projected month end", value: projectedLine }] : []),
-      { label: "Alert threshold", value: `${opts.thresholdPct}% of MTD goal` },
-    ],
-    cta: { label: "Open the dashboard", url: `${appUrl}/dashboard` },
-    footer: `You'll get at most one alert per store per month. Sent by USE Froot on behalf of ${orgName}. This address does not accept replies.`,
-    appUrl,
-    text,
-  })
-
-  // RELEASE ON FAILURE. Deleting BY ID is the whole of the concurrency
-  // argument and is not a style choice: a delete by the {storeId, month} unique
-  // key would destroy whichever row is there, and on a concurrent run that is
-  // the WINNER'S row — the one whose email is in flight or already delivered.
-  // `lock.id` can only ever name the row this call created, so a loser that
-  // fails has nothing of anyone else's to delete.
-  //
-  // Then RETHROW, so the per-store catch in the cron route still records
-  // `error: …` against this store and the run continues to the next one. The
-  // net effect is that tomorrow's run re-evaluates this store from scratch and
-  // may alert; a double-alert stays impossible, because a send that SUCCEEDS
-  // leaves the row exactly where it has always been.
-  try {
-    const { id } = await opts.sender.send({ to: recipients, subject, text, html })
-    // NOTIFY-2b. THE FIRST AuditLog ROW THIS PATH HAS EVER WRITTEN. PaceAlertLog
-    // above records that an alert went out, but it is a per-store-month
-    // idempotency lock — it carries no provider, no subject and no failure row,
-    // so nothing in it can tell a real send from a console-mode one, and a
-    // Resend delivery event had no row to find its org by. Both of those are
-    // what the send log and the webhook need. AFTER the send, never before: the
-    // lock is the thing that must precede the send, and this is a record of
-    // what happened rather than a claim staked in advance.
-    await recordEmailAttempt({
-      organizationId: store.organizationId,
-      entityId: store.id,
-      kind: "pace.alert",
-      action: ACTION_SENT,
-      recipients,
-      subject,
-      resendId: id ?? null,
-    })
-  } catch (e) {
-    // Recorded BEFORE the lock release below, so the row exists even if the
-    // delete then throws. recordEmailAttempt never throws (it catches its own
-    // failures), so it cannot displace the original error on the way out.
-    await recordEmailAttempt({
-      organizationId: store.organizationId,
-      entityId: store.id,
-      kind: "pace.alert",
-      action: ACTION_FAILED,
-      recipients,
-      subject,
-      error: e instanceof Error ? e.message : String(e),
-    })
-    // The release itself must not mask the send failure. If the delete also
-    // throws — the row is already gone, the connection is down — the ORIGINAL
-    // error is still what gets rethrown, because that is the one that explains
-    // why no email went out. A swallowed delete failure leaves the lock in
-    // place, which is exactly the pre-F-5b behaviour and no worse.
-    await prisma.paceAlertLog
-      .delete({ where: { id: lock.id } })
-      .catch((delErr) =>
-        console.error(`[pace-alerts] store=${store.id}: send failed AND lock release failed (lock ${lock.id}): ${delErr}`)
-      )
-    throw e
+  const payload: PaceAlertPayload = {
+    storeId: store.id,
+    storeName: store.name,
+    monthStart: mStart,
+    asOf,
+    mtdActual,
+    mtdGoal: goal.mtdGoal,
+    goalAmount: goal.goalAmount,
+    projected,
+    pacePct,
+    thresholdPct: opts.thresholdPct,
   }
 
-  return { ...base, pacePct: verdict.pacePct, alerted: true, reason: "behind pace", recipients }
+  // ENQUEUE — refreshes a queued or expired intent with today's figures; a sent
+  // one is left alone (sent stays sent).
+  const enq = await enqueueNotification({
+    organizationId: store.organizationId,
+    kind: "pace.alert",
+    dedupeKey: `${store.id}:${mStart.slice(0, 7)}`,
+    entityId: store.id,
+    eventAt: now,
+    payload,
+  })
+  // Rethrown into the cron's per-store catch, which records `error: …` and moves
+  // on — the same place a send failure has always surfaced.
+  if (!enq) throw new Error("could not record the pace-alert intent")
+  if (enq.state === "sent" || enq.state === "known") {
+    return { ...base, pacePct, alerted: false, reason: "already alerted this month" }
+  }
+  if (enq.state === "failed") {
+    return { ...base, pacePct, alerted: false, reason: "gave up this month after repeated send failures" }
+  }
+
+  // DISPATCH — the caller's sender and mode are the transport.
+  const [r] = await dispatchNotifications({
+    transport: { mode: opts.mode, sender: () => opts.sender },
+    trigger: "producer",
+    intentIds: [enq.intentId],
+    now,
+  })
+  if (!r) {
+    // Partly sent and waiting out its backoff; the hourly sweep owns it now.
+    return { ...base, pacePct, alerted: false, reason: "partly sent — retry scheduled" }
+  }
+  if (r.outcome === "expired") {
+    // The org switch went off, or the intent aged out. The cron only evaluates
+    // enabled orgs, so in production this is a switch flipped mid-run.
+    return { ...base, pacePct, alerted: false, reason: r.reason }
+  }
+  if (r.eligible === 0) {
+    // TWO DIFFERENT SILENCES, AND THE CRON LOG MUST TELL THEM APART (NOTIFY-2c).
+    // "Nobody holds the role" is a setup problem; "every eligible person has the
+    // row unticked" is an admin's deliberate choice. Nothing is consumed on
+    // either path, so tomorrow re-evaluates from scratch.
+    return {
+      ...base,
+      pacePct,
+      alerted: false,
+      reason: r.candidates === 0 ? "no admin/manager recipients" : "every admin/manager has behind-pace alerts denied",
+    }
+  }
+
+  const sentTo = r.recipients.filter((x) => x.status === "sent" && x.mode !== "dry-run").map((x) => x.to)
+  const failed = r.recipients.filter((x) => x.status === "failed" && x.mode !== "dry-run")
+
+  if (opts.mode === "live") {
+    if (r.outcome === "sent") return { ...base, pacePct, alerted: true, reason: "behind pace", recipients: sentTo }
+    if (sentTo.length > 0 || r.outcome === "partial") {
+      return { ...base, pacePct, alerted: true, reason: `partly sent: ${r.reason}`, recipients: sentTo }
+    }
+    // DEBT-105's guarantee, kept: a send that fails leaves NO PaceAlertLog row,
+    // and the failure still reaches the cron's per-store catch. The intent stays
+    // queued with a backoff; the sweep and tomorrow's run both retry it.
+    if (failed.length > 0) throw new Error(failed[0].error ?? "send failed")
+    return { ...base, pacePct, alerted: false, reason: r.reason }
+  }
+
+  // sandbox: real mail to allow-listed addresses only, nothing consumed (P2).
+  if (opts.mode === "sandbox") {
+    if (r.withheld > 0) {
+      console.log(
+        `[pace-alerts] store=${store.id} sandbox: withheld ${r.withheld} recipient(s) not on the allowlist: ${r.recipients
+          .filter((x) => x.mode === "dry-run")
+          .map((x) => x.to)
+          .join(", ")}`
+      )
+    }
+    if (failed.length > 0) throw new Error(failed[0].error ?? "send failed")
+    if (sentTo.length > 0) return { ...base, pacePct, alerted: true, reason: "sandbox", recipients: sentTo }
+  }
+
+  // dry-run — or a sandbox run whose allowlist held nobody.
+  const wouldBe = r.recipients.map((x) => x.to)
+  const loggedNow = r.recipients.some((x) => x.status === "dry-run" || x.status === "failed")
+  return {
+    ...base,
+    pacePct,
+    alerted: false,
+    reason: loggedNow ? "dry-run" : "dry-run (already logged this month)",
+    recipients: wouldBe,
+  }
 }

@@ -2,10 +2,10 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
-import { formatInstant } from "@/lib/display-time"
+import { formatCivilDate, formatInstant } from "@/lib/display-time"
 import { ArrowLeft, FileText, GraduationCap, Gauge, Store } from "lucide-react"
 import { getCurrentUser, getUserStoreScope, hrModuleAvailable, requireModule } from "@/lib/auth"
-import { displayTimeZone } from "@/lib/hr"
+import { displayTimeZone, resolveSelfStaff } from "@/lib/hr"
 import { can } from "@/lib/permissions"
 import { canSeeWages } from "@/lib/labor-dashboard"
 import { formatPay } from "@/lib/labor-costs"
@@ -28,6 +28,17 @@ import { StaffCompliance } from "./staff-compliance"
 import { getStaffComplianceDetail, type StaffComplianceDetail } from "@/lib/hr-compliance"
 import { documentCompletion } from "@/lib/hr-completion"
 import { attemptBreakdown, breakdownMatchesScore } from "@/lib/training-quiz"
+import { StaffMilestones } from "./staff-milestones"
+import { milestonesActive } from "@/lib/milestones-access"
+import { checklistProgress, dateColumnStr, tenureProgress, type ChecklistProgress, type TenureProgress } from "@/lib/milestones"
+import { checklistMilestonesEnabled, namedTaskDates } from "@/lib/milestones-db"
+import { localDateStr } from "@/lib/reports"
+import { getMilestoneSettings, getOnTimeForStaff, lookbackRange, type OnTimeResult } from "@/lib/attendance"
+import { OnTimeCard } from "../on-time-badge"
+import { getRaiseEligibility, getRaiseSettings, raiseHiddenForViewer, redactForViewer, type RaiseEligibility } from "@/lib/raise-eligibility"
+import { getManualRaiseDates, getRaiseDetailVisibility } from "@/lib/raise-history"
+import { RaiseCard } from "../raise-badge"
+import { LastRaiseControl } from "./last-raise-control"
 
 // HR-1 shell, progressively filled: Overview (HR-1), Notes (HR-2), Documents
 // (HR-4), Training (HR-6/7), Compliance (HR-8).
@@ -78,7 +89,13 @@ function ShellTab({
   )
 }
 
-export default async function StaffDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function StaffDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ tab?: string | string[] }>
+}) {
   const { orgId } = await auth()
   if (!orgId) redirect("/dashboard")
 
@@ -92,6 +109,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
   }
 
   const { id } = await params
+  const { tab: tabParam } = await searchParams
   const member = await getStaffMember(id, orgId)
   if (!member) notFound()
 
@@ -612,6 +630,147 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
     complianceDetail = await getStaffComplianceDetail(member.organizationId, member.id)
   }
 
+  // MS-1 Milestones tab (F1, Gary 2026-10-15). THE COMPLIANCE TAB'S TIER
+  // EXACTLY — canSeeHrTabs, ADMIN or MANAGER — with MANAGER store scope already
+  // enforced above by getStaffMember() (an out-of-scope manager gets a 404 for
+  // the whole page). ONE DELIBERATE DIFFERENCE: Compliance renders its trigger
+  // for everyone and a "Restricted" body; Milestones renders NO TRIGGER for a
+  // viewer outside the tier, so STORE and STAFF never see the tab at all
+  // (ruling 2's "never see it"). And it requires Milestones ON — HR is already
+  // on to reach this page (F5); milestonesActive() checks the toggle too.
+  const showMilestonesTab = canSeeHrTabs && milestonesActive(org)
+  let milestoneProgress: TenureProgress | null = null
+  let hasMilestones = false
+  let checklistMilestoneProgress: ChecklistProgress | null = null
+  // MS-2 — the On-Time badge, same gate as the tab (F6). Computed server-side
+  // over the rolling look-back (F1) ending today in this member's display zone,
+  // or on their termination date (F11). Nothing is read from the Square labor
+  // tables when the overlay is off (F5) — getOnTimeForStaff short-circuits.
+  let onTime: OnTimeResult | null = null
+  let onTimeLookbackDays = 0
+  // MS-3a — the Raise Eligibility card, SAME GATE AS THE TAB (ruling 2: ADMIN
+  // and MANAGER only; STORE and STAFF never see the tab at all). F12: with the
+  // Square labor overlay off getRaiseEligibility returns nothing and reads
+  // nothing, so no card renders; a terminated member gets none either. The
+  // compliance detail computed above for the Compliance tab is handed in, so
+  // the engine does not run twice. NO WAGE DATA in MS-3a.
+  let raise: RaiseEligibility | null = null
+  // MS-3b (F6, F15) — the ADMIN's manual last-raise date control. Null for
+  // everyone else, and for an ADMIN who may not see this member's pay (G3:
+  // canSeeWages, then COMP-1) — the date is pay data, so its current value is
+  // never read for a viewer who could not be shown it.
+  let lastRaiseControl: { current: string | null; today: string } | null = null
+  if (showMilestonesTab) {
+    const settings = await getMilestoneSettings(member.organizationId)
+    onTimeLookbackDays = settings.onTimeLookbackDays
+    const range = lookbackRange(
+      settings.onTimeLookbackDays,
+      new Date(),
+      zone,
+      member.status === "TERMINATED" ? member.terminatedAt : null
+    )
+    const results = await getOnTimeForStaff(
+      org,
+      [
+        {
+          id: member.id,
+          squareTeamMemberId: member.squareTeamMemberId,
+          assignedStoreIds: member.storeAssignments.map((a) => a.storeId),
+          range,
+        },
+      ],
+      settings
+    )
+    onTime = results.get(member.id) ?? null
+
+    const raiseResults = await getRaiseEligibility(
+      org,
+      [
+        {
+          id: member.id,
+          squareTeamMemberId: member.squareTeamMemberId,
+          assignedStoreIds: member.storeAssignments.map((a) => a.storeId),
+          startDate: member.startDate,
+          status: member.status,
+          zone,
+        },
+      ],
+      await getRaiseSettings(member.organizationId),
+      settings,
+      { compliance: complianceDetail ? new Map([[member.id, complianceDetail]]) : undefined }
+    )
+    // MS-3b (F7, F10): the raise DATES are pay data. redactForViewer runs here,
+    // before anything renders, so a viewer who fails canSeeWages or COMP-1 for
+    // this member (no wage row = masked for a MANAGER) gets "in cooldown" with
+    // no date keys at all.
+    // MS-5 F9 (Gary, 2026-10-19): "A MANAGER never sees their own Raise
+    // status — ... and on their own Milestones tab." The whole result is
+    // dropped, so no card renders and nothing reaches the payload. Resolved
+    // only for a MANAGER (the /staff "You" resolver); ADMINs see everyone.
+    const ownRow =
+      dbUser?.role === "MANAGER" &&
+      raiseHiddenForViewer(dbUser.role, await resolveSelfStaff(org.id, dbUser).then((r) => (r.ok ? r.staffMember.id : null)), member.id)
+    const computed = ownRow ? null : (raiseResults.get(member.id) ?? null)
+    if (computed) {
+      const raiseVisible = (await getRaiseDetailVisibility(org, actor, [member])).has(member.id)
+      raise = redactForViewer(computed, raiseVisible)
+      if (raiseVisible && can(actor, "milestones.manage")) {
+        lastRaiseControl = {
+          current: (await getManualRaiseDates(member.organizationId, [member.id])).get(member.id) ?? null,
+          today: localDateStr(new Date(), zone),
+        }
+      }
+    }
+  }
+  if (showMilestonesTab) {
+    // ACTIVE AND ARCHIVED rows: an archived milestone a member reached on or
+    // before its archive date stays in their history (Gary, 2026-10-15). The
+    // empty state ("no milestones set up") asks about ACTIVE rows only.
+    const rows = await prisma.tenureMilestone.findMany({
+      where: { organizationId: member.organizationId },
+      select: { id: true, dayCount: true, title: true, recognition: true, employeeMessage: true, isArchived: true, archivedAt: true },
+    })
+    hasMilestones = rows.some((r) => !r.isArchived)
+    // STORE-LOCAL, NEVER UTC (the CAL-2a rule). `zone` is THIS MEMBER'S zone —
+    // their primary store's own Store.timezone (America/Denver for a Colorado
+    // store), then the org's. Nothing here assumes Pacific. A terminated
+    // member's count stops at their termination date in that same zone (F4),
+    // and an archive instant becomes a date in that zone too.
+    const now = new Date()
+    const milestones = rows.map((r) => ({
+      ...r,
+      archivedOn: r.isArchived && r.archivedAt ? localDateStr(r.archivedAt, zone) : null,
+    }))
+    milestoneProgress = tenureProgress({
+      startDate: member.startDate ? dateColumnStr(member.startDate) : null,
+      today: localDateStr(now, zone),
+      terminatedOn:
+        member.status === "TERMINATED" && member.terminatedAt ? localDateStr(member.terminatedAt, zone) : null,
+      milestones,
+    })
+
+    // MS-4a — CHECKLIST MILESTONES (F0: named tasks). Only with the F13 switch
+    // on AND at least one active checklist milestone; otherwise null and the
+    // tab is exactly what it was. Same zone and same archived rule as tenure
+    // above. The member's tasks are not even read while the switch is off.
+    if (await checklistMilestonesEnabled(member.organizationId)) {
+      const checklistRows = await prisma.checklistMilestone.findMany({
+        where: { organizationId: member.organizationId },
+        select: { id: true, taskCount: true, title: true, recognition: true, employeeMessage: true, isArchived: true, archivedAt: true },
+      })
+      if (checklistRows.some((r) => !r.isArchived)) {
+        checklistMilestoneProgress = checklistProgress({
+          taskDates: await namedTaskDates({ organizationId: member.organizationId, staffMemberId: member.id, zone }),
+          terminated: member.status === "TERMINATED",
+          milestones: checklistRows.map((r) => ({
+            ...r,
+            archivedOn: r.isArchived && r.archivedAt ? localDateStr(r.archivedAt, zone) : null,
+          })),
+        })
+      }
+    }
+  }
+
   // DOC-6: items this person was issued by a tracks-return document (the Key
   // Agreement's key), holding or returned. Rendered on the Documents tab for the
   // HR tier, and handed to the Terminate dialog for its non-blocking warning
@@ -744,6 +903,7 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                 email: member.email,
                 assignedStoreIds: member.storeAssignments.map((a) => a.storeId),
                 primaryStoreId: member.storeAssignments.find((a) => a.isPrimary)?.storeId ?? null,
+                startDate: member.startDate ? dateColumnStr(member.startDate) : null,
               }}
             />
             <SelfServiceActions
@@ -761,13 +921,19 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
         )}
       </div>
 
-      <Tabs defaultValue="overview">
-        <TabsList>
+      {/* MS-4b: the milestone email links here with ?tab=milestones. Honoured
+          ONLY when the tab renders anyway (showMilestonesTab); any other value,
+          or a viewer without the tab, lands on Overview as before. */}
+      <Tabs defaultValue={tabParam === "milestones" && showMilestonesTab ? "milestones" : "overview"}>
+        {/* MS-1: a sixth tab. flex-wrap h-auto (the inventory/reports precedent)
+            lets the row wrap at phone width instead of overflowing the page. */}
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="training">Training</TabsTrigger>
           {canSeeNotes && <TabsTrigger value="notes">Notes</TabsTrigger>}
           <TabsTrigger value="compliance">Compliance</TabsTrigger>
+          {showMilestonesTab && <TabsTrigger value="milestones">Milestones</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
@@ -789,8 +955,39 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
                 <dt className="text-[var(--color-muted-foreground)]">Email</dt>
                 <dd className="text-[var(--color-foreground)] font-medium">{member.email ?? "—"}</dd>
               </div>
+              {/* MS-1. A CIVIL DATE (@db.Date) — formatCivilDate, never the
+                  member's zone, which would shift it a day back. */}
               <div>
-                <dt className="text-[var(--color-muted-foreground)]">Member Since</dt>
+                <dt className="text-[var(--color-muted-foreground)]">Start Date</dt>
+                <dd className="text-[var(--color-foreground)] font-medium">
+                  {member.startDate ? formatCivilDate(member.startDate, "long") : "—"}
+                  {/* Gary, 2026-10-15: flag a hand-set date, and show what
+                      Square says beside it so a later Square correction is
+                      visible rather than silently ignored. */}
+                  {member.startDateManual && (
+                    <Badge variant="secondary" className="ml-2 align-middle">Manually set</Badge>
+                  )}
+                </dd>
+                {member.startDateManual && member.squareStartDate && (
+                  <p
+                    className={`text-xs mt-0.5 ${
+                      member.startDate && dateColumnStr(member.startDate) === dateColumnStr(member.squareStartDate)
+                        ? "text-[var(--color-muted-foreground)]"
+                        : "text-[var(--color-warning-text)]"
+                    }`}
+                  >
+                    Square: {formatCivilDate(member.squareStartDate, "long")}
+                    {!(member.startDate && dateColumnStr(member.startDate) === dateColumnStr(member.squareStartDate)) &&
+                      " — differs from the date set here"}
+                  </p>
+                )}
+              </div>
+              {/* Relabelled from "Member Since" by MS-1 (Gary, 2026-10-15): this
+                  is when the Froot row was created — the import date — and
+                  beside Start Date the old label read as a second claim about
+                  the same thing. */}
+              <div>
+                <dt className="text-[var(--color-muted-foreground)]">Added to Froot</dt>
                 <dd className="text-[var(--color-foreground)] font-medium">{formatInstant(member.createdAt, zone, "long")}</dd>
               </div>
               <div>
@@ -934,6 +1131,23 @@ export default async function StaffDetailPage({ params }: { params: Promise<{ id
             </div>
           )}
         </TabsContent>
+
+        {showMilestonesTab && milestoneProgress && (
+          <TabsContent value="milestones" className="mt-4 space-y-4">
+            {onTime && <OnTimeCard result={onTime} lookbackDays={onTimeLookbackDays} />}
+            {raise && <RaiseCard result={raise} />}
+            {raise && lastRaiseControl && (
+              <LastRaiseControl staffId={member.id} current={lastRaiseControl.current} today={lastRaiseControl.today} />
+            )}
+            <StaffMilestones
+              progress={milestoneProgress}
+              hasMilestones={hasMilestones}
+              checklist={checklistMilestoneProgress}
+              viewerIsAdmin={dbUser?.role === "ADMIN"}
+              canEditStartDate={canManage}
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )

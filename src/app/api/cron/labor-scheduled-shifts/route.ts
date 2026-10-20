@@ -22,6 +22,16 @@ import {
 // a one-line vercel.json edit and nothing else. READ THE MISSING ENTRY AS THE
 // RULING, never as an oversight to be helpfully corrected.
 //
+// ACTIVATED 2026-10-16 (Gary, MS-2 triage — DECISIONS.md, superseding the
+// CRON-1 parking of this cron). THE PARAGRAPH ABOVE IS KEPT AS WRITTEN AND IS NO
+// LONGER THE STATE: this route IS registered in vercel.json now, daily at
+// 45 11 * * * UTC — fifteen minutes after labor-timecards (30 11), so the two
+// Square sweeps never share a minute. Gary's reason: "each sync only reaches 3
+// days back, so days a store's dashboard isn't opened are lost permanently, and
+// MS-3 needs weeks of complete schedule history." Cost accepted: ~5 Square
+// requests per store per run. Vercel runs crons on PRODUCTION deployments only,
+// so this activates at promotion, not on staging.
+//
 // WHY IT EXISTS AT ALL WHEN THE DASHBOARD ALREADY TRIGGERS THE SYNC: the
 // dashboard trigger caps at two stores per load, so a large estate converges
 // over several page loads and a store nobody opened today never converges. That

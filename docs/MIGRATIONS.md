@@ -1197,3 +1197,322 @@ new row.
 **Fixture:** `scripts/verify-doc6-key-register.ts`, 48/48 on dev
 `br-broad-wave-a6vpjdw0` against the applied schema. The throwaway org was
 removed and the removal confirmed by re-query.
+
+## 2026-10-15 — `20261015171226_ms1_milestones_foundation` (MS-1)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-15 with `prisma migrate
+deploy` from `froot/`, against host `ep-late-water-a6k53nv2` (branch
+`br-broad-wave`), and reported "All migrations have been successfully
+applied". **One discrepancy is recorded rather than smoothed over:** the
+session's first `migrate diff --from-config-datasource --to-schema` after
+Gary's first report still returned the whole migration, so dev did not yet
+hold it at that moment. The session stopped and asked. Gary re-confirmed the
+host and the apply, and the next diff returned `-- This is an empty
+migration.` The most likely reading is that the first check ran before his
+apply had landed. It is not proven. Staging and production get the migration
+through `prisma migrate deploy` in the Vercel build, on Gary's push.
+
+Prisma commands the session ran: `format`, `validate`, `generate`, and
+`migrate diff` (five runs: two at the audit, one to generate this file, and
+two level-checks after the apply). It ran no other prisma command.
+
+| Statement | Kind |
+|---|---|
+| `Organization.milestonesEnabled` `BOOLEAN NOT NULL DEFAULT false` | additive; every org lands off |
+| `StaffMember.startDate` `DATE` (nullable) | additive, nullable |
+| `StaffMember.startDateManual` `BOOLEAN NOT NULL DEFAULT false` | additive |
+| `CREATE TABLE "TenureMilestone"` + index `(organizationId, isArchived)` | additive |
+| `CREATE TABLE "WageSnapshot"` + index `(organizationId, squareTeamMemberId, capturedAt)` | additive |
+| FKs `TenureMilestone_organizationId_fkey`, `WageSnapshot_organizationId_fkey` `ON DELETE RESTRICT` | additive |
+
+**No drops, no renames, no type changes, no backfill.** `startDate` stays null
+until a Square import or resync fills it from the team member's `created_at`,
+or someone types it in.
+
+**No partial unique index, by ruling.** "No two active milestones share a
+dayCount" is enforced in `src/lib/milestones-db.ts` (Gary, 2026-10-15). A
+`WHERE NOT "isArchived"` index cannot be expressed in `schema.prisma`, so every
+later `migrate diff` would propose dropping it.
+
+**The pre-check was clean.** Before the schema edit, the audit's diff against
+dev returned an empty migration, so this file holds only MS-1's change.
+
+**Fixture:** `scripts/verify-ms1.ts`, 70 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply was
+confirmed level.
+
+## 2026-10-15 — `20261015183554_ms1_start_date_square_archived_at` (MS-1, additions)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-15 with `prisma migrate
+deploy`, against host `ep-late-water-a6k53nv2` (branch `br-broad-wave`), and
+reported "applied". The session then ran `migrate diff --from-config-datasource
+--to-schema` against dev, which returned `-- This is an empty migration.` Dev
+matches the schema. Staging and production get the migration through `prisma
+migrate deploy` in the Vercel build, on Gary's push. **There is no prisma check
+from this machine against staging.** No staging credentials are on disk, by
+CLAUDE.md and as Gary agreed 2026-10-15. Gary checks staging's
+`_prisma_migrations` in the Neon console before and after the deploy.
+
+Prisma commands for this migration: `format`, `validate`, `generate`, and
+`migrate diff` (twice: once to generate this file, once for the level-check
+after the apply).
+
+| Statement | Kind |
+|---|---|
+| `StaffMember.squareStartDate` `DATE` (nullable) | additive, nullable |
+| `TenureMilestone.archivedAt` `TIMESTAMP(3)` (nullable) | additive, nullable |
+
+**No drops, no renames, no type changes, no backfill.** The generated diff held
+exactly these two statements, which also confirmed that dev already had
+`20261015171226_ms1_milestones_foundation`. An archived milestone with a null
+`archivedAt` counts for nobody (`src/lib/milestones.ts`). That only arises for
+rows archived on dev before this column existed. Staging and production have
+none, because MS-1 was never on them before this.
+
+**Fixture:** `scripts/verify-ms1.ts`, 97 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply was
+confirmed level.
+
+## 2026-10-16 — `20261016140411_ms2_milestone_settings` (MS-2)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-16 with `prisma migrate
+deploy`, against host `ep-late-water-a6k53nv2` (branch `br-broad-wave`), and
+reported "All migrations have been successfully applied". The session then ran
+`migrate diff --from-config-datasource --to-schema` against dev, which returned
+`-- This is an empty migration.` Dev matches the schema. Staging and production
+get the migration through `prisma migrate deploy` in the Vercel build, on Gary's
+push. There is no prisma check from this machine against staging. Gary checks
+staging's `_prisma_migrations` in the Neon console before and after the deploy.
+
+Prisma commands for this migration: `format`, `validate`, `migrate diff` (three
+times: the pre-build level check, generating this file, and the level check
+after the apply), and `generate` (after the apply, to refresh the local client).
+
+| Statement | Kind |
+|---|---|
+| `CREATE TABLE "MilestoneSettings"` (5 `INTEGER NOT NULL DEFAULT` columns, timestamps) | additive, new table |
+| `UNIQUE INDEX "MilestoneSettings_organizationId_key"` | additive |
+| FK `organizationId` → `Organization.id` (`ON DELETE RESTRICT`, TenureMilestone's shape) | additive |
+
+**No drops, no renames, no type changes, no backfill.** Every org reads the code
+defaults (`DEFAULT_MILESTONE_SETTINGS`, `src/lib/attendance-settings.ts`) until
+an ADMIN first saves the On-time section. `scripts/verify-ms2.ts` asserts those
+defaults equal the schema `@default`s.
+
+**Fixture:** `scripts/verify-ms2.ts`, 87 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply was confirmed
+level and again inside the commit gate.
+
+## 2026-10-16 — `20261016190415_ms3a_raise_settings` (MS-3a)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-16 with `prisma migrate
+deploy`, against host `ep-late-water-a6k53nv2` (branch `br-broad-wave`), and
+reported "All migrations have been successfully applied". The session then ran
+`migrate diff --from-config-datasource --to-schema` against dev, which returned
+`-- This is an empty migration.` Dev matches the schema. Staging and production
+get the migration through `prisma migrate deploy` in the Vercel build, on Gary's
+push. There is no prisma check from this machine against staging. Gary checks
+staging's `_prisma_migrations` in the Neon console before and after the deploy.
+
+Prisma commands for this migration: `format`, `validate`, `migrate diff` (three
+times: the pre-build level check in the audit, generating this file, and the
+level check after the apply), and `generate` (to refresh the local client).
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "MilestoneSettings" ADD COLUMN` × 5 (`raiseComplianceGate BOOLEAN NOT NULL DEFAULT true`; `raiseMinHoursPerWeek` 20, `raiseConsecutiveWeeks` 3, `raiseMinOnTimePct` 90, `raiseCooldownDays` 90 — `INTEGER NOT NULL DEFAULT`) | additive |
+| `CREATE TABLE "MilestoneRaiseTraining"` (PK `milestoneSettingsId, trainingModuleId`, `createdAt`) | additive, new table |
+| `CREATE TABLE "MilestoneRaiseDocument"` (PK `milestoneSettingsId, hrDocumentId`, `createdAt`) | additive, new table |
+| `INDEX` on `trainingModuleId` and on `hrDocumentId` | additive |
+| 4 FKs, all `ON DELETE CASCADE`: each join row → its `MilestoneSettings` row, and → its `TrainingModule` / `HrDocument` | additive |
+
+**No drops, no renames, no type changes, no backfill.** Existing
+`MilestoneSettings` rows take Gary's F13 defaults through the column defaults;
+an org with no row reads `DEFAULT_RAISE_SETTINGS`
+(`src/lib/raise-settings.ts`), which `scripts/verify-ms3.ts` asserts equal the
+schema `@default`s. The cascades mean deleting a training module or document
+silently removes it from an org's required list — archiving (the normal path)
+leaves the row, and the read skips it.
+
+**Fixture:** `scripts/verify-ms3.ts`, 92 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply was confirmed
+level and again inside the commit gate (work commit `3a3f210`).
+
+## 2026-10-17 — `20261017002340_ms3b_last_raise` (MS-3b)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-16 (Pacific) with `prisma
+migrate deploy` against host `ep-late-water-a6k53nv2` and reported
+"20261017002340_ms3b_last_raise applied". The folder's timestamp is UTC, which
+had already rolled over to 10-17. The session then ran `migrate diff
+--from-config-datasource --to-schema` against dev, which returned `-- This is
+an empty migration.`, so dev matches the schema. Staging and production get the
+migration through `prisma migrate deploy` in the Vercel build, on Gary's push.
+Gary checks staging's `_prisma_migrations` in the Neon console before and after
+the deploy.
+
+Prisma commands for this migration: `validate`, `migrate diff` (three times:
+the audit's level check, generating this file, and the level check after the
+apply), and `generate`.
+
+| Statement | Kind |
+|---|---|
+| `CREATE TABLE "StaffLastRaise"` (`id` PK, `organizationId`, `staffMemberId`, `lastRaiseDate DATE` nullable, `setByUserId`, `setAt TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP`) | additive, new table |
+| `UNIQUE INDEX` on `staffMemberId`; `INDEX` on `organizationId` | additive |
+| FK → `Organization` (`ON DELETE RESTRICT`), FK → `StaffMember` (`ON DELETE CASCADE`) | additive |
+
+**No drops, no renames, no type changes, no backfill.** The table is empty
+until an ADMIN enters a date.
+
+**WHY A TABLE AND NOT `StaffMember` COLUMNS (Gary's G1 ruling, 2026-10-16).**
+The MS-3b prompt planned three `StaffMember` columns. The audit
+(`docs/prompts/2026-10-16_MS-3b_AUDIT.md`, B6) found thirty whole-row
+`StaffMember` reads. One of them is `GET /api/staff`, which returns every
+in-scope member to any MANAGER. So a raise date stored as a column would reach
+MANAGERs who are not allowed to see pay. On its own table, no existing read can
+load it. `scripts/verify-ms3b.ts` C6 and C7 pin it: only
+`src/lib/raise-history.ts` names the model, and nothing `include`s the
+relation. Clearing the date keeps the row, with `lastRaiseDate` NULL, so the
+row still records who cleared it and when. The `StaffMember` cascade means
+deleting a member (never the normal path, since termination keeps rows) also
+removes their date.
+
+**Fixture:** `scripts/verify-ms3b.ts`, 78 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`). It ran after the apply and again
+inside the commit gate (work commit `d2897ed`).
+
+## 2026-10-17 — `20261017204956_ms4a_checklist_milestones` (MS-4a)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-17 with `prisma migrate
+deploy` against host `ep-late-water-a6k53nv2` and reported, exactly: *"Now
+actually applied with migrate deploy. Host ep-late-water-a6k53nv2,
+20261017204956_ms4a_checklist_milestones applied ("All migrations have been
+successfully applied")."* The session then ran `migrate diff
+--from-config-datasource --to-schema` against dev, which returned `-- This is
+an empty migration.`, so dev matches the schema. **One earlier report did not
+hold:** Gary's first "applied" message was followed by a level check that still
+returned the full migration SQL, so the session stopped and built nothing; his
+second, naming the host, was followed by an empty diff. The empty diff is the
+evidence, not either message. Staging and production get the migration through
+`prisma migrate deploy` in the Vercel build, on Gary's push. Gary checks
+staging's `_prisma_migrations` in the Neon console before and after the deploy.
+
+Prisma commands for this migration: `format`, `validate`, and `migrate diff`
+(four times: the pre-edit level check, generating this file, the check that
+found it not yet applied, and the level check after the apply). Gary ran
+`migrate deploy` and `generate`.
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "MilestoneSettings" ADD COLUMN "checklistMilestonesEnabled" BOOLEAN NOT NULL DEFAULT false` | additive |
+| `CREATE TABLE "ChecklistMilestone"` (`id` PK, `organizationId`, `taskCount INTEGER`, `title`, `recognition`, `employeeMessage`, `isArchived` default false, `archivedAt` nullable, `createdAt`, `updatedAt`) | additive, new table |
+| `INDEX` on `ChecklistMilestone(organizationId, isArchived)` | additive |
+| `INDEX` on `TaskLog(completedByStaffId)` | additive, existing table |
+| FK `ChecklistMilestone` → `Organization` (`ON DELETE RESTRICT`) | additive |
+
+**No drops, no renames, no type changes, no backfill.** Every existing
+`MilestoneSettings` row takes the switch OFF through the column default (F13,
+Gary: "OFF by default"); an org with no row reads OFF too. The `TaskLog` index
+serves the per-member named-task count on the Milestones tab (F0); it is
+Claude's addition, not a ruling. Like `TenureMilestone`, no index enforces
+"no two active milestones share a number" — that rule is in the write routes
+(`src/lib/milestones-db.ts`), because a partial unique index is not
+expressible in `schema.prisma`.
+
+**Fixture:** `scripts/verify-ms4a.ts`, 52 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`). It ran after the apply and again
+before the work commit (`70365c6`).
+
+## 2026-10-19 — `20261019005116_notify6_pipeline` (NOTIFY-6)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-18 (PDT) with `prisma
+migrate deploy` from `froot/` against host `ep-late-water-a6k53nv2` and
+reported, exactly: *"I ran npx prisma migrate deploy myself from froot/. Host
+ep-late-water-a6k53nv2. 20261019005116_notify6_pipeline applied ("All
+migrations have been successfully applied")."* The session then ran `migrate
+diff --from-config-datasource --to-schema` against dev, which returned `--
+This is an empty migration.`, so dev matches the schema. **One earlier report
+did not hold:** a reply-button message saying the migration was applied (its
+text was Claude's, not Gary's) was followed by a level check that still
+returned the full migration SQL, so the session stopped and built nothing. The
+empty diff is the evidence. Staging and production get the migration through
+`prisma migrate deploy` in the Vercel build, on Gary's push.
+
+Timestamp note: the folder name is the UTC instant of generation
+(`2026-10-19 00:51:16 UTC` = `2026-10-18 17:51:16 PDT`), so it carries the
+next calendar day.
+
+Prisma commands for this migration: `format`, `validate`, `generate`, and
+`migrate diff` (four times: the audit level check, generating this file, the
+check that found it not yet applied, and the level check after Gary's apply).
+Gary ran `migrate deploy`.
+
+| Statement | Kind |
+|---|---|
+| `CREATE TABLE "NotificationIntent"` (`id` PK, `organizationId`, `kind`, `dedupeKey`, `entityId?`, `eventAt`, `payload JSONB`, `state TEXT DEFAULT 'queued'`, `attempts INT DEFAULT 0`, `lastError?`, `nextAttemptAt?`, `sentAt?`, `createdAt`, `updatedAt`) | additive, new table |
+| `UNIQUE (organizationId, kind, dedupeKey)`; `INDEX (state, nextAttemptAt)` | additive |
+| `CREATE TABLE "NotificationDelivery"` (`id` PK, `intentId`, `recipient`, `userId?`, `messageId?`, `state`, `error?`, `createdAt`, `updatedAt`) | additive, new table |
+| `UNIQUE (intentId, recipient)`; `INDEX (messageId)` | additive |
+| `CREATE TABLE "NotificationMessage"` (`id` PK, `organizationId`, `kind`, `mode`, `provider`, `providerMessageId?`, `to`, `subject`, `status`, `error?`, `intentId?`, `createdAt`) | additive, new table |
+| `UNIQUE (providerMessageId)`; `INDEX (organizationId, createdAt)`; `INDEX (intentId)` | additive |
+| `CREATE TABLE "NotificationEvent"` (`id` PK, `messageId`, `type`, `reason?`, `at`, `createdAt`) | additive, new table |
+| `UNIQUE (messageId, type)` | additive |
+| FKs: Intent→Organization RESTRICT; Message→Organization RESTRICT; Delivery→Intent CASCADE; Delivery→Message SET NULL; Message→Intent SET NULL; Event→Message CASCADE | additive |
+
+**No existing table altered, no enum type, no backfill.** States, kinds and
+modes are `TEXT` (audit choice 1). The FK directions leave NOTIFY-8's P5 prune
+room: nothing points from an intent to a prunable row, and pruning a message
+nulls a delivery's `messageId` rather than failing. `PaceAlertLog` and the
+Notification `AuditLog` rows are still written in parallel for one release
+(NOTIFY-9 stops them).
+
+**Fixture:** `scripts/verify-notify6.ts`, 72 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
+the work commit (`3ffb3f6`).
+
+## 2026-10-19 — `20261019211518_ms4b_milestone_alerts` (MS-4b)
+
+**APPLIED TO DEV ONLY.** Gary applied it on 2026-10-19 with `prisma migrate
+deploy` from `froot/` against host `ep-late-water-a6k53nv2` and reported,
+exactly: *"I ran npx prisma migrate deploy myself from
+/Users/garythomas/Claude_Projects/Froot/froot. Host ep-late-water-a6k53nv2.
+Applying migration 20261019211518_ms4b_milestone_alerts — "All migrations have
+been successfully applied." Check the diff and continue the build."* The
+session then ran `migrate diff --from-config-datasource --to-schema` against
+dev, which returned `-- This is an empty migration.`, so dev matches the
+schema. **One earlier report did not hold:** Gary's first message saying it was
+applied was followed by a level check that still returned both `ADD COLUMN`
+statements, with `.env`'s only endpoint confirmed as `ep-late-water-a6k53nv2`.
+The session stopped and built nothing until the second apply. The empty diff is
+the evidence. Staging and production get the migration through `prisma migrate
+deploy` in the Vercel build, on Gary's push.
+
+Timestamp note: the folder name is the UTC instant of generation
+(`2026-10-19 21:15:18 UTC` = `2026-10-19 14:15:18 PDT`).
+
+Prisma commands for this migration: `validate`, `generate`, and `migrate diff`
+(four times: the audit level check, generating this file, the check that found
+it not yet applied, and the level check after Gary's apply). Gary ran `migrate
+deploy`.
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "Organization" ADD COLUMN "milestoneAlertsEnabled" BOOLEAN NOT NULL DEFAULT false` | additive |
+| `ALTER TABLE "NotificationMessage" ADD COLUMN "intentIds" TEXT[] DEFAULT ARRAY[]::TEXT[]` | additive |
+
+**Why each.** `milestoneAlertsEnabled` is F10's org switch (Gary, 2026-10-17:
+*"org-level milestone email switch, off by default"*), a column because
+NOTIFY-8's generic setting table does not exist. `intentIds` is N1(a) (Gary,
+2026-10-19: *"add an intentIds list column to NotificationMessage so a dry-run
+summary logs each milestone to each person once"*): a daily summary covers
+several intents, `intentId` holds one, and dry-run writes no delivery rows
+(R1), so this is the only record of what a dry-run summary covered. A
+per-intent kind leaves it empty and keeps `intentId`. No FK: intents are kept
+forever (P5). The `TEXT[]` column is nullable in SQL, which is how Prisma writes
+every scalar list; the client always reads it as a list (`[]` default).
+
+**No table created, nothing dropped or altered in type, no backfill.** Every
+existing org reads `false`, so nothing emails on deploy.
+
+**Fixture:** `scripts/verify-ms4b.ts`, 54 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
+the work commit (`1bc01cf`).

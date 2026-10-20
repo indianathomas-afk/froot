@@ -12,10 +12,13 @@ import { syncTeamMemberWages } from "@/lib/labor-roster"
 // per store: Square's roster is an account-level list and the per-store view is
 // derived from each member's assigned_locations at read time.
 //
-// NO CRON IS REGISTERED BY THIS PHASE, matching AL-1's ruling for timecards.
-// Freshness rests on this route plus the debounced refresh the Positions card
-// schedules — and unlike timecards, a wage setting changes when somebody gets a
-// raise, which is a monthly event, not an hourly one.
+// NO CRON WAS REGISTERED BY AL-3, matching AL-1's ruling for timecards.
+// CORRECTED 2026-10-16 (MS-3b): this header used to say freshness also rested on
+// "the debounced refresh the Positions card schedules". No such refresh ever
+// existed — the card only reads. And since MS-3b the daily labor-timecards cron
+// (src/app/api/cron/labor-timecards/route.ts) calls the same
+// syncTeamMemberWages every day, in production, so a raise is seen within a
+// day. This route stays the on-demand path, and staging's only one.
 export const maxDuration = 60
 
 const bodySchema = z.object({

@@ -43,7 +43,18 @@ const CARD_BG = "#ffffff"
 const FONT =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif"
 
-export type EmailRow = { label: string; value: string }
+export type EmailRow = {
+  label: string
+  value: string
+  /**
+   * MS-4b. Optional link for this row: the value renders as a link in HTML and
+   * the URL follows on its own line in the generated text part. Needed by the
+   * milestone summary, which lists several employees and links each one's
+   * Milestones tab; the one-CTA shape cannot. Same http(s) allowlist as the
+   * CTA. No consumer before MS-4b passes it, so their output is unchanged.
+   */
+  url?: string
+}
 
 export type EmailTemplateInput = {
   /** Tenant name, rendered in the header as "on behalf of <orgName>". */
@@ -143,12 +154,19 @@ function rowsTable(rows: EmailRow[]): string {
       return (
         `<tr>` +
         `<td style="${base}color:${MUTED_INK};width:38%;">${esc(r.label)}</td>` +
-        `<td style="${base}color:${INK};">${esc(r.value)}</td>` +
+        `<td style="${base}color:${INK};">${rowValue(r)}</td>` +
         `</tr>`
       )
     })
     .join("")
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">${cells}</table>`
+}
+
+function rowValue(r: EmailRow): string {
+  const url = safeUrl(r.url)
+  return url
+    ? `<a href="${esc(url)}" style="color:${ORANGE};text-decoration:underline;">${esc(r.value)}</a>`
+    : esc(r.value)
 }
 
 function ctaButton(cta: { label: string; url: string } | undefined): string {
@@ -218,7 +236,11 @@ function renderText(input: EmailTemplateInput): string {
   if (input.rows.length > 0) {
     const width = Math.max(...input.rows.map((r) => r.label.length + 1)) + 2
     lines.push("")
-    for (const r of input.rows) lines.push(`${(r.label + ":").padEnd(width)}${r.value}`)
+    for (const r of input.rows) {
+      lines.push(`${(r.label + ":").padEnd(width)}${r.value}`)
+      const url = safeUrl(r.url)
+      if (url) lines.push(`${"".padEnd(width)}${url}`)
+    }
   }
 
   const url = safeUrl(input.cta?.url)

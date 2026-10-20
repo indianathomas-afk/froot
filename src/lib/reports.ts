@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { DEFAULT_TIME_ZONE } from "@/lib/hr"
 
 // ─── Shared reporting math (Phase I-5) ───────────────────────────────────────
 // An INVENTORY PERIOD is the span between two consecutive FINALIZED, non-partial
@@ -52,6 +53,28 @@ export function localDateStr(instant: Date, timeZone: string): string {
   const dtf = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" })
   const p = Object.fromEntries(dtf.formatToParts(instant).map((x) => [x.type, x.value]))
   return `${p.year}-${p.month}-${p.day}`
+}
+
+// BUG-15. THE ONE RULE for which zone the dashboard's "All locations" mode calls
+// "today": the first store of the caller's scope, ordered by name. Used by BOTH
+// /api/dashboard/rollup (its anchor day, range defaults and clamp) and the
+// /dashboard page header, so the date the header prints and the day the rollup
+// computes cannot drift. Both callers must pass the same list — same scope
+// rule, isActive, orderBy name asc — or this proves nothing.
+//
+// Organization.timezone is DELIBERATELY NOT READ. It is not a display
+// preference: it is only ever read at MINT time, as the PDF date-stamp fallback
+// for corporate staff with no store (DEBT-70a, prisma/schema.prisma).
+export function dashboardAnchorTimeZone(stores: { timezone: string }[]): string {
+  return stores[0]?.timezone ?? DEFAULT_TIME_ZONE
+}
+
+// BUG-15. The dashboard header date ("Thursday, October 15") for an instant in
+// an explicit zone. Computed on the SERVER and passed down as a string: a
+// client-side `new Date().toLocaleDateString()` formats in UTC on Vercel and in
+// local time in the browser, and after 5 PM Pacific the two disagree (#418).
+export function dashboardHeaderDate(instant: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-US", { timeZone, weekday: "long", month: "long", day: "numeric" }).format(instant)
 }
 
 export function dbDate(dateStr: string): Date {

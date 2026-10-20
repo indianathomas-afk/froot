@@ -102,6 +102,7 @@ export type Capability =
   | "staff.documents.manage"
   | "staff.notes.use"
   | "engagement.view"
+  | "milestones.manage"
   | "reports.view"
   | "forecasting.view"
   | "forecasting.edit"
@@ -157,6 +158,10 @@ export type Capability =
   // every route and every other capability they hold is untouched (Gary, F3,
   // 2026-09-20).
   | "notify.pace.receive"
+  // MS-4b — the second user-addressed email, on the convention above. Same
+  // shape as notify.pace.receive: baseline ADMIN + MANAGER, deniable from the
+  // grid, never grantable down to STORE or STAFF.
+  | "notify.milestone.receive"
 
 const ALL: readonly PermissionRole[] = ["ADMIN", "MANAGER", "STORE", "STAFF"]
 const MANAGE: readonly PermissionRole[] = ["ADMIN", "MANAGER"]
@@ -306,6 +311,20 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // so a page-only test can go green without exercising this line at all.
   // COMP-1's F3 finding is the standing warning here (docs/DECISIONS.md:138).
   "engagement.view": ADMIN_ONLY,
+  // MS-1 (Gary, 2026-10-15) — /staff/milestones and every milestone WRITE
+  // route: the org's tenure milestones, the milestones toggle's sibling setup.
+  //
+  // ADMIN_ONLY AND NOT GRANTABLE (ruling 1: "Only ADMINs see the Milestone
+  // setup page"). Absent from GRANTABLE_CAPABILITIES — appending there is a
+  // security change with the weight of a baseline change (this file's header).
+  //
+  // ALSO ABSENT FROM ENFORCED_CAPABILITIES, on the engagement.view shape above:
+  // it cannot be denied to an admin from the /users grid. Admin-denies-admin is
+  // a real access decision that needs its own ruling; MS-1 does not make one.
+  //
+  // THIS CAPABILITY DOES NOT GOVERN THE Milestones TAB on /staff/[id]. That tab
+  // is a READ and mirrors the Compliance tab's ADMIN/MANAGER tier (F1).
+  "milestones.manage": ADMIN_ONLY,
   // PERM-2 §3 #5 (Gary, 2026-07-26): inventory is not one permission — it
   // splits by DATA SENSITIVITY. Operational data (counts, adjustments, pars,
   // item names and units — what a person on the floor with a clipboard needs)
@@ -484,6 +503,12 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // /settings/notifications sit ABOVE this: org off → nobody, whatever this
   // says.
   "notify.pace.receive": MANAGE,
+  // MS-4b (F6). Who is ELIGIBLE for milestone-reached emails; the recipient
+  // query in src/lib/notifications/kinds/milestone.ts decides which employees
+  // each eligible person hears about (every ADMIN; MANAGERs of the employee's
+  // stores; corporate staff → ADMINs only). Deniable, not grantable, exactly as
+  // notify.pace.receive above.
+  "notify.milestone.receive": MANAGE,
 }
 
 function isPermissionRole(role: unknown): role is PermissionRole {
@@ -982,6 +1007,15 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     label: "Receives behind-pace alert emails",
     removes:
       "Sent when a store they manage falls behind its month-to-date goal. Admins receive alerts for every store. Nothing else changes — they keep every other permission, and only the email stops.",
+  },
+  // MS-4b — the second row in the area, which is the property NOTIFY-2c built
+  // the area for: one entry, no grid change.
+  {
+    capability: "notify.milestone.receive",
+    area: "Email notifications",
+    label: "Milestone reached",
+    removes:
+      "A once-a-day email listing staff in their stores who reached a tenure or checklist milestone. Admins hear about every store. Nothing else changes — they keep every other permission, and only the email stops.",
   },
 ]
 
