@@ -88,6 +88,7 @@ export function LaborSettingsClient({
   salariedEstateWeekly,
   isAdmin = false,
   showRoster = false,
+  milestonesOn = false,
 }: {
   initialPositions: Position[]
   stores: { id: string; name: string }[]
@@ -111,11 +112,20 @@ export function LaborSettingsClient({
   /// labor.costs.view. False makes PositionsCard render exactly as it did before
   /// AL-3 — the segmented control is not mounted and no roster fetch is issued.
   showRoster?: boolean
+  /// MS-6 R5 — milestonesActive(org), decided by the page. With isAdmin (F1)
+  /// it mounts the roster's MILESTONES column; the route re-checks both.
+  milestonesOn?: boolean
 }) {
   return (
     <div className="space-y-6 max-w-3xl">
       <SettingsCard stores={stores} />
-      <PositionsCard initial={initialPositions} stores={stores} showRoster={showRoster} isAdmin={isAdmin} />
+      <PositionsCard
+        initial={initialPositions}
+        stores={stores}
+        showRoster={showRoster}
+        isAdmin={isAdmin}
+        milestonesOn={milestonesOn}
+      />
       {/* R7-C: the per-STORE declaration card is UNMOUNTED (retired 2026-08-22).
           Its component and dialog remain below, marked, per the preserve-and-mark
           ruling — a route left mounted is a route that still writes rows, so the
@@ -1244,6 +1254,7 @@ function PositionsCard({
   stores,
   showRoster,
   isAdmin,
+  milestonesOn,
 }: {
   initial: Position[]
   stores: { id: string; name: string }[]
@@ -1251,6 +1262,8 @@ function PositionsCard({
   /// COMP-1 — drives whether the confidentiality column is EDITABLE. Passed
   /// through to the roster view; the route enforces the same rule independently.
   isAdmin: boolean
+  /// MS-6 — passed through to the roster view.
+  milestonesOn: boolean
 }) {
   const [positions, setPositions] = useState<Position[]>(initial)
   const [editing, setEditing] = useState<Position | Omit<Position, "id"> | null>(null)
@@ -1321,7 +1334,7 @@ function PositionsCard({
           </p>
         )}
 
-        {tab === "roster" && <TeamRosterView stores={stores} isAdmin={isAdmin} />}
+        {tab === "roster" && <TeamRosterView stores={stores} isAdmin={isAdmin} milestonesOn={milestonesOn} />}
 
         {tab === "legend" &&
           (positions.length === 0 ? (
@@ -1442,6 +1455,8 @@ type RosterRow = {
   isSupervisory: boolean | null
   /// COMP-1. Sent to every viewer; the numbers beside it are not.
   compConfidential: boolean
+  /// MS-6. StaffMember.milestoneEligible; null on a "Not in Froot" row.
+  milestoneEligible: boolean | null
   jobAssignmentCount: number
 }
 
@@ -1481,7 +1496,19 @@ function payText(r: RosterRow, masked: boolean): string {
 
 type RowStatus = "saving" | "saved" | "error"
 
-function TeamRosterView({ stores, isAdmin }: { stores: { id: string; name: string }[]; isAdmin: boolean }) {
+function TeamRosterView({
+  stores,
+  isAdmin,
+  milestonesOn,
+}: {
+  stores: { id: string; name: string }[]
+  isAdmin: boolean
+  milestonesOn: boolean
+}) {
+  // MS-6 F1 + R5 — ADMIN only (R4: only an ADMIN may flip it, and CONFID.'s
+  // reason holds: a switch a manager can see but not use reads as a bug), and
+  // only while Milestones is active for the org.
+  const showMilestones = isAdmin && milestonesOn
   const [storeId, setStoreId] = useState(stores[0]?.id ?? "")
   const [data, setData] = useState<RosterPayload | null>(null)
   const [syncing, setSyncing] = useState(false)
@@ -1586,6 +1613,31 @@ function TeamRosterView({ stores, isAdmin }: { stores: { id: string; name: strin
       await load()
       setErr("Could not save that change.")
       return false
+    }
+  }
+
+  /// MS-6 — the MILESTONES switch. CONFID.'s save behaviour (optimistic, then
+  /// reload-and-error on failure), but a DIFFERENT ROUTE: the flag lives on the
+  /// person (StaffMember), not on the Square wage row, so it is addressed by
+  /// staffMemberId. Every row for that person — on this store and, after a
+  /// store switch, on any other — shows the same value (R6).
+  async function patchMilestones(staffMemberId: string, milestoneEligible: boolean) {
+    setData((prev) =>
+      prev
+        ? { ...prev, rows: prev.rows.map((r) => (r.staffMemberId === staffMemberId ? { ...r, milestoneEligible } : r)) }
+        : prev
+    )
+    try {
+      const res = await fetch(`/api/staff/${encodeURIComponent(staffMemberId)}/milestone-eligibility`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ milestoneEligible }),
+      })
+      if (!res.ok) throw new Error(`Save failed (${res.status})`)
+      setErr(null)
+    } catch {
+      await load()
+      setErr("Could not save that change.")
     }
   }
 
@@ -1731,6 +1783,11 @@ function TeamRosterView({ stores, isAdmin }: { stores: { id: string; name: strin
                     Confid.
                   </th>
                 )}
+                {showMilestones && (
+                  <th className="py-2 pl-3 pr-0 font-semibold" title="Off removes this person from Milestones everywhere.">
+                    Milestones
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -1805,6 +1862,29 @@ function TeamRosterView({ stores, isAdmin }: { stores: { id: string; name: strin
                         onCheckedChange={(v) => void patchRow(r.squareTeamMemberId, { compConfidential: v })}
                         aria-label={`Confidential compensation — ${r.displayName ?? r.squareTeamMemberId}`}
                       />
+                    </td>
+                  )}
+                  {/* MS-6 — one flag per person (R1, R6). A "Not in Froot" row
+                      has no StaffMember to hold it, so its switch is disabled
+                      and says why (R7); the title sits on a wrapper because a
+                      disabled button fires no hover events. */}
+                  {showMilestones && (
+                    <td className="py-2.5 pl-3 pr-0">
+                      {r.staffMemberId ? (
+                        <Switch
+                          checked={r.milestoneEligible !== false}
+                          onCheckedChange={(v) => void patchMilestones(r.staffMemberId as string, v)}
+                          aria-label={`Milestones — ${r.displayName ?? r.squareTeamMemberId}`}
+                        />
+                      ) : (
+                        <span title="Add to Froot to set milestones." className="inline-flex">
+                          <Switch
+                            checked={false}
+                            disabled
+                            aria-label={`Milestones — ${r.squareTeamMemberId} — add to Froot to set milestones`}
+                          />
+                        </span>
+                      )}
                     </td>
                   )}
                 </tr>

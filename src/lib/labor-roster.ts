@@ -85,6 +85,9 @@ export type RosterRow = {
   /// no wage settings in Square (see hourlyRate's "null is a sentence" rule,
   /// which this flag exists to keep true).
   compConfidential: boolean
+  /// MS-6. StaffMember.milestoneEligible — a fact about the PERSON, so it is
+  /// null on a "Not in Froot" row (no StaffMember to hold it, R7).
+  milestoneEligible: boolean | null
   /// > 1 means Square carries more than one job for this person and the row
   /// above shows the first. Surfaced rather than truncated silently.
   jobAssignmentCount: number
@@ -474,7 +477,7 @@ export async function getStoreRoster(
       organizationId: org.id,
       squareTeamMemberId: { in: mine.map((r) => r.squareTeamMemberId) },
     },
-    select: { id: true, displayName: true, squareTeamMemberId: true },
+    select: { id: true, displayName: true, squareTeamMemberId: true, milestoneEligible: true },
   })
   const staffBySquareId = new Map(staff.map((s) => [s.squareTeamMemberId!, s]))
 
@@ -504,6 +507,7 @@ export async function getStoreRoster(
       weeklyHoursOverride: r.weeklyHoursOverride,
       isSupervisory: r.isSupervisory,
       compConfidential: r.compConfidential,
+      milestoneEligible: match?.milestoneEligible ?? null,
       jobAssignmentCount: r.jobAssignmentCount,
     }
   })

@@ -8230,6 +8230,79 @@ phases:
       and its gates are unchanged. No schema, no migration, nothing writes.
       verify-ms5 gains B12 and B13 and B11 is retargeted. Cross-refs: MS-5.
 
+  - id: MS-6
+    track: hr
+    size: M
+    # `in_progress` at 9d363c1, set 2026-10-21 by the MS-6 build session
+    # (TIER 3). Not pushed — Claude never pushes. PRE-PUSH-CHECK owns the
+    # flip to `staging`.
+    # `in_progress` -> `staging` 2026-10-21 by the MS-6 PRE-PUSH-CHECK, in the
+    # commit immediately after d6f4056 (its own SHA cannot be written inside
+    # itself). NOT pushed when the check ran — Gary runs the push. The
+    # "Not pushed" comment above is kept as written.
+    status: staging
+    title: "Staff Milestones — per-person Milestones switch on the Positions table; \"Labor\" page renamed \"Labor Settings\""
+    commits:
+      - "9d363c1"
+      - "d6f4056"
+      # + the commit immediately after d6f4056: docs(MS-6 PRE-PUSH-CHECK)
+    blockers:
+      - >
+        RULINGS RATIFIED, 2026-10-21, at the MS-6 PRE-PUSH-CHECK (Gary, as
+        written). Prepended per preserve-and-mark; the "RULINGS ARE A DRAFT"
+        blocker below is DISCHARGED and kept. His reply, exactly: "R1–R8
+        ratified as written in §2 of the session prompt, along with F1–F6 and
+        my three additions. C1–C5 accepted, including C5: a queued milestone
+        email for someone switched off just expires, and that's fine."
+        Recorded in docs/DECISIONS.md 2026-10-21 — MS-6.
+      - >
+        MIGRATION 20261022040811_ms6_milestone_eligible is APPLIED TO DEV ONLY
+        (Gary). Staging gets it through prisma migrate deploy in the Vercel
+        build on push. Check the Neon console _prisma_migrations on
+        br-square-feather-a63z92vz before and after the push.
+      - >
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-21 — MS-6 records R1–R8
+        as the prompt's draft, F1–F6 and Gary's three additions in his words,
+        and Claude's C1–C5 separately. Awaits ratification at the MS-6
+        PRE-PUSH-CHECK.
+      - >
+        UNVERIFIED ON STAGING. Dev-level evidence only: verify-ms6 45/45 on dev
+        br-broad-wave-a6vpjdw0, with three negative controls run and restored
+        (tab term removed → A11 FAIL; /staff passing true → A12 FAIL; engines
+        ignoring the flag → B8, B9 FAIL); verify-ms1 97/97, ms2 90/90, ms3
+        95/95, ms3b 80/80, ms4a 52/52, ms4b all passed, ms5 51/51; a green
+        build. Not opened in a browser. Staging must check, on branch
+        br-square-feather-a63z92vz, org cmr54z65v000105jxczpt72w1, naming the
+        org id on every observation: (1) _prisma_migrations before/after the
+        push; (2) the sidebar and H1 read "Labor Settings", URL still
+        /settings/labor; (3) the MILESTONES column is visible to an ADMIN;
+        flipping Kelton off on Cafe De Keva Cart turns him off on his other
+        stores' rosters too; (4) flip Kelton off → Sync roster → reload → still
+        off; (5) flip off Kelton, Kristie, Karson, Taylin, Jennifer → no
+        On-time or Raise badge on /staff (Jennifer, Karson and Taylin named
+        specifically for the Raise badge), no Milestones tab, absent from the
+        Milestone Report; (6) flip one back on → everything returns; (7) Tommy
+        (STORE) and gary@keva.com (MANAGER) console PUT → 403; (8) phone width
+        on /settings/labor.
+    notes: >
+      TIER 3, 2026-10-21. Prompt:
+      docs/prompts/2026-10-21_MS-6_milestone_eligibility.md. Audit:
+      docs/prompts/2026-10-21_MS-6_AUDIT.md (F1–F6 approved as recommended,
+      Gary 2026-10-21). WHAT SHIPPED (9d363c1): StaffMember.milestoneEligible
+      (NOT NULL, default true). PUT /api/staff/[id]/milestone-eligibility —
+      requireMilestones("milestones.manage"), org-scoped by StaffMember id,
+      AuditLog row per real change (src/lib/milestone-eligibility.ts). The
+      Positions table (TeamRosterView) gains a MILESTONES column after
+      CONFID., ADMIN + Milestones-on only, disabled with a tooltip on "Not in
+      Froot" rows. getOnTimeForStaff and getRaiseEligibility take the flag as
+      a REQUIRED field and return nothing for an ineligible member; the
+      Milestone Report and the MS-4b producer filter it in the query; the
+      /staff/[id] tab gate carries it; MS-4b dispatch re-checks it. Sidebar
+      label and page H1 read "Labor Settings"; the /settings module card
+      keeps "Weekly Labor Model". Help: docs/guide/staff.md gains "Leaving
+      someone out of Milestones". Filed DEBT-119 (CONFID. writes no
+      AuditLog). Cross-refs: MS-1, MS-2, MS-3, MS-4b, MS-5, COMP-1.
+
   - id: HR-27
     track: hr
     size: L
@@ -32936,6 +33009,25 @@ debt:
       J1–J4 must stay green. Touches a cron — TIER 3 by CLAUDE.md § Session
       Tiers.
       RELATED: MS-4b, MS-5.
+
+  - id: DEBT-119
+    status: planned
+    title: >
+      The CONFID. toggle writes no AuditLog row
+    notes: >
+      FILED 2026-10-21 by the MS-6 session, on Gary's instruction, recorded
+      exactly: "File a ROW: CONFID. toggle writes no AuditLog." THE ID FILLS THE
+      NEXT FREE SLOT (DEBT-118 was the highest; DEBT-119 appears nowhere in
+      docs/, src/ or scripts/). WHAT IS TRUE TODAY: the CONFID. switch on the
+      /settings/labor Positions table saves through PATCH
+      /api/square/labor/roster/[id] (src/app/api/square/labor/roster/[id]/route.ts),
+      which updates SquareTeamMemberWage.compConfidential and writes nothing to
+      AuditLog, so there is no record of who hid or unhid a person's pay. The
+      MS-6 MILESTONES switch next to it does write one (staff.milestone_eligibility.update,
+      src/lib/milestone-eligibility.ts, writeAuditLog). The fix is a
+      writeAuditLog call in that route when compConfidential is in the body and
+      changes. Touches a permission-gated write — TIER 3.
+      RELATED: COMP-1, MS-6.
 
 rulings:
   - id: R1

@@ -189,6 +189,8 @@ async function getStaffData() {
           displayTimeZone(m, org),
           m.status === "TERMINATED" ? m.terminatedAt : null
         ),
+        // MS-6 R2 — false = no On-Time badge; the engine drops the member.
+        milestoneEligible: m.milestoneEligible,
       })),
       settings,
       now
@@ -213,6 +215,8 @@ async function getStaffData() {
         startDate: m.startDate,
         status: m.status,
         zone: displayTimeZone(m, org),
+        // MS-6 R2 — false = no Raise badge; the engine drops the member.
+        milestoneEligible: m.milestoneEligible,
       })),
       await getRaiseSettings(org.id),
       settings,

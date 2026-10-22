@@ -414,13 +414,17 @@ export type RaiseMember = {
   status: string
   /// displayTimeZone(member, org) — decides which week "this week" is.
   zone: string
+  /// MS-6 — StaffMember.milestoneEligible. REQUIRED so the build catches a
+  /// caller that forgets it; false = no raise result for this member (R2).
+  milestoneEligible: boolean
 }
 
 /// BATCHED: a fixed set of reads for every member passed, whether one profile
 /// or the whole /staff roster (HR-8's "never a query per row").
 ///
 /// F12: with the Square labor overlay off this returns an EMPTY MAP and reads
-/// nothing — no member gets a badge. Terminated members are skipped.
+/// nothing — no member gets a badge. Terminated members are skipped, and so
+/// are members switched out of Milestones (MS-6 R2).
 ///
 /// `compliance` lets a caller that has already run computeStaffComplianceDetails
 /// for the same members (the /staff list) pass it in rather than run it twice.
@@ -433,7 +437,7 @@ export async function getRaiseEligibility(
 ): Promise<Map<string, RaiseEligibility>> {
   const out = new Map<string, RaiseEligibility>()
   if (!laborOverlayOn(org)) return out
-  const active = members.filter((m) => m.status !== "TERMINATED")
+  const active = members.filter((m) => m.status !== "TERMINATED" && m.milestoneEligible)
   if (active.length === 0) return out
   const now = opts.now ?? new Date()
 
@@ -532,6 +536,7 @@ export async function getRaiseEligibility(
               squareTeamMemberId: m.squareTeamMemberId,
               assignedStoreIds: m.assignedStoreIds,
               range: { from: w[0], to: addDaysStr(w[w.length - 1], 6) },
+              milestoneEligible: m.milestoneEligible,
             }
           }),
           onTimeSettings,

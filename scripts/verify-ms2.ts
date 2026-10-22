@@ -325,8 +325,8 @@ async function overlayOff() {
   const r = await getOnTimeForStaff(
     fakeOrg,
     [
-      { id: "m1", squareTeamMemberId: "TM1", assignedStoreIds: [], range: RANGE },
-      { id: "m2", squareTeamMemberId: null, assignedStoreIds: [], range: RANGE },
+      { id: "m1", squareTeamMemberId: "TM1", assignedStoreIds: [], range: RANGE, milestoneEligible: true },
+      { id: "m2", squareTeamMemberId: null, assignedStoreIds: [], range: RANGE, milestoneEligible: true },
     ],
     S
   )
@@ -428,8 +428,8 @@ async function db() {
     const res = await getOnTimeForStaff(
       fullOrg,
       [
-        { id: staff.id, squareTeamMemberId: sq, assignedStoreIds: [pac.id], range },
-        { id: unlinked.id, squareTeamMemberId: null, assignedStoreIds: [pac.id], range },
+        { id: staff.id, squareTeamMemberId: sq, assignedStoreIds: [pac.id], range, milestoneEligible: true },
+        { id: unlinked.id, squareTeamMemberId: null, assignedStoreIds: [pac.id], range, milestoneEligible: true },
       ],
       settings,
       now
@@ -438,12 +438,12 @@ async function db() {
     check("E6. 4 of 6 (66.7%, shows 66%) on time across two stores (no-show late, draft/unscheduled/40-days-ago out)", [r?.onTime, r?.total, r?.displayPercent, r?.status], [4, 6, 66, "red"])
     check("E7. unlinked member → not-linked", res.get(unlinked.id)?.status, "not-linked")
     await saveMilestoneSettings(org.id, { ...settings, onTimeGraceMinutes: 10 })
-    const r10 = (await getOnTimeForStaff(fullOrg, [{ id: staff.id, squareTeamMemberId: sq, assignedStoreIds: [pac.id], range }], await getMilestoneSettings(org.id), now)).get(staff.id)
+    const r10 = (await getOnTimeForStaff(fullOrg, [{ id: staff.id, squareTeamMemberId: sq, assignedStoreIds: [pac.id], range, milestoneEligible: true }], await getMilestoneSettings(org.id), now)).get(staff.id)
     check("E8. grace 10 → the 9:06 card is on time: 5 of 6", [r10?.onTime, r10?.total], [5, 6])
 
     await prisma.organization.update({ where: { id: org.id }, data: { squareLaborEnabled: false } })
     const offOrg = await prisma.organization.findUniqueOrThrow({ where: { id: org.id } })
-    const off = (await getOnTimeForStaff(offOrg, [{ id: staff.id, squareTeamMemberId: sq, assignedStoreIds: [pac.id], range }], settings, now)).get(staff.id)
+    const off = (await getOnTimeForStaff(offOrg, [{ id: staff.id, squareTeamMemberId: sq, assignedStoreIds: [pac.id], range, milestoneEligible: true }], settings, now)).get(staff.id)
     check("E9. overlay off → grey, stale rows not read (F5)", [off?.status, off?.reason, off?.total], ["no-schedule", "square-labor-off", 0])
   } finally {
     await prisma.staffMember.deleteMany({ where: { organizationId: org.id } })

@@ -207,7 +207,7 @@ const navStructure: NavEntry[] = [
       // NAV-1 RULING (docs/DECISIONS.md): hidden ENTIRELY without labor.access —
       // no lock badge, no disabled state. A visible lock on a compensation page
       // advertises what COMP-1 exists to keep confidential.
-      { href: "/settings/labor", label: "Labor", icon: Clock, capability: "labor.access", requiresLabor: true },
+      { href: "/settings/labor", label: "Labor Settings", icon: Clock, capability: "labor.access", requiresLabor: true },
     ],
   },
   // Only rendered when the org has Instagram connected + enabled (see filter below).

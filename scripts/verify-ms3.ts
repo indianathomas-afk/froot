@@ -260,7 +260,7 @@ async function overlayOff() {
   const fakeOrg = { id: "no-such-org", clerkOrgId: "org_ms3_off", activeModules: ["hr"], squareLaborEnabled: false } as unknown as Organization
   const r = await getRaiseEligibility(
     fakeOrg,
-    [{ id: "m1", squareTeamMemberId: "TM1", assignedStoreIds: [], startDate: null, status: "ACTIVE", zone: LA }],
+    [{ id: "m1", squareTeamMemberId: "TM1", assignedStoreIds: [], startDate: null, status: "ACTIVE", zone: LA, milestoneEligible: true }],
     V(),
     DEFAULT_MILESTONE_SETTINGS
   )
@@ -420,6 +420,7 @@ async function db() {
       startDate: m.startDate,
       status: m.status,
       zone: LA,
+      milestoneEligible: true,
     }))
     const res = await getRaiseEligibility(fullOrg, input, await getRaiseSettings(org.id), await getMilestoneSettings(org.id), { now })
     const g = res.get(green.id)

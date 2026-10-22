@@ -91,6 +91,9 @@ export async function buildMilestoneReport(args: {
     prisma.staffMember.findMany({
       where: {
         organizationId: org.id,
+        // MS-6 R2 — a person switched out of Milestones is not on the report,
+        // so they are in no row, filter, count, total or CSV line either.
+        milestoneEligible: true,
         ...(viewer.isAdmin ? {} : { storeAssignments: { some: { storeId: { in: viewer.storeIds } } } }),
       },
       include: {
@@ -135,6 +138,7 @@ export async function buildMilestoneReport(args: {
         squareTeamMemberId: m.squareTeamMemberId,
         assignedStoreIds: m.storeAssignments.map((a) => a.storeId),
         range: lookbackRange(settings.onTimeLookbackDays, now, zone(m.id), null),
+        milestoneEligible: m.milestoneEligible,
       })),
       settings,
       now
@@ -149,6 +153,7 @@ export async function buildMilestoneReport(args: {
           startDate: m.startDate,
           status: m.status,
           zone: zone(m.id),
+          milestoneEligible: m.milestoneEligible,
         })),
         raise,
         settings,

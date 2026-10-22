@@ -638,7 +638,12 @@ export default async function StaffDetailPage({
   // viewer outside the tier, so STORE and STAFF never see the tab at all
   // (ruling 2's "never see it"). And it requires Milestones ON — HR is already
   // on to reach this page (F5); milestonesActive() checks the toggle too.
-  const showMilestonesTab = canSeeHrTabs && milestonesActive(org)
+  // MS-6 R2 — a member switched out of Milestones has NO tab, for anyone. Every
+  // milestone read on this page sits inside this gate, so this one term also
+  // drops the On-Time and Raise results, the manual last-raise control, tenure
+  // and checklist progress. R3: nothing is deleted; switched back on, it all
+  // returns.
+  const showMilestonesTab = canSeeHrTabs && milestonesActive(org) && member.milestoneEligible
   let milestoneProgress: TenureProgress | null = null
   let hasMilestones = false
   let checklistMilestoneProgress: ChecklistProgress | null = null
@@ -677,6 +682,7 @@ export default async function StaffDetailPage({
           squareTeamMemberId: member.squareTeamMemberId,
           assignedStoreIds: member.storeAssignments.map((a) => a.storeId),
           range,
+          milestoneEligible: member.milestoneEligible,
         },
       ],
       settings
@@ -693,6 +699,7 @@ export default async function StaffDetailPage({
           startDate: member.startDate,
           status: member.status,
           zone,
+          milestoneEligible: member.milestoneEligible,
         },
       ],
       await getRaiseSettings(member.organizationId),

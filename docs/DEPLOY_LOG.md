@@ -2,6 +2,56 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-21 — MS-6: a per-person Milestones switch on the Positions table; "Labor" becomes "Labor Settings"
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. MS-6 builds on MS-1 to MS-5b (promoted in
+`04cb72c`) and carries a MIGRATION, so a staging → main merge applies it to
+production through `prisma migrate deploy` in the Vercel build.
+
+**Payload: two MS-6 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `9d363c1`, `d6f4056`. **NEITHER WAS PUSHED WHEN
+THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `9d363c1` | MS-6 work: `StaffMember.milestoneEligible`, migration `20261022040811_ms6_milestone_eligible`, `PUT /api/staff/[id]/milestone-eligibility`, the MILESTONES column, the engine/report/MS-4b filters, the "Labor Settings" rename, `scripts/verify-ms6.ts` |
+| `d6f4056` | `docs(MS-6)`: row to `in_progress`, DEBT-119, DECISIONS draft, MIGRATIONS line, help guide, the session prompt and audit |
+| the commit immediately after `d6f4056` | `docs(MS-6 PRE-PUSH-CHECK)`: this entry, DECISIONS ratified as written, row to `staging` |
+
+**Blast radius: ONE ADDITIVE COLUMN, ONE NEW WRITE ROUTE, and every Milestones
+read now filters on it. NO EMAIL CHANGE BEYOND A FILTER, NO CRON, NO ENV VAR, NO
+SQUARE CALL.** What changes:
+
+- **Schema:** `ALTER TABLE "StaffMember" ADD COLUMN "milestoneEligible" BOOLEAN
+  NOT NULL DEFAULT true`. Every existing row reads `true`, so nothing a user sees
+  changes until an ADMIN switches someone off.
+- **A new write:** `PUT /api/staff/[id]/milestone-eligibility`, gated by
+  `requireMilestones("milestones.manage")` (Milestones off → 404, non-ADMIN →
+  403), org-scoped by `StaffMember.id`, one AuditLog row
+  (`staff.milestone_eligibility.update`) per real change.
+- **Reads:** a member switched off gets no On-time or Raise badge on `/staff`, no
+  Milestones tab, no Milestone Report row, no MS-4b email (producer filters in the
+  query; dispatch re-checks, so a queued intent is held and expires after the
+  8-day freshness window — C5, accepted by Gary).
+- **Rename:** sidebar label and `/settings/labor` H1 read "Labor Settings"; the
+  route is unchanged and the `/settings` module card keeps "Weekly Labor Model".
+- **Square sync never touches the flag** (R8).
+
+**Rollback:** revert `9d363c1`. **The column stays** — schema is additive-only and
+no column is ever dropped; with the code reverted nothing reads or writes it, and
+its `DEFAULT true` keeps it inert. Do not hand-edit `_prisma_migrations`. A
+reverted build no longer filters, so anyone switched off reappears in Milestones;
+AuditLog rows already written stay.
+
+**Evidence: dev only, not opened in a browser.** verify-ms6 45/45 on dev
+`br-broad-wave-a6vpjdw0` with three negative controls that bite (A11; A12;
+B8+B9); verify-ms1 97, ms2 90, ms3 95, ms3b 80, ms4a 52, ms4b all, ms5 51 — all
+green; a green build. Migration applied to dev by Gary only. Staging checks
+(migration before/after on `br-square-feather-a63z92vz`, rename, column, Kelton
+across stores, sync keeps the flag, badges/tab/report hidden, flip back, 403s,
+phone width) are in the MS-6 row's blockers.
+
 ## 04cb72c — 2026-10-20 — PRODUCTION PROMOTION: Staff Milestones and one notification pipeline, fourteen phases in one merge
 
 **Merge SHA:** `04cb72c049953b22deb6d720eca6e299682a7a96` — stamped post-merge from `git rev-parse`, never

@@ -499,6 +499,13 @@ model StaffMember {
   // squareFullName shape. It is never the value tenure counts from; it exists so
   // a hand-set date and a later Square correction can be seen side by side.
   squareStartDate    DateTime? @db.Date
+  // MS-6 R1 (Gary, 2026-10-21). One flag per PERSON, every store. false =
+  // this person drops out of Milestones everywhere (no On-Time/Raise badge, no
+  // tab, no report row, no tenure/checklist milestone, no MS-4b email). HIDE,
+  // NOT DELETE (R3): wage, raise, schedule and attendance data keep being
+  // written. NOT NULL with default true so nothing changes until an ADMIN flips
+  // someone, and no `{ not: true }` NULL trap. Square sync never writes it (R8).
+  milestoneEligible  Boolean   @default(true)
   createdAt          DateTime  @default(now())
 
   organization        Organization             @relation(fields: [organizationId], references: [id])

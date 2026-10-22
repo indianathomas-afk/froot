@@ -317,7 +317,7 @@ async function db() {
     const settings = await getRaiseSettings(org.id)
     check("D7. default cooldown is 90 days (F13)", settings.raiseCooldownDays, DEFAULT_RAISE_SETTINGS.raiseCooldownDays)
     const members = [R, C, U, S, M, O, N, T]
-    const input = members.map((m) => ({ id: m.id, squareTeamMemberId: m.squareTeamMemberId, assignedStoreIds: [store.id], startDate: m.startDate, status: m.id === T.id ? "TERMINATED" : "ACTIVE", zone: LA }))
+    const input = members.map((m) => ({ id: m.id, squareTeamMemberId: m.squareTeamMemberId, assignedStoreIds: [store.id], startDate: m.startDate, status: m.id === T.id ? "TERMINATED" : "ACTIVE", zone: LA, milestoneEligible: true }))
     const run = async () => getRaiseEligibility(fullOrg, input, settings, await getMilestoneSettings(org.id), { now })
     let res = await run()
 

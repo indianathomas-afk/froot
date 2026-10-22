@@ -132,8 +132,11 @@ async function processOrg(
   if (!hasTenure && !hasChecklist) return result
 
   // F9: ACTIVE members only. A terminated member's history is never announced.
+  // MS-6 R2: nor is anything about a member switched out of Milestones. Back on
+  // (R3), the next run sees their milestones as if never off — the 7-day send
+  // window below then decides email vs "known" exactly as for anyone (F5).
   const members = await prisma.staffMember.findMany({
-    where: { organizationId: org.id, status: "ACTIVE" },
+    where: { organizationId: org.id, status: "ACTIVE", milestoneEligible: true },
     select: {
       id: true,
       displayName: true,
