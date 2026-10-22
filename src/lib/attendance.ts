@@ -232,6 +232,10 @@ export type AttendanceMember = {
   squareTeamMemberId: string | null
   assignedStoreIds: string[]
   range: { from: string; to: string }
+  /// MS-6 — StaffMember.milestoneEligible. REQUIRED, not optional, so the
+  /// build refuses any caller that forgets it: an ineligible member gets NO
+  /// entry in the result (R2), on every surface, without each page re-checking.
+  milestoneEligible: boolean
 }
 
 /// BATCHED: one shift read, one timecard read and one sync-state read for every
@@ -242,11 +246,14 @@ export type AttendanceMember = {
 /// that rows predating the toggle are not drawn as if they were live.
 export async function getOnTimeForStaff(
   org: Organization,
-  members: AttendanceMember[],
+  allMembers: AttendanceMember[],
   settings: MilestoneSettingsValues,
   now = new Date()
 ): Promise<Map<string, OnTimeResult>> {
   const out = new Map<string, OnTimeResult>()
+  // MS-6 R2 — dropped before anything is read, so an ineligible member has no
+  // result at all (absent, not "no data"). R3: nothing is deleted.
+  const members = allMembers.filter((m) => m.milestoneEligible)
   if (members.length === 0) return out
 
   const emptyFor = (m: AttendanceMember, status: OnTimeStatus, reason: OnTimeReason): OnTimeResult => ({

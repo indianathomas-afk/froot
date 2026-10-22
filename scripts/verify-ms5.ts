@@ -396,7 +396,7 @@ async function db() {
     // ── F3, F9, F10 ──
     const computed = await getRaiseEligibility(
       org,
-      [{ id: Ben.id, squareTeamMemberId: tm("Ben"), assignedStoreIds: [P2.id, P1.id], startDate: null, status: "ACTIVE", zone: LA }],
+      [{ id: Ben.id, squareTeamMemberId: tm("Ben"), assignedStoreIds: [P2.id, P1.id], startDate: null, status: "ACTIVE", zone: LA, milestoneEligible: true }],
       await getRaiseSettings(org.id),
       await getMilestoneSettings(org.id),
       { now }

@@ -6,6 +6,7 @@ import { getCurrentUser, laborModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { canSeeWages } from "@/lib/labor-dashboard"
 import { getSalariedPeopleForSettings } from "@/lib/labor-salaried"
+import { milestonesActive } from "@/lib/milestones-access"
 import { LaborSettingsClient } from "./labor-settings-client"
 
 // Labor configuration hub (ADMIN + MANAGER). Both feature gates first: where
@@ -112,7 +113,10 @@ export default async function LaborSettingsPage() {
         >
           <ChevronLeft className="h-4 w-4" /> Settings
         </Link>
-        <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Weekly Labor Model</h1>
+        {/* MS-6 (Gary, 2026-10-21): the page is "Labor Settings", matching
+            the sidebar. "Weekly Labor Model" stays as the module card's title
+            on /settings, which names the module rather than this page. */}
+        <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Labor Settings</h1>
         <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
           Set the labor-percentage target and rounding, and manage the position rate legend used to
           turn a weekly sales forecast into a schedulable-hours budget.
@@ -125,6 +129,7 @@ export default async function LaborSettingsPage() {
         salariedPeople={salariedPeople}
         salariedEstateWeekly={estateWeeklyTotal}
         isAdmin={isAdmin}
+        milestonesOn={milestonesActive(org)}
         initialPositions={positions.map((p) => ({
           id: p.id,
           name: p.name,

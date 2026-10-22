@@ -112,11 +112,12 @@ export const milestoneKind = defineNotification<MilestonePayload>({
     const p = intent.payload
     const member = await prisma.staffMember.findFirst({
       where: { id: p.staffMemberId, organizationId: intent.organizationId },
-      select: { status: true, isCorporate: true, storeAssignments: { select: { storeId: true } } },
+      select: { status: true, isCorporate: true, milestoneEligible: true, storeAssignments: { select: { storeId: true } } },
     })
     // F9 at dispatch: a member terminated, or a milestone archived, since the
     // intent was queued gets no email. The intent waits and expires.
-    if (!member || member.status !== "ACTIVE") return []
+    // MS-6 R2: likewise a member switched out of Milestones after queueing.
+    if (!member || member.status !== "ACTIVE" || !member.milestoneEligible) return []
     const milestone =
       p.milestoneKind === "tenure"
         ? await prisma.tenureMilestone.findFirst({
