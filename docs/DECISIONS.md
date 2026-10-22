@@ -5,6 +5,71 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-21 — MS-6: a per-person Milestones switch; "Labor" becomes "Labor Settings" (Gary) — DRAFT
+
+**DRAFT, AWAITING RATIFICATION AT THE MS-6 PRE-PUSH-CHECK.** R1–R8 are the
+"Draft rulings" in the saved session prompt
+(`docs/prompts/2026-10-21_MS-6_milestone_eligibility.md`, §2), which says they
+are "ratified at PRE-PUSH-CHECK, in Gary's words". Until then they are NOT
+recorded as his quoted words. In short:
+
+- **R1** one flag per person, `StaffMember.milestoneEligible`, NOT NULL,
+  default true.
+- **R2** off hides everything Milestones: no On-time or Raise badge on /staff,
+  no Milestones tab, no report row, no tenure or checklist milestone, no MS-4b
+  email, not counted in any total.
+- **R3** off is hide, not delete; switched back on, everything returns.
+- **R4** only `milestones.manage` (ADMIN) flips it: 403 for everyone else, 404
+  when Milestones is off.
+- **R5** the MILESTONES column shows only while Milestones is on, after
+  CONFID., with CONFID.'s switch and save behaviour.
+- **R6** one person, every store.
+- **R7** "Not in Froot" rows get a disabled switch: "Add to Froot to set
+  milestones."
+- **R8** Square sync never touches the flag; no default from Square pay type.
+
+**Gary's words, recorded exactly** (chat, 2026-10-21, after the audit
+`docs/prompts/2026-10-21_MS-6_AUDIT.md`):
+
+- *"Approved: F1–F6 as recommended. Additions: (1) F2 — if "Weekly Labor
+  Model" titles a section, keep it as that section's title; the page H1
+  becomes "Labor Settings". (2) File a ROW: CONFID. toggle writes no AuditLog.
+  (3) Add to the staging test list: flip Kelton off → Sync roster → reload →
+  still off; and Jennifer, Karson, Taylin show no Raise badge on /staff once
+  off. Proceed to build; stop after generating the migration."*
+
+So F1–F6 are his approval of the audit's recommendations, which were Claude's
+wording:
+
+- **F1** the column is ADMIN only; a MANAGER sees no column.
+- **F2** the page H1 becomes "Labor Settings". Addition (1): "Weekly Labor
+  Model" titles the module card on /settings, so it stays there.
+- **F3** a new `PUT /api/staff/[id]/milestone-eligibility`, keyed by
+  StaffMember id, writing an AuditLog row.
+- **F4** enforced in the two engines (required field), the report and MS-4b
+  producer queries, the /staff/[id] tab gate, and the MS-4b dispatch re-check.
+- **F5** switched back on, milestones reached while off follow the normal
+  7-day send window; nothing extra is written when switching off.
+- **F6** R8 is proven by a source check plus replaying the sync writes.
+
+Addition (2) is DEBT-119 in `docs/ROADMAP.yaml`.
+
+**Claude's choices (for the record):**
+
+- **C1** A no-op flip (already in that state) returns 200 and writes no audit
+  row.
+- **C2** `AuditLog.userId` is the Clerk user id, the convention in
+  `src/lib/audit.ts`. Action `staff.milestone_eligibility.update`, metadata
+  `{ staffName, before, after }`.
+- **C3** The `/staff` badges gate (`showOnTime`) is unchanged: the person stays
+  on the roster and the engines return no result for them.
+- **C4** The ADMIN's manual last-raise control is on the Milestones tab, so it
+  disappears with the tab. Its route still accepts writes (R3).
+- **C5** A queued milestone email whose member is switched off is left
+  `queued` with nothing written to it. It is sent if they are switched back on
+  within the 8-day freshness window; otherwise a later dispatch expires it
+  ("past the freshness window"). verify-ms6 B13b–B13d.
+
 ## 2026-10-19 — MS-5b: one milestone button per role on /staff (Gary)
 
 **RATIFIED BY GARY, 2026-10-19, at the MS-5b PRE-PUSH-CHECK, with one

@@ -1516,3 +1516,38 @@ existing org reads `false`, so nothing emails on deploy.
 **Fixture:** `scripts/verify-ms4b.ts`, 54 passed / 0 failed on dev
 (`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
 the work commit (`1bc01cf`).
+
+## 2026-10-21 — `20261022040811_ms6_milestone_eligible` (MS-6)
+
+**APPLIED TO DEV ONLY, by Gary.** His report, recorded exactly: *"Migration
+applied to dev. Go."* The session then ran `migrate diff
+--from-config-datasource --to-schema prisma/schema.prisma --script` against
+dev, which returned `-- This is an empty migration.`, with `.env`'s only
+endpoint `ep-late-water-a6k53nv2` (dev). The empty diff is the evidence.
+Staging and production get the migration through `prisma migrate deploy` in the
+Vercel build, on Gary's push.
+
+Timestamp note: the folder name is the UTC instant of generation
+(`2026-10-22 04:08:11 UTC` = `2026-10-21 21:08:11 PDT`), so it reads a day
+later than the session.
+
+Prisma commands for this migration: `format`, `validate`, `generate` (twice),
+and `migrate diff` (twice: generating this file, and the level check after
+Gary's apply). `npm run build` also ran `prisma generate`. Gary ran `migrate
+deploy`.
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "StaffMember" ADD COLUMN "milestoneEligible" BOOLEAN NOT NULL DEFAULT true` | additive |
+
+**Why.** MS-6 R1 (draft ruling in the session prompt,
+`docs/prompts/2026-10-21_MS-6_milestone_eligibility.md`): one Milestones flag
+per person. NOT NULL with default `true`, so every existing person stays in
+Milestones until an ADMIN switches them off, and no query has to deal with a
+NULL third state.
+
+**No table created, nothing dropped or altered in type, no backfill.**
+
+**Fixture:** `scripts/verify-ms6.ts`, 45 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
+the work commit (`9d363c1`).

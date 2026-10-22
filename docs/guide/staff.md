@@ -94,6 +94,21 @@ has edited it by hand.
 Archiving a milestone stops it appearing for anyone who has not reached it yet.
 People who reached it before it was archived keep it in their history.
 
+### Leaving someone out of Milestones
+
+Some people are never in line for a raise, salaried and executive staff for
+example. To leave a person out, an admin opens **Labor Settings**, picks a
+store in the Positions table, and switches that person's **Milestones** switch
+off. The switch is there only while Milestones is on.
+
+Once it is off, that person has no On-time or Raise badge on Staff Members, no
+Milestones tab, no row in the Milestone Report, and no milestone emails. The
+switch belongs to the person, not the store, so turning it off on one store's
+list turns it off everywhere they work. Nothing is deleted: switch it back on
+and everything returns as if it had never been off. Square never changes this
+switch. People shown as "Not in Froot" need to be added to Froot before it can
+be set.
+
 ### Raise eligibility
 
 Where Square labor is switched on, the setup page's **Raise eligibility**
