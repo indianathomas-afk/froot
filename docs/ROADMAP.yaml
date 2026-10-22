@@ -8236,11 +8236,25 @@ phases:
     # `in_progress` at 9d363c1, set 2026-10-21 by the MS-6 build session
     # (TIER 3). Not pushed — Claude never pushes. PRE-PUSH-CHECK owns the
     # flip to `staging`.
-    status: in_progress
+    # `in_progress` -> `staging` 2026-10-21 by the MS-6 PRE-PUSH-CHECK, in the
+    # commit immediately after d6f4056 (its own SHA cannot be written inside
+    # itself). NOT pushed when the check ran — Gary runs the push. The
+    # "Not pushed" comment above is kept as written.
+    status: staging
     title: "Staff Milestones — per-person Milestones switch on the Positions table; \"Labor\" page renamed \"Labor Settings\""
     commits:
       - "9d363c1"
+      - "d6f4056"
+      # + the commit immediately after d6f4056: docs(MS-6 PRE-PUSH-CHECK)
     blockers:
+      - >
+        RULINGS RATIFIED, 2026-10-21, at the MS-6 PRE-PUSH-CHECK (Gary, as
+        written). Prepended per preserve-and-mark; the "RULINGS ARE A DRAFT"
+        blocker below is DISCHARGED and kept. His reply, exactly: "R1–R8
+        ratified as written in §2 of the session prompt, along with F1–F6 and
+        my three additions. C1–C5 accepted, including C5: a queued milestone
+        email for someone switched off just expires, and that's fine."
+        Recorded in docs/DECISIONS.md 2026-10-21 — MS-6.
       - >
         MIGRATION 20261022040811_ms6_milestone_eligible is APPLIED TO DEV ONLY
         (Gary). Staging gets it through prisma migrate deploy in the Vercel

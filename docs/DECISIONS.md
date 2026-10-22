@@ -5,13 +5,17 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-10-21 — MS-6: a per-person Milestones switch; "Labor" becomes "Labor Settings" (Gary) — DRAFT
+## 2026-10-21 — MS-6: a per-person Milestones switch; "Labor" becomes "Labor Settings" (Gary)
 
-**DRAFT, AWAITING RATIFICATION AT THE MS-6 PRE-PUSH-CHECK.** R1–R8 are the
-"Draft rulings" in the saved session prompt
-(`docs/prompts/2026-10-21_MS-6_milestone_eligibility.md`, §2), which says they
-are "ratified at PRE-PUSH-CHECK, in Gary's words". Until then they are NOT
-recorded as his quoted words. In short:
+**RATIFIED BY GARY, 2026-10-21, at the MS-6 PRE-PUSH-CHECK, as written.** The
+entry was printed verbatim and put to him as "Ratify as written, or give me
+your wording." His reply, recorded exactly: *"R1–R8 ratified as written in §2
+of the session prompt, along with F1–F6 and my three additions. C1–C5
+accepted, including C5: a queued milestone email for someone switched off
+just expires, and that's fine."* The ruling text is §2 of the saved session
+prompt (`docs/prompts/2026-10-21_MS-6_milestone_eligibility.md`); the R1–R8
+lines below are this log's summary of it, not his quoted words. Nothing else
+in the entry changed. In short:
 
 - **R1** one flag per person, `StaffMember.milestoneEligible`, NOT NULL,
   default true.
@@ -54,7 +58,8 @@ wording:
 
 Addition (2) is DEBT-119 in `docs/ROADMAP.yaml`.
 
-**Claude's choices (for the record):**
+**Claude's choices (for the record; accepted by Gary at ratification,
+C5 named):**
 
 - **C1** A no-op flip (already in that state) returns 200 and writes no audit
   row.
