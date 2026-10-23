@@ -2,6 +2,44 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## 2026-10-23 — PRODUCTION ENVIRONMENT CHANGE: email turned on (Resend vars + webhook) — NOT a promotion
+
+- **Environment change, no code.** No commit reached production and no migration
+  ran. Gary did every step on the Vercel and Resend dashboards; this entry records it.
+- **Root cause.** NOTIFY-1 / HR-16 / F-5b / NOTIFY-2a/2b/2c were promoted in
+  `076ccf8` (2026-09-20), but that day's production env-var step was never done.
+  Every email variable stayed scoped **Preview only**, so production ran with
+  `NOTIFY_EMAIL_PROVIDER` unset → console. **From 2026-09-20 to 2026-10-23
+  production composed and logged emails and sent none.**
+- **Lost emails.** Signed-acknowledgment emails read "Logged only / console" and
+  were never delivered — at least 2026-10-12 to 2026-10-19 (Alexis Kirk, Ayxa
+  Sevilla, Jason McClellan, Zion Burson, Hayley Schatz and others, production
+  `/settings/notifications` → "Before the notification pipeline"). They will not
+  resend. The signed records themselves are intact.
+- **Vars added, Production scope:** `NOTIFY_EMAIL_PROVIDER=resend`;
+  `RESEND_API_KEY` (new Resend key `froot-production`, Sensitive);
+  `NOTIFY_FROM_EMAIL` (same value as Preview, now scoped Production + Preview);
+  `RESEND_WEBHOOK_SECRET` (Sensitive). **`NOTIFY_SANDBOX_ALLOWLIST` deliberately
+  left Preview only** — in production it would block real recipients.
+- **Webhook:** Resend endpoint `https://www.usefroot.com/api/webhooks/resend`
+  created — the first webhook in the Resend workspace. **Staging has none**, so
+  staging rows never show "Delivered".
+- **Redeploy:** the current production deployment redeployed (Vercel "Redeploy of
+  2J43y72Sb", `main` tip `2231bc0`), status Ready.
+- **Toggles at the flip:** pace alerts and milestone emails were switched OFF on
+  production `/settings/notifications` on 2026-10-22, before the flip. Turning
+  them back on is Gary's call.
+- **Evidence (production):** milestone sample "Test — 2 new staff milestones" to
+  `gary@kevajuice.com`, 2026-10-23 19:05 UTC (12:05 PDT) — Recent emails row reads
+  provider **resend**, status **Delivered** (webhook path proven end to end);
+  Resend dashboard Delivered; landed in Inbox, not Junk; header "on behalf of Keva
+  Juice", no "(staging)". The 2026-10-21 and 2026-10-22 test rows read "Dry run —
+  not sent / console" (before the fix).
+- **Not yet proven on production:** a real signed-acknowledgment send (four
+  recipients, four rows, record link opens). Proven on staging 2026-09-20.
+- Follow-up: the silent-console gap is filed as DEBT-120 in `docs/ROADMAP.yaml`
+  (DOCS-NOTIFY-PROD).
+
 ## UNPROMOTED — 2026-10-21 — MS-6: a per-person Milestones switch on the Positions table; "Labor" becomes "Labor Settings"
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at

@@ -4112,6 +4112,11 @@ phases:
     commits: ["1ab1149"]
     title: "Pace alerts — per-org toggle, burned-lock fix (DEBT-105), recipient hygiene ruling"
     notes: >
+      ── RIDER 2026-10-23 (DOCS-NOTIFY-PROD). PREPENDED; NOTHING BELOW IS EDITED. ──
+      2026-10-23: production now sends via Resend — see DEPLOY_LOG "2026-10-23 — PRODUCTION ENVIRONMENT CHANGE: email turned on (Resend vars + webhook) — NOT a promotion".
+      The production env flip this row anticipates happened on 2026-10-23, 33 days
+      after the promotion. Pace alerts were switched OFF on production
+      /settings/notifications on 2026-10-22, before the flip.
       ── RIDER 2026-09-20 (PROMOTION PASS). PREPENDED; NOTHING BELOW IS EDITED. ──
       REACHED MAIN 2026-09-20 in promotion "076ccf8" ("Merge branch 'staging'",
       20:31:24 Pacific - a merge whose parents are "d2b8d79" and "c73d14d").
@@ -7926,6 +7931,12 @@ phases:
         kind on the NOTIFY-6 pipeline (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md
         section 4.7 and 7). Recorded by the NOTIFY-5 docs commit.
     notes: >
+      ── RIDER 2026-10-23 (DOCS-NOTIFY-PROD). PREPENDED; NOTHING BELOW IS EDITED. ──
+      2026-10-23: production now sends via Resend — see DEPLOY_LOG "2026-10-23 — PRODUCTION ENVIRONMENT CHANGE: email turned on (Resend vars + webhook) — NOT a promotion".
+      Ruling 5's premise ("production's NOTIFY_EMAIL_PROVIDER is unset") is no
+      longer true from 2026-10-23. The ruling stands as made. Milestone emails
+      were switched OFF on production /settings/notifications on 2026-10-22,
+      before the flip.
       ── STAGING EVIDENCE 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
       EDITED. ── Staging footer 9a70f52; Neon branch preview/staging
       (br-square-feather-a63z92vz); org cmr54z65v000105jxczpt72w1. The footer
@@ -19951,6 +19962,13 @@ phases:
     commits: ["1c21368", "8a10f8d"]
     title: "Real email delivery — Resend behind src/lib/notify.ts, admin test route"
     notes: >
+      ── RIDER 2026-10-23 (DOCS-NOTIFY-PROD). PREPENDED; NOTHING BELOW IS EDITED. ──
+      2026-10-23: production now sends via Resend — see DEPLOY_LOG "2026-10-23 — PRODUCTION ENVIRONMENT CHANGE: email turned on (Resend vars + webhook) — NOT a promotion".
+      NOTIFY_EMAIL_PROVIDER=resend, RESEND_API_KEY, NOTIFY_FROM_EMAIL and
+      RESEND_WEBHOOK_SECRET are now in the Production scope, and a production
+      Resend endpoint exists. The 2026-09-20 rider below ("no Resend endpoint
+      exists ... unset everywhere") is spent for production. Between 2026-09-20
+      and 2026-10-23 production ran console and sent nothing (see DEBT-120).
       ── RIDER 2026-09-20 (PROMOTION PASS). PREPENDED; NOTHING BELOW IS EDITED. ──
       REACHED MAIN 2026-09-20 in promotion "076ccf8" ("Merge branch 'staging'",
       20:31:24 Pacific - a merge whose parents are "d2b8d79" and "c73d14d").
@@ -20341,7 +20359,20 @@ phases:
         each rewrite it. The mark on a white tile inside the orange bar (the F1
         rider) is the part most worth a real-client look, followed by whether
         the bordered CTA survives Outlook.
+      - >
+        ADDED 2026-10-23 (DOCS-NOTIFY-PROD). STAGING HAS NO RESEND WEBHOOK, so
+        "Delivered" never appears on staging: its send-log rows stay `sent`
+        forever, and that is expected, not a fault. The only Resend endpoint is
+        production's (https://www.usefroot.com/api/webhooks/resend, created
+        2026-10-23). A staging delivery check is the Resend dashboard, or a
+        second endpoint with its own Preview RESEND_WEBHOOK_SECRET.
     notes: >
+      ── RIDER 2026-10-23 (DOCS-NOTIFY-PROD). PREPENDED; NOTHING BELOW IS EDITED. ──
+      2026-10-23: production now sends via Resend — see DEPLOY_LOG "2026-10-23 — PRODUCTION ENVIRONMENT CHANGE: email turned on (Resend vars + webhook) — NOT a promotion".
+      The production endpoint and its own RESEND_WEBHOOK_SECRET now exist, and
+      the webhook is PROVEN END TO END ON PRODUCTION: the 2026-10-23 19:05 UTC
+      milestone sample to gary@kevajuice.com reads resend / Delivered in Recent
+      emails. Staging still has no endpoint (see the `open:` item added today).
       ── RIDER 2026-09-20 (PROMOTION PASS). PREPENDED; NOTHING BELOW IS EDITED. ──
       REACHED MAIN 2026-09-20 in promotion "076ccf8" ("Merge branch 'staging'",
       20:31:24 Pacific - a merge whose parents are "d2b8d79" and "c73d14d").
@@ -21298,6 +21329,15 @@ phases:
         those assume a record exists. Gary's words are the instruction. Check
         the DNS/Resend record before go-live to find out which is true.
     notes: |
+      ── RIDER 2026-10-23 (DOCS-NOTIFY-PROD). PREPENDED; NOTHING BELOW IS EDITED. ──
+      2026-10-23: production now sends via Resend — see DEPLOY_LOG "2026-10-23 — PRODUCTION ENVIRONMENT CHANGE: email turned on (Resend vars + webhook) — NOT a promotion".
+      RECORDED AS DONE by Gary on 2026-10-23: steps 3, 4, 5, 6, 8 and 9 (key
+      `froot-production`, the three vars, the webhook and its secret, the
+      redeploy), and step 13's Delivered row (milestone sample, 19:05 UTC).
+      Steps 1, 2, 7 and 10 are not in the record either way. NOT YET DONE: step
+      14 on production (a real signed-acknowledgment send). Pace alerts and
+      milestone emails were OFF at the flip; turning them on is Gary's call.
+      Status is left as filed; this rider does not flip it.
       FILED 2026-10-18 by Gary's instruction at the NOTIFY-5 PRE-PUSH-CHECK
       (TIER 1, docs only). This is the phase the NOTIFY-3 audit calls GO-LIVE
       (docs/prompts/2026-10-18_NOTIFY-3_AUDIT.md section 7: "Gary-side (no
@@ -32479,6 +32519,10 @@ debt:
       once the provider is "resend" a failed send burns that store's
       one-alert-per-month lock and no email ever goes out
     notes: >
+      ── RIDER 2026-10-23 (DOCS-NOTIFY-PROD). PREPENDED; NOTHING BELOW IS EDITED. ──
+      2026-10-23: production now sends via Resend — see DEPLOY_LOG "2026-10-23 — PRODUCTION ENVIRONMENT CHANGE: email turned on (Resend vars + webhook) — NOT a promotion".
+      "Production remains unset at the time of writing" (correction below) is
+      no longer true from 2026-10-23.
       ── RIDER 2026-09-20 (PROMOTION PASS). PREPENDED; NOTHING BELOW IS EDITED. ──
       IN PRODUCTION 2026-09-20 in promotion "076ccf8". Status flipped
       `in_progress` -> `shipped`, which is what the comment on the status key
@@ -32581,6 +32625,11 @@ debt:
       departed admin matches the pace-alert recipient query forever and appears
       on no Froot screen
     notes: >
+      ── RIDER 2026-10-23 (DOCS-NOTIFY-PROD). PREPENDED; NOTHING BELOW IS EDITED. ──
+      2026-10-23: production now sends via Resend — see DEPLOY_LOG "2026-10-23 — PRODUCTION ENVIRONMENT CHANGE: email turned on (Resend vars + webhook) — NOT a promotion".
+      "production is expected to follow" happened on 2026-10-23, so this gap is
+      live in production for any org that enables pace alerts. Pace alerts were
+      OFF on production at the flip.
       THE ID FILLS A GAP RATHER THAN CONTINUING THE SEQUENCE. Gary, 2026-09-20:
       DEBT-106 was left free when DEBT-97/98's duplicates were renumbered to
       107/108. Confirmed unreferenced before use — no occurrence in any document
@@ -33028,6 +33077,29 @@ debt:
       writeAuditLog call in that route when compConfidential is in the body and
       changes. Touches a permission-gated write — TIER 3.
       RELATED: COMP-1, MS-6.
+
+  - id: DEBT-120
+    status: planned
+    title: >
+      An environment with NOTIFY_EMAIL_PROVIDER unset silently runs console mode,
+      and nothing warns an admin
+    notes: >
+      FILED 2026-10-23 by DOCS-NOTIFY-PROD, on Gary's instruction. THE ID FILLS
+      THE NEXT FREE SLOT (DEBT-119 was the highest; DEBT-120 appears nowhere in
+      docs/, src/, scripts/ or CLAUDE.md). WHAT HAPPENED: NOTIFY-1 / HR-16 / F-5b
+      / NOTIFY-2a/2b/2c reached production in 076ccf8 on 2026-09-20, but every
+      email variable stayed scoped Preview only, so production resolved to
+      console. Production ran 33 days (2026-09-20 to 2026-10-23) composing and
+      logging emails and sending none; signed-acknowledgment emails from at
+      least 2026-10-12 to 2026-10-19 were never delivered and will not resend.
+      The only sign was "Dry run / Logged only" chips deep in Recent emails on
+      /settings/notifications. See DEPLOY_LOG "2026-10-23 — PRODUCTION ENVIRONMENT CHANGE: email turned on (Resend vars + webhook) — NOT a promotion".
+      FIX IDEA FOR LATER (no code now): a banner at the top of
+      /settings/notifications when the resolved provider is console on a
+      production deployment (deliveryMode() in src/lib/notify.ts is the one
+      function that decides); plus a promotion-ritual line to diff Preview vs
+      Production env-var NAMES whenever a promotion adds a new variable.
+      RELATED: NOTIFY-1, NOTIFY-5, NOTIFY-10, HR-16.
 
 rulings:
   - id: R1
