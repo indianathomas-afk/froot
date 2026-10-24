@@ -21760,6 +21760,14 @@ phases:
       # + the commit immediately after 9dda844: docs(NOTIFY-13 PRE-PUSH-CHECK)
       - "6926742"
       # + the commit immediately after 6926742: docs(NOTIFY-13a) — this rider
+      # SHAs added 2026-10-24 by the NOTIFY-13a PRE-PUSH-CHECK (the two
+      # "immediately after" comments above are kept as written): 69cef02 is
+      # docs(NOTIFY-13 PRE-PUSH-CHECK), 877832a is docs(NOTIFY-13a); this
+      # check's own commit is the one immediately after 877832a. Status stays
+      # `staging` — NOTIFY-13 is on origin/staging; 6926742 and 877832a reach
+      # it on Gary's push.
+      - "69cef02"
+      - "877832a"
     blockers:
       - >
         MIGRATION 20261024170855_notify_sched_schedules: applied to DEV by Gary

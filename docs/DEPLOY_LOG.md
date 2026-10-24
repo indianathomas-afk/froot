@@ -34,6 +34,11 @@ No schema, no env var, no new write route. Rollback for `6926742` alone:
 revert it — the card shows "a dayto" again and the sample says "a day" always;
 nothing else depends on it. Staging results so far are on the NOTIFY-13 row.
 
+**Rider 2026-10-24 (NOTIFY-13a PRE-PUSH-CHECK) — SHAs for the rows above.**
+"The commit immediately after `9dda844`" is `69cef02`; "the commit
+immediately after `6926742`" is `877832a`. This check adds one more docs
+commit, the one immediately after `877832a` (SHAs on the NOTIFY-13 row).
+
 **Blast radius: TWO NEW TABLES, ONE CRON REPLACED, TWO NEW WRITE ROUTES, AND THE
 SEND TIMING OF BEHIND-PACE ALERTS AND MILESTONE EMAILS. NO ENV VAR, NO SQUARE
 CALL, NO EXISTING TABLE ALTERED.** What changes:
