@@ -86,6 +86,12 @@ export async function recordEmailAttempt(args: {
   kind: NotificationKind
   action: typeof ACTION_SENT | typeof ACTION_FAILED | typeof ACTION_DRY_RUN
   recipients: string[]
+  /**
+   * NOTIFY-12: why the recipient got it ("role", "extra-user",
+   * "extra-contact"). Only the dispatcher sets it. Lives until NOTIFY-9 stops
+   * this row; NotificationMessage.recipientReasons is the durable copy.
+   */
+  reasons?: string[]
   subject: string
   resendId?: string | null
   error?: string
@@ -99,7 +105,7 @@ export async function recordEmailAttempt(args: {
    */
   notificationMessageId?: string
 }): Promise<void> {
-  const { organizationId, entityId, kind, action, recipients, subject, resendId, error, withheld, notificationMessageId } = args
+  const { organizationId, entityId, kind, action, recipients, reasons, subject, resendId, error, withheld, notificationMessageId } = args
   try {
     await writeAuditLog({
       organizationId,
@@ -116,6 +122,7 @@ export async function recordEmailAttempt(args: {
         // NOTIFY-5: stamped here, like provider, so no caller can forget it.
         mode: currentModeOrNull(),
         recipients,
+        ...(reasons !== undefined ? { reasons } : {}),
         subject,
         ...(resendId !== undefined ? { resendId: resendId ?? null } : {}),
         ...(error ? { error } : {}),

@@ -3,11 +3,15 @@
 // mint and never throws into the signing path. One intent per minted record,
 // dedupeKey = signedRecordId, so a second call can never mail twice.
 //
-// RECIPIENTS ARE ADDRESSES, NOT USERS (HR-16): Organization.hrAckRecipients,
-// read at dispatch time, so an address removed after the signing is not mailed.
-// No capability. The org switch is "the list is non-empty" — the producer skips
-// an empty list without writing anything (F3, 2026-09-20), and a list emptied
-// between signing and send expires the intent.
+// RECIPIENTS ARE THE "ALSO SEND TO" PICKS AND NOTHING ELSE (NOTIFY-12). The
+// role default is no one, so resolveRecipients returns []; the dispatcher
+// merges the active picks (../picks.ts), read at dispatch time, so a pick
+// removed after the signing is not mailed. Organization.hrAckRecipients was
+// copied into picks by migration 20261023200000_notify12_recipients (F1) and
+// is no longer read. No capability. The org switch is still "the list is
+// non-empty", now meaning at least one ACTIVE pick (F12 — HR-16 F3's "no
+// second control" kept): the producer skips without writing anything, and
+// picks emptied between signing and send expire the intent.
 //
 // THE SUBJECT AND TEXT ARE HR-16's, BYTE FOR BYTE, moved from
 // hr-ack-notification.ts. The payload carries the snapshots that file derived
@@ -40,12 +44,14 @@ export function hrAckSubject(p: HrAckPayload): string {
 export const hrAckKind = defineNotification<HrAckPayload>({
   kind: "hr.ack",
   label: "Signed acknowledgment",
-  enabled: (org) => org.hrAckRecipients.length > 0,
+  roleDefault: { summary: "No one by default. Add recipients below to turn these on.", usersLink: false },
+  extras: true,
+  enabled: (org) => (org.activePicks["hr.ack"] ?? 0) > 0,
   freshnessMinutes: 7 * 24 * 60,
   batch: "per-intent",
 
-  async resolveRecipients(_intent, org) {
-    return org.hrAckRecipients.map((email) => ({ email }))
+  async resolveRecipients() {
+    return []
   },
 
   render(p, org) {

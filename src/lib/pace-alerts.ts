@@ -181,7 +181,11 @@ export async function processPaceAlertForStore(
       ...base,
       pacePct,
       alerted: false,
-      reason: r.candidates === 0 ? "no admin/manager recipients" : "every admin/manager has behind-pace alerts denied",
+      // NOTIFY-12: candidates now include "Also send to" extras.
+      reason:
+        r.candidates === 0
+          ? "no recipients (no admin/manager, no extras)"
+          : "every admin/manager and extra has behind-pace alerts denied",
     }
   }
 

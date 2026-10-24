@@ -42,6 +42,9 @@ export type TestPayload = {
 export const testKind = defineNotification<TestPayload>({
   kind: "test",
   label: "Test",
+  roleDefault: { summary: "Only the admin who pressed the button.", usersLink: false },
+  // Never: the whole security model is "it can only reach the person clicking".
+  extras: false,
   enabled: () => true,
   freshnessMinutes: 15,
   batch: "per-intent",

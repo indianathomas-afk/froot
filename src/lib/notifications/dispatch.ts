@@ -4,9 +4,17 @@
 //   producer ──► enqueueNotification ──► NotificationIntent (the ledger)
 //                                             │
 //   inline / daily cron / hourly sweep ──► dispatchNotifications
-//        freshness → org switch → recipients (resolver → can() → exclude →
-//        lower-case de-dup → drop anyone with a `sent` delivery, P6) → mode per
-//        recipient → render → ONE MESSAGE PER RECIPIENT → record
+//        freshness → org switch → recipients (resolver + extras → can() →
+//        exclude → lower-case de-dup → drop anyone with a `sent` delivery, P6)
+//        → mode per recipient → render → ONE MESSAGE PER RECIPIENT → record
+//
+// THE EXTRAS (NOTIFY-12). A kind's resolver is its ROLE DEFAULT. A kind with
+// `extras: true` also gets the org's active "Also send to" picks (./picks.ts),
+// appended AFTER the role default and filtered by the same can() and exclude,
+// so a denial still wins (F3) and an org with no picks resolves exactly the
+// list it resolved before. Each recipient carries why it qualified; the
+// de-dup merges reasons rather than keeping the first, and the message row
+// records them (recipientReasons).
 //
 // A PRODUCER NEVER SENDS. It records that something happened and calls
 // dispatch; this file alone decides who hears about it and whether mail leaves.
@@ -82,6 +90,7 @@ import {
   type NotificationKind,
 } from "@/lib/notification-log"
 import { can, grantsFrom, overridesFrom } from "@/lib/permissions"
+import { countActivePicks, resolveExtras } from "./picks"
 import {
   getKind,
   type IntentState,
@@ -90,6 +99,7 @@ import {
   type NotificationKindDef,
   type NotificationOrg,
   type Rendered,
+  type RecipientReason,
   type ResolvedRecipient,
 } from "./registry"
 
@@ -356,7 +366,6 @@ const ORG_SELECT = {
   name: true,
   timezone: true,
   paceAlertsEnabled: true,
-  hrAckRecipients: true,
   clerkOrgId: true,
   activeModules: true,
   milestonesEnabled: true,
@@ -369,7 +378,11 @@ async function loadOrg(organizationId: string): Promise<NotificationOrg | null> 
   const row = await prisma.organization.findUnique({ where: { id: organizationId }, select: ORG_SELECT })
   if (!row) return null
   const { milestoneSettings, ...org } = row
-  return { ...org, checklistMilestonesEnabled: milestoneSettings?.checklistMilestonesEnabled ?? false }
+  return {
+    ...org,
+    checklistMilestonesEnabled: milestoneSettings?.checklistMilestonesEnabled ?? false,
+    activePicks: await countActivePicks(organizationId),
+  }
 }
 
 function toKindIntent(intent: IntentRow): KindIntent<unknown> {
@@ -384,14 +397,26 @@ function toKindIntent(intent: IntentRow): KindIntent<unknown> {
   }
 }
 
-/** Resolver → can() → exclude → lower-cased de-dup. */
+/** Merge `add` into `into`, keeping first-seen order. */
+function mergeReasons(into: RecipientReason[], add: RecipientReason[] | undefined): RecipientReason[] {
+  for (const x of add ?? []) if (!into.includes(x)) into.push(x)
+  return into
+}
+
+/**
+ * Resolver (reason "role") + extras → can() → exclude → lower-cased de-dup.
+ * The first surviving entry for an address keeps its place and its user; a
+ * later surviving entry for the same address only adds its reasons.
+ */
 async function eligibleRecipients(
   def: NotificationKindDef<unknown>,
   ki: KindIntent<unknown>,
   org: NotificationOrg
 ): Promise<{ candidates: number; eligible: ResolvedRecipient[] }> {
-  const resolved = await def.resolveRecipients(ki, org)
-  const seen = new Set<string>()
+  const role = (await def.resolveRecipients(ki, org)).map((r) => ({ ...r, reasons: r.reasons ?? (["role"] as RecipientReason[]) }))
+  const extras = def.extras ? await resolveExtras(org.id, def.kind, def.capability) : []
+  const resolved = [...role, ...extras]
+  const seen = new Map<string, ResolvedRecipient>()
   const eligible: ResolvedRecipient[] = []
   for (const r of resolved) {
     const key = r.email.trim().toLowerCase()
@@ -411,9 +436,14 @@ async function eligibleRecipients(
       continue
     }
     if (def.exclude && (await def.exclude(ki, r))) continue
-    if (seen.has(key)) continue
-    seen.add(key)
-    eligible.push({ ...r, email: key })
+    const first = seen.get(key)
+    if (first) {
+      mergeReasons(first.reasons!, r.reasons)
+      continue
+    }
+    const kept = { ...r, email: key, reasons: mergeReasons([], r.reasons) }
+    seen.set(key, kept)
+    eligible.push(kept)
   }
   return { candidates: resolved.length, eligible }
 }
@@ -516,6 +546,7 @@ async function dispatchOne(
   // NOTIFY-11. A dry run was handed to no provider; its row names the provider
   // only when the sandbox allowlist is what held it back.
   const dryRunProvider = transport.mode === "sandbox" ? provider : "console"
+  const reasonsOf = new Map(eligible.map((r) => [r.email, r.reasons ?? []]))
   const record = (args: {
     to: string
     mode: DeliveryMode
@@ -526,6 +557,7 @@ async function dispatchOne(
   }) =>
     writeMessage({
       intent,
+      reasons: reasonsOf.get(args.to) ?? [],
       provider: args.mode === "dry-run" ? dryRunProvider : provider,
       withheld: transport.mode === "sandbox" ? result.withheld : undefined,
       ...args,
@@ -790,6 +822,12 @@ async function dispatchGrouped(
       byRecipient.set(r.email, slot)
     }
   }
+  // NOTIFY-12: a summary's reasons are the union across the intents it covers.
+  const reasonsFor = (email: string, covers: GroupEntry[]): RecipientReason[] => {
+    const out: RecipientReason[] = []
+    for (const e of covers) mergeReasons(out, e.eligible.find((r) => r.email === email)?.reasons)
+    return out
+  }
 
   const modeFor = (email: string): DeliveryMode =>
     transport.mode === "live"
@@ -834,6 +872,7 @@ async function dispatchGrouped(
     writeMessage({
       intent: covers[0].intent,
       covers: covers.map((c) => c.intent),
+      reasons: reasonsFor(args.to, covers),
       provider: args.mode === "dry-run" ? dryRunProvider : provider,
       withheld: withheldTotal,
       ...args,
@@ -923,6 +962,8 @@ async function writeMessage(args: {
    * Absent for a per-intent kind, whose row is exactly what it was.
    */
   covers?: IntentRow[]
+  /** NOTIFY-12: why `to` got it — NotificationMessage.recipientReasons. */
+  reasons: RecipientReason[]
   provider: string
   to: string
   mode: DeliveryMode | "unknown"
@@ -932,7 +973,7 @@ async function writeMessage(args: {
   error?: string
   withheld?: number
 }): Promise<string | null> {
-  const { intent, covers, to, mode, status, subject, providerMessageId, error, withheld } = args
+  const { intent, covers, reasons, to, mode, status, subject, providerMessageId, error, withheld } = args
   let messageId: string | null = null
   try {
     const row = await prisma.notificationMessage.create({
@@ -949,6 +990,7 @@ async function writeMessage(args: {
         error: error ?? null,
         intentId: covers ? null : intent.id,
         ...(covers ? { intentIds: covers.map((c) => c.id) } : {}),
+        recipientReasons: reasons,
       },
       select: { id: true },
     })
@@ -964,6 +1006,7 @@ async function writeMessage(args: {
     kind: intent.kind as NotificationKind,
     action: ACTION_FOR[status],
     recipients: [to],
+    reasons,
     subject,
     ...(status === "sent" ? { resendId: providerMessageId ?? null } : {}),
     ...(error ? { error } : {}),
@@ -991,7 +1034,7 @@ export async function recordUndispatchable(intentId: string, error: string): Pro
     const provider = emailProviderName()
     for (const r of eligible) {
       const subject = safeRender(def, intent.payload, org, r.email).subject
-      await writeMessage({ intent, provider, to: r.email, mode: "unknown", status: "failed", subject, error })
+      await writeMessage({ intent, reasons: r.reasons ?? [], provider, to: r.email, mode: "unknown", status: "failed", subject, error })
     }
     await prisma.notificationIntent.update({ where: { id: intentId }, data: { lastError: error } })
     return eligible.map((r) => r.email)

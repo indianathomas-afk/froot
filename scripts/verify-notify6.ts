@@ -168,6 +168,22 @@ function eachDate(from: string, to: string): string[] {
   return out
 }
 
+// NOTIFY-12: hr.ack's recipients are now its "Also send to" picks — the column
+// these fixtures used to seed (Organization.hrAckRecipients) is no longer read.
+// Replaces the org's hr.ack picks with one contact pick per address, IN ORDER
+// (picks resolve oldest first, as the column did).
+async function setAckPicks(organizationId: string, list: string[]) {
+  await prisma.notificationRecipientPick.deleteMany({ where: { organizationId, kind: "hr.ack" } })
+  for (const email of list) {
+    const contact = await prisma.notificationContact.upsert({
+      where: { organizationId_email: { organizationId, email } },
+      create: { organizationId, name: email, email },
+      update: { archivedAt: null },
+    })
+    await prisma.notificationRecipientPick.create({ data: { organizationId, kind: "hr.ack", contactId: contact.id } })
+  }
+}
+
 async function main() {
   const tag = Math.random().toString(36).slice(2, 8)
   const today = localDateStr(new Date(), TZ)
@@ -189,12 +205,13 @@ async function main() {
           name: `NOTIFY-6 Fixture Org ${x} (safe to delete)`,
           activeModules: ["hr"],
           paceAlertsEnabled: true,
-          hrAckRecipients: x === "A" ? [A, B, C] : [OTHER],
         },
       })
     )
   )
   const orgIds = [orgA.id, orgB.id]
+  await setAckPicks(orgA.id, [A, B, C])
+  await setAckPicks(orgB.id, [OTHER])
   // The branch is a product of the same connection as every row below
   // (CLAUDE.md § Database Evidence — belt and braces). Null off Neon.
   const [{ branch }] = await prisma.$queryRaw<{ branch: string | null }[]>`SELECT current_setting('neon.branch_id', true) AS branch`
@@ -612,11 +629,11 @@ async function main() {
       check("G freshness: a test dispatched inline is sent, not expired (W3)", (await intentOf(freshTest!.intentId)).state === "sent")
 
       const switchedOff = await ackIntent()
-      await prisma.organization.update({ where: { id: orgA.id }, data: { hrAckRecipients: [] } })
+      await setAckPicks(orgA.id, [])
       const cap2 = capture()
       await dispatch(switchedOff, transport("live", cap2))
       check("G org switch: hr.ack list emptied → expired, nothing sent", (await intentOf(switchedOff)).state === "expired" && cap2.attempts.length === 0)
-      await prisma.organization.update({ where: { id: orgA.id }, data: { hrAckRecipients: [A, B, C] } })
+      await setAckPicks(orgA.id, [A, B, C])
 
       const pace = await enqueueNotification({
         organizationId: orgA.id, kind: "pace.alert", dedupeKey: `notify6-paceoff-${tag}`, entityId: null, eventAt: new Date(),
@@ -679,10 +696,10 @@ async function main() {
           where: { organizationId_kind_dedupeKey: { organizationId: orgA.id, kind: "hr.ack", dedupeKey: record.id } },
         })
 
-      await prisma.organization.update({ where: { id: orgA.id }, data: { hrAckRecipients: [] } })
+      await setAckPicks(orgA.id, [])
       const skip = await sendAckNotification(record.id)
       check("I ack: empty list → skipped, and NO intent written (F3, row-less)", skip.status === "skipped" && (await ackIntentRow()) === null)
-      await prisma.organization.update({ where: { id: orgA.id }, data: { hrAckRecipients: [A, B, C] } })
+      await setAckPicks(orgA.id, [A, B, C])
 
       setEnv({ ...LIVE_ENV })
       resendFails = true

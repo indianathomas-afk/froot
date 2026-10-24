@@ -34,6 +34,9 @@ export type PaceAlertPayload = {
 export const paceAlertKind = defineNotification<PaceAlertPayload>({
   kind: "pace.alert",
   label: "Behind-pace alert",
+  roleDefault: { summary: "Every admin, and the store's assigned managers.", usersLink: true },
+  // F4: an extra gets every store's alert; per-store extras are deferred.
+  extras: true,
   capability: "notify.pace.receive",
   enabled: (org) => org.paceAlertsEnabled,
   // The producer re-enqueues daily while the store stays behind, refreshing

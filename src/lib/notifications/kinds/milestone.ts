@@ -98,6 +98,11 @@ export function renderMilestoneSummary(payloads: MilestonePayload[], org: Pick<N
 export const milestoneKind = defineNotification<MilestonePayload>({
   kind: MILESTONE_KIND,
   label: "Milestone reached",
+  roleDefault: { summary: "Every admin, and the managers of the employee's stores.", usersLink: true },
+  // NOTIFY-12 F11 (Gary, 2026-10-23: "no extras on milestone emails"). The
+  // store-scoped boundary above stays the whole recipient list; picks for this
+  // kind are never read.
+  extras: false,
   capability: "notify.milestone.receive",
   // F10 org switch AND Milestones itself on; a checklist milestone also needs
   // F13's switch, so turning it off expires queued checklist intents only.

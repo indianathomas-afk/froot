@@ -1,6 +1,8 @@
 // ─── HR-16: signed-acknowledgment completion email ───────────────────────────
-// One email per MINTED HrSignedRecord, to the addresses the org chose in
-// Organization.hrAckRecipients. The first real consumer of NOTIFY-1.
+// One email per MINTED HrSignedRecord, to the org's "Also send to" picks for
+// "hr.ack" (NOTIFY-12; until then Organization.hrAckRecipients, which the
+// migration copied into picks and nothing reads now). The first real consumer
+// of NOTIFY-1.
 //
 // THE ONE RULE THIS FILE EXISTS TO KEEP: the employee's signing completes
 // identically whether email is up, down, or unconfigured. Everything below is
@@ -26,6 +28,7 @@ import {
   resolveTransport,
 } from "@/lib/notifications/dispatch"
 import type { HrAckPayload } from "@/lib/notifications/kinds/hr-ack"
+import { countActivePicks, resolveExtras } from "@/lib/notifications/picks"
 
 export type AckNotificationOutcome =
   | { status: "sent"; recipients: string[]; id?: string }
@@ -77,7 +80,7 @@ export async function sendAckNotification(signedRecordId: string): Promise<AckNo
         select: {
           versionNumber: true,
           hrDocument: {
-            select: { title: true, organization: { select: { id: true, name: true, hrAckRecipients: true } } },
+            select: { title: true, organization: { select: { id: true, name: true } } },
           },
         },
       },
@@ -92,8 +95,10 @@ export async function sendAckNotification(signedRecordId: string): Promise<AckNo
 
   // F3 (Gary, 2026-09-20): SILENT SKIP WITH A NAMED LOG LINE, AND STILL
   // ROW-LESS. NOTIFY-6 keeps it before the enqueue, so an org that does not use
-  // the feature writes no intent either — nothing was attempted.
-  if (org.hrAckRecipients.length === 0) {
+  // the feature writes no intent either — nothing was attempted. NOTIFY-12 F12:
+  // "configured" now means at least one ACTIVE pick — the same count the kind's
+  // switch reads, so the two cannot disagree.
+  if (((await countActivePicks(org.id))["hr.ack"] ?? 0) === 0) {
     console.log(`[hr-ack] record=${signedRecordId} org=${org.id} skipped: no recipients configured`)
     return { status: "skipped", reason: "no recipients configured" }
   }
@@ -150,7 +155,10 @@ export async function sendAckNotification(signedRecordId: string): Promise<AckNo
     eventAt: record.completedAt,
     payload,
   })
-  if (!enq) return { status: "failed", recipients: org.hrAckRecipients, error: "could not record the notification" }
+  if (!enq) {
+    const recipients = (await resolveExtras(org.id, "hr.ack").catch(() => [])).map((p) => p.email)
+    return { status: "failed", recipients, error: "could not record the notification" }
+  }
   if (enq.state !== "queued" && enq.state !== "partial") {
     return { status: "skipped", reason: `already ${enq.state}` }
   }
