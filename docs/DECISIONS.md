@@ -7,6 +7,11 @@ decisions too.)
 
 ## 2026-10-24 — NOTIFY-SCHED (NOTIFY-13): per-email-type send schedules (Gary)
 
+**RATIFIED BY GARY, 2026-10-24, at the NOTIFY-13 PRE-PUSH-CHECK, as written.**
+The entry was printed verbatim and put to him as "Ratify as written, or give
+me your wording." His reply, recorded exactly: *"Ratify as written."* The
+draft line below is kept as written and is now spent.
+
 **DRAFT — AWAITS RATIFICATION AT THE NOTIFY-13 PRE-PUSH-CHECK.** Audit:
 `docs/prompts/NOTIFY-SCHED_AUDIT.md` (forks F1–F16, each with a lean). Work
 commit `aca15ad`.

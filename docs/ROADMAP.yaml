@@ -21746,11 +21746,18 @@ phases:
     # `in_progress` at aca15ad, set 2026-10-24 by the NOTIFY-SCHED build
     # session (TIER 3). Not pushed — Claude never pushes. PRE-PUSH-CHECK owns
     # the flip to `staging`.
-    status: in_progress
+    # `in_progress` -> `staging` 2026-10-24 by the NOTIFY-13 PRE-PUSH-CHECK, in
+    # the commit immediately after 9dda844 (its own SHA cannot be written
+    # inside itself). NOT pushed when the check ran — Gary runs the push. The
+    # "Not pushed" comment above is kept as written. DECISIONS 2026-10-24
+    # NOTIFY-SCHED ratified by Gary at this check: "Ratify as written."
+    status: staging
     title: "Per-email-type send schedules — local hour, days and daily/weekly/monthly for pace alerts and milestone emails"
     commits:
       - "aca15ad"
       # + the docs commit immediately after aca15ad: docs(NOTIFY-SCHED)
+      - "9dda844"
+      # + the commit immediately after 9dda844: docs(NOTIFY-13 PRE-PUSH-CHECK)
     blockers:
       - >
         MIGRATION 20261024170855_notify_sched_schedules: applied to DEV by Gary
@@ -21801,6 +21808,8 @@ phases:
       milestones daily or weekly only; F13 wording follows the schedule,
       default unchanged; F15 reset deletes the row; F16 weekly = one day." and
       "Keep dayOfMonth." DECISIONS 2026-10-24 (draft) carries the choices.
+      [Rider, NOTIFY-13 PRE-PUSH-CHECK 2026-10-24: that entry is now RATIFIED
+      — Gary: "Ratify as written." The "(draft)" above is kept as written.]
       WHAT. An ADMIN picks, per scheduled email type on
       /settings/notifications, the local send hour, the days and the
       frequency. NotificationSchedule holds one row per org and type; NO ROW =

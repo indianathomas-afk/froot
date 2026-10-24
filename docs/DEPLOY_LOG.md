@@ -2,6 +2,89 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-24 — NOTIFY-13: per-email-type send schedules (local hour, days, daily/weekly/monthly) and an hourly scheduled-emails cron
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+NOTIFY-13 carries a MIGRATION (additive, no backfill) and CHANGES THE CRON
+SCHEDULE in `vercel.json`, so a staging → main merge applies the migration to
+production through `prisma migrate deploy` in the Vercel build and replaces
+production's daily pace-alert cron with an hourly one.
+
+**Payload: two NOTIFY-13 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `aca15ad`, `9dda844`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `aca15ad` | NOTIFY-SCHED work: `NotificationSchedule`, `NotificationScheduleRun`, migration `20261024170855_notify_sched_schedules`, `src/lib/notifications/schedule.ts`, `src/lib/scheduled-emails.ts`, `/api/cron/scheduled-emails`, `PUT/DELETE /api/notify/schedule/[kind]`, the Schedule section on the pace and milestone cards, `src/lib/time-zones.ts`, `vercel.json`, `scripts/verify-notify-sched.ts` |
+| `9dda844` | `docs(NOTIFY-SCHED)`: NOTIFY-13 row (`in_progress`), DECISIONS draft, MIGRATIONS entry, PRE-PUSH-CHECK R1 rider, MS-6 staging record, the session prompt and audit |
+| the commit immediately after `9dda844` | `docs(NOTIFY-13 PRE-PUSH-CHECK)`: this entry, DECISIONS ratified (Gary: "Ratify as written."), row to `staging`, a dated rider in `docs/FORECASTING.md` (pace-alert cron moved to the hourly runner) |
+
+**Blast radius: TWO NEW TABLES, ONE CRON REPLACED, TWO NEW WRITE ROUTES, AND THE
+SEND TIMING OF BEHIND-PACE ALERTS AND MILESTONE EMAILS. NO ENV VAR, NO SQUARE
+CALL, NO EXISTING TABLE ALTERED.** What changes:
+
+- **Schema:** `CREATE TABLE "NotificationSchedule"` (unique `organizationId` +
+  `kind`) and `"NotificationScheduleRun"` (unique `organizationId` + `kind` +
+  `scopeKey` + `slotDate`), both cascading with `Organization`. No backfill;
+  `PaceAlertLog` untouched.
+- **Cron (`vercel.json`):** `/api/cron/scheduled-emails` at `5 * * * *`
+  REPLACES `/api/cron/pace-alerts` at `0 15 * * *`. `/api/cron/pace-alerts`
+  still exists, unregistered, and runs the same runner; its JSON now reports
+  `storesConsidered` where it used to report `stores`. Other crons unchanged.
+- **No schedule row = today's behaviour** (F6): pace monthly, milestones daily,
+  first default slot 15:05 UTC (was 15:00), and the slot stays open for the rest
+  of that UTC day, so an hour that is skipped or runs out of time still gets
+  finished (C2).
+- **With a row:** pace runs per store in `Store.timezone`, hours 5 AM–8 PM local,
+  daily / weekly (one day) / monthly; milestones run per org in the row's own
+  zone, daily or weekly. Pace send locks become
+  `{storeId}:{YYYY-MM | YYYY-Www | YYYY-MM-DD}` (monthly key unchanged). The
+  `PaceAlertLog` "already alerted" gate now applies to the MONTHLY period only
+  (C6).
+- **New writes, ADMIN only:** `PUT /api/notify/schedule/[kind]` (upsert) and
+  `DELETE /api/notify/schedule/[kind]` ("Reset to default" deletes the row,
+  F15). 403 for non-admins; 404 for a kind with no schedule, and for
+  `milestone.reached` where HR does not exist.
+- **notify-dispatch (`:15`):** comment only; F14 — retries may go out outside
+  the chosen hour.
+
+**PROMOTION TIMING (from the row).** If production's old `0 15 * * *` run has
+already fired on the promotion day, the first hourly run evaluates that day
+again: pace cannot re-alert (intent lock), but a milestone reached in between
+could get a second email that day. Promote before 15:00 UTC, or accept that.
+
+**THE MIGRATION AND THE CODE SHIP TOGETHER.** The runner and the settings page
+read the new tables; code without the migration fails every scheduled run and
+the schedule reads on `/settings/notifications`.
+
+**Rollback:** revert `aca15ad`. That restores `/api/cron/pace-alerts` at
+`0 15 * * *` in `vercel.json` and the old runner. **The two tables and any saved
+schedule rows stay** — schema is additive-only; reverted code never reads them,
+so every org falls back to 15:00 UTC, pace monthly, milestones daily. Do not
+hand-edit `_prisma_migrations`.
+
+**Migration: applied to DEV ONLY, by Gary** (no apply time given; his words are
+in the `docs/MIGRATIONS.md` NOTIFY-13 entry). Before and after the push, Gary
+checks `_prisma_migrations` on staging `br-square-feather-a63z92vz` in the Neon
+console — `20261024170855_notify_sched_schedules` absent before; present after
+with `finished_at` set and `rolled_back_at` null. Same check on production
+after promotion. No parity query: there is no backfill.
+
+**Evidence: dev only, never seen signed in as an ADMIN.** As reported by the
+build session, on dev `br-broad-wave-a6vpjdw0` (endpoint
+`ep-late-water-a6k53nv2`): `verify-notify-sched` 43/0 with three negative
+controls each failing their target checks; `verify-f5-polish`, `verify-ms4b`,
+`verify-notify6`, `verify-notify5`, `verify-ms6`, `verify-notify12` re-run
+green. **This check did not re-run the fixtures**; it ran `npm run build`
+only. Rulings ratified by Gary 2026-10-24 (`docs/DECISIONS.md` 2026-10-24 —
+NOTIFY-SCHED). The staging test list (eight steps, hand-firing
+`/api/cron/scheduled-emails` with the Preview `CRON_SECRET`, since Vercel crons
+fire on production only) is in the NOTIFY-13 row's blockers and runs after the
+push, behind the staging-SHA precondition.
+
 ## 9542b14 — 2026-10-24 — NOTIFY-12: per-email-type "Also send to" recipients from an org address book; hrAckRecipients retired
 
 **PROMOTED 2026-10-24 in merge `9542b14`** (`9542b149d16e8fa0b7b87b34550df975498d5b1e`,

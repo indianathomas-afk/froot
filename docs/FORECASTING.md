@@ -105,6 +105,18 @@ load and the nightly cron covers the last 3 days.
   the store's assigned managers — **at most one alert per store per month**
   (`PaceAlertLog` unique row is the idempotency lock, migration
   `20260710220000_f5_pace_alerts_audit_index`).
+  - **Rider, 2026-10-24 (NOTIFY-13 PRE-PUSH-CHECK, on Gary's instruction): the
+    schedule above is SUPERSEDED by NOTIFY-SCHED (`aca15ad`).** The pace check
+    now runs from the hourly `GET /api/cron/scheduled-emails` at `5 * * * *`
+    (`src/lib/scheduled-emails.ts`), which replaced the `0 15 * * *` entry in
+    `vercel.json`; `/api/cron/pace-alerts` still exists, unregistered, and
+    delegates to the same runner. With no `NotificationSchedule` row an org
+    behaves as before — first slot 15:05 UTC, at most one alert per store per
+    month. An ADMIN can set a store-local send hour (5 AM–8 PM), days and
+    daily / weekly / monthly on /settings/notifications; daily and weekly
+    lock per day / ISO week, and the `PaceAlertLog` gate then applies to the
+    monthly period only. Rulings: `docs/DECISIONS.md` 2026-10-24 —
+    NOTIFY-SCHED. The text above is kept as written.
   - **THE THRESHOLD IS PER ORG (NOTIFY-2a, 2026-09-20).**
     `Organization.paceAlertThresholdPct Int?`, migration
     `20260920210000_notify2a_pace_threshold`, set at
