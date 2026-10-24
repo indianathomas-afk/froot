@@ -28,7 +28,7 @@
 import { prisma } from "@/lib/prisma"
 import { renderEmail, type EmailRow } from "@/lib/email-template"
 import { milestonesActive } from "@/lib/milestones-access"
-import { defineNotification, type NotificationOrg } from "../define"
+import { defineNotification, type NotificationOrg, type ScheduleFrequency } from "../define"
 
 export const MILESTONE_KIND = "milestone.reached"
 
@@ -56,6 +56,22 @@ export type MilestonePayload = {
   employeeMessage: string
   /** Store-local "YYYY-MM-DD" — the day it was reached, never "today" (ruling 2). */
   reachedOn: string
+  /**
+   * NOTIFY-SCHED: the schedule's frequency when this intent was last enqueued.
+   * Absent on pre-NOTIFY-SCHED intents, with no schedule row, and on samples;
+   * absent and "daily" render today's footer byte for byte (F6, F13).
+   */
+  frequency?: ScheduleFrequency
+}
+
+/**
+ * F13 (Gary, 2026-10-24): "wording follows the schedule, default unchanged".
+ * F12 offers daily or weekly only, so there is no monthly sentence.
+ */
+export function milestoneLimitLine(frequency: ScheduleFrequency | undefined): string {
+  return frequency === "weekly"
+    ? "You get at most one milestone email a week."
+    : "You get at most one milestone email a day."
 }
 
 function appUrl(): string {
@@ -78,6 +94,10 @@ function milestoneRows(p: MilestonePayload, base: string): EmailRow[] {
 
 export function renderMilestoneSummary(payloads: MilestonePayload[], org: Pick<NotificationOrg, "name">) {
   const base = appUrl()
+  // Payloads arrive oldest first; the newest one carries the current schedule.
+  // A sweep retry can group intents enqueued under two schedules, and the
+  // newest is the one the admin last chose.
+  const frequency = payloads[payloads.length - 1]?.frequency
   const one = payloads.length === 1 ? payloads[0] : null
   const subject = one ? `${one.staffName} reached ${one.title}` : `${payloads.length} new staff milestones`
   const heading = one
@@ -89,7 +109,7 @@ export function renderMilestoneSummary(payloads: MilestonePayload[], org: Pick<N
     intro: "Open a person's Milestones tab to see the full message and copy it.",
     rows: payloads.flatMap((p) => milestoneRows(p, base)),
     cta: { label: "Open staff milestones", url: `${base}/staff/milestones` },
-    footer: `You get at most one milestone email a day. Sent by USE Froot on behalf of ${org.name}. This address does not accept replies.`,
+    footer: `${milestoneLimitLine(frequency)} Sent by USE Froot on behalf of ${org.name}. This address does not accept replies.`,
     appUrl: base,
   })
   return { subject, text, html }
@@ -112,6 +132,17 @@ export const milestoneKind = defineNotification<MilestonePayload>({
     (intent.payload.milestoneKind !== "checklist" || org.checklistMilestonesEnabled),
   freshnessMinutes: MILESTONE_FRESHNESS_MINUTES,
   batch: "per-recipient-daily",
+  // NOTIFY-SCHED. One slot per org, in the schedule row's timeZone (F3): a
+  // summary crosses stores, so no store's zone can own it. F12: daily or weekly
+  // only — ruling 2's 7-day window and the 8-day freshness above stay exactly
+  // as worded, and a monthly cadence would break them (audit M2).
+  schedule: {
+    scope: "org",
+    frequencies: ["daily", "weekly"],
+    monthly: "day-of-month",
+    hours: { min: 0, max: 23 },
+    legacyUtcHour: 15,
+  },
 
   async resolveRecipients(intent) {
     const p = intent.payload

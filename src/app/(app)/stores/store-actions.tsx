@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
+import { TIME_ZONE_OPTIONS } from "@/lib/time-zones"
 
 export type StoreForEdit = {
   id: string
@@ -39,13 +40,9 @@ type SquareLocation = {
   alreadyImported: boolean
 }
 
-const TIMEZONES = [
-  { value: "America/Los_Angeles", label: "Pacific (PT)" },
-  { value: "America/Denver", label: "Mountain (MT)" },
-  { value: "America/Phoenix", label: "Arizona (MST)" },
-  { value: "America/Chicago", label: "Central (CT)" },
-  { value: "America/New_York", label: "Eastern (ET)" },
-]
+// NOTIFY-SCHED: the list moved to src/lib/time-zones.ts, shared with the
+// schedule picker on /settings/notifications.
+const TIMEZONES = TIME_ZONE_OPTIONS
 
 const NOT_LINKED = "__not_linked__"
 

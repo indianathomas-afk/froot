@@ -12,6 +12,11 @@ import { dispatchNotifications, resolveTransport } from "@/lib/notifications/dis
 // timeout must not eat the day-close budget, and a day-close failure must not
 // stop email retries. :15, so it runs after pace's own inline dispatch at
 // 15:00 and off the two hourly crons at :00.
+// NOTIFY-SCHED: pace's inline dispatch now happens in the hourly
+// /api/cron/scheduled-emails at :05 (15:05 UTC with no schedule row), so :15
+// still follows it. F14 (approved 2026-10-24): this sweep retries backed-off
+// intents at any hour — a retry completes a send already decided at the chosen
+// hour. It still never makes a grouped first send (C3).
 //
 // THE SWEEP NEVER MAKES A SANDBOX SEND, first or repeat (R2, Gary's words: "the
 // hourly retry never sends in sandbox") — the dispatcher enforces it via

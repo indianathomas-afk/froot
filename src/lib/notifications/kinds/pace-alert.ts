@@ -8,13 +8,15 @@
 // THE SUBJECT AND TEXT ARE F-5's, BYTE FOR BYTE. They moved here from
 // pace-alerts.ts unchanged; verify-f5-polish.ts pins every fixed byte. Anything
 // that edits these lines is changing the wording of a live alert.
+// NOTIFY-SCHED (F13): the one "at most one alert per store per month" sentence
+// now comes from paceAlertLimitLine(), and is byte-identical whenever the
+// intent carries no frequency or "monthly" — every send with no schedule row.
 
-import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { dbDate } from "@/lib/reports"
 import { round2 } from "@/lib/pacing"
 import { renderEmail } from "@/lib/email-template"
-import { defineNotification } from "../define"
+import { defineNotification, type ScheduleFrequency } from "../define"
 
 export type PaceAlertPayload = {
   storeId: string
@@ -29,6 +31,23 @@ export type PaceAlertPayload = {
   projected: number
   pacePct: number
   thresholdPct: number
+  /**
+   * NOTIFY-SCHED: the schedule's frequency when this intent was enqueued — the
+   * send-lock period in its dedupeKey. ABSENT ON EVERY PRE-NOTIFY-SCHED INTENT
+   * and on every run with no schedule row; absent and "monthly" render the F-5
+   * text byte for byte (F6, F13).
+   */
+  frequency?: ScheduleFrequency
+}
+
+/**
+ * F13 (Gary, 2026-10-24): "wording follows the schedule, default unchanged".
+ * The monthly sentence is F-5's, pinned by verify-f5-polish.ts.
+ */
+export function paceAlertLimitLine(frequency: ScheduleFrequency | undefined): string {
+  if (frequency === "daily") return "You'll get at most one alert per store per day."
+  if (frequency === "weekly") return "You'll get at most one alert per store per week."
+  return "You'll get at most one alert per store per month."
 }
 
 export const paceAlertKind = defineNotification<PaceAlertPayload>({
@@ -39,6 +58,16 @@ export const paceAlertKind = defineNotification<PaceAlertPayload>({
   extras: true,
   capability: "notify.pace.receive",
   enabled: (org) => org.paceAlertsEnabled,
+  // NOTIFY-SCHED. Per store, in Store.timezone. F10: 5 AM–8 PM local. F11:
+  // monthly keeps today's behaviour — evaluated every allowed day, at most one
+  // alert per store-month.
+  schedule: {
+    scope: "store",
+    frequencies: ["daily", "weekly", "monthly"],
+    monthly: "every-allowed-day",
+    hours: { min: 5, max: 20 },
+    legacyUtcHour: 15,
+  },
   // The producer re-enqueues daily while the store stays behind, refreshing
   // eventAt; a queued intent a day stale means the store recovered or the cron
   // stopped, and either way yesterday's figures are not worth mailing.
@@ -91,7 +120,7 @@ export const paceAlertKind = defineNotification<PaceAlertPayload>({
       `Month to date: ${mtdLine}`,
       projectedLine !== null ? `Projected month end: ${projectedLine}` : null,
       ``,
-      `Alert threshold: ${p.thresholdPct}% of MTD goal. You'll get at most one alert per store per month.`,
+      `Alert threshold: ${p.thresholdPct}% of MTD goal. ${paceAlertLimitLine(p.frequency)}`,
       `Dashboard: ${appUrl}/dashboard`,
     ]
       .filter((l) => l !== null)
@@ -107,7 +136,7 @@ export const paceAlertKind = defineNotification<PaceAlertPayload>({
         { label: "Alert threshold", value: `${p.thresholdPct}% of MTD goal` },
       ],
       cta: { label: "Open the dashboard", url: `${appUrl}/dashboard` },
-      footer: `You'll get at most one alert per store per month. Sent by USE Froot on behalf of ${orgName}. This address does not accept replies.`,
+      footer: `${paceAlertLimitLine(p.frequency)} Sent by USE Froot on behalf of ${orgName}. This address does not accept replies.`,
       appUrl,
       text,
     })
@@ -120,21 +149,30 @@ export const paceAlertKind = defineNotification<PaceAlertPayload>({
   // delivery. A unique violation means a pre-pipeline row already exists for
   // the store-month, which the producer gate should have stopped — tolerated,
   // never thrown: the email has already gone.
+  //
+  // NOTIFY-SCHED: under a daily or weekly schedule the store-month row already
+  // exists from the month's first alert, so a conflict becomes routine — the
+  // row records that the store was alerted this month, not every alert. Hence
+  // ON CONFLICT DO NOTHING (skipDuplicates) rather than create() + catch
+  // P2002, which would print a prisma:error line for every such send. The
+  // outcome on conflict is unchanged: nothing written, nothing thrown.
   async onSent(intent, sentTo) {
     const p = intent.payload
     try {
-      await prisma.paceAlertLog.create({
-        data: {
-          organizationId: intent.organizationId,
-          storeId: p.storeId,
-          month: dbDate(p.monthStart),
-          pacePct: round2(p.pacePct),
-          thresholdPct: p.thresholdPct,
-          recipients: sentTo,
-        },
+      await prisma.paceAlertLog.createMany({
+        data: [
+          {
+            organizationId: intent.organizationId,
+            storeId: p.storeId,
+            month: dbDate(p.monthStart),
+            pacePct: round2(p.pacePct),
+            thresholdPct: p.thresholdPct,
+            recipients: sentTo,
+          },
+        ],
+        skipDuplicates: true,
       })
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return
       console.error(`[pace-alerts] intent=${intent.id} store=${p.storeId}: PaceAlertLog parallel write failed: ${e}`)
     }
   },

@@ -1,9 +1,16 @@
-import { prisma } from "@/lib/prisma"
-import { NextResponse } from "next/server"
-import { paceThresholdPct, processPaceAlertForStore, type PaceAlertResult } from "@/lib/pace-alerts"
-import { deliveryMode, getEmailSender } from "@/lib/notify"
-import { processMilestoneAlerts, type MilestoneOrgResult } from "@/lib/milestone-alerts"
+import { scheduledEmailsCron } from "@/lib/scheduled-emails"
 
+// ── NOTIFY-SCHED, 2026-10-24: UNREGISTERED, AND NOW A DELEGATE ───────────────
+// This path is no longer in vercel.json. The hourly /api/cron/scheduled-emails
+// ("5 * * * *") replaced its "0 15 * * *" entry (F7), and the pace loop and the
+// milestone leg that lived here moved to runScheduledEmails() in
+// src/lib/scheduled-emails.ts — store query, threshold resolution and the
+// per-store / per-leg try/catch unchanged. The route stays so a hand-fired curl
+// of the old path still works, and it RESPECTS SCHEDULES: it runs the same
+// evaluator, so it evaluates only slots that are due and not yet run.
+// The response is the runner's; `stores` became `storesConsidered`.
+// THE COMMENT BELOW IS KEPT AS WRITTEN AND DESCRIBES THE ROUTE BEFORE THIS
+// CHANGE.
 // GET /api/cron/pace-alerts — once daily, alert admins + assigned managers
 // when a store falls below its org's alert threshold (NOTIFY-2a:
 // Organization.paceAlertThresholdPct, else PACE_ALERT_THRESHOLD_PCT, else 90%)
@@ -18,148 +25,5 @@ import { processMilestoneAlerts, type MilestoneOrgResult } from "@/lib/milestone
 export const maxDuration = 300
 
 export async function GET(req: Request) {
-  const secret = process.env.CRON_SECRET
-  if (!secret) {
-    return NextResponse.json({ error: "CRON_SECRET is not configured" }, { status: 500 })
-  }
-  if (req.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  // The deployment-wide fallback, resolved once. NOTIFY-2a made the threshold
-  // PER ORG but did NOT retire this (F1, Gary 2026-09-20): a null column means
-  // fall back to here, so an org that has never opened the settings page is
-  // evaluated at exactly the number it was evaluated at before this phase.
-  const fallbackPct = paceThresholdPct()
-  const sender = getEmailSender()
-  // NOTIFY-5. Resolved once, here, beside the sender and before the loop — an
-  // unknown provider fails the whole run with zero rows written, exactly as a
-  // bad sender config already does. Every store in this run uses this mode.
-  const mode = deliveryMode()
-
-  // Only stores that could have an MTD goal: active, with DailyGoal rows this
-  // month (UTC month start is close enough — per-store timezones are resolved
-  // inside processPaceAlertForStore).
-  //
-  // F-5b: AND whose org has pace alerts switched on. THE GATE IS IN THIS QUERY
-  // RATHER THAN AN EARLY RETURN INSIDE processPaceAlertForStore, and that is the
-  // load-bearing choice: a disabled org's store is never evaluated at all, so
-  // nothing reads its goal, nothing writes a PaceAlertLog row, and its
-  // one-alert-per-month lock cannot be burned while the org is dark. A per-store
-  // early return placed after the lock write would do the opposite.
-  const utcMonthStart = new Date(`${new Date().toISOString().slice(0, 7)}-01T00:00:00.000Z`)
-  const storeFilter = { isActive: true, dailyGoals: { some: { date: { gte: utcMonthStart } } } }
-  const [stores, enabledOrgs, skippedDisabled] = await Promise.all([
-    prisma.store.findMany({
-      where: { ...storeFilter, organization: { paceAlertsEnabled: true } },
-    }),
-    // NOTIFY-2a. THE THRESHOLD LOOKUP AND THE orgsEnabled COUNT ARE THE SAME
-    // QUERY — this findMany REPLACES the organization.count() that used to sit
-    // here, so resolving a threshold per org costs no extra round trip.
-    //
-    // A MAP RATHER THAN A RELATION ON THE STORE QUERY, deliberately.
-    // processPaceAlertForStore is typed `store: Store`, so including
-    // `organization` above would widen that parameter for every caller
-    // (fixture included) to carry a payload the function does not read. The
-    // org id is already on the Store row; this keeps the seam where it was.
-    prisma.organization.findMany({
-      where: { paceAlertsEnabled: true },
-      select: { id: true, paceAlertThresholdPct: true },
-    }),
-    // The same population the filter above excluded — counted rather than
-    // inferred, so the log line distinguishes "the gate suppressed 12 stores"
-    // from "no store qualified this month". Those look identical otherwise and
-    // the day after the production env flip is exactly when someone will need
-    // to tell them apart.
-    prisma.store.count({
-      where: { ...storeFilter, organization: { paceAlertsEnabled: false } },
-    }),
-  ])
-
-  const thresholdByOrg = new Map(enabledOrgs.map((o) => [o.id, o.paceAlertThresholdPct]))
-
-  const results: PaceAlertResult[] = []
-  // What each org was actually evaluated at, for the run log and the response.
-  // Keyed by org rather than by store because the threshold IS per org — a
-  // per-store line would repeat the same number nine times for Keva.
-  const thresholdsUsed = new Map<string, { thresholdPct: number; source: "org" | "env" }>()
-  for (const store of stores) {
-    // An org in `stores` is always in `thresholdByOrg` — both come from the
-    // same `paceAlertsEnabled: true` predicate in the same Promise.all — but
-    // `?? null` rather than `!` so a future divergence falls back to the env
-    // value instead of throwing mid-loop and losing the stores after it.
-    const orgThreshold = thresholdByOrg.get(store.organizationId) ?? null
-    const thresholdPct = orgThreshold ?? fallbackPct
-    thresholdsUsed.set(store.organizationId, {
-      thresholdPct,
-      source: orgThreshold === null ? "env" : "org",
-    })
-    try {
-      results.push(await processPaceAlertForStore(store, { thresholdPct, sender, mode }))
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "pace alert failed"
-      results.push({ storeId: store.id, storeName: store.name, pacePct: null, alerted: false, reason: `error: ${msg.slice(0, 200)}` })
-      console.error(`[cron:pace-alerts] store=${store.id}: ${msg}`)
-    }
-  }
-
-  // ORGS ARE NAMED BY ID, never by name (CLAUDE.md § Database Evidence): five
-  // rows on staging answer to "Microsoft", so a name in a run log identifies
-  // nothing. "env" marks an org falling back rather than setting its own, which
-  // is the distinction someone reads this line to make.
-  const thresholds = [...thresholdsUsed.entries()].map(
-    ([organizationId, t]) => ({ organizationId, ...t })
-  )
-  const thresholdSummary =
-    thresholds.length === 0
-      ? `no org evaluated (fallback ${fallbackPct}%)`
-      : thresholds.map((t) => `${t.organizationId}=${t.thresholdPct}%(${t.source})`).join(" ")
-
-  // MS-4b — THE MILESTONE LEG (F4: once a day, inside this cron). Its own
-  // function, its own result key, its own try/catch: a failure in either leg
-  // never stops the other, and the pace loop above has already finished. Same
-  // sender and mode as the pace loop, so one run cannot mix modes.
-  let milestones: MilestoneOrgResult[] | { error: string }
-  try {
-    milestones = await processMilestoneAlerts({ sender, mode })
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "milestone alerts failed"
-    console.error(`[cron:pace-alerts] milestone leg: ${msg}`)
-    milestones = { error: msg.slice(0, 200) }
-  }
-  if (Array.isArray(milestones)) {
-    // ORGS BY ID (CLAUDE.md § Database Evidence).
-    console.log(
-      `[cron:pace-alerts] milestones mode=${mode} ${milestones.length} org(s)` +
-        (milestones.length
-          ? ": " + milestones.map((m) => `${m.organizationId} queued=${m.queued} known=${m.known} sent=${m.sent} failed=${m.failed} dryRun=${m.dryRun}${m.error ? ` error=${m.error}` : ""}`).join("; ")
-          : "")
-    )
-  }
-
-  const alerted = results.filter((r) => r.alerted).length
-  console.log(
-    `[cron:pace-alerts] mode=${mode} ${enabledOrgs.length} orgs enabled, ${stores.length} stores evaluated, ` +
-      `${alerted} alerted, ${skippedDisabled} skipped (org disabled) (thresholds ${thresholdSummary})`
-  )
-  return NextResponse.json({
-    ok: true,
-    // NOTIFY-5: "live" | "sandbox" | "dry-run". In dry-run, `alerted` counts
-    // nothing and each would-be alert reads reason "dry-run".
-    mode,
-    // NOTIFY-2a CHANGED THIS SHAPE: `thresholdPct` was one scalar for the whole
-    // run and cannot be, now that the number is per org. The fallback is
-    // reported separately so a run where every org falls back is still
-    // readable. Nothing consumes this response programmatically — it is read in
-    // the Vercel function log — but the change is named here rather than made
-    // silently.
-    fallbackThresholdPct: fallbackPct,
-    thresholds,
-    orgsEnabled: enabledOrgs.length,
-    stores: stores.length,
-    alerted,
-    skippedDisabled,
-    results,
-    milestones,
-  })
+  return scheduledEmailsCron(req, "pace-alerts")
 }
