@@ -199,6 +199,8 @@ model Organization {
   notificationMessages          NotificationMessage[]
   notificationContacts          NotificationContact[]
   notificationRecipientPicks    NotificationRecipientPick[]
+  notificationSchedules         NotificationSchedule[]
+  notificationScheduleRuns      NotificationScheduleRun[]
   hrDocuments                   HrDocument[]
   hrDocumentCategories          HrDocumentCategory[]
   hrReturnEvents                HrReturnEvent[]
@@ -1101,6 +1103,78 @@ model NotificationRecipientPick {
   @@unique([organizationId, kind, userId])
   @@unique([organizationId, kind, contactId])
   @@index([organizationId, kind])
+}
+
+// ─── NOTIFY-SCHED: per-kind send schedules ───────────────────────────────────
+// docs/prompts/NOTIFY-SCHED_AUDIT.md; leans F1–F16 approved by Gary 2026-10-24
+// with these specifics: F10 pace hours 5 AM–8 PM local; F11 monthly pace =
+// today's behaviour; F12 milestones daily or weekly only; F13 wording follows
+// the schedule, default unchanged; F15 reset deletes the row; F16 weekly = one
+// day. `kind` is a registry key, not an FK (kinds live in code); only kinds
+// whose definition carries `schedule` may have a row — enforced at the write
+// route, like the picks' cap.
+
+// One row per (org, scheduled kind). NO ROW = THE KIND'S LEGACY BEHAVIOUR,
+// byte for byte (F6): fire at 15:00 UTC, pace monthly with daily evaluation,
+// milestones daily. "Reset to default" DELETES the row (F15) — it is config,
+// not history.
+//
+// Ranges and per-kind rules are the write route's (Prisma models no CHECK):
+// sendHour 0–23, and 5–20 for pace (F10); daysOfWeek ISO 1 (Mon) … 7 (Sun),
+// exactly one entry when weekly (F16); dayOfMonth 1–28, monthly digest kinds
+// only (F5) — no kind offers that yet (F11 keeps pace monthly as today; F12
+// keeps milestones daily/weekly), so it stays null until NOTIFY-4.
+model NotificationSchedule {
+  id              String   @id @default(cuid())
+  organizationId  String
+  kind            String
+  /// "daily" | "weekly" | "monthly", from the kind's `schedule.frequencies`.
+  frequency       String
+  /// Local wall-clock hour, 0–23.
+  sendHour        Int
+  /// ISO weekdays 1 (Mon) … 7 (Sun). Daily: every listed day. Weekly: exactly
+  /// one (F16). Pace monthly: the days it is evaluated on (F11).
+  daysOfWeek      Int[]    @default([1, 2, 3, 4, 5, 6, 7])
+  /// 1–28, monthly digest kinds only (F5). Null for every kind today.
+  dayOfMonth      Int?
+  /// IANA zone for ORG-SCOPED kinds (F3), pre-filled at first save with the
+  /// org's most common active store zone. Null for store-scoped kinds, which
+  /// read Store.timezone. Deliberately NOT Organization.timezone (DEBT-70a,
+  /// BUG-15 — audit § 4).
+  timeZone        String?
+  /// Who last saved it. A plain id, not an FK: the row must survive the user.
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // CASCADE ON ORG — the NotificationContact precedent: no app path deletes an
+  // Organization, only fixture teardowns do.
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, kind])
+}
+
+// "THIS SLOT HAS BEEN EVALUATED" — the run marker, NOT a send record. Claimed
+// by insert BEFORE the producer runs; P2002 means another run already has the
+// slot. It is what keeps an hourly evaluator to one evaluation per slot: no
+// re-check of an on-pace store every hour after its send hour (F8 catch-up),
+// and no second milestone email in a day (audit M1). The SEND lock is still
+// the NotificationIntent dedupeKey (audit § 9); this table never says whether
+// mail went out.
+model NotificationScheduleRun {
+  id             String   @id @default(cuid())
+  organizationId String
+  kind           String
+  /// storeId for store-scoped kinds, "org" for org-scoped ones.
+  scopeKey       String
+  /// The slot's LOCAL date, "YYYY-MM-DD", in the zone that decided it. A date
+  /// string, not an instant (the CAL-2a discipline).
+  slotDate       String
+  claimedAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, kind, scopeKey, slotDate])
 }
 
 // ─── ENG-1: ENGAGEMENT TRACKING ──────────────────────────────────────────────

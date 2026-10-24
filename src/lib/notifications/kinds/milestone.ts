@@ -28,7 +28,7 @@
 import { prisma } from "@/lib/prisma"
 import { renderEmail, type EmailRow } from "@/lib/email-template"
 import { milestonesActive } from "@/lib/milestones-access"
-import { defineNotification, type NotificationOrg } from "../define"
+import { defineNotification, type NotificationOrg, type ScheduleFrequency } from "../define"
 
 export const MILESTONE_KIND = "milestone.reached"
 
@@ -56,6 +56,39 @@ export type MilestonePayload = {
   employeeMessage: string
   /** Store-local "YYYY-MM-DD" — the day it was reached, never "today" (ruling 2). */
   reachedOn: string
+  /**
+   * NOTIFY-SCHED: the schedule's frequency when this intent was last enqueued.
+   * Absent on pre-NOTIFY-SCHED intents, with no schedule row, and on samples;
+   * absent and "daily" render today's footer byte for byte (F6, F13).
+   */
+  frequency?: ScheduleFrequency
+}
+
+/**
+ * F13 (Gary, 2026-10-24): "wording follows the schedule, default unchanged".
+ * F12 offers daily or weekly only, so there is no monthly sentence.
+ */
+export function milestoneLimitLine(frequency: ScheduleFrequency | undefined): string {
+  return frequency === "weekly"
+    ? "You get at most one milestone email a week."
+    : "You get at most one milestone email a day."
+}
+
+/**
+ * The Milestone emails card's description on /settings/notifications, built
+ * here as ONE string rather than an `{expression} text` JSX join: NOTIFY-13a
+ * found the compiler dropped the space after the expression when it began a
+ * line ("a dayto admins", from aca15ad). With no schedule row it is
+ * byte-for-byte the pre-NOTIFY-SCHED sentence (F13); scripts/verify-notify-sched.ts
+ * asserts all three.
+ */
+export function milestoneCardText(frequency: ScheduleFrequency | undefined): string {
+  const cadence = frequency === "weekly" ? "At most one email a week" : "At most one email a day"
+  return (
+    `${cadence} to admins and each store's managers, listing staff in their stores who reached a ` +
+    "tenure or checklist milestone. Froot never emails the employee. Milestones reached more than " +
+    "7 days earlier are not emailed."
+  )
 }
 
 function appUrl(): string {
@@ -78,6 +111,10 @@ function milestoneRows(p: MilestonePayload, base: string): EmailRow[] {
 
 export function renderMilestoneSummary(payloads: MilestonePayload[], org: Pick<NotificationOrg, "name">) {
   const base = appUrl()
+  // Payloads arrive oldest first; the newest one carries the current schedule.
+  // A sweep retry can group intents enqueued under two schedules, and the
+  // newest is the one the admin last chose.
+  const frequency = payloads[payloads.length - 1]?.frequency
   const one = payloads.length === 1 ? payloads[0] : null
   const subject = one ? `${one.staffName} reached ${one.title}` : `${payloads.length} new staff milestones`
   const heading = one
@@ -89,7 +126,7 @@ export function renderMilestoneSummary(payloads: MilestonePayload[], org: Pick<N
     intro: "Open a person's Milestones tab to see the full message and copy it.",
     rows: payloads.flatMap((p) => milestoneRows(p, base)),
     cta: { label: "Open staff milestones", url: `${base}/staff/milestones` },
-    footer: `You get at most one milestone email a day. Sent by USE Froot on behalf of ${org.name}. This address does not accept replies.`,
+    footer: `${milestoneLimitLine(frequency)} Sent by USE Froot on behalf of ${org.name}. This address does not accept replies.`,
     appUrl: base,
   })
   return { subject, text, html }
@@ -112,6 +149,17 @@ export const milestoneKind = defineNotification<MilestonePayload>({
     (intent.payload.milestoneKind !== "checklist" || org.checklistMilestonesEnabled),
   freshnessMinutes: MILESTONE_FRESHNESS_MINUTES,
   batch: "per-recipient-daily",
+  // NOTIFY-SCHED. One slot per org, in the schedule row's timeZone (F3): a
+  // summary crosses stores, so no store's zone can own it. F12: daily or weekly
+  // only — ruling 2's 7-day window and the 8-day freshness above stay exactly
+  // as worded, and a monthly cadence would break them (audit M2).
+  schedule: {
+    scope: "org",
+    frequencies: ["daily", "weekly"],
+    monthly: "day-of-month",
+    hours: { min: 0, max: 23 },
+    legacyUtcHour: 15,
+  },
 
   async resolveRecipients(intent) {
     const p = intent.payload
@@ -176,7 +224,10 @@ export const milestoneKind = defineNotification<MilestonePayload>({
   },
 
   // Fictional people only — a sample must never name a real employee.
-  sample: () => [
+  // NOTIFY-13a: `frequency` is the org's SAVED milestone schedule, read by the
+  // test route, so the sample's footer matches the real emails (C5). Undefined
+  // (no row) renders today's footer, as before.
+  sample: (_org, { frequency } = {}) => [
     {
       staffMemberId: "sample-1",
       staffName: "Sample Person",
@@ -188,6 +239,7 @@ export const milestoneKind = defineNotification<MilestonePayload>({
       recognition: "A card from the team and a shout-out at the next meeting.",
       employeeMessage: "Happy one year! Thank you for everything you do.",
       reachedOn: "2026-01-15",
+      frequency,
     },
     {
       staffMemberId: "sample-2",
@@ -200,6 +252,7 @@ export const milestoneKind = defineNotification<MilestonePayload>({
       recognition: "Pick the playlist for a shift.",
       employeeMessage: "250 tasks done — that is a lot of opening and closing. Thank you!",
       reachedOn: "2026-01-15",
+      frequency,
     },
   ],
 })

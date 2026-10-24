@@ -37,6 +37,12 @@ found / OK-or-DRIFT)
   `grep -c "^## "` before and after to prove no prior entry was clobbered.
   This is the UM-3 / CAL-1 shape. It commits unpromoted and is stamped with
   the merge SHA at promotion, on `main`, after the merge.
+  RIDER 2026-10-24 (NOTIFY-SCHED docs commit, on Gary's instruction):
+  "on `main`" above is SUPERSEDED by R1 (CLAUDE.md § Git Rules, 2026-10-24) —
+  every commit goes on `staging`, promotion docs passes included. The
+  merge-SHA stamp is a normal `staging` commit that rides the next
+  promotion; it is never committed on `main`. The sentence above is kept as
+  written.
   Ratified by Gary in chat, 2026-09-18. The heredoc version made the entry
   depend on a human running a command in the right shell at the right moment;
   when the promotion template was run end to end on 2026-09-18 that moment was

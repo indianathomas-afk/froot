@@ -1519,6 +1519,16 @@ the work commit (`1bc01cf`).
 
 ## 2026-10-21 — `20261022040811_ms6_milestone_eligible` (MS-6)
 
+**STAGING APPLY RECORDED — rider added 2026-10-24 by NOTIFY-SCHED (Gary's
+instruction in the NOTIFY-SCHED prompt). The "APPLIED TO DEV ONLY" text below
+is kept as written.**
+
+| Branch | Applied | By |
+|---|---|---|
+| dev | see below | Gary, `npx prisma migrate deploy` |
+| staging (`br-square-feather`) | 2026-10-22 04:58:40 UTC (21:58:40 PDT, 2026-10-21) | Vercel build (`prisma migrate deploy`) |
+| production | not separately confirmed | — |
+
 **APPLIED TO DEV ONLY, by Gary.** His report, recorded exactly: *"Migration
 applied to dev. Go."* The session then ran `migrate diff
 --from-config-datasource --to-schema prisma/schema.prisma --script` against
@@ -1553,6 +1563,19 @@ NULL third state.
 the work commit (`9d363c1`).
 
 ## 2026-10-23 — `20261023200000_notify12_recipients` (NOTIFY-12)
+
+**APPLIED TO ALL THREE BRANCHES — rider added 2026-10-24 by
+DOCS-CLEANUP-NOTIFY12; the "APPLIED TO DEV ONLY" text below is kept as written
+and is now spent.**
+
+| Branch | Applied | By | Parity query |
+|---|---|---|---|
+| dev | 2026-10-23 22:35:10 UTC (15:35:10 PDT) | Gary, `npx prisma migrate deploy` from `froot/` | 0 rows |
+| staging | 2026-10-24 | Vercel build (`prisma migrate deploy`), staging deploy of Gary's push (tested on build `8648a2a`) | 0 rows |
+| production | 2026-10-24 | Vercel build (`prisma migrate deploy`), production deploy of merge `9542b14` | 0 rows |
+
+The parity query is the one recorded below. Staging and production readings are
+Gary's, 2026-10-24.
 
 **APPLIED TO DEV ONLY, by Gary.** His report, recorded exactly: *"I applied
 the migration to dev at 22:35 UTC with migrate deploy from froot/. The parity
@@ -1643,3 +1666,41 @@ address in the column would show there as "column only" although the backfill
 skips blanks by design. The check re-ran both, read-only, on dev
 (`neon.branch_id` = `br-broad-wave-a6vpjdw0`) on 2026-10-24: **0 rows each**
 (two hr.ack picks on the branch at the time).
+
+## 2026-10-24 — `20261024170855_notify_sched_schedules` (NOTIFY-SCHED, row NOTIFY-13)
+
+**APPLIED TO DEV ONLY, by Gary.** His report, recorded exactly: *"I applied
+20261024170855_notify_sched_schedules to dev (ep-late-water-a6k53nv2) with
+migrate deploy from froot/."* No apply time was given. The build session then
+ran `migrate diff --from-config-datasource --to-schema prisma/schema.prisma
+--script` against dev, which returned `-- This is an empty migration.`, with
+`.env`'s endpoint `ep-late-water-a6k53nv2` (dev). Staging and production get
+the migration through `prisma migrate deploy` in the Vercel build, on Gary's
+push.
+
+Timestamp note: the folder name is the UTC instant of generation
+(`2026-10-24 17:08:55 UTC` = `10:08:55 PDT`).
+
+Prisma commands for this migration: `format`, `validate`, `migrate diff`
+(three times: the level check before generating, generating this file, and the
+level check after Gary's apply). `npm run build` also ran `prisma generate`.
+Gary ran `migrate deploy`.
+
+| Statement | Kind |
+|---|---|
+| `CREATE TABLE "NotificationSchedule"` + unique (`organizationId`, `kind`) | additive |
+| `CREATE TABLE "NotificationScheduleRun"` + unique (`organizationId`, `kind`, `scopeKey`, `slotDate`) | additive |
+| Foreign keys: both → `Organization` ON DELETE CASCADE | additive |
+
+**Why.** NOTIFY-SCHED (`docs/prompts/NOTIFY-SCHED_AUDIT.md` § 9): one schedule
+row per org and scheduled email type (no row = today's behaviour), and a
+"slot evaluated" marker so an hourly runner evaluates each slot once.
+`dayOfMonth` is nullable and unused by any kind today (Gary: "Keep
+dayOfMonth.").
+
+**No existing table altered, nothing dropped, no backfill.** `PaceAlertLog` is
+untouched.
+
+**Fixture:** `scripts/verify-notify-sched.ts`, 43 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
+the work commit (`aca15ad`).

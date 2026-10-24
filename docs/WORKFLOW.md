@@ -23,6 +23,14 @@ git push origin staging       # → Vercel auto-deploys the staging URL
 
 Test it at froot-git-staging-….vercel.app.
 
+**PUSH ONLY AFTER PRE-PUSH-CHECK REPORTS READY** (added 2026-10-24,
+DOCS-CLEANUP-NOTIFY12). The check writes its own commit — the DEPLOY_LOG entry
+and the row flip to `staging` — so a push taken before the check reports ready
+leaves that commit behind. It happened again with `8fba214` (NOTIFY-12): Gary
+pushed after `8648a2a`, the check's commit reached production inside merge
+`9542b14` and staging only on the merge-back. Docs only that time; the rule is
+that the push waits for "ready".
+
 **VERCEL CRON DOES NOT FIRE ON PREVIEW DEPLOYMENTS, so "the cron ran on staging"
 is never something you wait for — it is something you do.** Staging is a preview
 deployment; Vercel only runs the schedules in `vercel.json` against production.
@@ -65,6 +73,16 @@ git push origin main          # → Vercel auto-deploys www.usefroot.com
 git checkout staging          # go back to staging for your next work
 ```
 
+> **⚠ SUPERSEDED IN PART 2026-10-24 — R1 (Gary, 2026-10-23/24; `CLAUDE.md`
+> § Git Rules → Workflow rules R1–R4).** Every commit goes on `staging`, docs
+> passes included; **never commit on `main`.** The `git add` / `git commit` of
+> the DEPLOY_LOG entry and ROADMAP flip ON `main`, between the merge and the
+> push, no longer happens: that stamp is a normal `staging` commit, written after
+> the merge, that rides the NEXT promotion. After every promotion `main` is
+> merged back into `staging` (fast-forward) and pushed. The last docs commit
+> made on `main` was `cd62c36` (2026-10-23). The block above and the prose
+> below are kept as written; where they say "commit on `main`", R1 wins.
+
 **`branch.main.mergeoptions --no-ff` is set in this repo's config** (2026-09-19),
 so a fast-forward of `main` is not possible from this machine even if the flag is
 dropped. The `--no-ff` on the merge line above is belt-and-braces, not the only
@@ -80,7 +98,9 @@ step that does not happen. (Found 2026-08-07, on the first promotion run under
 this section.)
 
 **Write the `docs/DEPLOY_LOG.md` entry between the merge and the push — it is a
-step of the promotion, not a thing remembered afterwards.** The merge commit
+step of the promotion, not a thing remembered afterwards.** *(Rider 2026-10-24,
+R1: the entry is still a step of the promotion, but it is committed on
+`staging`, not on `main` — see the superseded note above.)* The merge commit
 from the line above is what you cite in it: date, merge SHA, what the promotion
 carried, and the rollback line. Committing that entry on `main` before pushing
 means the log and the code reach production together; an entry deferred until
@@ -143,6 +163,11 @@ The shape:
 3. **read the generated SQL** before it touches anything
 4. `prisma db execute` applies it to the dev DB, `prisma migrate resolve --applied`
    records it in the ledger
+   *(Superseded — `CLAUDE.md` § Database: Gary applies with `npx prisma
+   migrate deploy`; Claude never applies. Rider 2026-10-24, R2/R3: apply
+   instructions come only from Gary's planning chat, and begin with
+   `cd /Users/garythomas/Claude_Projects/Froot/froot` and `pwd`, never the
+   `froot` alias alone.)*
 5. `prisma generate`
 6. commit the migration folder **with** the code that uses it
 

@@ -28,6 +28,14 @@
 // milestone whose count has since dropped (MS-4a: counts go down) is not
 // re-announced; it ages out. A sent one stays sent whatever the count does.
 //
+// NOTIFY-SCHED: NO LONGER CALLED FROM /api/cron/pace-alerts DIRECTLY. The
+// hourly runner (src/lib/scheduled-emails.ts) calls it once per org whose slot
+// is due — 15:00 UTC with no schedule row, as before, or the org's chosen local
+// hour and day — with that org's id, and a run marker keeps it to ONE run per
+// org per slot, which is what still makes "one email per person per day" hold
+// (audit M1). `frequency` only reaches the payload, for the footer (F13). The
+// 7-day window below is unchanged: F12 offers daily and weekly only.
+//
 // F13: with "Checklist milestones" off, no checklist intent is written at all —
 // neither queued nor known. Turning it on later behaves like any switch-on:
 // the last 7 days send, older ones are recorded known.
@@ -49,6 +57,7 @@ import { milestonesActive } from "@/lib/milestones-access"
 import type { DeliveryMode, EmailSender } from "@/lib/notify"
 import { dispatchNotifications, enqueueNotification, recordKnownNotification } from "@/lib/notifications/dispatch"
 import { MILESTONE_KIND, type MilestonePayload } from "@/lib/notifications/kinds/milestone"
+import type { ScheduleFrequency } from "@/lib/notifications/define"
 
 /** Ruling 2's window, in store-local days. More than this → `known`. */
 export const MILESTONE_SEND_WINDOW_DAYS = 7
@@ -77,8 +86,10 @@ export async function processMilestoneAlerts(opts: {
   sender: EmailSender
   mode: DeliveryMode
   now?: Date
-  /** Fixtures scope to their own org. */
+  /** Fixtures scope to their own org; the hourly runner passes the due org. */
   organizationId?: string
+  /** NOTIFY-SCHED: the org's schedule frequency; absent with no schedule row. */
+  frequency?: ScheduleFrequency
 }): Promise<MilestoneOrgResult[]> {
   const now = opts.now ?? new Date()
   const orgs = await prisma.organization.findMany({
@@ -101,7 +112,7 @@ export async function processMilestoneAlerts(opts: {
 
 async function processOrg(
   org: { id: string; timezone: string },
-  opts: { sender: EmailSender; mode: DeliveryMode },
+  opts: { sender: EmailSender; mode: DeliveryMode; frequency?: ScheduleFrequency },
   now: Date
 ): Promise<MilestoneOrgResult> {
   const result: MilestoneOrgResult = {
@@ -203,6 +214,8 @@ async function processOrg(
         staffName: member.displayName,
         storeName: primaryStoreName(member),
         ...r,
+        // Absent with no schedule row: the pre-NOTIFY-SCHED payload exactly.
+        ...(opts.frequency ? { frequency: opts.frequency } : {}),
       }
       const args = {
         organizationId: org.id,

@@ -7,6 +7,8 @@ import { localDateStr, dbDate } from "@/lib/reports"
 import type { DeliveryMode, EmailSender } from "@/lib/notify"
 import { dispatchNotifications, enqueueNotification } from "@/lib/notifications/dispatch"
 import type { PaceAlertPayload } from "@/lib/notifications/kinds/pace-alert"
+import type { ScheduleFrequency } from "@/lib/notifications/define"
+import { periodKey } from "@/lib/notifications/schedule"
 
 // ─── Behind-pace alerts (Phase F-5) ──────────────────────────────────────────
 // A store is "behind pace" when MTD actual ÷ MTD goal drops below the
@@ -24,6 +26,14 @@ import type { PaceAlertPayload } from "@/lib/notifications/kinds/pace-alert"
 // subject and text byte for byte — lives in src/lib/notifications/kinds/
 // pace-alert.ts, which also writes PaceAlertLog in parallel when the intent
 // becomes sent (one release; NOTIFY-9 stops it).
+//
+// NOTIFY-SCHED: the caller may pass the store's schedule frequency. It sets
+// the SEND-LOCK PERIOD only (F4): monthly — or no frequency at all, which is
+// every run with no schedule row — keeps the dedupeKey "{storeId}:{YYYY-MM}"
+// and every reason string byte for byte; weekly is "{storeId}:{YYYY-Www}" and
+// daily "{storeId}:{YYYY-MM-DD}", both from the store-local TODAY. WHEN the
+// store is evaluated is the hourly runner's (src/lib/scheduled-emails.ts), not
+// this file's.
 
 export const DEFAULT_PACE_THRESHOLD_PCT = 90
 
@@ -68,12 +78,16 @@ export async function processPaceAlertForStore(
   // defaulted from the environment on purpose: verify-f5-polish.ts asserts
   // live behaviour, and a default would silently turn it into a dry-run test on
   // any machine without NOTIFY_EMAIL_PROVIDER set.
-  opts: { thresholdPct: number; sender: EmailSender; mode: DeliveryMode; now?: Date }
+  opts: { thresholdPct: number; sender: EmailSender; mode: DeliveryMode; now?: Date; frequency?: ScheduleFrequency }
 ): Promise<PaceAlertResult> {
   const base = { storeId: store.id, storeName: store.name }
   const now = opts.now ?? new Date()
   const today = localDateStr(now, store.timezone)
   const asOf = addDaysStr(today, -1) // last complete day
+  // NOTIFY-SCHED. Monthly and "no schedule" are one path, and it is the
+  // pre-NOTIFY-SCHED path exactly.
+  const monthly = opts.frequency === undefined || opts.frequency === "monthly"
+  const periodWord = monthly ? "month" : opts.frequency === "weekly" ? "week" : "day"
   if (asOf.slice(0, 7) !== today.slice(0, 7)) {
     return { ...base, pacePct: null, alerted: false, reason: "month just started" }
   }
@@ -96,9 +110,17 @@ export async function processPaceAlertForStore(
   // would be enqueued fresh and alerted a second time. It also keeps honouring
   // locks burned before NOTIFY-5. NOTIFY-9, which stops the PaceAlertLog write,
   // must move this gate onto the intent state in the same change.
-  const already = await prisma.paceAlertLog.findUnique({
-    where: { storeId_month: { storeId: store.id, month: dbDate(mStart) } },
-  })
+  //
+  // NOTIFY-SCHED (audit P1): MONTHLY ONLY. The row is keyed by month, so under a
+  // daily or weekly period it would read "already sent" for the rest of the
+  // month after the first alert and block every later one. Daily and weekly
+  // periods began with this phase, so no pre-pipeline lock can exist for them;
+  // their only lock is the intent.
+  const already = monthly
+    ? await prisma.paceAlertLog.findUnique({
+        where: { storeId_month: { storeId: store.id, month: dbDate(mStart) } },
+      })
+    : null
 
   const verdict = evaluatePaceAlert({
     mtdActual,
@@ -111,7 +133,7 @@ export async function processPaceAlertForStore(
       ...base,
       pacePct: verdict.pacePct,
       alerted: false,
-      reason: already ? "already alerted this month" : "on pace",
+      reason: already ? `already alerted this ${periodWord}` : "on pace",
     }
   }
   const pacePct = verdict.pacePct!
@@ -134,6 +156,9 @@ export async function processPaceAlertForStore(
     projected,
     pacePct,
     thresholdPct: opts.thresholdPct,
+    // Absent unless a schedule row chose it, so a no-row payload is the
+    // pre-NOTIFY-SCHED payload exactly (F6).
+    ...(opts.frequency ? { frequency: opts.frequency } : {}),
   }
 
   // ENQUEUE — refreshes a queued or expired intent with today's figures; a sent
@@ -141,7 +166,9 @@ export async function processPaceAlertForStore(
   const enq = await enqueueNotification({
     organizationId: store.organizationId,
     kind: "pace.alert",
-    dedupeKey: `${store.id}:${mStart.slice(0, 7)}`,
+    // Monthly: the asOf month, as since NOTIFY-6. Daily/weekly: the period of
+    // the store-local today the alert is sent on.
+    dedupeKey: `${store.id}:${monthly ? mStart.slice(0, 7) : periodKey(opts.frequency!, today)}`,
     entityId: store.id,
     eventAt: now,
     payload,
@@ -150,10 +177,10 @@ export async function processPaceAlertForStore(
   // on — the same place a send failure has always surfaced.
   if (!enq) throw new Error("could not record the pace-alert intent")
   if (enq.state === "sent" || enq.state === "known") {
-    return { ...base, pacePct, alerted: false, reason: "already alerted this month" }
+    return { ...base, pacePct, alerted: false, reason: `already alerted this ${periodWord}` }
   }
   if (enq.state === "failed") {
-    return { ...base, pacePct, alerted: false, reason: "gave up this month after repeated send failures" }
+    return { ...base, pacePct, alerted: false, reason: `gave up this ${periodWord} after repeated send failures` }
   }
 
   // DISPATCH — the caller's sender and mode are the transport.
@@ -225,7 +252,7 @@ export async function processPaceAlertForStore(
     ...base,
     pacePct,
     alerted: false,
-    reason: loggedNow ? "dry-run" : "dry-run (already logged this month)",
+    reason: loggedNow ? "dry-run" : `dry-run (already logged this ${periodWord})`,
     recipients: wouldBe,
   }
 }

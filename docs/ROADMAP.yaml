@@ -8251,13 +8251,30 @@ phases:
     # commit immediately after d6f4056 (its own SHA cannot be written inside
     # itself). NOT pushed when the check ran — Gary runs the push. The
     # "Not pushed" comment above is kept as written.
-    status: staging
+    # `staging` -> `shipped` 2026-10-24 (shipped date = the merge, 2026-10-21),
+    # stamped post-merge by DOCS-CLEANUP-NOTIFY12 (on `staging`): merge 2231bc0
+    # (DEPLOY_LOG entry `2231bc0 — 2026-10-21 — MS-6`). Any "not pushed" /
+    # "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-21
     title: "Staff Milestones — per-person Milestones switch on the Positions table; \"Labor\" page renamed \"Labor Settings\""
     commits:
       - "9d363c1"
       - "d6f4056"
       # + the commit immediately after d6f4056: docs(MS-6 PRE-PUSH-CHECK)
+      - "43fa8e6"
+      - "2231bc0"
     blockers:
+      - >
+        PROMOTED 2026-10-21 in merge 2231bc0 (2026-10-21 22:06:09 -0700,
+        parents 117ce8d and 43fa8e6; carries 9d363c1, d6f4056, 43fa8e6), found
+        2026-10-24 by DOCS-CLEANUP-NOTIFY12 with git merge-base --is-ancestor
+        (inside 2231bc0, outside its first parent) and stamped then; the row sat
+        at `staging` for three days. Prepended per preserve-and-mark; nothing
+        below is edited. THIS IS NOT EVIDENCE: no staging pass of the MS-6
+        checklist and no staging/production _prisma_migrations reading is
+        recorded in this repo, so the migration and UNVERIFIED ON STAGING
+        blockers below stay LIVE until someone records them.
       - >
         RULINGS RATIFIED, 2026-10-21, at the MS-6 PRE-PUSH-CHECK (Gary, as
         written). Prepended per preserve-and-mark; the "RULINGS ARE A DRAFT"
@@ -21325,23 +21342,24 @@ phases:
         sending domain; start production sending with a small set of internal
         recipients before all managers. The first staging test (2026-10-18)
         delivered but landed in Outlook Junk."
-      - >
-        RESOLVED 2026-10-18. The entry below is kept verbatim. A DMARC record
-        EXISTS, and it is p=quarantine, not p=none. It is on the parent
-        usefroot.com, which notify.usefroot.com inherits because it has no
-        record of its own (Gary's dig, quoted in the first blocker above). So
-        neither half of the question below was right: Gary's original words
-        ("add a DMARC record") assumed there was none, and the audit's step 2
-        and DEBT-109's step 2 assumed p=none. The audit's step 2 ("DMARC
-        `p=none`") in the quoted checklist is therefore wrong on the policy
-        value. It stays in the quote, which is a claim of record, and this
-        entry is its correction.
-        OPEN, NOT RESOLVED HERE: does a DMARC record exist for the sending
-        domain? Gary's words say "add a DMARC record". The audit's step 2 below
-        says to confirm notify.usefroot.com shows "SPF, DKIM, DMARC `p=none`",
-        and DEBT-109's step 2 is about tightening an existing p=none. Both of
-        those assume a record exists. Gary's words are the instruction. Check
-        the DNS/Resend record before go-live to find out which is true.
+      - resolved: true
+        text: >
+          RESOLVED 2026-10-18. The entry below is kept verbatim. A DMARC record
+          EXISTS, and it is p=quarantine, not p=none. It is on the parent
+          usefroot.com, which notify.usefroot.com inherits because it has no
+          record of its own (Gary's dig, quoted in the first blocker above). So
+          neither half of the question below was right: Gary's original words
+          ("add a DMARC record") assumed there was none, and the audit's step 2
+          and DEBT-109's step 2 assumed p=none. The audit's step 2 ("DMARC
+          `p=none`") in the quoted checklist is therefore wrong on the policy
+          value. It stays in the quote, which is a claim of record, and this
+          entry is its correction.
+          OPEN, NOT RESOLVED HERE: does a DMARC record exist for the sending
+          domain? Gary's words say "add a DMARC record". The audit's step 2 below
+          says to confirm notify.usefroot.com shows "SPF, DKIM, DMARC `p=none`",
+          and DEBT-109's step 2 is about tightening an existing p=none. Both of
+          those assume a record exists. Gary's words are the instruction. Check
+          the DNS/Resend record before go-live to find out which is true.
     notes: |
       ── RIDER 2026-10-23 (DOCS-NOTIFY-PROD). PREPENDED; NOTHING BELOW IS EDITED. ──
       2026-10-23: production now sends via Resend — see DEPLOY_LOG "2026-10-23 — PRODUCTION ENVIRONMENT CHANGE: email turned on (Resend vars + webhook) — NOT a promotion".
@@ -21592,13 +21610,51 @@ phases:
     # the commit immediately after 8648a2a (its own SHA cannot be written
     # inside itself). NOT pushed when the check ran — Gary runs the push. The
     # "Not pushed" comment above is kept as written.
-    status: staging
+    # `staging` -> `shipped` 2026-10-24, stamped post-merge by
+    # DOCS-CLEANUP-NOTIFY12 (on `staging`): merge 9542b14 (DEPLOY_LOG entry
+    # `9542b14 — 2026-10-24 — NOTIFY-12`). Any "not pushed" / "staging" comment
+    # above is spent, kept.
+    status: shipped
+    shipped: 2026-10-24
     title: "Per-email-type recipients — 'Also send to' picks from an org address book; hrAckRecipients retired"
     commits:
       - "146e94f"
       - "8648a2a"
       # + the commit immediately after 8648a2a: docs(NOTIFY-12 PRE-PUSH-CHECK)
+      - "8fba214"
+      - "9542b14"
     blockers:
+      - resolved: true
+        text: >
+          PROMOTED AND VERIFIED, 2026-10-24. Prepended per preserve-and-mark;
+          nothing below is edited. Promoted in merge 9542b14 (staging -> main,
+          first parent cd62c36, carries 146e94f, 8648a2a, 8fba214; 32 files).
+          Rollback is `git revert -m 1 9542b14`, but PLAN IT: the migration is
+          additive and stays applied, so reverted code reads hrAckRecipients
+          again and ignores every pick. MIGRATION 20261023200000_notify12_recipients
+          applied to dev 2026-10-23 22:35:10 UTC by Gary (npx prisma migrate
+          deploy from froot/), to staging and production 2026-10-24 by their
+          Vercel builds; the docs/MIGRATIONS.md parity query returned 0 rows on
+          dev, staging and production. STAGING (Gary as indianathomas, build
+          8648a2a) — every item of the staging test list below PASSED: (1)
+          parity 0 rows — PASSED; (2) Contacts card replaced the text box,
+          gary@kevajuice.com backfilled and checked under signed-ack, card reads
+          On, milestone card refuses extras — PASSED; (3) contact added, named,
+          ticked under Behind-pace alerts, held across reload — PASSED; (4)
+          store-login warning shown for corporate@keva.com with Tommy set to
+          STORE, a store's own contact email (kevajuice14@icloud.com, a Store
+          field, not a login) correctly shows none, archive/restore kept picks —
+          PASSED; (5) "Send a test to me" and the milestone sample arrived —
+          PASSED; (6) Tommy signed a test document and Recent emails showed one
+          signed-ack row per picked contact — PASSED. PRODUCTION: parity 0 rows;
+          /settings/notifications shows the four backfilled HR addresses as
+          contacts, all checked under signed-ack. The migration-applied blocker
+          and the UNVERIFIED ON STAGING blocker below are DISCHARGED by this
+          entry; the "ship together" blocker is satisfied by the single merge.
+          A real signed-ack send on production is still owed under NOTIFY-10
+          step 14, not here. PROCESS: 8fba214 was not pushed before the
+          promotion (Gary pushed after 8648a2a only); it reached production in
+          the merge and staging on the merge-back. Docs only, no harm.
       - >
         RULINGS RATIFIED, 2026-10-24, at the NOTIFY-12 PRE-PUSH-CHECK (Gary,
         three messages in the build session, forwarded verbatim). Prepended per
@@ -21658,6 +21714,9 @@ phases:
       - "Per-store extras on pace alerts (F4): an extra gets every store's alert."
       - "Milestone extras (F11, Gary: no extras on milestone emails)."
     notes: >
+      ── SHIPPED 2026-10-24 in 9542b14. PREPENDED; NOTHING BELOW IS EDITED. ──
+      Staging and production evidence is in the first blocker; status
+      `staging` -> `shipped`.
       FILED AND BUILT 2026-10-23/24. Audit: docs/prompts/NOTIFY-RCPT_AUDIT.md;
       prompt: docs/prompts/NOTIFY-RCPT.md. Tier TIER 3 (schema, recipient
       logic). THE ID was confirmed free by the audit (§ 9) and is referenced
@@ -21680,6 +21739,139 @@ phases:
       NOTIFY-7 (suppression must run after the extras merge), NOTIFY-9
       (AuditLog reasons live until then), DEBT-106 (blocks user picks),
       DEBT-121, HR-16.
+
+  - id: NOTIFY-13
+    track: platform
+    size: M
+    # `in_progress` at aca15ad, set 2026-10-24 by the NOTIFY-SCHED build
+    # session (TIER 3). Not pushed — Claude never pushes. PRE-PUSH-CHECK owns
+    # the flip to `staging`.
+    # `in_progress` -> `staging` 2026-10-24 by the NOTIFY-13 PRE-PUSH-CHECK, in
+    # the commit immediately after 9dda844 (its own SHA cannot be written
+    # inside itself). NOT pushed when the check ran — Gary runs the push. The
+    # "Not pushed" comment above is kept as written. DECISIONS 2026-10-24
+    # NOTIFY-SCHED ratified by Gary at this check: "Ratify as written."
+    status: staging
+    title: "Per-email-type send schedules — local hour, days and daily/weekly/monthly for pace alerts and milestone emails"
+    commits:
+      - "aca15ad"
+      # + the docs commit immediately after aca15ad: docs(NOTIFY-SCHED)
+      - "9dda844"
+      # + the commit immediately after 9dda844: docs(NOTIFY-13 PRE-PUSH-CHECK)
+      - "6926742"
+      # + the commit immediately after 6926742: docs(NOTIFY-13a) — this rider
+      # SHAs added 2026-10-24 by the NOTIFY-13a PRE-PUSH-CHECK (the two
+      # "immediately after" comments above are kept as written): 69cef02 is
+      # docs(NOTIFY-13 PRE-PUSH-CHECK), 877832a is docs(NOTIFY-13a); this
+      # check's own commit is the one immediately after 877832a. Status stays
+      # `staging` — NOTIFY-13 is on origin/staging; 6926742 and 877832a reach
+      # it on Gary's push.
+      - "69cef02"
+      - "877832a"
+    blockers:
+      - >
+        MIGRATION 20261024170855_notify_sched_schedules: applied to DEV by Gary
+        (his words: "I applied 20261024170855_notify_sched_schedules to dev
+        (ep-late-water-a6k53nv2) with migrate deploy from froot/." — no time
+        given); `migrate diff` against dev was empty afterwards. Staging and
+        production get it through `prisma migrate deploy` in the Vercel build,
+        on Gary's push. Additive: two new tables, nothing existing altered.
+      - >
+        UNVERIFIED ON STAGING (staging-SHA precondition first). Vercel crons
+        fire on PRODUCTION only, so staging is hand-fired with the Preview
+        CRON_SECRET: `GET /api/cron/scheduled-emails` with
+        `Authorization: Bearer <secret>`. Test list, as an ADMIN on
+        /settings/notifications: (1) both scheduled cards show a Schedule
+        section; the acknowledgment card has none; with no schedule the cards
+        read exactly as before; (2) save a pace schedule at the CURRENT local
+        hour, daily, today ticked; reload — it holds; (3) hand-fire once — the
+        response's `results` evaluates the org's stores (sandbox: mail only to
+        the allowlist); (4) hand-fire again the same hour — `storesAlreadyRun`,
+        nothing sent; (5) untick today, save, hand-fire — `storesNotDue`;
+        (6) save milestones weekly on today's weekday at the current hour with
+        a zone, hand-fire — one milestone summary; (7) "Reset to default" asks
+        to confirm and the card returns to the default text; (8) a MANAGER
+        gets 403 from PUT /api/notify/schedule/pace.alert. The signed-in save
+        and reset path and the route's ADMIN refusal have NOT been exercised —
+        only the editor (rendered on a temporary /menu page, since deleted)
+        and the validation function.
+      - >
+        PROMOTION NOTE. On the day this reaches production, if production's
+        old "0 15 * * *" run has already fired, the first hourly run evaluates
+        that day once more: pace cannot re-alert (the intent lock), but a
+        milestone reached in between could get a second email that day.
+        Promote after 15:00 UTC with that in mind, or before it.
+    deferred:
+      - "F2: event-email digests (batched signed acknowledgments). Not filed as a row; nothing in this phase needs it."
+      - "Monthly milestone emails (F12): needs ruling 2's 7-day window amended in Gary's words first (audit M2)."
+      - "NotificationSchedule.dayOfMonth is stored and validated but no kind offers day-of-month yet (Gary: \"Keep dayOfMonth.\"); NOTIFY-4's report email is its first consumer."
+      - "NotificationScheduleRun grows by about stores x days. No prune yet; the engagement-prune cron is the pattern when it matters."
+    notes: >
+      ── RIDER 2026-10-24 (NOTIFY-13a). PREPENDED; NOTHING BELOW IS EDITED. ──
+      STAGING TEST RESULTS SO FAR, as given in the NOTIFY-13a prompt
+      (docs/prompts/NOTIFY-13a_wording_fix.md; the numbering is that prompt's,
+      not the blockers' eight-step list): (1) migration
+      20261024170855_notify_sched_schedules on staging at 2026-10-24 18:34:23
+      UTC (11:34:23 PDT); (2) both Schedule sections render; (3) save + reload
+      held for both cards; (5) "Reset to default" restored the default on both;
+      (6) a MANAGER cannot see or save schedules; (4) the hand-fired cron was
+      SKIPPED BY GARY — the Preview CRON_SECRET could not be used. Step (4) is
+      covered by fixture checks D3/S3 (scripts/verify-notify-sched.ts) and is
+      to be confirmed on PRODUCTION by watching /api/cron/scheduled-emails in
+      the Vercel logs after promotion. TWO BUGS FOUND, both from aca15ad:
+      (a) the Milestone emails card read "At most one email a dayto admins…"
+      ("a weekto" when weekly) — `{milestoneCadence} to admins` began a JSX
+      line and the compiled chunk dropped the space (`[y,"to admins…"]`); the
+      pace card's mid-line join compiles to `" ",x," when"` and was not
+      affected; (b) "Send a sample to me" always said "at most one milestone
+      email a day." whatever the saved schedule. FIXED in 6926742: the card
+      text is one string from milestoneCardText(), byte-for-byte the
+      pre-aca15ad sentence with no schedule row; POST /api/notify/test reads
+      the saved milestone frequency (a read; no new write, no permission
+      change) and the sample's footer follows it. verify-notify-sched 48/0 on
+      dev br-broad-wave-a6vpjdw0 (new T1–T5); negative control (space removed)
+      failed T1–T3 and was restored; verify-f5-polish 63, verify-ms4b 59,
+      verify-ms6 45, verify-notify-template 35, verify-notify5 55,
+      verify-notify6 78, verify-notify12 54, all green on dev. NOT VERIFIED ON
+      STAGING: 6926742 is not pushed; re-check the card text and a weekly
+      sample's footer on staging after Gary's push, behind the staging-SHA
+      precondition.
+      FILED AND BUILT 2026-10-24. Prompt: docs/prompts/NOTIFY-SCHED.md; audit:
+      docs/prompts/NOTIFY-SCHED_AUDIT.md (forks F1-F16, each with a lean).
+      Tier TIER 3 (schema, cron). THE ID: NOTIFY-12 was the highest NOTIFY
+      row and NOTIFY-13 appeared nowhere in docs/, src/ or scripts/ (audit
+      § 10).
+      RULINGS, Gary's words exactly (2026-10-24): "Approve all leans in
+      NOTIFY-SCHED_AUDIT.md F1–F16, with these specifics: F10 pace hours
+      limited to 5 AM–8 PM local; F11 monthly pace = today's behavior; F12
+      milestones daily or weekly only; F13 wording follows the schedule,
+      default unchanged; F15 reset deletes the row; F16 weekly = one day." and
+      "Keep dayOfMonth." DECISIONS 2026-10-24 (draft) carries the choices.
+      [Rider, NOTIFY-13 PRE-PUSH-CHECK 2026-10-24: that entry is now RATIFIED
+      — Gary: "Ratify as written." The "(draft)" above is kept as written.]
+      WHAT. An ADMIN picks, per scheduled email type on
+      /settings/notifications, the local send hour, the days and the
+      frequency. NotificationSchedule holds one row per org and type; NO ROW =
+      TODAY'S BEHAVIOUR (15:00 UTC; pace monthly, evaluated daily; milestones
+      daily). One hourly cron, /api/cron/scheduled-emails at "5 * * * *",
+      replaced pace-alerts' "0 15 * * *"; /api/cron/pace-alerts stays
+      unregistered and delegates to the same runner (src/lib/scheduled-emails.ts).
+      Pace is per store in Store.timezone; milestones per org in the
+      schedule's own zone (F3). NotificationScheduleRun marks a slot
+      evaluated (one per org, type, store-or-org, local date) so hourly runs
+      never evaluate a slot twice; the SEND lock is still the
+      NotificationIntent dedupeKey, now {storeId}:{YYYY-MM | YYYY-Www |
+      YYYY-MM-DD}. A missed hour is finished later the same local day, never
+      the next (F8); a 240 s budget defers the rest to the next hour.
+      FIXTURE scripts/verify-notify-sched.ts on dev (br-broad-wave-a6vpjdw0):
+      43/0, with negative controls (hour test removed; claim always true;
+      PaceAlertLog gate unconditional) each failing their target checks.
+      Re-run green on dev after the change: verify-f5-polish, verify-ms4b,
+      verify-notify6, verify-notify5, verify-ms6, verify-notify12.
+      Cross-refs: NOTIFY-6 (the pipeline), NOTIFY-9 (PaceAlertLog gate now
+      monthly-only; its retirement still owed), NOTIFY-4 (first day-of-month
+      consumer), NOTIFY-3 (reminders would be a scheduled kind), MS-4b
+      (ruling 2's window, unchanged).
 
 
 bugs:

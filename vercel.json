@@ -5,8 +5,8 @@
       "schedule": "0 11 * * *"
     },
     {
-      "path": "/api/cron/pace-alerts",
-      "schedule": "0 15 * * *"
+      "path": "/api/cron/scheduled-emails",
+      "schedule": "5 * * * *"
     },
     {
       "path": "/api/cron/checklist-day-close",

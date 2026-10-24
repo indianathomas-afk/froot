@@ -76,6 +76,42 @@ export type Rendered =
 /** NOTIFY-12. Stored on NotificationMessage.recipientReasons. */
 export type RecipientReason = "role" | "extra-user" | "extra-contact"
 
+/** NOTIFY-SCHED. NotificationSchedule.frequency. */
+export type ScheduleFrequency = "daily" | "weekly" | "monthly"
+
+/**
+ * NOTIFY-SCHED (docs/prompts/NOTIFY-SCHED_AUDIT.md § 5). Present = a SCHEDULED
+ * kind, evaluated by the hourly runner in src/lib/scheduled-emails.ts and
+ * configurable on /settings/notifications. Absent = an EVENT kind that sends
+ * when its event happens (hr.ack, test) — untouched by this phase (F1).
+ */
+export type KindSchedule = {
+  /**
+   * "store": one slot per store, in Store.timezone (pace). "org": one slot per
+   * org, in NotificationSchedule.timeZone (F3 — milestones, whose summaries
+   * cross stores).
+   */
+  scope: "store" | "org"
+  /** What an ADMIN may pick. F12: milestones daily or weekly only. */
+  frequencies: ScheduleFrequency[]
+  /**
+   * What "monthly" means for this kind. "every-allowed-day": the month is only
+   * the send-lock period and the kind is evaluated on every allowed weekday —
+   * pace, F11 ("monthly pace = today's behavior"). "day-of-month": one send on
+   * NotificationSchedule.dayOfMonth (F5, digest kinds). Unused when monthly is
+   * not offered.
+   */
+  monthly: "every-allowed-day" | "day-of-month"
+  /** Allowed local send hours, inclusive. F10: pace 5 AM–8 PM (5–20). */
+  hours: { min: number; max: number }
+  /**
+   * NO SCHEDULE ROW = TODAY'S BEHAVIOUR (F6): the slot opens at this UTC hour,
+   * which is when the daily pace-alerts cron fired (0 15 * * *). A UTC hour,
+   * not a local one — today's local send time already moves with DST.
+   */
+  legacyUtcHour: number
+}
+
 type KindCommon<P> = {
   kind: string
   /** The send-log label. */
@@ -93,6 +129,8 @@ type KindCommon<P> = {
   extras: boolean
   /** Checked through can() for every recipient that is a user. */
   capability?: Capability
+  /** NOTIFY-SCHED: present on scheduled kinds only. See KindSchedule. */
+  schedule?: KindSchedule
   /**
    * The org switch. Off at dispatch time → the intent expires, no mail. The
    * intent is passed so one kind can hold two switches (MS-4b: a checklist
@@ -142,9 +180,10 @@ export type GroupedKindDef<P> = KindCommon<P> & {
   renderGroup: (payloads: P[], org: NotificationOrg, recipient: string) => Rendered
   /**
    * Fixed, fictional payloads for "Send a sample to me" (the test kind renders
-   * them through renderGroup). Must never name a real person.
+   * them through renderGroup). Must never name a real person. `frequency` is
+   * the org's saved schedule for the kind (NOTIFY-13a), undefined with no row.
    */
-  sample?: (org: NotificationOrg) => P[]
+  sample?: (org: NotificationOrg, opts?: { frequency?: ScheduleFrequency }) => P[]
 }
 
 export type NotificationKindDef<P> = PerIntentKindDef<P> | GroupedKindDef<P>

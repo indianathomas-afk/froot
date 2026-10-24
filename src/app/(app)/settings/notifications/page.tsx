@@ -11,9 +11,12 @@ import { ContactsCard } from "./contacts-card"
 import { RecipientsSection } from "./recipients-section"
 import { MilestoneAlertsToggle, PaceAlertsToggle, PaceAlertThresholdField } from "./pace-alerts-actions"
 import { milestonesActive } from "@/lib/milestones-access"
-import { MILESTONE_KIND } from "@/lib/notifications/kinds/milestone"
+import { MILESTONE_KIND, milestoneCardText } from "@/lib/notifications/kinds/milestone"
+import type { ScheduleFrequency } from "@/lib/notifications/define"
 import { RecentEmails } from "./recent-emails"
 import { TestSendButton } from "./test-send-button"
+import { ScheduleSection } from "./schedule-section"
+import { loadScheduleView } from "@/lib/notifications/schedule-settings"
 
 // NOTIFY-2a — every email setting on one page (Gary's ruling, 2026-09-20).
 // Before this, HR-16's acknowledgment recipients and F-5b's behind-pace toggle
@@ -47,6 +50,11 @@ import { TestSendButton } from "./test-send-button"
 // ungated by module for the same reason as "Recent emails" — pace alerts use
 // contacts too. HR-16's free-text recipient field is gone; its addresses were
 // migrated into contacts and hr.ack picks (F1).
+//
+// NOTIFY-SCHED ADDED A "Schedule" BLOCK under Recipients on the two SCHEDULED
+// cards (pace, milestones — F1); the acknowledgment card is an event email and
+// has none. The cards' "how often" sentences now follow the saved schedule and
+// read exactly as before when there is none (F13).
 
 export default async function NotificationSettingsPage() {
   let ctx: Awaited<ReturnType<typeof getCurrentUser>>
@@ -81,11 +89,22 @@ export default async function NotificationSettingsPage() {
 
   // F2: the newest 50. Fetched here rather than behind a route — the page is
   // already the ADMIN_ONLY gate and the card neither refreshes nor paginates.
-  const [recentEmails, contacts, picks] = await Promise.all([
+  const [recentEmails, contacts, picks, paceSchedule, milestoneSchedule] = await Promise.all([
     listRecentEmails(org.id),
     listContacts(org.id),
     contactPicksByKind(org.id),
+    loadScheduleView(org.id, "pace.alert"),
+    loadScheduleView(org.id, MILESTONE_KIND),
   ])
+  // F13: the cards' cadence words follow the SAVED schedule; no row → the
+  // sentence is byte for byte what it was.
+  const paceCadence =
+    paceSchedule?.saved?.frequency === "daily"
+      ? "at most once per store per day"
+      : paceSchedule?.saved?.frequency === "weekly"
+        ? "at most once per store per week"
+        : "once per store per month"
+  const milestoneText = milestoneCardText(milestoneSchedule?.saved?.frequency as ScheduleFrequency | undefined)
 
   const paceAlertsActive = org.paceAlertsEnabled
   // MS-4b. Milestones is part of HR (MS-1 F5), so the card follows the HR card's
@@ -194,7 +213,7 @@ export default async function NotificationSettingsPage() {
               <div>
                 <h3 className="font-medium text-[var(--color-foreground)]">Behind-pace alert emails</h3>
                 <p className="text-sm text-[var(--color-muted-foreground)]">
-                  Emails admins and the store&apos;s assigned managers once per store per month when
+                  Emails admins and the store&apos;s assigned managers {paceCadence} when
                   month-to-date sales fall below the alert threshold.
                 </p>
                 <div className="flex items-center gap-1.5 mt-1.5">
@@ -232,6 +251,7 @@ export default async function NotificationSettingsPage() {
             pickedIds={picks["pace.alert"] ?? []}
             pickerHelp="Extra recipients get every store's alert."
           />
+          {paceSchedule && <ScheduleSection view={paceSchedule} />}
         </CardContent>
       </Card>
 
@@ -251,9 +271,7 @@ export default async function NotificationSettingsPage() {
                     <div className="min-w-0">
                       <h3 className="font-medium text-[var(--color-foreground)]">Milestone reached emails</h3>
                       <p className="text-sm text-[var(--color-muted-foreground)]">
-                        At most one email a day to admins and each store&apos;s managers, listing staff
-                        in their stores who reached a tenure or checklist milestone. Froot never
-                        emails the employee. Milestones reached more than 7 days earlier are not emailed.
+                        {milestoneText}
                       </p>
                       <div className="flex items-center gap-1.5 mt-1.5">
                         {milestoneAlertsActive ? (
@@ -274,6 +292,7 @@ export default async function NotificationSettingsPage() {
                 </div>
                 {/* F11 (Gary, 2026-10-23): no extras on milestone emails. */}
                 <RecipientsSection kind={MILESTONE_KIND} contacts={contacts} pickedIds={[]} />
+                {milestoneSchedule && <ScheduleSection view={milestoneSchedule} />}
                 {/* MS-4b choice C10: the sample is rendered through the test
                     kind, so it can only ever reach the admin pressing it. */}
                 <div className="mt-4">
