@@ -1554,6 +1554,19 @@ the work commit (`9d363c1`).
 
 ## 2026-10-23 — `20261023200000_notify12_recipients` (NOTIFY-12)
 
+**APPLIED TO ALL THREE BRANCHES — rider added 2026-10-24 by
+DOCS-CLEANUP-NOTIFY12; the "APPLIED TO DEV ONLY" text below is kept as written
+and is now spent.**
+
+| Branch | Applied | By | Parity query |
+|---|---|---|---|
+| dev | 2026-10-23 22:35:10 UTC (15:35:10 PDT) | Gary, `npx prisma migrate deploy` from `froot/` | 0 rows |
+| staging | 2026-10-24 | Vercel build (`prisma migrate deploy`), staging deploy of Gary's push (tested on build `8648a2a`) | 0 rows |
+| production | 2026-10-24 | Vercel build (`prisma migrate deploy`), production deploy of merge `9542b14` | 0 rows |
+
+The parity query is the one recorded below. Staging and production readings are
+Gary's, 2026-10-24.
+
 **APPLIED TO DEV ONLY, by Gary.** His report, recorded exactly: *"I applied
 the migration to dev at 22:35 UTC with migrate deploy from froot/. The parity
 query on dev returned zero rows."* (22:35 UTC = 15:35 PDT.) The parity query

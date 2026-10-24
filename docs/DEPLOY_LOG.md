@@ -2,7 +2,63 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-10-24 — NOTIFY-12: per-email-type "Also send to" recipients from an org address book; hrAckRecipients retired
+## 9542b14 — 2026-10-24 — NOTIFY-12: per-email-type "Also send to" recipients from an org address book; hrAckRecipients retired
+
+**PROMOTED 2026-10-24 in merge `9542b14`** (`9542b149d16e8fa0b7b87b34550df975498d5b1e`,
+"Merge branch 'staging'", 2026-10-24 09:22:22 -0700 (Pacific) = 16:22:22 UTC),
+first parent `cd62c36` (prior tip of `main`), second parent `8fba214`. **3
+commits** in `9542b14^1..9542b14^2` — `146e94f`, `8648a2a`, `8fba214` — and
+**32 files**, read out of `git rev-list --count` and `git diff --stat` at this
+stamp. Stamped post-merge by DOCS-CLEANUP-NOTIFY12 (2026-10-24), on `staging`;
+the heading previously read "UNPROMOTED — 2026-10-24 — NOTIFY-12: per-email-type
+"Also send to" recipients from an org address book; hrAckRecipients retired".
+No second entry was written for this promotion.
+
+**Rollback after promotion:** `git revert -m 1 9542b14` on `main` (the whole
+merge; recipe in `docs/WORKFLOW.md` § Rolling a promotion back). **PLAN IT, DO
+NOT RUN IT BLIND.** Migration `20261023200000_notify12_recipients` is additive
+and STAYS APPLIED after any code revert. Reverted code reads
+`Organization.hrAckRecipients` again, so signed-ack emails go to whatever that
+column holds, and every contact or pick edited since the migration is ignored —
+reverting code alone leaves signed-ack emails reading no picks. The per-commit
+rollback below is pre-merge and kept as written.
+
+**Migration applied, all three branches:** dev 2026-10-23 22:35:10 UTC (15:35:10
+PDT) by Gary (`npx prisma migrate deploy` from `froot/`); staging and production
+2026-10-24 by their Vercel builds (`prisma migrate deploy`). **Parity query (the
+one in the `docs/MIGRATIONS.md` NOTIFY-12 entry) returned 0 rows on dev, staging
+and production.**
+
+**Staging evidence 2026-10-24 (Gary, as indianathomas, build `8648a2a`):**
+1. Parity query 0 rows on staging.
+2. The Contacts card replaced the old text box; `gary@kevajuice.com` was
+   backfilled and checked under signed-ack; the card reads On; the milestone
+   card refuses extras.
+3. A contact was added, named, picked under pace alerts, and held across a
+   reload.
+4. The store-login warning showed for `corporate@keva.com` with Tommy set to
+   STORE. A store's own contact email (`kevajuice14@icloud.com` — a Store record
+   field, not a login) correctly shows no warning. Archive and restore kept the
+   picks.
+5. "Send a test to me" and the milestone sample both arrived.
+6. Tommy signed a test document, and Recent emails showed one signed-ack row per
+   picked contact.
+
+**Production evidence 2026-10-24:** parity 0 rows on production;
+`/settings/notifications` shows the four backfilled HR addresses as contacts,
+all checked under signed-ack. **Still owed on production:** a real signed-ack
+send (NOTIFY-10 step 14).
+
+**Process note.** `8fba214` (this entry's PRE-PUSH-CHECK commit) was NOT pushed
+before the promotion — Gary pushed after `8648a2a` only. It reached production
+inside the merge and staging on the merge-back. Docs only, no harm; staging was
+tested on `8648a2a`, which differs from `8fba214` by docs alone. The 2026-10-23
+dev apply was Gary's own, not a session breach.
+
+> **⚠ SUPERSEDED 2026-10-24 (DOCS-CLEANUP-NOTIFY12): promoted in `9542b14`.** The
+> "Status: staging only", "Migration: applied to DEV ONLY" and "Evidence: dev
+> only" paragraphs below are the PRE-PUSH-CHECK's own, kept as written and now
+> spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge. NOTIFY-12 carries a MIGRATION with a DATA
@@ -112,7 +168,31 @@ so its rows never read "Delivered".
 - Follow-up: the silent-console gap is filed as DEBT-120 in `docs/ROADMAP.yaml`
   (DOCS-NOTIFY-PROD).
 
-## UNPROMOTED — 2026-10-21 — MS-6: a per-person Milestones switch on the Positions table; "Labor" becomes "Labor Settings"
+## 2231bc0 — 2026-10-21 — MS-6: a per-person Milestones switch on the Positions table; "Labor" becomes "Labor Settings"
+
+**PROMOTED 2026-10-21 in merge `2231bc0`** (`2231bc00d4e8af773c9922183f46b39b3dea7cb1`,
+"Merge branch 'staging'", 2026-10-21 22:06:09 -0700 (Pacific) = 2026-10-22
+05:06:09 UTC), first parent `117ce8d`, second parent `43fa8e6`. **3 commits** in
+`2231bc0^1..2231bc0^2` — `9d363c1`, `d6f4056`, `43fa8e6`. How it was found:
+`git merge-base --is-ancestor` puts `9d363c1` and `d6f4056` inside `2231bc0` and
+outside its first parent, and `2231bc0` is on `main`'s first-parent line. The
+heading was never stamped at that promotion; stamped 2026-10-24 by
+DOCS-CLEANUP-NOTIFY12, on `staging`. The heading previously read "UNPROMOTED —
+2026-10-21 — MS-6: a per-person Milestones switch on the Positions table;
+"Labor" becomes "Labor Settings"".
+
+**Rollback after promotion:** `git revert -m 1 2231bc0` on `main` — but
+`2231bc0` is no longer `main`'s tip (`9542b14` is on top), so plan it against the
+later promotion. The column stays (additive). The per-commit rollback below is
+pre-merge and kept as written.
+
+**NOT RECORDED in this repo:** staging verification of the MS-6 checklist, and
+the migration's `_prisma_migrations` rows on staging and production. This stamp
+records the merge, not evidence.
+
+> **⚠ SUPERSEDED 2026-10-24 (DOCS-CLEANUP-NOTIFY12): promoted in `2231bc0`.** The
+> "Status: staging only" line below is the PRE-PUSH-CHECK's own, kept as written
+> and now spent.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, on `main`, after the merge. MS-6 builds on MS-1 to MS-5b (promoted in

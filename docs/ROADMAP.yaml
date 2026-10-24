@@ -8251,13 +8251,30 @@ phases:
     # commit immediately after d6f4056 (its own SHA cannot be written inside
     # itself). NOT pushed when the check ran — Gary runs the push. The
     # "Not pushed" comment above is kept as written.
-    status: staging
+    # `staging` -> `shipped` 2026-10-24 (shipped date = the merge, 2026-10-21),
+    # stamped post-merge by DOCS-CLEANUP-NOTIFY12 (on `staging`): merge 2231bc0
+    # (DEPLOY_LOG entry `2231bc0 — 2026-10-21 — MS-6`). Any "not pushed" /
+    # "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-21
     title: "Staff Milestones — per-person Milestones switch on the Positions table; \"Labor\" page renamed \"Labor Settings\""
     commits:
       - "9d363c1"
       - "d6f4056"
       # + the commit immediately after d6f4056: docs(MS-6 PRE-PUSH-CHECK)
+      - "43fa8e6"
+      - "2231bc0"
     blockers:
+      - >
+        PROMOTED 2026-10-21 in merge 2231bc0 (2026-10-21 22:06:09 -0700,
+        parents 117ce8d and 43fa8e6; carries 9d363c1, d6f4056, 43fa8e6), found
+        2026-10-24 by DOCS-CLEANUP-NOTIFY12 with git merge-base --is-ancestor
+        (inside 2231bc0, outside its first parent) and stamped then; the row sat
+        at `staging` for three days. Prepended per preserve-and-mark; nothing
+        below is edited. THIS IS NOT EVIDENCE: no staging pass of the MS-6
+        checklist and no staging/production _prisma_migrations reading is
+        recorded in this repo, so the migration and UNVERIFIED ON STAGING
+        blockers below stay LIVE until someone records them.
       - >
         RULINGS RATIFIED, 2026-10-21, at the MS-6 PRE-PUSH-CHECK (Gary, as
         written). Prepended per preserve-and-mark; the "RULINGS ARE A DRAFT"
@@ -21325,23 +21342,24 @@ phases:
         sending domain; start production sending with a small set of internal
         recipients before all managers. The first staging test (2026-10-18)
         delivered but landed in Outlook Junk."
-      - >
-        RESOLVED 2026-10-18. The entry below is kept verbatim. A DMARC record
-        EXISTS, and it is p=quarantine, not p=none. It is on the parent
-        usefroot.com, which notify.usefroot.com inherits because it has no
-        record of its own (Gary's dig, quoted in the first blocker above). So
-        neither half of the question below was right: Gary's original words
-        ("add a DMARC record") assumed there was none, and the audit's step 2
-        and DEBT-109's step 2 assumed p=none. The audit's step 2 ("DMARC
-        `p=none`") in the quoted checklist is therefore wrong on the policy
-        value. It stays in the quote, which is a claim of record, and this
-        entry is its correction.
-        OPEN, NOT RESOLVED HERE: does a DMARC record exist for the sending
-        domain? Gary's words say "add a DMARC record". The audit's step 2 below
-        says to confirm notify.usefroot.com shows "SPF, DKIM, DMARC `p=none`",
-        and DEBT-109's step 2 is about tightening an existing p=none. Both of
-        those assume a record exists. Gary's words are the instruction. Check
-        the DNS/Resend record before go-live to find out which is true.
+      - resolved: true
+        text: >
+          RESOLVED 2026-10-18. The entry below is kept verbatim. A DMARC record
+          EXISTS, and it is p=quarantine, not p=none. It is on the parent
+          usefroot.com, which notify.usefroot.com inherits because it has no
+          record of its own (Gary's dig, quoted in the first blocker above). So
+          neither half of the question below was right: Gary's original words
+          ("add a DMARC record") assumed there was none, and the audit's step 2
+          and DEBT-109's step 2 assumed p=none. The audit's step 2 ("DMARC
+          `p=none`") in the quoted checklist is therefore wrong on the policy
+          value. It stays in the quote, which is a claim of record, and this
+          entry is its correction.
+          OPEN, NOT RESOLVED HERE: does a DMARC record exist for the sending
+          domain? Gary's words say "add a DMARC record". The audit's step 2 below
+          says to confirm notify.usefroot.com shows "SPF, DKIM, DMARC `p=none`",
+          and DEBT-109's step 2 is about tightening an existing p=none. Both of
+          those assume a record exists. Gary's words are the instruction. Check
+          the DNS/Resend record before go-live to find out which is true.
     notes: |
       ── RIDER 2026-10-23 (DOCS-NOTIFY-PROD). PREPENDED; NOTHING BELOW IS EDITED. ──
       2026-10-23: production now sends via Resend — see DEPLOY_LOG "2026-10-23 — PRODUCTION ENVIRONMENT CHANGE: email turned on (Resend vars + webhook) — NOT a promotion".
@@ -21592,13 +21610,51 @@ phases:
     # the commit immediately after 8648a2a (its own SHA cannot be written
     # inside itself). NOT pushed when the check ran — Gary runs the push. The
     # "Not pushed" comment above is kept as written.
-    status: staging
+    # `staging` -> `shipped` 2026-10-24, stamped post-merge by
+    # DOCS-CLEANUP-NOTIFY12 (on `staging`): merge 9542b14 (DEPLOY_LOG entry
+    # `9542b14 — 2026-10-24 — NOTIFY-12`). Any "not pushed" / "staging" comment
+    # above is spent, kept.
+    status: shipped
+    shipped: 2026-10-24
     title: "Per-email-type recipients — 'Also send to' picks from an org address book; hrAckRecipients retired"
     commits:
       - "146e94f"
       - "8648a2a"
       # + the commit immediately after 8648a2a: docs(NOTIFY-12 PRE-PUSH-CHECK)
+      - "8fba214"
+      - "9542b14"
     blockers:
+      - resolved: true
+        text: >
+          PROMOTED AND VERIFIED, 2026-10-24. Prepended per preserve-and-mark;
+          nothing below is edited. Promoted in merge 9542b14 (staging -> main,
+          first parent cd62c36, carries 146e94f, 8648a2a, 8fba214; 32 files).
+          Rollback is `git revert -m 1 9542b14`, but PLAN IT: the migration is
+          additive and stays applied, so reverted code reads hrAckRecipients
+          again and ignores every pick. MIGRATION 20261023200000_notify12_recipients
+          applied to dev 2026-10-23 22:35:10 UTC by Gary (npx prisma migrate
+          deploy from froot/), to staging and production 2026-10-24 by their
+          Vercel builds; the docs/MIGRATIONS.md parity query returned 0 rows on
+          dev, staging and production. STAGING (Gary as indianathomas, build
+          8648a2a) — every item of the staging test list below PASSED: (1)
+          parity 0 rows — PASSED; (2) Contacts card replaced the text box,
+          gary@kevajuice.com backfilled and checked under signed-ack, card reads
+          On, milestone card refuses extras — PASSED; (3) contact added, named,
+          ticked under Behind-pace alerts, held across reload — PASSED; (4)
+          store-login warning shown for corporate@keva.com with Tommy set to
+          STORE, a store's own contact email (kevajuice14@icloud.com, a Store
+          field, not a login) correctly shows none, archive/restore kept picks —
+          PASSED; (5) "Send a test to me" and the milestone sample arrived —
+          PASSED; (6) Tommy signed a test document and Recent emails showed one
+          signed-ack row per picked contact — PASSED. PRODUCTION: parity 0 rows;
+          /settings/notifications shows the four backfilled HR addresses as
+          contacts, all checked under signed-ack. The migration-applied blocker
+          and the UNVERIFIED ON STAGING blocker below are DISCHARGED by this
+          entry; the "ship together" blocker is satisfied by the single merge.
+          A real signed-ack send on production is still owed under NOTIFY-10
+          step 14, not here. PROCESS: 8fba214 was not pushed before the
+          promotion (Gary pushed after 8648a2a only); it reached production in
+          the merge and staging on the merge-back. Docs only, no harm.
       - >
         RULINGS RATIFIED, 2026-10-24, at the NOTIFY-12 PRE-PUSH-CHECK (Gary,
         three messages in the build session, forwarded verbatim). Prepended per
@@ -21658,6 +21714,9 @@ phases:
       - "Per-store extras on pace alerts (F4): an extra gets every store's alert."
       - "Milestone extras (F11, Gary: no extras on milestone emails)."
     notes: >
+      ── SHIPPED 2026-10-24 in 9542b14. PREPENDED; NOTHING BELOW IS EDITED. ──
+      Staging and production evidence is in the first blocker; status
+      `staging` -> `shipped`.
       FILED AND BUILT 2026-10-23/24. Audit: docs/prompts/NOTIFY-RCPT_AUDIT.md;
       prompt: docs/prompts/NOTIFY-RCPT.md. Tier TIER 3 (schema, recipient
       logic). THE ID was confirmed free by the audit (§ 9) and is referenced

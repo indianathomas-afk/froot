@@ -78,7 +78,8 @@ These apply at every tier, with no exceptions, and a TIER 1 declaration does not
 - **No `&&` chains** in pasteable command blocks. One at a time, results read before the
   next.
 - **`npm run lint` is not a commit gate** (DEBT-33). The build is.
-- **Commits are staged on `staging`, never written directly on `main`.**
+- **Commits are staged on `staging`, never written directly on `main`.** Promotion
+  docs passes included (R1, § Git Rules, 2026-10-24).
 - **Secrets are never printed** in reports or transcripts.
 
 ---
@@ -445,6 +446,11 @@ null on local dev — which is itself a signal about where the query ran, not an
 invalidation of the evidence. A null return never disqualifies an otherwise
 correctly labelled result.
 
+**Rider, 2026-10-24 (R4 — § Git Rules).** "Name the branch" means in the
+report, beside the result — never as a hand-typed literal inside SQL handed to
+Gary. In the query, branch identity comes only from what the server reports
+(`neon.branch_id`) or from the Neon console's branch dropdown / Computes page.
+
 **The same precondition applies to the ORGANIZATION, not just the branch: name
 orgs by ID — optionally `ID (name)` — in every doc, prompt and query result. An
 org NAME is not an identifier.** Relocated here 2026-08-02 from DEBT-19, which
@@ -707,6 +713,34 @@ whether commits exist on the current branch that are not on its origin remote
 (`git log --oneline @{u}..`), listing them if so — even when the answer is
 none. This is the structural guard against unpushed work sitting unnoticed
 (the F-4 incident), now that pushing is never Claude's to do.
+
+### Workflow rules R1–R4 (Gary, 2026-10-23/24)
+
+Added 2026-10-24 by DOCS-CLEANUP-NOTIFY12. Where older text in this file or in
+`docs/WORKFLOW.md` says otherwise, it carries a dated rider pointing here; the
+older text is kept.
+
+- **R1 — EVERY COMMIT GOES ON `staging`, DOCS PASSES INCLUDED. NEVER COMMIT ON
+  `main`.** A promotion's docs stamp (DEPLOY_LOG heading, ROADMAP `shipped`) is
+  a normal staging commit that rides the NEXT promotion. After every promotion,
+  `main` is merged back into `staging` (fast-forward) and pushed — Gary's push.
+  The last docs commit made on `main` was `cd62c36` (2026-10-23). This
+  supersedes the promotion template's "commit the entry on `main` between the
+  merge and the push" (`docs/WORKFLOW.md` § 2).
+- **R2 — MIGRATION APPLY INSTRUCTIONS COME ONLY FROM GARY'S PLANNING CHAT.** A
+  session that generates a migration STOPS (§ A migration STOPS the session) and
+  does not print apply commands for Gary — not `migrate deploy`, not the step-3
+  block in § Database copied into a report.
+- **R3 — EVERY APPLY INSTRUCTION TO GARY BEGINS WITH
+  `cd /Users/garythomas/Claude_Projects/Froot/froot` AND `pwd`,** never the
+  `froot` alias alone. On 2026-10-23 a command run from the capital-F `Froot`
+  parent folder fetched Prisma 8.
+- **R4 — SQL HANDED TO GARY NEVER CARRIES A HAND-TYPED BRANCH LABEL.** Branch
+  identity comes from the Neon console's branch dropdown / Computes page, or a
+  value the server reports (`current_setting('neon.branch_id', true)`), never a
+  literal such as `'preview/staging' AS branch` in the SELECT. A literal is the
+  2026-07-28 wrong-label failure (§ Database Evidence) typed into the query
+  itself: it prints whatever was typed, on whatever branch the query ran.
 
 ## Commit Gates
 
@@ -981,6 +1015,12 @@ npx prisma migrate deploy      # Datasource host must be the dev endpoint
 # 4. regenerate the client:
 npx prisma generate
 ```
+
+**Rider, 2026-10-24 (R2, R3 — § Git Rules).** Step 3 above records what Gary
+runs; it is not a block for a session to hand him. Apply instructions come only
+from Gary's planning chat (R2), and any that are written begin with
+`cd /Users/garythomas/Claude_Projects/Froot/froot` and `pwd` — "from froot/" via
+the `froot` alias alone is not enough (R3).
 
 Commit the migration folder with the code that uses it — **after step 3, never before**
 (§ A migration STOPS the session). Staging and production apply it via
