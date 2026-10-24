@@ -5,6 +5,95 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-24 — NOTIFY-SCHED (NOTIFY-13): per-email-type send schedules (Gary)
+
+**DRAFT — AWAITS RATIFICATION AT THE NOTIFY-13 PRE-PUSH-CHECK.** Audit:
+`docs/prompts/NOTIFY-SCHED_AUDIT.md` (forks F1–F16, each with a lean). Work
+commit `aca15ad`.
+
+**Gary's words, recorded exactly** (chat, 2026-10-24):
+
+- *"Approve all leans in NOTIFY-SCHED_AUDIT.md F1–F16, with these specifics:
+  F10 pace hours limited to 5 AM–8 PM local; F11 monthly pace = today's
+  behavior; F12 milestones daily or weekly only; F13 wording follows the
+  schedule, default unchanged; F15 reset deletes the row; F16 weekly = one
+  day. Go to build step 1."*
+- *"I applied 20261024170855_notify_sched_schedules to dev
+  (ep-late-water-a6k53nv2) with migrate deploy from froot/. Keep dayOfMonth.
+  Go to build step 2."*
+
+**What that rules**, the leans as the audit wrote them plus his specifics:
+
+- **F1** Pace alerts and milestone emails get schedules; signed
+  acknowledgments and the test email stay immediate.
+- **F2** Event-email digests deferred (no row filed).
+- **F3** Pace uses each store's zone; milestones, which cross stores, use a
+  zone stored on the schedule, pre-filled with the org's most common active
+  store zone. Not `Organization.timezone`.
+- **F4** Pace frequency is the send-lock period: at most one alert per store
+  per day / week / month.
+- **F5** Monthly digests send on day 1–28 — no kind offers it yet (F11, F12);
+  `dayOfMonth` is kept for NOTIFY-4 ("Keep dayOfMonth.").
+- **F6** No schedule row reproduces today: 15:00 UTC, pace monthly, milestones
+  daily.
+- **F7** One hourly cron for scheduled emails replaces the daily pace entry;
+  other crons untouched.
+- **F8** A missed hour is sent later the same local day, never the next.
+- **F9** ADMIN only.
+- **F10** Pace send hours 5 AM–8 PM local *(Gary's specific)*.
+- **F11** Monthly pace keeps today's behaviour: evaluated every ticked day,
+  at most one alert a month *(Gary's specific)*.
+- **F12** Milestones daily or weekly only *(Gary's specific)* — ruling 2's
+  7-day window (MS-4b) is unchanged.
+- **F13** The emails' and cards' cadence wording follows the schedule; with
+  no schedule it is unchanged *(Gary's specific)*.
+- **F14** The hourly sweep's retries may go out outside the chosen hour.
+- **F15** "Reset to default" deletes the schedule row *(Gary's specific)*.
+- **F16** Weekly is one day *(Gary's specific)*.
+
+**Claude's choices, for the record** (none ruled unless named above):
+
+- **C1** Two locks with two jobs. The SEND lock stays the NotificationIntent
+  dedupeKey: monthly `{storeId}:{YYYY-MM}` (unchanged, from the asOf month),
+  weekly `{storeId}:{YYYY-Www}` (ISO week, Monday start), daily
+  `{storeId}:{YYYY-MM-DD}` (both from the store-local today). A new
+  `NotificationScheduleRun` row marks a slot EVALUATED (org, kind,
+  store-or-"org", local date), claimed before the producer runs, so hourly
+  runs never re-evaluate a slot and milestones stay one email a day.
+- **C2** With no row the slot opens at 15:00 UTC and stays open for the rest of
+  that UTC day — F8 applied to the default, so a skipped or over-budget hour is
+  finished rather than lost.
+- **C3** A row the runner cannot use (out of range, wrong frequency, no zone)
+  runs on the default slot and is logged as an error; the save route uses the
+  same check, so only a hand-edited row can reach it.
+- **C4** The runner stops claiming new slots after 240 s of a 300 s function
+  and reports the rest as deferred; they run the next hour (F8).
+- **C5** The frequency travels in the email payload (absent with no row), so
+  the wording matches the lock the intent was sent under. A grouped milestone
+  summary takes the newest payload's frequency.
+- **C6** The PaceAlertLog "already alerted" gate applies to the monthly period
+  only (audit P1): keyed by month, it would otherwise block every daily or
+  weekly alert after the first in a month. The PaceAlertLog parallel write and
+  the run-marker insert use `skipDuplicates`, so their routine conflicts log no
+  `prisma:error` line. NOTIFY-9 still retires PaceAlertLog.
+- **C7** `/api/cron/scheduled-emails` runs at `5 * * * *` (off the `:00` crons,
+  before the `:15` sweep). `/api/cron/pace-alerts` stays, unregistered, and
+  runs the same runner; its JSON response is the runner's (`stores` became
+  `storesConsidered`). No clock override on any route; fixtures inject `now`.
+- **C8** F10 limits pace only; milestones may use any hour.
+- **C9** Wording: "You'll get at most one alert per store per day." / "…per
+  week." and "You get at most one milestone email a week."; the cards read "at
+  most once per store per day/week" and "At most one email a week". Monthly
+  and no-schedule read exactly as before.
+- **C10** The time-zone option list moved to `src/lib/time-zones.ts`, shared by
+  the store form and the schedule picker.
+- **C11** `updatedByUserId` is a plain id, not a foreign key, so the row
+  survives the user. Both new tables cascade with the org (the
+  NotificationContact precedent).
+- **C12** Switching frequency mid-period starts a new lock period, so a store
+  alerted monthly on the 5th can alert again that week after a switch to
+  weekly. The admin's choice takes effect; not prevented.
+
 ## 2026-10-23 — NOTIFY-12: per-kind "Also send to" recipients and an org address book (Gary)
 
 **RATIFIED BY GARY, 2026-10-24, at the NOTIFY-12 PRE-PUSH-CHECK.** The entry
