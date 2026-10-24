@@ -2,7 +2,21 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-10-24 — STAFF-3: terminated staff hidden by default, per-card sort (Name / Pay / Compliance) on /staff
+## dc8f062 — 2026-10-24 — STAFF-3: terminated staff hidden by default, per-card sort (Name / Pay / Compliance) on /staff
+
+**PROMOTED 2026-10-24 in merge `dc8f062`** (`dc8f062b9a208bbe490e0506004a78fa68a43001`,
+"Merge branch 'staging'", 2026-10-24 15:40:24 -0700 (Pacific) = 22:40:24 UTC),
+first parent `c4a2fde` (prior tip of `main`), second parent `1338135`. **3
+commits** in `dc8f062^1..dc8f062^2` — `f3cd892`, `a1345c7`, `1338135` — and
+**6 files**, read out of `git rev-list --count` and `git diff --stat` at this
+stamp. Stamped post-merge by PROMOTE-DOCS STAFF-3 (2026-10-24), on `staging`;
+the heading previously read "UNPROMOTED — 2026-10-24 — STAFF-3: terminated staff
+hidden by default, per-card sort (Name / Pay / Compliance) on /staff". The
+"staging only" status and "NEITHER WAS PUSHED" lines below are spent, kept.
+
+**Rollback after promotion:** `git revert -m 1 dc8f062` on `main` (the whole
+merge; recipe in `docs/WORKFLOW.md` § Rolling a promotion back). No migration,
+no env var, no cron — the revert is code-only.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
