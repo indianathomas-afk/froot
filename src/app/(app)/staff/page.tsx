@@ -4,6 +4,7 @@ import { Activity, Award, Trophy } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { AddStaffButton, ImportStaffButton, SyncStaffButton, DeleteStaffButton, StaffLocationChips } from "./staff-buttons"
 import { StaffLocationFilter } from "./staff-location-filter"
+import { StaffRosterCard, type RosterRow } from "./staff-roster-card"
 import { getUserStoreScope, hrModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { canSeeWages } from "@/lib/labor-dashboard"
@@ -36,9 +37,9 @@ const NO_PAY = new Map<string, { payType: string | null; hourlyRate: number | nu
 
 async function getStaffData() {
   const { orgId } = await auth()
-  if (!orgId) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, canSetUpMilestones: false, canSeeMilestoneReport: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null, onTime: NO_ON_TIME, onTimeLookbackDays: 0, raise: NO_RAISE }
+  if (!orgId) return { staff: [], stores: [], canToggleTerminated: false, isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, canSetUpMilestones: false, canSeeMilestoneReport: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null, onTime: NO_ON_TIME, onTimeLookbackDays: 0, raise: NO_RAISE }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { staff: [], stores: [], isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, canSetUpMilestones: false, canSeeMilestoneReport: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null, onTime: NO_ON_TIME, onTimeLookbackDays: 0, raise: NO_RAISE }
+  if (!org) return { staff: [], stores: [], canToggleTerminated: false, isAdmin: false, canManage: false, canImport: false, canSync: false, canViewEngagement: false, canSetUpMilestones: false, canSeeMilestoneReport: false, hrActive: false, summaries: NO_SUMMARIES, pay: NO_PAY, showPay: false, selfStaffId: null, onTime: NO_ON_TIME, onTimeLookbackDays: 0, raise: NO_RAISE }
 
   // HR surfaces on this page only exist when the module is available in this
   // environment AND the org has the add-on on — otherwise render as before.
@@ -56,7 +57,7 @@ async function getStaffData() {
   const self = dbUser ? await resolveSelfStaff(org.id, dbUser) : null
   const selfStaffId = self?.ok ? self.staffMember.id : null
 
-  const [staff, stores] = await Promise.all([
+  const [roster, stores] = await Promise.all([
     prisma.staffMember.findMany({
       where: {
         organizationId: org.id,
@@ -72,6 +73,15 @@ async function getStaffData() {
     }),
     prisma.store.findMany({ where: { organizationId: org.id, ...storeFilter }, orderBy: { name: "asc" } }),
   ])
+
+  // STAFF-3 ruling 3. Only ADMIN and MANAGER may reveal terminated members, so
+  // any other role never receives their rows — dropped HERE, before compliance,
+  // pay, On-Time or Raise run, so nothing about them reaches the payload. Inert
+  // today: staff.view (layout.tsx) is MANAGE and not grantable, so no other role
+  // reaches this page. It is the line that keeps that true if that ever changes.
+  // Same `status === "TERMINATED"` test as the red badge in StaffRow.
+  const canToggleTerminated = dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER"
+  const staff = canToggleTerminated ? roster : roster.filter((m) => m.status !== "TERMINATED")
 
   // HR-8: one batched rollup for the whole roster — never a query per row.
   // Terminated members come back with pct null (excluded from percentages).
@@ -238,7 +248,7 @@ async function getStaffData() {
   // (milestones.manage is ADMIN_ONLY) and MANAGERs keep their only route in.
   const canSeeMilestoneReport = showOnTime && !canSetUpMilestones
 
-  return { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, canSeeMilestoneReport, hrActive, summaries, pay, showPay, selfStaffId, onTime, onTimeLookbackDays, raise }
+  return { staff, stores, canToggleTerminated, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, canSeeMilestoneReport, hrActive, summaries, pay, showPay, selfStaffId, onTime, onTimeLookbackDays, raise }
 }
 
 type RosterMember = Awaited<ReturnType<typeof getStaffData>>["staff"][number]
@@ -323,6 +333,16 @@ function PayCell({
       {text}
     </span>
   )
+}
+
+// STAFF-3 — the Pay sort key: the figure PayCell shows, or null wherever it
+// shows anything else (masked, not set in Square, no Square link). Same
+// precedence as formatPay. A salary is compared as its 2,080-hour equivalent
+// so salaried and hourly rows interleave on one scale.
+function paySortValue(pay?: { payType: string | null; hourlyRate: number | null; annualRate: number | null; compMasked: boolean }): number | null {
+  if (!pay || pay.compMasked) return null
+  if (pay.payType === "SALARY" && pay.annualRate !== null) return pay.annualRate / 2080
+  return pay.hourlyRate
 }
 
 // One roster row, shared by all three places a member is listed: a store's own
@@ -447,7 +467,7 @@ function StaffRow({
 }
 
 export default async function StaffPage() {
-  const { staff, stores, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, canSeeMilestoneReport, hrActive, summaries, pay, showPay, selfStaffId, onTime, onTimeLookbackDays, raise } = await getStaffData()
+  const { staff, stores, canToggleTerminated, isAdmin, canManage, canImport, canSync, canViewEngagement, canSetUpMilestones, canSeeMilestoneReport, hrActive, summaries, pay, showPay, selfStaffId, onTime, onTimeLookbackDays, raise } = await getStaffData()
 
   // The stores this page actually renders: every org store for an ADMIN, the
   // caller's assigned stores otherwise.
@@ -526,6 +546,9 @@ export default async function StaffPage() {
   // considered and declined: the footer link now goes straight to the viewer's
   // own staff page, which answers "find my profile" without reordering a page
   // for everyone else to solve one person's problem.
+  //
+  // STAFF-3: StaffRosterCard re-applies this pin after every sort (ruling 7),
+  // so this pass only fixes the order the rows arrive in.
   if (selfStaffId) {
     const pinSelf = (list: RosterMember[]) => {
       const at = list.findIndex((m) => m.id === selfStaffId)
@@ -592,6 +615,68 @@ export default async function StaffPage() {
     </div>
   )
 
+  // STAFF-3 — each card's rows go to StaffRosterCard as server-rendered nodes
+  // plus their sort keys. `section` keeps the "Also works here" block apart.
+  const rowFor = (member: RosterMember, section: RosterRow["section"], homeStoreName?: string): RosterRow => {
+    const p = pay.get(member.id)
+    return {
+      key: section === "visiting" ? `visiting-${member.id}` : member.id,
+      section,
+      terminated: member.status === "TERMINATED",
+      isSelf: member.id === selfStaffId,
+      name: member.displayName,
+      pay: paySortValue(p),
+      pct: summaries.get(member.id)?.pct ?? null,
+      node: (
+        <StaffRow
+          key={section === "visiting" ? `visiting-${member.id}` : member.id}
+          member={member}
+          hrActive={hrActive}
+          canEdit={canManage}
+          pct={summaries.get(member.id)?.pct ?? null}
+          onTime={onTime.get(member.id)}
+          onTimeLookbackDays={onTimeLookbackDays}
+          raise={raise.get(member.id)}
+          showPay={showPay}
+          pay={p}
+          homeStoreName={homeStoreName}
+          isSelf={member.id === selfStaffId}
+        />
+      ),
+    }
+  }
+
+  // Ruling 4 — the header counts ACTIVE members; the terminated count is named
+  // only for a viewer who can reveal them.
+  const terminatedNote = (rows: RosterRow[]) => {
+    const n = rows.filter((r) => r.terminated).length
+    return canToggleTerminated && n > 0 ? ` · ${n} terminated` : ""
+  }
+  const activeCount = (rows: RosterRow[], section?: RosterRow["section"]) =>
+    rows.filter((r) => !r.terminated && (!section || r.section === section)).length
+  // Ruling 6 — Pay is offered only when this card has a pay figure the viewer
+  // can read. A masked or missing figure is a null key and sorts as a blank.
+  const canSortByPay = (rows: RosterRow[]) => showPay && rows.some((r) => r.pay !== null)
+
+  const tableHead = (
+    <thead>
+      <tr className="border-b border-[var(--color-border)]">
+        <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Display Name</th>
+        <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Full Name</th>
+        <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Locations</th>
+        {showPay && (
+          <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Pay</th>
+        )}
+        {hrActive && (
+          <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Compliance</th>
+        )}
+        <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Actions</th>
+      </tr>
+    </thead>
+  )
+  // Base four columns, plus Pay and Compliance when each is shown.
+  const colSpan = 4 + (showPay ? 1 : 0) + (hrActive ? 1 : 0)
+
   // STAFF-1. THE CARDS AND THE DROPDOWN'S OPTIONS COME FROM ONE ARRAY — the
   // same stores.filter(...) that has always decided which cards appear. That
   // is the whole guarantee: a MANAGER's dropdown lists their stores and
@@ -601,183 +686,96 @@ export default async function StaffPage() {
   const cards = stores
     .filter((s) => byStore.has(s.id) || visitingByStore.has(s.id))
     .map((store) => {
-      const members = byStore.get(store.id) ?? []
       const visiting = visitingByStore.get(store.id) ?? []
-      // Base four columns, plus Pay and Compliance when each is shown.
-      const colSpan = 4 + (showPay ? 1 : 0) + (hrActive ? 1 : 0)
+      const rows = [
+        ...(byStore.get(store.id) ?? []).map((m) => rowFor(m, "home")),
+        ...visiting.map((m) => rowFor(m, "visiting", m.storeAssignments[0].store.name)),
+      ]
+      const members = activeCount(rows, "home")
+      const visitingActive = activeCount(rows, "visiting")
       return {
         id: store.id,
         // Worded exactly as the card header reads, so the option names the
         // thing on screen rather than a second rendering of the same store.
         label: `${store.storeNumber ? `#${store.storeNumber} — ` : ""}${store.name}`,
         node: (
-          <div key={store.id} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
-            <div className="px-6 py-4 border-b border-[var(--color-border)]">
+          <StaffRosterCard
+            key={store.id}
+            title={
               <div className="flex items-center gap-2">
                 <span className="text-lg">🏪</span>
-                <div>
-                  <h3 className="font-semibold text-[var(--color-foreground)]">
-                    {store.storeNumber ? `#${store.storeNumber} — ` : ""}{store.name}
-                  </h3>
-                  {/* Two counts, never one merged number: a member listed here
-                      but based elsewhere is not part of this store's roster. */}
-                  <p className="text-xs text-[var(--color-muted-foreground)]">
-                    {members.length} team member{members.length !== 1 ? "s" : ""}
-                    {visiting.length > 0 && ` · ${visiting.length} also work${visiting.length === 1 ? "s" : ""} here`}
-                  </p>
-                </div>
+                <h3 className="font-semibold text-[var(--color-foreground)]">
+                  {store.storeNumber ? `#${store.storeNumber} — ` : ""}{store.name}
+                </h3>
               </div>
-            </div>
-            <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[var(--color-border)]">
-                  <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Display Name</th>
-                  <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Full Name</th>
-                  <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Locations</th>
-                  {showPay && (
-                    <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Pay</th>
-                  )}
-                  {hrActive && (
-                    <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Compliance</th>
-                  )}
-                  <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {members.map((member) => (
-                  <StaffRow
-                    key={member.id}
-                    member={member}
-                    hrActive={hrActive}
-                    canEdit={canManage}
-                    pct={summaries.get(member.id)?.pct ?? null}
-                    onTime={onTime.get(member.id)}
-                    onTimeLookbackDays={onTimeLookbackDays}
-                    raise={raise.get(member.id)}
-                    showPay={showPay}
-                    pay={pay.get(member.id)}
-                    isSelf={member.id === selfStaffId}
-                  />
-                ))}
-                {visiting.length > 0 && (
-                  <tr className="border-b border-[var(--color-border)] bg-[var(--color-muted)]">
-                    <td colSpan={colSpan} className="px-6 py-2">
-                      <p className="text-xs font-medium text-[var(--color-foreground)]">
-                        Also works here — {visiting.length} member{visiting.length !== 1 ? "s" : ""} based at another store
-                      </p>
-                    </td>
-                  </tr>
-                )}
-                {visiting.map((member) => (
-                  <StaffRow
-                    key={`visiting-${member.id}`}
-                    member={member}
-                    hrActive={hrActive}
-                    canEdit={canManage}
-                    pct={summaries.get(member.id)?.pct ?? null}
-                    onTime={onTime.get(member.id)}
-                    onTimeLookbackDays={onTimeLookbackDays}
-                    raise={raise.get(member.id)}
-                    showPay={showPay}
-                    pay={pay.get(member.id)}
-                    homeStoreName={member.storeAssignments[0].store.name}
-                    isSelf={member.id === selfStaffId}
-                  />
-                ))}
-              </tbody>
-            </table>
-            </div>
-          </div>
+            }
+            summary={
+              // Two counts, never one merged number: a member listed here
+              // but based elsewhere is not part of this store's roster.
+              <p className="text-xs text-[var(--color-muted-foreground)] pl-7">
+                {members} team member{members !== 1 ? "s" : ""}
+                {visitingActive > 0 && ` · ${visitingActive} also work${visitingActive === 1 ? "s" : ""} here`}
+                {terminatedNote(rows)}
+              </p>
+            }
+            head={tableHead}
+            colSpan={colSpan}
+            rows={rows}
+            canToggleTerminated={canToggleTerminated}
+            canSortByPay={canSortByPay(rows)}
+            canSortByCompliance={hrActive}
+          />
         ),
       }
     })
 
-  // The two groups that belong to no store. Unchanged, and still built and
-  // rendered exactly where they were — picking a store only decides whether
-  // this VIEW shows them ("renders only that store's card"). Where corporate
-  // staff are grouped is not this phase's business.
+  // The two groups that belong to no store. Still rendered exactly where they
+  // were — picking a store only decides whether this VIEW shows them. STAFF-3
+  // gives them the same card so terminated members are hidden here too
+  // (ruling 1 is "not shown on load", not "not shown on store cards").
+  const corporateRows = corporate.map((m) => rowFor(m, "home"))
+  const unassignedRows = unassigned.map((m) => rowFor(m, "home"))
+  const corporateActive = activeCount(corporateRows)
+  const unassignedActive = activeCount(unassignedRows)
   const extras = (
     <>
       {corporate.length > 0 && (
-        <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
-          <div className="px-6 py-4 border-b border-[var(--color-border)]">
+        <StaffRosterCard
+          title={
             <div className="flex items-center gap-2">
               <span className="text-lg">🏢</span>
-              <div>
-                <h3 className="font-semibold text-[var(--color-foreground)]">Corporate</h3>
-                <p className="text-xs text-[var(--color-muted-foreground)]">
-                  {corporate.length} team member{corporate.length !== 1 ? "s" : ""} · available at every
-                  location, based at none
-                </p>
-              </div>
+              <h3 className="font-semibold text-[var(--color-foreground)]">Corporate</h3>
             </div>
-          </div>
-          <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-[var(--color-border)]">
-                <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Display Name</th>
-                <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Full Name</th>
-                <th className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Locations</th>
-                {showPay && (
-                  <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Pay</th>
-                )}
-                {hrActive && (
-                  <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Compliance</th>
-                )}
-                <th className="text-right text-xs font-medium text-[var(--color-muted-foreground)] px-6 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {corporate.map((member) => (
-                <StaffRow
-                  key={member.id}
-                  member={member}
-                  hrActive={hrActive}
-                  canEdit={canManage}
-                  pct={summaries.get(member.id)?.pct ?? null}
-                    onTime={onTime.get(member.id)}
-                    onTimeLookbackDays={onTimeLookbackDays}
-                    raise={raise.get(member.id)}
-                  showPay={showPay}
-                  pay={pay.get(member.id)}
-                  isSelf={member.id === selfStaffId}
-                />
-              ))}
-            </tbody>
-          </table>
-          </div>
-        </div>
+          }
+          summary={
+            <p className="text-xs text-[var(--color-muted-foreground)] pl-7">
+              {corporateActive} team member{corporateActive !== 1 ? "s" : ""} · available at every
+              location, based at none{terminatedNote(corporateRows)}
+            </p>
+          }
+          head={tableHead}
+          colSpan={colSpan}
+          rows={corporateRows}
+          canToggleTerminated={canToggleTerminated}
+          canSortByPay={canSortByPay(corporateRows)}
+          canSortByCompliance={hrActive}
+        />
       )}
       {unassigned.length > 0 && (
-        <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
-          <div className="px-6 py-4 border-b border-[var(--color-border)]">
-            <p className="font-semibold text-[var(--color-foreground)]">Unassigned</p>
-            <p className="text-xs text-[var(--color-muted-foreground)]">{unassigned.length} member{unassigned.length !== 1 ? "s" : ""}</p>
-          </div>
-          <div className="overflow-x-auto">
-          <table className="w-full">
-            <tbody>
-              {unassigned.map((member) => (
-                <StaffRow
-                  key={member.id}
-                  member={member}
-                  hrActive={hrActive}
-                  canEdit={canManage}
-                  pct={summaries.get(member.id)?.pct ?? null}
-                    onTime={onTime.get(member.id)}
-                    onTimeLookbackDays={onTimeLookbackDays}
-                    raise={raise.get(member.id)}
-                  showPay={showPay}
-                  pay={pay.get(member.id)}
-                  isSelf={member.id === selfStaffId}
-                />
-              ))}
-            </tbody>
-          </table>
-          </div>
-        </div>
+        <StaffRosterCard
+          title={<p className="font-semibold text-[var(--color-foreground)]">Unassigned</p>}
+          summary={
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              {unassignedActive} member{unassignedActive !== 1 ? "s" : ""}{terminatedNote(unassignedRows)}
+            </p>
+          }
+          head={null}
+          colSpan={colSpan}
+          rows={unassignedRows}
+          canToggleTerminated={canToggleTerminated}
+          canSortByPay={canSortByPay(unassignedRows)}
+          canSortByCompliance={hrActive}
+        />
       )}
     </>
   )
