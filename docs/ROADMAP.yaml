@@ -21758,6 +21758,8 @@ phases:
       # + the docs commit immediately after aca15ad: docs(NOTIFY-SCHED)
       - "9dda844"
       # + the commit immediately after 9dda844: docs(NOTIFY-13 PRE-PUSH-CHECK)
+      - "6926742"
+      # + the commit immediately after 6926742: docs(NOTIFY-13a) — this rider
     blockers:
       - >
         MIGRATION 20261024170855_notify_sched_schedules: applied to DEV by Gary
@@ -21797,6 +21799,35 @@ phases:
       - "NotificationSchedule.dayOfMonth is stored and validated but no kind offers day-of-month yet (Gary: \"Keep dayOfMonth.\"); NOTIFY-4's report email is its first consumer."
       - "NotificationScheduleRun grows by about stores x days. No prune yet; the engagement-prune cron is the pattern when it matters."
     notes: >
+      ── RIDER 2026-10-24 (NOTIFY-13a). PREPENDED; NOTHING BELOW IS EDITED. ──
+      STAGING TEST RESULTS SO FAR, as given in the NOTIFY-13a prompt
+      (docs/prompts/NOTIFY-13a_wording_fix.md; the numbering is that prompt's,
+      not the blockers' eight-step list): (1) migration
+      20261024170855_notify_sched_schedules on staging at 2026-10-24 18:34:23
+      UTC (11:34:23 PDT); (2) both Schedule sections render; (3) save + reload
+      held for both cards; (5) "Reset to default" restored the default on both;
+      (6) a MANAGER cannot see or save schedules; (4) the hand-fired cron was
+      SKIPPED BY GARY — the Preview CRON_SECRET could not be used. Step (4) is
+      covered by fixture checks D3/S3 (scripts/verify-notify-sched.ts) and is
+      to be confirmed on PRODUCTION by watching /api/cron/scheduled-emails in
+      the Vercel logs after promotion. TWO BUGS FOUND, both from aca15ad:
+      (a) the Milestone emails card read "At most one email a dayto admins…"
+      ("a weekto" when weekly) — `{milestoneCadence} to admins` began a JSX
+      line and the compiled chunk dropped the space (`[y,"to admins…"]`); the
+      pace card's mid-line join compiles to `" ",x," when"` and was not
+      affected; (b) "Send a sample to me" always said "at most one milestone
+      email a day." whatever the saved schedule. FIXED in 6926742: the card
+      text is one string from milestoneCardText(), byte-for-byte the
+      pre-aca15ad sentence with no schedule row; POST /api/notify/test reads
+      the saved milestone frequency (a read; no new write, no permission
+      change) and the sample's footer follows it. verify-notify-sched 48/0 on
+      dev br-broad-wave-a6vpjdw0 (new T1–T5); negative control (space removed)
+      failed T1–T3 and was restored; verify-f5-polish 63, verify-ms4b 59,
+      verify-ms6 45, verify-notify-template 35, verify-notify5 55,
+      verify-notify6 78, verify-notify12 54, all green on dev. NOT VERIFIED ON
+      STAGING: 6926742 is not pushed; re-check the card text and a weekly
+      sample's footer on staging after Gary's push, behind the staging-SHA
+      precondition.
       FILED AND BUILT 2026-10-24. Prompt: docs/prompts/NOTIFY-SCHED.md; audit:
       docs/prompts/NOTIFY-SCHED_AUDIT.md (forks F1-F16, each with a lean).
       Tier TIER 3 (schema, cron). THE ID: NOTIFY-12 was the highest NOTIFY

@@ -22,6 +22,18 @@ production's daily pace-alert cron with an hourly one.
 | `9dda844` | `docs(NOTIFY-SCHED)`: NOTIFY-13 row (`in_progress`), DECISIONS draft, MIGRATIONS entry, PRE-PUSH-CHECK R1 rider, MS-6 staging record, the session prompt and audit |
 | the commit immediately after `9dda844` | `docs(NOTIFY-13 PRE-PUSH-CHECK)`: this entry, DECISIONS ratified (Gary: "Ratify as written."), row to `staging`, a dated rider in `docs/FORECASTING.md` (pace-alert cron moved to the hourly runner) |
 
+**Rider 2026-10-24 (NOTIFY-13a) — the payload grows by two commits.** Added
+after the table above, which is kept as written.
+
+| Commit | What it is |
+|---|---|
+| `6926742` | `fix(NOTIFY-13a)`: Milestone emails card spacing ("a dayto admins" → "a day to admins", byte-for-byte the pre-`aca15ad` text with no schedule) and "Send a sample to me" footer following the saved milestone schedule; `POST /api/notify/test` gains one read; `scripts/verify-notify-sched.ts` section T |
+| the commit immediately after `6926742` | `docs(NOTIFY-13a)`: this rider, the NOTIFY-13 row rider, the session prompt |
+
+No schema, no env var, no new write route. Rollback for `6926742` alone:
+revert it — the card shows "a dayto" again and the sample says "a day" always;
+nothing else depends on it. Staging results so far are on the NOTIFY-13 row.
+
 **Blast radius: TWO NEW TABLES, ONE CRON REPLACED, TWO NEW WRITE ROUTES, AND THE
 SEND TIMING OF BEHIND-PACE ALERTS AND MILESTONE EMAILS. NO ENV VAR, NO SQUARE
 CALL, NO EXISTING TABLE ALTERED.** What changes:
