@@ -55,7 +55,26 @@ and nothing depends on it; the docs commits need no revert.
 temporary `/menu` page with mock rows (deleted before commit); scoped eslint
 clean; `npm run build` green. Staging checks are owed — see the STAFF-3 row.
 
-## UNPROMOTED — 2026-10-24 — NOTIFY-13: per-email-type send schedules (local hour, days, daily/weekly/monthly) and an hourly scheduled-emails cron
+## b73295e — 2026-10-24 — NOTIFY-13: per-email-type send schedules (local hour, days, daily/weekly/monthly) and an hourly scheduled-emails cron
+
+**PROMOTED 2026-10-24 in merge `b73295e`** (`b73295ef9f13a336637503b5f73e1c909dfa70b0`,
+"Merge branch 'staging'", 2026-10-24 13:51:30 -0700 (Pacific) = 20:51:30 UTC),
+first parent `9542b14` (prior tip of `main`), second parent `bc9f5a5`. **7
+commits** in `b73295e^1..b73295e^2` — `797f100` (the DOCS-CLEANUP-NOTIFY12
+stamp, not NOTIFY-13), `aca15ad`, `9dda844`, `69cef02`, `6926742`, `877832a`,
+`bc9f5a5` (the commit "immediately after `877832a`" named above) — and **34
+files**, read out of `git rev-list --count` and `git diff --stat` at this stamp.
+**STAMPED LATE on 2026-10-24** by PROMOTE-DOCS NOTIFY-13, on `staging`: the
+STAFF-3 promotion docs pass (`e31484f`) found this heading still reading
+"UNPROMOTED — 2026-10-24 — NOTIFY-13: per-email-type send schedules (local hour,
+days, daily/weekly/monthly) and an hourly scheduled-emails cron" although its
+commits were on `main`. The "staging only" status and "NEITHER WAS PUSHED"
+lines below are spent, kept.
+
+**Rollback after promotion:** `git revert -m 1 b73295e` on `main` (the whole
+merge; recipe in `docs/WORKFLOW.md` § Rolling a promotion back). That also
+reverts `797f100`'s docs stamp; the two NotificationSchedule tables stay
+(additive-only schema — see Rollback below).
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next

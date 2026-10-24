@@ -21815,7 +21815,13 @@ phases:
     # inside itself). NOT pushed when the check ran — Gary runs the push. The
     # "Not pushed" comment above is kept as written. DECISIONS 2026-10-24
     # NOTIFY-SCHED ratified by Gary at this check: "Ratify as written."
-    status: staging
+    # `staging` -> `shipped` 2026-10-24, STAMPED LATE on 2026-10-24 by
+    # PROMOTE-DOCS NOTIFY-13 (on `staging`), found by the STAFF-3 docs pass
+    # e31484f: merge b73295e (DEPLOY_LOG entry `b73295e — 2026-10-24 —
+    # NOTIFY-13`). The commit immediately after 877832a is bc9f5a5. Any "not
+    # pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-24
     title: "Per-email-type send schedules — local hour, days and daily/weekly/monthly for pace alerts and milestone emails"
     commits:
       - "aca15ad"
@@ -21832,6 +21838,7 @@ phases:
       # it on Gary's push.
       - "69cef02"
       - "877832a"
+      - "b73295e"
     blockers:
       - >
         MIGRATION 20261024170855_notify_sched_schedules: applied to DEV by Gary
@@ -21871,6 +21878,11 @@ phases:
       - "NotificationSchedule.dayOfMonth is stored and validated but no kind offers day-of-month yet (Gary: \"Keep dayOfMonth.\"); NOTIFY-4's report email is its first consumer."
       - "NotificationScheduleRun grows by about stores x days. No prune yet; the engagement-prune cron is the pattern when it matters."
     notes: >
+      ── 2026-10-24 (PROMOTE-DOCS NOTIFY-13). PREPENDED; NOTHING BELOW IS
+      EDITED. ── Promotion stamp applied late on 2026-10-24: NOTIFY-13 reached
+      `main` in merge b73295e (2026-10-24 13:51:30 PDT = 20:51:30 UTC) but the
+      row stayed `staging` and the DEPLOY_LOG heading UNPROMOTED until the
+      STAFF-3 docs pass (e31484f) noticed it.
       ── RIDER 2026-10-24 (NOTIFY-13a). PREPENDED; NOTHING BELOW IS EDITED. ──
       STAGING TEST RESULTS SO FAR, as given in the NOTIFY-13a prompt
       (docs/prompts/NOTIFY-13a_wording_fix.md; the numbering is that prompt's,
