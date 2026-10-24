@@ -206,7 +206,7 @@ export function ContactsCard({ contacts: initial }: { contacts: ContactView[] })
     <div>
       <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
         People who get Froot email but may not log in — a corporate inbox, an accountant, an owner. Add them
-        once here, then choose them under <span className="font-medium">Also send to</span> on any email above.
+        once here, then choose them under <span className="font-medium">Also send to</span> on any email below.
       </p>
 
       <div className="flex flex-col sm:flex-row gap-2">

@@ -136,8 +136,19 @@ export default async function NotificationSettingsPage() {
         </div>
       </div>
 
+      {/* NOTIFY-13b. First, outside every HR conditional: it is the address
+          book the "Also send to" pickers below draw from. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Contacts</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ContactsCard contacts={contacts} />
+        </CardContent>
+      </Card>
+
       {hrAvailable && (
-        <Card>
+        <Card className="mt-4">
           <CardHeader>
             <CardTitle>Signed-acknowledgment emails</CardTitle>
           </CardHeader>
@@ -196,7 +207,7 @@ export default async function NotificationSettingsPage() {
         </Card>
       )}
 
-      <Card className={hrAvailable ? "mt-4" : undefined}>
+      <Card className="mt-4">
         <CardHeader>
           <CardTitle>Behind-pace alerts</CardTitle>
         </CardHeader>
@@ -317,15 +328,6 @@ export default async function NotificationSettingsPage() {
           </CardContent>
         </Card>
       )}
-
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>Contacts</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ContactsCard contacts={contacts} />
-        </CardContent>
-      </Card>
 
       <Card className="mt-4">
         <CardHeader>
