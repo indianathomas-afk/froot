@@ -21250,6 +21250,20 @@ phases:
       P5: "Yes — 180 days for messages, events and deliveries; sent-once locks
       kept forever." (Pruned in the existing engagement-prune cron;
       NotificationIntent state is never pruned.)
+      P1 TARGET MOVED TO THE PICKS (NOTIFY-12, 2026-10-23). Gary: "Move the
+      NOTIFY-8 unsubscribe to the picks in this step." There is no
+      hrAckRecipients list to remove an address from any more (NOTIFY-12 F1:
+      preserved, no longer read), so the design above changes in its second
+      half only. A recipient who got the email as an "Also send to" extra (a
+      contact; a user too once DEBT-106 lets user picks be saved) unsubscribes
+      by DELETING that kind's NotificationRecipientPick. The contact is NOT
+      archived, so its picks on other kinds are untouched. A role-default user
+      still unsubscribes through that kind's notify.*.receive denial,
+      unchanged. Someone who qualified both ways needs both, or they keep
+      getting it. Which applies is on the message: NotificationMessage.
+      recipientReasons ("role", "extra-user", "extra-contact"). hr.ack has no
+      role default, so its unsubscribe is always a pick removal; milestone
+      takes no picks (NOTIFY-12 F11), so its unsubscribe is the denial only.
       GO-LIVE NOTE: NOTIFY-10 sets NOTIFY_FROM_EMAIL to "USE Froot
       <noreply@...>". P3 replaces that display name per org when NOTIFY-8
       ships; it does not block NOTIFY-10.
@@ -21567,6 +21581,82 @@ phases:
       on /settings/notifications, and test-send allowlist fields. Those were
       proposed in the same investigation and are not ruled. Cross-refs:
       NOTIFY-5, NOTIFY-6.
+
+  - id: NOTIFY-12
+    track: platform
+    size: M
+    # `in_progress` at 146e94f, set 2026-10-24 by the NOTIFY-12 build session
+    # (TIER 3). Not pushed — Claude never pushes. PRE-PUSH-CHECK owns the flip
+    # to `staging`.
+    status: in_progress
+    title: "Per-email-type recipients — 'Also send to' picks from an org address book; hrAckRecipients retired"
+    commits:
+      - "146e94f"
+      # + the commit immediately after 146e94f: docs(NOTIFY-12)
+    blockers:
+      - >
+        RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-23 — NOTIFY-12 records
+        Gary's words from this session exactly (F11 against the lean; the two
+        step-2 choices; contacts only until DEBT-106; NOTIFY-8 unsubscribe to
+        the picks) and Claude's C1–C11 separately. The F1–F13 approval itself
+        is recorded by the schema session's comments, not in Gary's words.
+        Awaits ratification at the NOTIFY-12 PRE-PUSH-CHECK.
+      - >
+        MIGRATION 20261023200000_notify12_recipients is APPLIED TO DEV ONLY
+        (Gary, 2026-10-23 22:35 UTC; his parity query returned zero rows on
+        dev). Staging and production get it, and backfill themselves, through
+        prisma migrate deploy in the Vercel build on push. Check the Neon
+        console _prisma_migrations on br-square-feather-a63z92vz before and
+        after the push, and re-run the parity query there (docs/MIGRATIONS.md
+        entry) — it must return zero rows on each branch.
+      - >
+        THE MIGRATION AND THE CODE MUST SHIP TOGETHER (audit F1). Code without
+        the migration fails every Organization read that loads picks; the
+        migration without the code leaves signed-ack emails reading a column
+        the new UI no longer writes.
+      - >
+        UNVERIFIED ON STAGING. Dev-level evidence only: verify-notify12 54/0
+        on dev br-broad-wave-a6vpjdw0 with three negative controls run and
+        restored (extras dropped → 14 FAIL; shared-address match →
+        matched[0] → 3 FAIL; USER_PICKS_ENABLED true → 1 FAIL);
+        verify-f5-polish 63/0, verify-notify5 55/0, verify-notify6 78/0,
+        verify-ms4b 59/0; a green npm run build. The new UI was seen only as
+        components on a temporary public page with made-up contacts (deleted
+        before commit) — never as an ADMIN on /settings/notifications. Staging
+        test list: as an ADMIN, add a contact, tick it under Behind-pace
+        alerts and Signed-acknowledgment emails, save, reload; archive it and
+        confirm it drops from both pickers; add a contact with a store login's
+        address and confirm the warning; sign a document with an
+        allow-listed contact picked on hr.ack and confirm the email and a
+        Recent emails row.
+    deferred:
+      - "User picks (F10): the schema and dispatcher handle them; the save route refuses them until DEBT-106 closes (USER_PICKS_ENABLED in src/lib/notifications/contacts.ts)."
+      - "Switching off a kind's role default (F6)."
+      - "Per-store extras on pace alerts (F4): an extra gets every store's alert."
+      - "Milestone extras (F11, Gary: no extras on milestone emails)."
+    notes: >
+      FILED AND BUILT 2026-10-23/24. Audit: docs/prompts/NOTIFY-RCPT_AUDIT.md;
+      prompt: docs/prompts/NOTIFY-RCPT.md. Tier TIER 3 (schema, recipient
+      logic). THE ID was confirmed free by the audit (§ 9) and is referenced
+      nowhere outside this work.
+      WHAT. A kind's own resolver is its ROLE DEFAULT; an ADMIN adds "Also send
+      to" contacts per kind on /settings/notifications, from one org address
+      book (NotificationContact, archived never deleted). Picks are
+      NotificationRecipientPick rows (one per org/kind/person). The dispatcher
+      (src/lib/notifications/dispatch.ts eligibleRecipients) appends active
+      picks after the role default, then can() and exclude run over both, so
+      a denial still wins; the de-dup merges reasons ("role", "extra-user",
+      "extra-contact"), recorded on NotificationMessage.recipientReasons and
+      the AuditLog copy. A contact holding a Froot user's address is resolved
+      as that user. hr.ack has no role default and is on while it has an
+      active pick; its old column was backfilled into picks and is no longer
+      read (DEBT-121 drops it). Milestone and test take no extras.
+      ROUTES: GET/POST /api/notify/contacts, PATCH /api/notify/contacts/[id],
+      PUT /api/notify/recipients/[kind]. PUT /api/hr/settings returns 410.
+      Cross-refs: NOTIFY-6, NOTIFY-8 (unsubscribe target moved to the picks),
+      NOTIFY-7 (suppression must run after the extras merge), NOTIFY-9
+      (AuditLog reasons live until then), DEBT-106 (blocks user picks),
+      DEBT-121, HR-16.
 
 
 bugs:
@@ -32625,6 +32715,17 @@ debt:
       departed admin matches the pace-alert recipient query forever and appears
       on no Froot screen
     notes: >
+      ── RIDER 2026-10-24 (NOTIFY-12). PREPENDED; NOTHING BELOW IS EDITED. ──
+      THIS ROW NOW BLOCKS NOTIFY-12'S USER PICKS. Gary, 2026-10-23: "Step 3 is
+      contacts only; the save route rejects user picks until DEBT-106." The
+      database still cannot tell a departed User from a current one, so a
+      picked departed user would keep receiving "Also send to" mail — the
+      extras version of this row's leak, MANAGERs included. When this row
+      closes: mark departed users, exclude them in
+      src/lib/notifications/picks.ts resolveExtras, list picker users from
+      Clerk memberships (audit F10), and flip USER_PICKS_ENABLED in
+      src/lib/notifications/contacts.ts. Audit: docs/prompts/NOTIFY-RCPT_AUDIT.md
+      § 7 and F10.
       ── RIDER 2026-10-23 (DOCS-NOTIFY-PROD). PREPENDED; NOTHING BELOW IS EDITED. ──
       2026-10-23: production now sends via Resend — see DEPLOY_LOG "2026-10-23 — PRODUCTION ENVIRONMENT CHANGE: email turned on (Resend vars + webhook) — NOT a promotion".
       "production is expected to follow" happened on 2026-10-23, so this gap is
@@ -33100,6 +33201,27 @@ debt:
       function that decides); plus a promotion-ritual line to diff Preview vs
       Production env-var NAMES whenever a promotion adds a new variable.
       RELATED: NOTIFY-1, NOTIFY-5, NOTIFY-10, HR-16.
+
+  - id: DEBT-121
+    status: planned
+    title: >
+      Drop Organization.hrAckRecipients once NOTIFY-12 has been in production
+      for a release
+    notes: >
+      FILED 2026-10-24 by the NOTIFY-12 build session (audit F1,
+      preserve-and-mark). THE ID was confirmed free by the NOTIFY-12 audit
+      (§ 9: DEBT-120 was the highest) and appears nowhere else. NOTIFY-12's
+      migration 20261023200000_notify12_recipients copied every address into
+      NotificationContact and an "hr.ack" NotificationRecipientPick; from that
+      release no send path reads the column and PUT /api/hr/settings refuses
+      writes with a 410. The column is kept only so a code rollback reads the
+      pre-migration list (see the MIGRATIONS.md caveat). WHEN: after NOTIFY-12
+      has been on production for one release and the parity query in
+      docs/MIGRATIONS.md has returned zero rows on production. WHAT: remove the
+      column from prisma/schema.prisma and its two schema comments, the
+      410 route, and the parity notes. A column drop needs Gary's ruling first,
+      because CLAUDE.md's additive-only rule forbids it by default.
+      RELATED: NOTIFY-12, HR-16.
 
 rulings:
   - id: R1

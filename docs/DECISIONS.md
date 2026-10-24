@@ -5,6 +5,93 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-23 — NOTIFY-12: per-kind "Also send to" recipients and an org address book (Gary)
+
+**DRAFT — AWAITS RATIFICATION AT THE NOTIFY-12 PRE-PUSH-CHECK.** Audit:
+`docs/prompts/NOTIFY-RCPT_AUDIT.md` (forks F1–F13, each with a lean). Work
+commit `146e94f`.
+
+**Provenance of the F1–F13 approval.** The schema session wrote "every lean
+F1–F13 approved by Gary 2026-10-23" into `prisma/schema.prisma` and the
+migration's comments. Gary's words for that approval are NOT in this
+session's transcript, so they are not quoted here. The leans as the audit
+wrote them, which the build followed:
+
+- **F1** `hrAckRecipients` is backfilled into the address book and into hr.ack
+  picks by the migration; the column stays, unread (DEBT-121 drops it).
+- **F2** "Also send to" may pick Froot users and contacts (users stored by id).
+  Built in the schema and dispatcher; the save route refuses users for now
+  (below).
+- **F3** a denied user who is also picked is not sent: denial wins.
+- **F4** an extra on pace gets every store's alert; per-store extras deferred.
+- **F5** contacts are archived, never deleted; archived = no pick list, no
+  mail; picks survive.
+- **F6** switching off a kind's role default is not in this phase (deferred).
+- **F7** ADMIN only manages contacts and picks.
+- **F8** a user whose role can never hold the kind's capability is refused at
+  send time (and filtered out of the picker once user picks exist).
+- **F9** a contact holding a Froot user's address is resolved as that user, so
+  denial applies.
+- **F10** departed users (DEBT-106): user picks wait for DEBT-106.
+- **F12** hr.ack keeps no separate toggle: on while it has an active pick.
+- **F13** 10 picks per kind; 100 active contacts per org.
+
+**Gary's words, recorded exactly** (chat, 2026-10-23 and 2026-10-24):
+
+- *"I applied the migration to dev at 22:35 UTC with migrate deploy from
+  froot/. The parity query on dev returned zero rows. F11: no extras on
+  milestone emails."* — **F11 against the lean.** The audit's lean was that
+  milestone extras receive what an ADMIN receives; the ruling is no extras.
+  Milestone is `extras: false`; the save route 404s it and the dispatcher
+  never reads its picks.
+- *"Approve both: any one denied user blocks a shared address, and STORE-login
+  contacts drop from pace alerts. In the UI, warn when a contact matches a
+  store login. Step 3 is contacts only; the save route rejects user picks
+  until DEBT-106. Move the NOTIFY-8 unsubscribe to the picks in this step."*
+  The first two sentences ratify two choices put to him after step 2 (C4 and
+  C5 below, as they were then).
+- *"Confirm PUT /api/hr/settings only ever saved the recipient list … In the
+  docs commit, include the three untracked prompt files."* The route had one
+  handler and one write, `hrAckRecipients`; it now returns 410.
+
+**Claude's choices, for the record** (none ruled unless named above):
+
+- **C1** Org → contact and org → pick CASCADE, against the house Restrict
+  default, so fixture teardowns need not learn the tables (audit § 7). User →
+  pick CASCADE; contact → pick RESTRICT.
+- **C2** `recipientReasons` lives on `NotificationMessage`, not the delivery,
+  because dry-run and sandbox write no delivery rows; also copied into the
+  parallel AuditLog metadata as `reasons` until NOTIFY-9.
+- **C3** Extras are appended AFTER the role default, in pick order (oldest
+  first), so an org with no picks resolves exactly what it did before; the
+  de-dup keeps the first entry's place and user and merges reasons.
+- **C4** Where several User rows in one org share a contact's address, the
+  attached user is one that FAILS the kind's capability if any does — so any
+  matching denial blocks the contact. *Ratified by Gary, quoted above.*
+- **C5** A contact holding a STORE login's address is resolved as that login
+  and so is refused on pace alerts (F8 + F9). *Ratified by Gary, quoted
+  above.* hr.ack has no capability, so such a contact still gets signed-ack
+  emails; the UI warning therefore shows on the Contacts card and in the pace
+  picker, not in the hr.ack picker.
+- **C6** The save path is `validatePicks` + `replaceContactPicks`
+  (`src/lib/notifications/contacts.ts`), session-free, so the fixture drives
+  the route's rules directly. A save replaces only ACTIVE contacts' picks;
+  an archived contact's pick is kept. The 10 cap is checked on the list sent,
+  so restoring an archived contact can briefly leave a kind above 10.
+- **C7** User picks are refused with a 400 behind one constant,
+  `USER_PICKS_ENABLED = false`, which DEBT-106's close flips.
+- **C8** `PUT /api/hr/settings` returns 410 to every caller, before any auth
+  check, since it writes nothing.
+- **C9** NOTIFY-8's unsubscribe, moved to the picks: an extra unsubscribes by
+  having that kind's pick DELETED, not by archiving the contact (archiving
+  would also drop its picks on other kinds). A role-default user still
+  unsubscribes by denial. Recorded on the NOTIFY-8 row. Gary did not say
+  which of the two; this is the reading of "move it to the picks".
+- **C10** The pace log line now reads "no recipients (no admin/manager, no
+  extras)" / "every admin/manager and extra has behind-pace alerts denied".
+- **C11** hr.ack's switch counts every active pick, including a user pick
+  whose user has no email; no such pick can be saved yet.
+
 ## 2026-10-21 — MS-6: a per-person Milestones switch; "Labor" becomes "Labor Settings" (Gary)
 
 **RATIFIED BY GARY, 2026-10-21, at the MS-6 PRE-PUSH-CHECK, as written.** The
