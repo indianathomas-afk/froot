@@ -21588,12 +21588,35 @@ phases:
     # `in_progress` at 146e94f, set 2026-10-24 by the NOTIFY-12 build session
     # (TIER 3). Not pushed — Claude never pushes. PRE-PUSH-CHECK owns the flip
     # to `staging`.
-    status: in_progress
+    # `in_progress` -> `staging` 2026-10-24 by the NOTIFY-12 PRE-PUSH-CHECK, in
+    # the commit immediately after 8648a2a (its own SHA cannot be written
+    # inside itself). NOT pushed when the check ran — Gary runs the push. The
+    # "Not pushed" comment above is kept as written.
+    status: staging
     title: "Per-email-type recipients — 'Also send to' picks from an org address book; hrAckRecipients retired"
     commits:
       - "146e94f"
-      # + the commit immediately after 146e94f: docs(NOTIFY-12)
+      - "8648a2a"
+      # + the commit immediately after 8648a2a: docs(NOTIFY-12 PRE-PUSH-CHECK)
     blockers:
+      - >
+        RULINGS RATIFIED, 2026-10-24, at the NOTIFY-12 PRE-PUSH-CHECK (Gary,
+        three messages in the build session, forwarded verbatim). Prepended per
+        preserve-and-mark; the "RULINGS ARE A DRAFT" blocker below is
+        DISCHARGED and kept. His replies, exactly: (1) "I ratify: every lean in
+        NOTIFY-RCPT_AUDIT.md F1–F13 as written, except F11 — no extras on
+        milestone emails. Also: any one denied user blocks a shared address;
+        store-login contacts drop from pace alerts with a warning; contacts
+        only until DEBT-106; NOTIFY-8 unsubscribe removes the pick, not the
+        contact. DEBT-121 (drop hrAckRecipients) stays planned — no drop yet."
+        (2) "Approve: org deletion cascades to contacts and picks, and the 410
+        before auth." (3) "Approve the rest of C1, plus C2, C3, C6, C7, C10 and
+        C11 as written. Put your parity query in the MIGRATIONS entry, not
+        mine. Go ahead with the docs commit." F1–F13 (F11 as ruled) and C1–C11
+        are all ratified; the F1–F13 approval is now in Gary's own words.
+        Recorded in docs/DECISIONS.md 2026-10-23 — NOTIFY-12. The parity query
+        named in the migration blocker below now lives in the docs/MIGRATIONS.md
+        NOTIFY-12 entry (added by this check; it was not written down before).
       - >
         RULINGS ARE A DRAFT. docs/DECISIONS.md 2026-10-23 — NOTIFY-12 records
         Gary's words from this session exactly (F11 against the lean; the two

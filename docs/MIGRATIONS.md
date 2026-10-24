@@ -1597,3 +1597,49 @@ be ignored after a revert.
 the work commit's gate (`146e94f`). Its section G replays this file's two
 backfill `INSERT`s, scoped to one fixture org, and checks the result equals
 the column as a set and that a second run adds nothing.
+
+**Parity query** (added 2026-10-24 by the NOTIFY-12 PRE-PUSH-CHECK; it was
+described above but not written down). Gary: *"Put your parity query in the
+MIGRATIONS entry, not mine."* It compares every org's `hrAckRecipients` —
+trimmed, lower-cased, blanks dropped, exactly as the backfill reads the column —
+with its hr.ack contact picks, both ways. Read-only. **Zero rows = the backfill
+matched the column.** Run it on each branch right after `migrate deploy` lands
+there: an admin editing picks, or a fixture run, can legitimately make it drift
+later.
+
+```sql
+-- NOTIFY-12 parity: every org's hrAckRecipients (trimmed, lower-cased, blanks
+-- dropped) against its hr.ack contact picks, both ways. Zero rows = the F1
+-- backfill matched the column. Read-only.
+(
+  SELECT o."id" AS "organizationId", lower(trim(a."addr")) AS "email", 'column only' AS "side"
+  FROM "Organization" o
+  CROSS JOIN LATERAL unnest(o."hrAckRecipients") AS a("addr")
+  WHERE trim(a."addr") <> ''
+  EXCEPT
+  SELECT p."organizationId", c."email", 'column only'
+  FROM "NotificationRecipientPick" p
+  JOIN "NotificationContact" c ON c."id" = p."contactId"
+  WHERE p."kind" = 'hr.ack'
+)
+UNION ALL
+(
+  SELECT p."organizationId", c."email", 'pick only'
+  FROM "NotificationRecipientPick" p
+  JOIN "NotificationContact" c ON c."id" = p."contactId"
+  WHERE p."kind" = 'hr.ack'
+  EXCEPT
+  SELECT o."id", lower(trim(a."addr")), 'pick only'
+  FROM "Organization" o
+  CROSS JOIN LATERAL unnest(o."hrAckRecipients") AS a("addr")
+  WHERE trim(a."addr") <> ''
+);
+```
+
+**Provenance of the dev zero.** Gary's 2026-10-23 report ("The parity query on
+dev returned zero rows") followed a different query he pasted at the start of
+the NOTIFY-12 build session; that query does not drop blank entries, so a blank
+address in the column would show there as "column only" although the backfill
+skips blanks by design. The check re-ran both, read-only, on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`) on 2026-10-24: **0 rows each**
+(two hr.ack picks on the branch at the time).

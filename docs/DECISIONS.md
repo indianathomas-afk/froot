@@ -7,6 +7,33 @@ decisions too.)
 
 ## 2026-10-23 — NOTIFY-12: per-kind "Also send to" recipients and an org address book (Gary)
 
+**RATIFIED BY GARY, 2026-10-24, at the NOTIFY-12 PRE-PUSH-CHECK.** The entry
+was printed verbatim and put to him as "Ratify as written, or give me your
+wording." He replied in the NOTIFY-12 build session, in three messages,
+forwarded verbatim to the check. Recorded exactly:
+
+1. *"I ratify: every lean in NOTIFY-RCPT_AUDIT.md F1–F13 as written, except
+   F11 — no extras on milestone emails. Also: any one denied user blocks a
+   shared address; store-login contacts drop from pace alerts with a warning;
+   contacts only until DEBT-106; NOTIFY-8 unsubscribe removes the pick, not
+   the contact. DEBT-121 (drop hrAckRecipients) stays planned — no drop
+   yet."*
+2. *"Approve: org deletion cascades to contacts and picks, and the 410 before
+   auth."*
+3. *"Approve the rest of C1, plus C2, C3, C6, C7, C10 and C11 as written. Put
+   your parity query in the MIGRATIONS entry, not mine. Go ahead with the docs
+   commit."*
+
+What they settle, and nothing more: message 1 is Gary's own approval of the
+F1–F13 leans (except F11), which the draft below could attribute only to the
+schema session's comments; it also covers C4, C5 (with the warning), the
+contacts-only rule (C7), and C9, which the draft marked as not stated by him
+and which he has now ruled: the unsubscribe removes the pick, not the contact.
+Message 2 covers C8 and C1's org half; message 3 covers C1's user and contact
+halves, C2, C3, C6, C7, C10 and C11. So F1–F13 and C1–C11 are all ratified.
+DEBT-121 stays `planned`. The draft text below is kept as written; its
+"DRAFT — AWAITS RATIFICATION" line is DISCHARGED by this paragraph.
+
 **DRAFT — AWAITS RATIFICATION AT THE NOTIFY-12 PRE-PUSH-CHECK.** Audit:
 `docs/prompts/NOTIFY-RCPT_AUDIT.md` (forks F1–F13, each with a lean). Work
 commit `146e94f`.

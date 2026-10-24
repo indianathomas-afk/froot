@@ -2,6 +2,78 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-24 — NOTIFY-12: per-email-type "Also send to" recipients from an org address book; hrAckRecipients retired
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, on `main`, after the merge. NOTIFY-12 carries a MIGRATION with a DATA
+BACKFILL, so a staging → main merge applies it to production through `prisma
+migrate deploy` in the Vercel build, and production backfills itself.
+
+**Payload: two NOTIFY-12 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `146e94f`, `8648a2a`, on top of `cd62c36`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `146e94f` | NOTIFY-12 work: `NotificationContact`, `NotificationRecipientPick`, `NotificationMessage.recipientReasons`, migration `20261023200000_notify12_recipients` (F1 backfill), the dispatcher extras merge, the Contacts card and "Also send to" pickers, `/api/notify/contacts`, `/api/notify/recipients/[kind]`, `PUT /api/hr/settings` → 410, `scripts/verify-notify12.ts` |
+| `8648a2a` | `docs(NOTIFY-12)`: row to `in_progress`, DEBT-121, DEBT-106 rider, NOTIFY-8 unsubscribe target, DECISIONS draft, MIGRATIONS entry, the three session prompts |
+| the commit immediately after `8648a2a` | `docs(NOTIFY-12 PRE-PUSH-CHECK)`: this entry, DECISIONS ratified (Gary's three replies), the parity query written into the MIGRATIONS entry, row to `staging` |
+
+**Blast radius: TWO NEW TABLES, ONE ADDITIVE COLUMN, A DATA BACKFILL, THREE NEW
+WRITE ROUTES, ONE RETIRED ROUTE, AND THE RECIPIENT LIST OF EVERY EMAIL KIND. NO
+CRON, NO ENV VAR, NO SQUARE CALL.** What changes:
+
+- **Schema:** `CREATE TABLE "NotificationContact"` and
+  `"NotificationRecipientPick"` (CHECK: exactly one of user/contact);
+  `ALTER TABLE "NotificationMessage" ADD COLUMN "recipientReasons" TEXT[]`.
+- **Backfill (F1):** every `Organization.hrAckRecipients` address becomes a
+  contact and an `hr.ack` pick, so signed-ack emails reach the same addresses
+  as before. **The column is NOT dropped** — preserved, no longer read by any
+  send path; DEBT-121 drops it later.
+- **Send path, every kind:** the dispatcher appends active picks AFTER the role
+  default, then `can()` and exclude run over both, so a denial still wins (F3).
+  An org with no picks resolves exactly what it did before. A contact holding a
+  Froot user's address is resolved as that user (F9); a STORE login's address
+  drops from pace alerts. Milestone and test take NO extras (Gary: "no extras
+  on milestone emails").
+- **hr.ack:** no role default; on while it has an active pick (F12).
+- **New writes, ADMIN only:** `POST /api/notify/contacts`,
+  `PATCH /api/notify/contacts/[id]` (archive, never delete),
+  `PUT /api/notify/recipients/[kind]` — contacts only; user picks refused
+  (400) until DEBT-106. Caps: 10 picks per kind, 100 active contacts per org.
+- **Retired:** `PUT /api/hr/settings` returns 410 to every caller;
+  `HrAckRecipientsField` removed from `/settings/notifications`.
+
+**THE MIGRATION AND THE CODE SHIP TOGETHER** (audit F1). Code without the
+migration fails every read that loads picks; the migration without the code
+leaves signed-ack emails reading a column the new UI no longer writes.
+
+**Rollback:** revert `146e94f`. **The tables, column and backfilled rows stay**
+— schema is additive-only. Do not hand-edit `_prisma_migrations`. Reverted code
+reads `hrAckRecipients` again, which still holds the pre-migration list, so any
+picks or contacts edited after the migration are IGNORED after a revert
+(audit F1 caveat).
+
+**Migration: applied to DEV ONLY, by Gary** (2026-10-23 22:35 UTC / 15:35 PDT).
+Before and after the push, Gary checks `_prisma_migrations` on staging
+`br-square-feather-a63z92vz` in the Neon console —
+`20261023200000_notify12_recipients` absent before; present after with
+`finished_at` set and `rolled_back_at` null — and runs the parity query in the
+`docs/MIGRATIONS.md` NOTIFY-12 entry, which must return ZERO rows. Same pair on
+production after promotion.
+
+**Evidence: dev only, never seen as an ADMIN in a browser.** Re-run by this
+check on 2026-10-24, all on dev `br-broad-wave-a6vpjdw0` (endpoint
+`ep-late-water-a6k53nv2`): verify-notify12 54/0, verify-f5-polish 63/0,
+verify-notify5 55/0, verify-notify6 78/0, verify-ms4b 59/0 (f5-polish and
+notify5 print no branch; a `neon.branch_id` probe through the same client and
+`.env` named it); parity query 0 rows; `npm run build` green. Rulings ratified
+by Gary 2026-10-24 (`docs/DECISIONS.md` 2026-10-23 — NOTIFY-12). The staging
+test list (contact add / pick / archive, store-login warning, a signed-ack email
+to an allow-listed contact) is in the NOTIFY-12 row's blockers and runs after
+the push, behind the staging-SHA precondition. Staging has no Resend webhook,
+so its rows never read "Delivered".
+
 ## 2026-10-23 — PRODUCTION ENVIRONMENT CHANGE: email turned on (Resend vars + webhook) — NOT a promotion
 
 - **Environment change, no code.** No commit reached production and no migration
