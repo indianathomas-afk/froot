@@ -6,7 +6,9 @@ import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { paceThresholdPct } from "@/lib/pace-alerts"
 import { listRecentEmails } from "@/lib/notification-log"
-import { HrAckRecipientsField } from "./hr-ack-recipients"
+import { contactPicksByKind, listContacts } from "@/lib/notifications/contacts"
+import { ContactsCard } from "./contacts-card"
+import { RecipientsSection } from "./recipients-section"
 import { MilestoneAlertsToggle, PaceAlertsToggle, PaceAlertThresholdField } from "./pace-alerts-actions"
 import { milestonesActive } from "@/lib/milestones-access"
 import { MILESTONE_KIND } from "@/lib/notifications/kinds/milestone"
@@ -38,6 +40,13 @@ import { TestSendButton } from "./test-send-button"
 // their consumer does not exist here, but the log is about this page's own
 // subject (what Froot emailed) and an org with HR switched off still sends
 // pace alerts and test messages.
+//
+// NOTIFY-12 REPLACED EACH CARD'S HARD-CODED "Recipients:" PARAGRAPH with
+// RecipientsSection: the role default from the registry, then "Also send to"
+// from the org address book. The "Contacts" card manages that book. It is
+// ungated by module for the same reason as "Recent emails" — pace alerts use
+// contacts too. HR-16's free-text recipient field is gone; its addresses were
+// migrated into contacts and hr.ack picks (F1).
 
 export default async function NotificationSettingsPage() {
   let ctx: Awaited<ReturnType<typeof getCurrentUser>>
@@ -72,7 +81,11 @@ export default async function NotificationSettingsPage() {
 
   // F2: the newest 50. Fetched here rather than behind a route — the page is
   // already the ADMIN_ONLY gate and the card neither refreshes nor paginates.
-  const recentEmails = await listRecentEmails(org.id)
+  const [recentEmails, contacts, picks] = await Promise.all([
+    listRecentEmails(org.id),
+    listContacts(org.id),
+    contactPicksByKind(org.id),
+  ])
 
   const paceAlertsActive = org.paceAlertsEnabled
   // MS-4b. Milestones is part of HR (MS-1 F5), so the card follows the HR card's
@@ -111,7 +124,35 @@ export default async function NotificationSettingsPage() {
           </CardHeader>
           <CardContent>
             {hrActive ? (
-              <HrAckRecipientsField recipients={org.hrAckRecipients} />
+              <div className="p-4 border border-[var(--color-border)] rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 shrink-0 rounded bg-[var(--color-primary)] flex items-center justify-center text-white">
+                    <BriefcaseBusiness className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-[var(--color-foreground)]">Acknowledgment notification emails</h3>
+                    <p className="text-sm text-[var(--color-muted-foreground)]">
+                      When a team member completes every required acknowledgment on a document, Froot emails the
+                      people below with who signed, what, and a link to the record.
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      {(picks["hr.ack"] ?? []).some((id) => contacts.some((c) => c.id === id && !c.archived)) ? (
+                        <>
+                          <CheckCircle className="h-4 w-4 text-[var(--color-success)]" />
+                          <span className="text-sm text-[var(--color-success-text)] font-medium">On</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                          <span className="text-sm text-[var(--color-muted-foreground)]">
+                            Off — nobody is notified until you add someone below
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="p-4 border border-[var(--color-border)] rounded-lg">
                 <div className="flex items-start gap-3">
@@ -128,6 +169,9 @@ export default async function NotificationSettingsPage() {
                   </div>
                 </div>
               </div>
+            )}
+            {hrActive && (
+              <RecipientsSection kind="hr.ack" contacts={contacts} pickedIds={picks["hr.ack"] ?? []} />
             )}
           </CardContent>
         </Card>
@@ -176,31 +220,18 @@ export default async function NotificationSettingsPage() {
             defaultPct={paceDefaultPct}
           />
 
-          {/* RECIPIENTS ARE STILL ROLE-BASED AND THERE IS STILL NO LIST TO EDIT
-              HERE. Every ADMIN plus the store's assigned MANAGERs, resolved per
-              store at send time (the recipient query in src/lib/pace-alerts.ts).
-
-              NOTIFY-2c CHANGED THE LAST SENTENCE, NOT THE RULE. This used to
-              read "This is not editable", which stopped being true the moment
-              an admin could untick a person's row on /users — and a settings
-              page that denies the existence of a control someone else on the
-              team is using is worse than one that says nothing. What is still
-              true, and is why the line stays: there is no recipient BOX on this
-              page, because the decision is made per user, on the user.
-
-              STILL NOT SELF-SERVICE (Gary, 2026-09-20). An ADMIN sets it, from
-              the row of the person it affects; nobody opts themselves out and
-              there is no unsubscribe anywhere. The org toggle above outranks it
-              — off here means nobody, whatever any user's row says. */}
-          <p className="text-sm text-[var(--color-muted-foreground)] mt-4">
-            <span className="font-medium text-[var(--color-foreground)]">Recipients:</span>{" "}
-            sent to every admin and the store&apos;s assigned managers. Turn this off for an
-            individual user from their row on the{" "}
-            <Link href="/users" className="underline hover:text-[var(--color-foreground)]">
-              Users page
-            </Link>
-            .
-          </p>
+          {/* NOTIFY-12. The role default — every ADMIN plus the store's assigned
+              MANAGERs, resolved per store at send time — is still decided per
+              user, on the user (NOTIFY-2c): the Users-page row turns a person
+              off. What is new is "Also send to", and an extra gets EVERY
+              store's alert (F4). Still no self-service opt-out; the org toggle
+              above outranks everything — off here means nobody. */}
+          <RecipientsSection
+            kind="pace.alert"
+            contacts={contacts}
+            pickedIds={picks["pace.alert"] ?? []}
+            pickerHelp="Extra recipients get every store's alert."
+          />
         </CardContent>
       </Card>
 
@@ -241,15 +272,8 @@ export default async function NotificationSettingsPage() {
                   </div>
                   <MilestoneAlertsToggle enabled={milestoneAlertsActive} />
                 </div>
-                <p className="text-sm text-[var(--color-muted-foreground)] mt-4">
-                  <span className="font-medium text-[var(--color-foreground)]">Recipients:</span>{" "}
-                  every admin, and the managers of the employee&apos;s stores. Turn this off for an
-                  individual user from their row on the{" "}
-                  <Link href="/users" className="underline hover:text-[var(--color-foreground)]">
-                    Users page
-                  </Link>
-                  .
-                </p>
+                {/* F11 (Gary, 2026-10-23): no extras on milestone emails. */}
+                <RecipientsSection kind={MILESTONE_KIND} contacts={contacts} pickedIds={[]} />
                 {/* MS-4b choice C10: the sample is rendered through the test
                     kind, so it can only ever reach the admin pressing it. */}
                 <div className="mt-4">
@@ -274,6 +298,15 @@ export default async function NotificationSettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle>Contacts</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ContactsCard contacts={contacts} />
+        </CardContent>
+      </Card>
 
       <Card className="mt-4">
         <CardHeader>

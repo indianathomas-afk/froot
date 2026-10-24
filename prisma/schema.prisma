@@ -131,6 +131,13 @@ model Organization {
   //
   // Validation (max 10, trimmed, lowercased, deduplicated, each a valid email)
   // lives at the write route; the column stores what that route produced.
+  //
+  // NOTIFY-12 (F1, Gary 2026-10-23): PRESERVED AND NO LONGER READ. Migration
+  // 20261023200000_notify12_recipients copied every address into
+  // NotificationContact and an "hr.ack" NotificationRecipientPick; from that
+  // release the picks are the only recipient source for signed-ack emails.
+  // The column stays (additive-only schema) and is dropped later by DEBT-121.
+  // Nothing may write it — a value here after the migration is read by nobody.
   hrAckRecipients         String[]  @default([])
   // DEBT-70a (Gary, 2026-08-16). THE FALLBACK ZONE FOR PEOPLE WHO HAVE NO
   // STORE. Inline `Date:` stamps on minted PDFs render the STORE-LOCAL day, and
@@ -190,6 +197,8 @@ model Organization {
   paceAlertLogs                 PaceAlertLog[]
   notificationIntents           NotificationIntent[]
   notificationMessages          NotificationMessage[]
+  notificationContacts          NotificationContact[]
+  notificationRecipientPicks    NotificationRecipientPick[]
   hrDocuments                   HrDocument[]
   hrDocumentCategories          HrDocumentCategory[]
   hrReturnEvents                HrReturnEvent[]
@@ -294,20 +303,21 @@ model User {
   lastSeenLocation    String?
   createdAt           DateTime  @default(now())
 
-  organization          Organization          @relation(fields: [organizationId], references: [id])
-  defaultStore          Store?                @relation("UserDefaultStore", fields: [defaultStoreId], references: [id], onDelete: SetNull)
+  organization          Organization                @relation(fields: [organizationId], references: [id])
+  defaultStore          Store?                      @relation("UserDefaultStore", fields: [defaultStoreId], references: [id], onDelete: SetNull)
   storeAssignments      StoreUserAssignment[]
   taskLogs              TaskLog[]
-  teamMessages          TeamMessage[]         @relation("TeamMessageAuthor")
-  resolvedMessages      TeamMessage[]         @relation("TeamMessageResolver")
-  acknowledgedMessages  TeamMessage[]         @relation("TeamMessageAcknowledger")
+  teamMessages          TeamMessage[]               @relation("TeamMessageAuthor")
+  resolvedMessages      TeamMessage[]               @relation("TeamMessageResolver")
+  acknowledgedMessages  TeamMessage[]               @relation("TeamMessageAcknowledger")
   messageReactions      MessageReaction[]
   messageReads          MessageRead[]
   corporateUpdates      CorporateUpdate[]
   staffMember           StaffMember?
   usageDaily            UsageDaily[]
-  calendarEventsCreated CalendarEvent[]       @relation("CalendarEventCreatedBy")
-  calendarCompletions   CalendarOccurrence[]  @relation("CalendarOccurrenceCompletedByUser")
+  calendarEventsCreated CalendarEvent[]             @relation("CalendarEventCreatedBy")
+  calendarCompletions   CalendarOccurrence[]        @relation("CalendarOccurrenceCompletedByUser")
+  notificationPicks     NotificationRecipientPick[]
 }
 
 model Store {
@@ -1002,6 +1012,13 @@ model NotificationMessage {
   // only record of which milestones a dry-run summary already logged to `to`.
   // No FK — intents are kept forever (P5), so a dangling id cannot occur.
   intentIds         String[] @default([])
+  // NOTIFY-12. WHY `to` got this email: "role" (the kind's own resolver),
+  // "extra-user", "extra-contact". An array because one address can qualify
+  // more than one way; a grouped message stores the union across the intents
+  // it covers. On the message, not the delivery, because dry-run and sandbox
+  // write no delivery rows (R1) and those are the sends an admin tests with.
+  // Empty on every row written before NOTIFY-12.
+  recipientReasons  String[] @default([])
   createdAt         DateTime @default(now())
 
   organization Organization           @relation(fields: [organizationId], references: [id])
@@ -1026,6 +1043,64 @@ model NotificationEvent {
   message NotificationMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, type])
+}
+
+// ─── NOTIFY-12: per-kind recipients and the org address book ─────────────────
+// docs/prompts/NOTIFY-RCPT_AUDIT.md; leans F1–F13 approved by Gary 2026-10-23
+// EXCEPT F11, ruled against the lean the same day: "no extras on milestone
+// emails" (milestone `extras: false`). A kind's own resolver is the ROLE DEFAULT; these two tables add
+// the "Also send to" extras, merged inside dispatch.ts eligibleRecipients()
+// BEFORE can() — so a per-user denial still wins (F3) and a notify.* key still
+// only ever removes a person.
+
+// An outside address any kind can pick: corporate@, an accountant, an owner who
+// never logs in. ARCHIVED, NEVER DELETED (F5): an archived contact is in no
+// pick list and receives nothing, and its picks survive so un-archiving
+// restores them. Re-adding an archived address un-archives the existing row.
+model NotificationContact {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  // Lower-cased on write, like hrAckRecipients was.
+  email          String
+  archivedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // CASCADE ON ORG, deliberately against the house default: no app path
+  // deletes an Organization, only fixture teardowns do, and this keeps them
+  // from having to learn the table (audit § 7).
+  organization Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  picks        NotificationRecipientPick[]
+
+  @@unique([organizationId, email])
+}
+
+// "Also send to": one row per (org, kind, person). EXACTLY ONE of userId /
+// contactId — enforced by a CHECK constraint hand-added in the migration,
+// which Prisma does not model. `kind` is a registry key, not an FK: kinds live
+// in code (src/lib/notifications/registry.ts). Cap 10 per kind (F13), enforced
+// at the write route.
+//
+// A user pick CASCADES with its User row (DELETE /api/users/[id] hard-deletes
+// it). A departed user is NOT a deleted one — see DEBT-106, which blocks the
+// user half of the picker (F10). A contact pick RESTRICTS: contacts are
+// archived, never deleted.
+model NotificationRecipientPick {
+  id             String   @id @default(cuid())
+  organizationId String
+  kind           String
+  userId         String?
+  contactId      String?
+  createdAt      DateTime @default(now())
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contact      NotificationContact? @relation(fields: [contactId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, kind, userId])
+  @@unique([organizationId, kind, contactId])
+  @@index([organizationId, kind])
 }
 
 // ─── ENG-1: ENGAGEMENT TRACKING ──────────────────────────────────────────────

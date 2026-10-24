@@ -149,6 +149,22 @@ function throws(fn: () => unknown): boolean {
   }
 }
 
+// NOTIFY-12: hr.ack's recipients are now its "Also send to" picks — the column
+// these fixtures used to seed (Organization.hrAckRecipients) is no longer read.
+// Replaces the org's hr.ack picks with one contact pick per address, IN ORDER
+// (picks resolve oldest first, as the column did).
+async function setAckPicks(organizationId: string, list: string[]) {
+  await prisma.notificationRecipientPick.deleteMany({ where: { organizationId, kind: "hr.ack" } })
+  for (const email of list) {
+    const contact = await prisma.notificationContact.upsert({
+      where: { organizationId_email: { organizationId, email } },
+      create: { organizationId, name: email, email },
+      update: { archivedAt: null },
+    })
+    await prisma.notificationRecipientPick.create({ data: { organizationId, kind: "hr.ack", contactId: contact.id } })
+  }
+}
+
 async function main() {
   // ── A. the mode table ──────────────────────────────────────────────────────
   const table: [string | undefined, string | undefined, DeliveryMode][] = [
@@ -388,8 +404,7 @@ async function main() {
         signedPdfPathname: "notify5/fixture.pdf", signedPdfHash: "notify5",
       },
     })
-    const setAckList = (list: string[]) =>
-      prisma.organization.update({ where: { id: org.id }, data: { hrAckRecipients: list } })
+    const setAckList = (list: string[]) => setAckPicks(org.id, list)
     const ackRows = async (action: string) => rowsFor(record.id, action)
     const clearAckRows = async () => {
       await prisma.auditLog.deleteMany({ where: { organizationId: org.id, entityId: record.id } })
