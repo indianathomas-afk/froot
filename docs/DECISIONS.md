@@ -7,6 +7,13 @@ decisions too.)
 
 ## 2026-10-24 — STAFF-3: terminated hidden by default, per-store sort on /staff (DRAFT)
 
+**RATIFIED BY GARY, 2026-10-24, at the STAFF-3 PRE-PUSH-CHECK, as written.**
+The entry was printed verbatim and put to him as "Ratify as written, or give
+me your wording." His reply, recorded exactly: *"Ratify as written."* The
+"(DRAFT)" in the heading and the draft line below are kept as written and are
+now spent. The ratification covers the nine rulings and the Claude
+implementation choices listed under them.
+
 **DRAFT — awaiting Gary's ratification** at the STAFF-3 PRE-PUSH-CHECK. These
 are the rulings as the session prompt drafted them
 (`docs/prompts/STAFF_terminated_toggle_sort.md`). They are the prompt's

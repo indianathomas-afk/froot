@@ -503,8 +503,18 @@ phases:
   - id: STAFF-3
     track: platform
     size: S
-    status: in_progress
-    commits: ["f3cd892"]
+    # `in_progress` -> `staging` 2026-10-24 by the STAFF-3 PRE-PUSH-CHECK, in
+    # the commit immediately after a1345c7 (its own SHA cannot be written
+    # inside itself). NOT pushed when the check ran — Gary runs the push.
+    # DECISIONS 2026-10-24 STAFF-3 ratified by Gary at this check: "Ratify as
+    # written." The "RULINGS ARE DRAFT" and "NOT PUSHED" lines under `open`
+    # are kept as written; the first is now spent, the second holds until the push.
+    status: staging
+    commits:
+      - "f3cd892"
+      # + the docs commit immediately after f3cd892: STAFF-3 ROADMAP row + DRAFT rulings
+      - "a1345c7"
+      # + the commit immediately after a1345c7: docs(STAFF-3 PRE-PUSH-CHECK)
     title: "Hide terminated staff by default + per-store sort (Name / Pay / Compliance) on /staff"
     open:
       - >
