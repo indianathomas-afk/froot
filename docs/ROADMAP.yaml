@@ -500,6 +500,51 @@ phases:
       no such key (src/lib/roadmap.ts:95-124 — it exists on RULINGS only, and the
       build's typecheck is what caught the mistake): UX-2, DEBT-13, STAFF-1.
 
+  - id: STAFF-3
+    track: platform
+    size: S
+    # `in_progress` -> `staging` 2026-10-24 by the STAFF-3 PRE-PUSH-CHECK, in
+    # the commit immediately after a1345c7 (its own SHA cannot be written
+    # inside itself). NOT pushed when the check ran — Gary runs the push.
+    # DECISIONS 2026-10-24 STAFF-3 ratified by Gary at this check: "Ratify as
+    # written." The "RULINGS ARE DRAFT" and "NOT PUSHED" lines under `open`
+    # are kept as written; the first is now spent, the second holds until the push.
+    status: staging
+    commits:
+      - "f3cd892"
+      # + the docs commit immediately after f3cd892: STAFF-3 ROADMAP row + DRAFT rulings
+      - "a1345c7"
+      # + the commit immediately after a1345c7: docs(STAFF-3 PRE-PUSH-CHECK)
+    title: "Hide terminated staff by default + per-store sort (Name / Pay / Compliance) on /staff"
+    open:
+      - >
+        RULINGS ARE DRAFT. docs/DECISIONS.md (2026-10-24, STAFF-3) holds the
+        nine rulings from the session prompt plus the Claude implementation
+        choices. Gary ratifies at the PRE-PUSH-CHECK. Until he does, nothing
+        in this row is his ruling.
+      - >
+        NOT VERIFIED ON STAGING. Committed on local `staging`, NOT PUSHED.
+        Local check: StaffRosterCard on a throwaway /menu page with mock rows
+        (deleted before commit). Checked: Name, Pay (both directions) with
+        blanks last, You pin, toggle, terminated block at the bottom, empty
+        state, 375px wrap. The real /staff page was not opened, because that
+        needs a signed-in ADMIN. Gary's staging test plan is in the session
+        report.
+    notes: >
+      TIER 2. No schema, no migration, no new route, no permission change.
+      Every roster card on /staff (store cards, Corporate, Unassigned) is now
+      a new client component, src/app/(app)/staff/staff-roster-card.tsx. Rows
+      still arrive as server-rendered StaffRow nodes (STAFF-2's shape). The
+      only data crossing the client boundary per row is
+      {terminated, isSelf, name, pay, pct}, and `pay` is null wherever the
+      cell shows a dash. "Terminated" is `status === "TERMINATED"`, the same
+      test as the red badge. The server drops terminated rows for any role
+      other than ADMIN/MANAGER. That filter changes nothing today, because
+      staff.view is MANAGE and not grantable. The SELF-1 pin is re-applied
+      after every sort. A salary sorts as annualRate/2080. GATE: scoped eslint
+      on both touched files clean; `npm run build` green. Bare `npm run lint`
+      was not run (DEBT-33 baseline).
+
   - id: DOCS-1
     track: platform
     size: S

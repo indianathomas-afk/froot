@@ -5,6 +5,68 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-24 — STAFF-3: terminated hidden by default, per-store sort on /staff (DRAFT)
+
+**RATIFIED BY GARY, 2026-10-24, at the STAFF-3 PRE-PUSH-CHECK, as written.**
+The entry was printed verbatim and put to him as "Ratify as written, or give
+me your wording." His reply, recorded exactly: *"Ratify as written."* The
+"(DRAFT)" in the heading and the draft line below are kept as written and are
+now spent. The ratification covers the nine rulings and the Claude
+implementation choices listed under them.
+
+**DRAFT — awaiting Gary's ratification** at the STAFF-3 PRE-PUSH-CHECK. These
+are the rulings as the session prompt drafted them
+(`docs/prompts/STAFF_terminated_toggle_sort.md`). They are the prompt's
+wording, NOT Gary's words, and nothing here counts as ratified until he says
+so. Placed at the top of this file, not the bottom, because the file is
+newest-first. Work commit `f3cd892`.
+
+1. **Default hidden.** Terminated staff are not shown on load, for every role.
+2. **Toggle is per store card, not remembered.** Plain component state; reload
+   returns to hidden. Label `Show terminated (N)` / `Hide terminated`. Renders
+   only when that card has at least one terminated member and the viewer is
+   ADMIN or MANAGER.
+3. **Other roles never receive terminated rows.** If any role other than
+   ADMIN/MANAGER can open `/staff`, terminated rows are filtered out on the
+   server for them.
+4. **Header count = active.** `12 team members`; with terminated present and a
+   viewer who can toggle: `12 team members · 3 terminated`.
+5. **Sort per card**, shadcn Select (`Sort: Name`) plus a direction arrow.
+   Choosing an option applies its default direction; the arrow flips it. Not
+   remembered. Name A→Z (case-insensitive `localeCompare`), Pay high→low,
+   Compliance low→high (worst first). Blanks always last in either direction.
+6. **Pay sort respects confidentiality.** The Pay option appears only if the
+   viewer can see pay for that card's rows.
+7. **"You" pin stays on top** regardless of sort.
+8. **When terminated are shown** they sort among themselves by the same key
+   and sit below all active rows. Badges and the delete action unchanged.
+9. **Empty state:** zero active staff shows `No active team members` (plus the
+   toggle if terminated exist).
+
+**Claude implementation choices (for the record, open to veto):**
+
+- **Ruling 3 is a server filter that changes nothing today.** `staff.view` is
+  MANAGE (ADMIN + MANAGER) and is not on `GRANTABLE_CAPABILITIES`, so no STORE
+  or STAFF login reaches `/staff`; `staff/layout.tsx` redirects them. The
+  filter (`page.tsx`, `canToggleTerminated`) is there anyway, before compliance,
+  pay, On-Time and Raise run, so the rule still holds if `staff.view` ever
+  becomes grantable.
+- **Ruling 6 reading.** Pay is offered when the viewer passes `canSeeWages`
+  AND the card has at least one pay figure they can read. A COMP-1-masked,
+  unlinked or "Not set in Square" row has a null sort key and sorts as a
+  blank. The browser only gets a number for a row whose cell already shows it,
+  so row order cannot reveal a hidden wage.
+- **Salary vs hourly.** Pay compares a salary as `annualRate / 2080` so the
+  two interleave on one scale. Same precedence as `formatPay`.
+- **Corporate and Unassigned use the same card.** Ruling 1 says "not shown on
+  load", and those two groups would otherwise still list terminated members.
+- **"Also works here" (DEBT-13) stays a separate block** under the home
+  rows, sorted by the same key. Its count, like the header, is active only.
+  Terminated visiting members go into the single terminated block at the
+  bottom (ruling 8), and they keep their "Home store:" line.
+- **A store whose only members are terminated still gets a card**, with the
+  empty state, so the toggle can reach them (ruling 9).
+
 ## 2026-10-24 — NOTIFY-SCHED (NOTIFY-13): per-email-type send schedules (Gary)
 
 **RATIFIED BY GARY, 2026-10-24, at the NOTIFY-13 PRE-PUSH-CHECK, as written.**

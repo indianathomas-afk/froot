@@ -2,6 +2,45 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-24 — STAFF-3: terminated staff hidden by default, per-card sort (Name / Pay / Compliance) on /staff
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two STAFF-3 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `f3cd892`, `a1345c7`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `f3cd892` | STAFF-3 work: new client component `src/app/(app)/staff/staff-roster-card.tsx` (toggle, sort, empty state) and `src/app/(app)/staff/page.tsx` rendering every roster card (store, Corporate, Unassigned) through it |
+| `a1345c7` | `docs(STAFF-3)`: STAFF-3 row (`in_progress`), DECISIONS draft |
+| the commit immediately after `a1345c7` | `docs(STAFF-3 PRE-PUSH-CHECK)`: this entry, DECISIONS ratified (Gary: "Ratify as written."), row to `staging`, the session prompt `docs/prompts/STAFF_terminated_toggle_sort.md` |
+
+**Blast radius: how one page lists rows it already loads. NO SCHEMA, NO
+MIGRATION, NO WRITE, NO EMAIL, NO CRON, NO ENV VAR, NO NEW ROUTE, NO PERMISSION
+CHANGE.** What changes on `/staff`:
+
+- **Terminated members are hidden on load** on every roster card. ADMIN and
+  MANAGER get a per-card `Show terminated (N)` toggle (not remembered); shown
+  terminated rows sit in one block below all active rows.
+- **Header counts active members**, plus `· N terminated` for a viewer who can
+  toggle. A card with no active members reads `No active team members`.
+- **Per-card sort**: Name A→Z, Pay high→low, Compliance low→high; the arrow
+  flips; blanks last both ways; the "You" pin stays on top. Pay is offered only
+  where the viewer can read a pay figure on that card, and a masked or unset
+  wage crosses to the browser as `null`, so ordering cannot reveal it.
+- **A server filter drops terminated rows for any role other than
+  ADMIN/MANAGER.** Inert today: `staff.view` is MANAGE and not grantable.
+
+**Rollback:** revert `f3cd892`. It touches two files under `src/app/(app)/staff/`
+and nothing depends on it; the docs commits need no revert.
+
+**Evidence: local only, `/staff` itself not opened.** The card was rendered on a
+temporary `/menu` page with mock rows (deleted before commit); scoped eslint
+clean; `npm run build` green. Staging checks are owed — see the STAFF-3 row.
+
 ## UNPROMOTED — 2026-10-24 — NOTIFY-13: per-email-type send schedules (local hour, days, daily/weekly/monthly) and an hourly scheduled-emails cron
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
