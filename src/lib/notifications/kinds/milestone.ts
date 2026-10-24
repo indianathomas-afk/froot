@@ -74,6 +74,23 @@ export function milestoneLimitLine(frequency: ScheduleFrequency | undefined): st
     : "You get at most one milestone email a day."
 }
 
+/**
+ * The Milestone emails card's description on /settings/notifications, built
+ * here as ONE string rather than an `{expression} text` JSX join: NOTIFY-13a
+ * found the compiler dropped the space after the expression when it began a
+ * line ("a dayto admins", from aca15ad). With no schedule row it is
+ * byte-for-byte the pre-NOTIFY-SCHED sentence (F13); scripts/verify-notify-sched.ts
+ * asserts all three.
+ */
+export function milestoneCardText(frequency: ScheduleFrequency | undefined): string {
+  const cadence = frequency === "weekly" ? "At most one email a week" : "At most one email a day"
+  return (
+    `${cadence} to admins and each store's managers, listing staff in their stores who reached a ` +
+    "tenure or checklist milestone. Froot never emails the employee. Milestones reached more than " +
+    "7 days earlier are not emailed."
+  )
+}
+
 function appUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://www.usefroot.com"
 }
@@ -207,7 +224,10 @@ export const milestoneKind = defineNotification<MilestonePayload>({
   },
 
   // Fictional people only — a sample must never name a real employee.
-  sample: () => [
+  // NOTIFY-13a: `frequency` is the org's SAVED milestone schedule, read by the
+  // test route, so the sample's footer matches the real emails (C5). Undefined
+  // (no row) renders today's footer, as before.
+  sample: (_org, { frequency } = {}) => [
     {
       staffMemberId: "sample-1",
       staffName: "Sample Person",
@@ -219,6 +239,7 @@ export const milestoneKind = defineNotification<MilestonePayload>({
       recognition: "A card from the team and a shout-out at the next meeting.",
       employeeMessage: "Happy one year! Thank you for everything you do.",
       reachedOn: "2026-01-15",
+      frequency,
     },
     {
       staffMemberId: "sample-2",
@@ -231,6 +252,7 @@ export const milestoneKind = defineNotification<MilestonePayload>({
       recognition: "Pick the playlist for a shift.",
       employeeMessage: "250 tasks done — that is a lot of opening and closing. Thank you!",
       reachedOn: "2026-01-15",
+      frequency,
     },
   ],
 })

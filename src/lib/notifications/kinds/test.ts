@@ -11,7 +11,7 @@
 // later.
 
 import { renderEmail } from "@/lib/email-template"
-import { defineNotification, type GroupedKindDef } from "../define"
+import { defineNotification, type GroupedKindDef, type ScheduleFrequency } from "../define"
 import { MILESTONE_KIND, milestoneKind } from "./milestone"
 
 // MS-4b — "Send a sample to me". A kind with sample() can be rendered through
@@ -37,6 +37,11 @@ export type TestPayload = {
   sha: string
   /** MS-4b: render this kind's sample() instead of the delivery test. */
   sampleOf?: string
+  /**
+   * NOTIFY-13a: the org's saved schedule frequency for `sampleOf`, read by the
+   * route at the press. Absent with no schedule row → today's wording.
+   */
+  sampleFrequency?: ScheduleFrequency
 }
 
 export const testKind = defineNotification<TestPayload>({
@@ -62,7 +67,7 @@ export const testKind = defineNotification<TestPayload>({
     const sampled = p.sampleOf ? SAMPLED[p.sampleOf] : undefined
     if (p.sampleOf) {
       if (!sampled?.sample) return { subject: `USE Froot test — ${p.stamp}`, error: `no sample for "${p.sampleOf}"` }
-      const r = sampled.renderGroup(sampled.sample(org), org, to)
+      const r = sampled.renderGroup(sampled.sample(org, { frequency: p.sampleFrequency }), org, to)
       return { ...r, subject: `Test — ${r.subject}` }
     }
     const subject = `USE Froot test — ${p.stamp}`

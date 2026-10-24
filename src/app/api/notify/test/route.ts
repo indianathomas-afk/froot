@@ -11,6 +11,7 @@ import {
   resolveTransport,
 } from "@/lib/notifications/dispatch"
 import { sampleableKinds, type TestPayload } from "@/lib/notifications/kinds/test"
+import { savedScheduleFrequency } from "@/lib/notifications/schedule-settings"
 
 // POST /api/notify/test — NOTIFY-1. Proves real delivery from a deployed
 // environment without giving anyone a way to email arbitrary people.
@@ -89,7 +90,18 @@ export async function POST(req: Request) {
   const deployEnv = process.env.VERCEL_ENV ?? "local"
   const sha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "unknown"
 
-  const payload: TestPayload = { to, provider, stamp, deployEnv, sha, ...(sampleOf ? { sampleOf } : {}) }
+  // NOTIFY-13a: a sample follows the org's SAVED schedule wording (C5), like
+  // the real emails. Still no body: the org is the caller's own.
+  const sampleFrequency = sampleOf ? await savedScheduleFrequency(org.id, sampleOf) : undefined
+  const payload: TestPayload = {
+    to,
+    provider,
+    stamp,
+    deployEnv,
+    sha,
+    ...(sampleOf ? { sampleOf } : {}),
+    ...(sampleFrequency ? { sampleFrequency } : {}),
+  }
   const enq = await enqueueNotification({
     organizationId: org.id,
     kind: "test",

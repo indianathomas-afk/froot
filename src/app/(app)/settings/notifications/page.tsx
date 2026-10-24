@@ -11,7 +11,8 @@ import { ContactsCard } from "./contacts-card"
 import { RecipientsSection } from "./recipients-section"
 import { MilestoneAlertsToggle, PaceAlertsToggle, PaceAlertThresholdField } from "./pace-alerts-actions"
 import { milestonesActive } from "@/lib/milestones-access"
-import { MILESTONE_KIND } from "@/lib/notifications/kinds/milestone"
+import { MILESTONE_KIND, milestoneCardText } from "@/lib/notifications/kinds/milestone"
+import type { ScheduleFrequency } from "@/lib/notifications/define"
 import { RecentEmails } from "./recent-emails"
 import { TestSendButton } from "./test-send-button"
 import { ScheduleSection } from "./schedule-section"
@@ -103,7 +104,7 @@ export default async function NotificationSettingsPage() {
       : paceSchedule?.saved?.frequency === "weekly"
         ? "at most once per store per week"
         : "once per store per month"
-  const milestoneCadence = milestoneSchedule?.saved?.frequency === "weekly" ? "At most one email a week" : "At most one email a day"
+  const milestoneText = milestoneCardText(milestoneSchedule?.saved?.frequency as ScheduleFrequency | undefined)
 
   const paceAlertsActive = org.paceAlertsEnabled
   // MS-4b. Milestones is part of HR (MS-1 F5), so the card follows the HR card's
@@ -270,9 +271,7 @@ export default async function NotificationSettingsPage() {
                     <div className="min-w-0">
                       <h3 className="font-medium text-[var(--color-foreground)]">Milestone reached emails</h3>
                       <p className="text-sm text-[var(--color-muted-foreground)]">
-                        {milestoneCadence} to admins and each store&apos;s managers, listing staff
-                        in their stores who reached a tenure or checklist milestone. Froot never
-                        emails the employee. Milestones reached more than 7 days earlier are not emailed.
+                        {milestoneText}
                       </p>
                       <div className="flex items-center gap-1.5 mt-1.5">
                         {milestoneAlertsActive ? (

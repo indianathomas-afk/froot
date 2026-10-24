@@ -57,6 +57,19 @@ export async function loadScheduleView(organizationId: string, kind: string): Pr
   }
 }
 
+/**
+ * NOTIFY-13a: the kind's SAVED frequency, or undefined with no row — what
+ * "Send a sample to me" renders its wording from, so the sample reads like the
+ * real emails the saved schedule produces.
+ */
+export async function savedScheduleFrequency(organizationId: string, kind: string): Promise<ScheduleFrequency | undefined> {
+  const row = await prisma.notificationSchedule.findUnique({
+    where: { organizationId_kind: { organizationId, kind } },
+    select: { frequency: true },
+  })
+  return (row?.frequency as ScheduleFrequency | undefined) ?? undefined
+}
+
 const bodySchema = z.object({
   frequency: z.enum(["daily", "weekly", "monthly"]),
   sendHour: z.number().int(),

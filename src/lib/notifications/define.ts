@@ -180,9 +180,10 @@ export type GroupedKindDef<P> = KindCommon<P> & {
   renderGroup: (payloads: P[], org: NotificationOrg, recipient: string) => Rendered
   /**
    * Fixed, fictional payloads for "Send a sample to me" (the test kind renders
-   * them through renderGroup). Must never name a real person.
+   * them through renderGroup). Must never name a real person. `frequency` is
+   * the org's saved schedule for the kind (NOTIFY-13a), undefined with no row.
    */
-  sample?: (org: NotificationOrg) => P[]
+  sample?: (org: NotificationOrg, opts?: { frequency?: ScheduleFrequency }) => P[]
 }
 
 export type NotificationKindDef<P> = PerIntentKindDef<P> | GroupedKindDef<P>

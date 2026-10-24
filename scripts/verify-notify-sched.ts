@@ -37,22 +37,29 @@
  *      slot that does not exist fires at 3 AM; once per slot; per-week wording.
  *   I. ORG ISOLATION: a run for one org never claims, evaluates or mails the
  *      other, whatever the other's schedule says.
+ *   T. NOTIFY-13a WORDING: the Milestone emails card text for no schedule /
+ *      daily / weekly, exact — no schedule byte-for-byte the pre-aca15ad card;
+ *      "Send a sample to me" follows the SAVED milestone frequency (no row →
+ *      "a day.", weekly → "a week.").
  *
  * NEGATIVE CONTROLS (run by the build session, recorded in the report):
  *   - slotDue(): delete the `local.hour < usable.sendHour` test — S1 and W1
  *     must FAIL;
  *   - claimScheduleSlot(): always return true — D3, S3 and M1 must FAIL;
  *   - pace-alerts.ts: make the PaceAlertLog gate unconditional — S4 must FAIL.
+ *   - NOTIFY-13a: drop the space before "to admins" in milestoneCardText() —
+ *     T1, T2 and T3 must FAIL.
  */
 import "dotenv/config"
 import { prisma } from "../src/lib/prisma"
 import { dbDate } from "../src/lib/reports"
 import type { EmailMessage, EmailSender } from "../src/lib/notify"
 import { getKind } from "../src/lib/notifications/registry"
-import { MILESTONE_KIND } from "../src/lib/notifications/kinds/milestone"
-import type { KindSchedule } from "../src/lib/notifications/define"
+import { MILESTONE_KIND, milestoneCardText } from "../src/lib/notifications/kinds/milestone"
+import { testKind, type TestPayload } from "../src/lib/notifications/kinds/test"
+import type { KindSchedule, PerIntentKindDef } from "../src/lib/notifications/define"
 import { isoWeekKey, periodKey, scheduleProblem, slotDue, type ScheduleRowLike } from "../src/lib/notifications/schedule"
-import { parseScheduleBody } from "../src/lib/notifications/schedule-settings"
+import { parseScheduleBody, savedScheduleFrequency } from "../src/lib/notifications/schedule-settings"
 import { runScheduledEmails, scheduledEmailsCron } from "../src/lib/scheduled-emails"
 
 const LA = "America/Los_Angeles"
@@ -378,6 +385,37 @@ async function main() {
     check("K3 once per slot", msMsgs(k3.sent).length === 0 && k3.r.milestoneOrgsAlreadyRun === 1)
     const k4 = await run(orgB.id, "2027-03-15T07:05:00Z")
     check("K4 Monday is not the chosen day", k4.r.milestoneOrgsNotDue === 1)
+
+    // ── T. NOTIFY-13a: card wording and the sample's footer ────────────
+    // The pre-aca15ad card (page.tsx at aca15ad^, lines 254–256) as rendered:
+    // JSX joins the three source lines with single spaces, &apos; is "'".
+    const PRE_SCHED_CARD =
+      "At most one email a day to admins and each store's managers, listing staff in their stores who reached a tenure or checklist milestone. Froot never emails the employee. Milestones reached more than 7 days earlier are not emailed."
+    check("T1 card, no schedule: byte-for-byte the pre-aca15ad text", milestoneCardText(undefined) === PRE_SCHED_CARD, JSON.stringify(milestoneCardText(undefined).slice(0, 40)))
+    check("T2 card, daily: the same text", milestoneCardText("daily") === PRE_SCHED_CARD)
+    check(
+      "T3 card, weekly: \"a week to admins\"",
+      milestoneCardText("weekly") ===
+        "At most one email a week to admins and each store's managers, listing staff in their stores who reached a tenure or checklist milestone. Froot never emails the employee. Milestones reached more than 7 days earlier are not emailed."
+    )
+    // The test route's two steps: read the saved frequency, render the sample.
+    const renderSample = async (org: typeof orgA) => {
+      const sampleFrequency = await savedScheduleFrequency(org.id, MILESTONE_KIND)
+      const payload: TestPayload = { to: "nsched-sample@example.com", provider: "console", stamp: "t", deployEnv: "local", sha: "x", sampleOf: MILESTONE_KIND, ...(sampleFrequency ? { sampleFrequency } : {}) }
+      const r = (testKind as PerIntentKindDef<TestPayload>).render(payload, { ...org, checklistMilestonesEnabled: false, activePicks: {} }, payload.to)
+      return { sampleFrequency, text: "text" in r ? r.text : "", error: "error" in r ? r.error : undefined }
+    }
+    // Org A never has a milestone row; org B was set weekly in K.
+    const tA = await renderSample(orgA)
+    check(
+      "T4 sample, no schedule row: no frequency carried, footer \"a day.\" as before",
+      tA.sampleFrequency === undefined && !tA.error && tA.text.includes(`You get at most one milestone email a day. Sent by USE Froot on behalf of ${orgA.name}.`) && tA.text.includes("Sample Person")
+    )
+    const tB = await renderSample(orgB)
+    check(
+      "T5 sample, weekly milestone schedule: footer \"a week.\"",
+      tB.sampleFrequency === "weekly" && !tB.error && tB.text.includes("You get at most one milestone email a week.") && !tB.text.includes("milestone email a day.")
+    )
 
     // ── I. Org isolation ───────────────────────────────────────────────
     const aMarkersBefore = (await runMarkers(orgA.id)).length
