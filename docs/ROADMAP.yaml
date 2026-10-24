@@ -509,12 +509,19 @@ phases:
     # DECISIONS 2026-10-24 STAFF-3 ratified by Gary at this check: "Ratify as
     # written." The "RULINGS ARE DRAFT" and "NOT PUSHED" lines under `open`
     # are kept as written; the first is now spent, the second holds until the push.
-    status: staging
+    # `staging` -> `shipped` 2026-10-24, stamped post-merge by PROMOTE-DOCS
+    # STAFF-3 (on `staging`): merge dc8f062 (DEPLOY_LOG entry
+    # `dc8f062 — 2026-10-24 — STAFF-3`). Any "not pushed" / "staging" comment or
+    # `open` line above is spent, kept.
+    status: shipped
+    shipped: 2026-10-24
     commits:
       - "f3cd892"
       # + the docs commit immediately after f3cd892: STAFF-3 ROADMAP row + DRAFT rulings
       - "a1345c7"
       # + the commit immediately after a1345c7: docs(STAFF-3 PRE-PUSH-CHECK)
+      - "1338135"
+      - "dc8f062"
     title: "Hide terminated staff by default + per-store sort (Name / Pay / Compliance) on /staff"
     open:
       - >
@@ -530,6 +537,18 @@ phases:
         state, 375px wrap. The real /staff page was not opened, because that
         needs a signed-in ADMIN. Gary's staging test plan is in the session
         report.
+      - >
+        STAGING EVIDENCE (recorded 2026-10-24 at promotion). Deployment
+        `froot-e9q3oxl6v` (`dpl_5LAufh428mh7zyawT5Adu6Hya7Q6`) serving HEAD
+        `1338135`. Org: org not recorded (Gary did not record the Clerk org id
+        for the screenshot), so these observations carry no org id per
+        CLAUDE.md § Browser Evidence. Observed on the Carson card: terminated
+        hidden by default; header `19 team members · 1 terminated`;
+        `Show terminated (1)` offered to ADMIN; Name sort A→Z; "You" pin on
+        top. Confirmed by Gary: toggle opened with the terminated block at the
+        bottom; Pay sort both directions. NOT OBSERVED: Compliance sort (either
+        direction); MANAGER view; production `/staff` check after promotion.
+        Shipped, not verified in production.
     notes: >
       TIER 2. No schema, no migration, no new route, no permission change.
       Every roster card on /staff (store cards, Corporate, Unassigned) is now
