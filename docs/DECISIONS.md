@@ -7,6 +7,13 @@ decisions too.)
 
 ## 2026-10-26 — DOC-8: document due dates (sign within N days, overdue in compliance)
 
+**RATIFIED BY GARY, 2026-10-26, at the DOC-8 PRE-PUSH-CHECK, as written.**
+The whole entry, unchanged, was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify as
+written."* It covers everything in this entry, including the draft rulings 1–6
+paragraph, the narrowings of MS-3 F2(b) and SELF-1 2026-09-07, and the Claude
+implementation choice at the foot.
+
 **RATIFIED BY GARY, 2026-10-26, fork by fork, in chat.** The forks and leans
 are Claude's, from `docs/prompts/DOC-8_AUDIT.md` § 9(a). Each one was put to Gary
 on its own, at his request ("Ask me the ratification questions one at a time

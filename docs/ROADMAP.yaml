@@ -7054,10 +7054,18 @@ phases:
     # PUSHED at the moment of writing — Claude never pushes. Work commit
     # aa93e2b; the docs commit is the one immediately after it and cannot name
     # itself.
-    status: in_progress
+    # `in_progress` -> `staging` 2026-10-26 by the DOC-8 PRE-PUSH-CHECK, in the
+    # commit immediately after 5b67c9d (its own SHA cannot be written inside
+    # itself). NOT pushed when the check ran — Gary runs the push. DECISIONS
+    # 2026-10-26 DOC-8 ratified by Gary at this check: "Ratify as written."
+    # The "NOT PUSHED" line above holds until the push.
+    status: staging
     title: "Document due dates — sign within N days of assignment or hire, overdue shown in compliance"
     commits:
       - "aa93e2b"
+      # + the docs commit immediately after aa93e2b: DOC-8 row, audit, rulings, migration log
+      - "5b67c9d"
+      # + the commit immediately after 5b67c9d: docs(DOC-8 PRE-PUSH-CHECK)
     notes: >
       ── BUILT 2026-10-26, TIER 3 (prepended; nothing below is edited). ──
       Prompt docs/prompts/DOC-8.md; audit docs/prompts/DOC-8_AUDIT.md. Gary

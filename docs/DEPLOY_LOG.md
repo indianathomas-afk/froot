@@ -2,6 +2,66 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-26 — DOC-8: document due dates (sign within N days), overdue in compliance
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two DOC-8 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `aa93e2b`, `5b67c9d`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `aa93e2b` | DOC-8 work: migration `20261026200000_doc8_document_due_dates`, `documentDueState()` in `src/lib/hr-compliance.ts`, `src/lib/hr-due-wording.ts`, the N field on the document Edit dialog and the category default in the category manager, their API routes, the By Document / `/staff/[id]` Compliance / `/my` / banner surfaces, `scripts/verify-doc8-due-dates.ts` |
+| `5b67c9d` | `DOC-8 docs`: row (`in_progress`), DECISIONS entry, MIGRATIONS entry, `docs/prompts/DOC-8.md` and `DOC-8_AUDIT.md`; files DOC-13 and DOC-14 |
+| the commit immediately after `5b67c9d` | `docs(DOC-8 PRE-PUSH-CHECK)`: this entry, DECISIONS ratified (Gary: "Ratify as written."), row to `staging` |
+
+**Blast radius: SCHEMA (additive, nullable), compliance status for HR documents,
+and two admin writes. NO EMAIL, NO CRON, NO ENV VAR, NO NEW ROUTE, NO PERMISSION
+CHANGE.**
+
+- **Schema:** three nullable columns — `HrDocument.signWithinDays`,
+  `HrDocument.signWithinDaysSetAt`, `HrDocumentCategory.defaultSignWithinDays`.
+  Applied by `prisma migrate deploy` in the Vercel build on push.
+- **Inert until an admin sets an N.** A document with no `signWithinDays` keeps
+  today's status and wording exactly; every dev org's rollup was identical
+  before/after except for the new null `dueDate` fields (docs with N on dev: 0).
+- **With N:** past due and unsigned → status `overdue` (over not-started /
+  in-progress / needs-resign; never on `recordMissing`), counted in every overdue
+  total, the red banner and badges. "Due in d days" / "Due tomorrow" / "Due
+  today" / "Was due {Mon D}". KPI card "Overdue Training" → "Overdue" for
+  everyone. `requiredTotal`, `completed` and every pct unchanged. Raise gate
+  unchanged.
+- **Admin writes:** N on the document Edit dialog (Acknowledgment only; the API
+  refuses it elsewhere); category default in the category manager, copied once at
+  create.
+
+**THE MIGRATION AND THE CODE SHIP TOGETHER.** Every `HrDocument` and
+`HrDocumentCategory` read selects the new columns; code without the migration
+fails the HR documents and compliance pages.
+
+**Rollback:** revert `aa93e2b`. **The three columns and any N already set stay**
+— schema is additive-only; reverted code never reads them, so every document
+falls back to today's no-due-date behaviour. Do not hand-edit
+`_prisma_migrations`.
+
+**Migration: applied to DEV ONLY, by Gary** (dev `br-broad-wave-a6vpjdw0`,
+`finished_at` 2026-10-26 21:11:55 UTC = 14:11:55 PDT; `docs/MIGRATIONS.md` DOC-8
+entry). Before and after the push, Gary checks `_prisma_migrations` on staging
+`br-square-feather-a63z92vz` in the Neon console —
+`20261026200000_doc8_document_due_dates` absent before; present after with
+`finished_at` set and `rolled_back_at` null. Same check on production at
+promotion.
+
+**Evidence: dev only.** `scripts/verify-doc8-due-dates.ts` 40/40 on dev;
+verify-doc2-by-document, verify-doc1c-compliance, verify-self1-identity green;
+verify-hr8-compliance fails the same nine pre-existing DEBT-76 checks before and
+after. **NOT VERIFIED:** the admin routes (inheritance at create, kind refusal,
+set stamp) and any browser pass — both on Gary's staging test plan in the DOC-8
+row.
+
 ## dc8f062 — 2026-10-24 — STAFF-3: terminated staff hidden by default, per-card sort (Name / Pay / Compliance) on /staff
 
 **PROMOTED 2026-10-24 in merge `dc8f062`** (`dc8f062b9a208bbe490e0506004a78fa68a43001`,
