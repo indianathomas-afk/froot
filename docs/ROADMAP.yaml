@@ -7050,9 +7050,58 @@ phases:
   - id: DOC-8
     track: hr
     size: M
-    status: planned
+    # `planned` -> `in_progress` 2026-10-26 by the DOC-8 build session. NOT
+    # PUSHED at the moment of writing — Claude never pushes. Work commit
+    # aa93e2b; the docs commit is the one immediately after it and cannot name
+    # itself.
+    status: in_progress
     title: "Document due dates — sign within N days of assignment or hire, overdue shown in compliance"
+    commits:
+      - "aa93e2b"
     notes: >
+      ── BUILT 2026-10-26, TIER 3 (prepended; nothing below is edited). ──
+      Prompt docs/prompts/DOC-8.md; audit docs/prompts/DOC-8_AUDIT.md. Gary
+      ratified forks F1–F9 one by one in his own words (docs/DECISIONS.md
+      2026-10-26). Two earlier replies were NOT counted: a button text Claude
+      had drafted, and a STAFF-3 message.
+      SCHEMA: migration 20261026200000_doc8_document_due_dates, three nullable
+      columns (HrDocument.signWithinDays, HrDocument.signWithinDaysSetAt,
+      HrDocumentCategory.defaultSignWithinDays). Applied to DEV ONLY by Gary
+      (dev br-broad-wave-a6vpjdw0, _prisma_migrations finished_at 2026-10-26
+      21:11:55 UTC = 14:11:55 PDT). Staging and production get it through the
+      Vercel build on Gary's push. Gary's first "applied" report was premature:
+      a read on br-broad-wave at that point found none of the three columns, and
+      the session stopped until he re-applied.
+      ENGINE: documentDueState() in lib/hr-compliance.ts, one pure clock. Start
+      = the latest member-local date of: hire anchor (rehiredAt on cycle > 1,
+      else startDate, else row createdAt); earliest reaching grant createdAt
+      (doc createdAt for company-wide, F2); signWithinDaysSetAt (ruling 3); a
+      Case A version's createdAt for earlier-version signers only (F3). Due =
+      start + N whole days in the member's display zone. Overdue from local
+      midnight after the due date, unlike training, which flips at its stored
+      instant. Past due -> status "overdue" over not-started / in-progress /
+      needs-resign (F4). recordMissing carries no due date. requiredTotal,
+      completed and pct do not move (ruling 5).
+      SURFACES: lib/hr-due-wording.ts (F7) on By Document (whose badge would
+      have rendered overdue as "Not started"), the /staff/[id] Compliance tab
+      and /my. KPI "Overdue Training" -> "Overdue". The banner's nearestDueDate
+      includes doc due dates (SELF-1's 2026-09-07 rule narrowed to docs without
+      N). Raise gate behaviour unchanged (F6, MS-3 F2(b) premise narrowed).
+      ADMIN: "Sign within (days)" on the Edit dialog (Acknowledgment only, and
+      the API refuses it elsewhere). Category default in the category manager,
+      copied once at create, never propagated (F8). The Add dialog says what a
+      new document will inherit. Set stamp: null->N only, cleared on N->null
+      (F5).
+      VERIFIED ON DEV ONLY (br-broad-wave-a6vpjdw0): scripts/verify-doc8-due-dates.ts
+      40/40. Regression: verify-doc2-by-document, verify-doc1c-compliance and
+      verify-self1-identity green. verify-hr8-compliance fails the same nine
+      DEBT-76 checks before and after. Every dev org's rollup was snapshotted
+      before and after the engine change, and they are identical except for the
+      new null dueDate fields (docs with N on dev: 0).
+      NOT VERIFIED: the admin routes (inheritance at create, kind refusal, set
+      stamp), which need a Clerk session the fixture cannot hold. No browser
+      pass. Both are on Gary's staging test plan.
+      FILED FROM THIS PHASE: DOC-13 (F9) and DOC-14 (F1).
       FILED 2026-09-28 from Gary's message of that day ("Agreed"), alongside
       SIGNED-1. Scope as the SIGNED-1 prompt worded it: "sign within N days of
       assignment/hire", with overdue shown in compliance the way training due
@@ -7243,6 +7292,42 @@ phases:
       /my/documents/page.tsx already links its Download to that same route
       (:188, :278), so the audience check that serves it is the one preview
       would get. Cross-refs: DOC-11.
+
+  - id: DOC-13
+    track: hr
+    size: S
+    status: planned
+    title: "Show document due dates on /my/documents and the /staff/[id] Documents tab"
+    notes: >
+      FILED 2026-10-26 by the DOC-8 build session, per DOC-8 F9 (Gary:
+      "accept"). Both surfaces derive status through documentCompletion directly
+      ((my)/my/documents/data.ts, staff/[id]/page.tsx), not through the
+      compliance items, so they show no due date today. Adopt the exported pure
+      documentDueState() and documentDueLabel() (lib/hr-compliance.ts,
+      lib/hr-due-wording.ts). Never write a second copy of the clock. The inputs
+      it needs (grant createdAt, the member's hire/rehire fields, N and its set
+      stamp, the current version's createdAt for Case A) must be loaded by those
+      surfaces' own queries. Cross-refs: DOC-8.
+
+  - id: DOC-14
+    track: hr
+    size: M
+    status: planned
+    title: "A store-join date that survives Square resync, so store-audience due dates start at the transfer"
+    notes: >
+      FILED 2026-10-26 by the DOC-8 build session, per DOC-8 F1 (Gary: "OK I
+      accept your suggestions."). Today a STORE-granted document's clock can
+      only use the grant's createdAt and the person's hire date. Froot does not
+      record when a person joined a store, because all three StoreStaffAssignment
+      writers delete and recreate the set (api/staff/sync-square/route.ts:109-110,
+      api/staff/[id]/resync-square/route.ts:110-111, api/staff/[id]/route.ts:153-154).
+      So someone transferred into a store holding an old grant can be overdue
+      on arrival. A createdAt on that table would NOT fix it: it would read
+      "last sync" and keep pushing the clock forward, so store grantees would
+      never go overdue. Needs either diff-based assignment writes or a separate
+      join-history record. Schema, so TIER 3. DOC-1 ruling 1 (standing grants,
+      not snapshots) still holds. This is about the PERSON's membership, not
+      the audience. Cross-refs: DOC-8, DOC-1.
 
   - id: MS-1
     track: hr
