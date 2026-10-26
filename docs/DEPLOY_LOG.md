@@ -55,6 +55,16 @@ and nothing depends on it; the docs commits need no revert.
 temporary `/menu` page with mock rows (deleted before commit); scoped eslint
 clean; `npm run build` green. Staging checks are owed — see the STAFF-3 row.
 
+## c4a2fde — 2026-10-24 — NOTIFY-13b: Contacts card first on /settings/notifications
+
+**PROMOTED 2026-10-24 in merge `c4a2fde`** (`c4a2fde4fe927db66ddcc3e870c8c7b439222e80`,
+2026-10-24 14:12:33 -0700 (Pacific) = 21:12:33 UTC), first parent `b73295e`,
+second parent `7619cc2` (1 commit, 2 files). Work commit `7619cc2` moves the
+Contacts card to the top of `/settings/notifications` and changes its blurb from
+"above" to "below". TIER 1 cosmetic; no ROADMAP row. Shipped 2026-10-24 with no entry; recorded late (2026-10-26).
+
+**Rollback:** `git revert -m 1 c4a2fde` on `main`. Code-only; no migration, env var or cron.
+
 ## b73295e — 2026-10-24 — NOTIFY-13: per-email-type send schedules (local hour, days, daily/weekly/monthly) and an hourly scheduled-emails cron
 
 **PROMOTED 2026-10-24 in merge `b73295e`** (`b73295ef9f13a336637503b5f73e1c909dfa70b0`,
