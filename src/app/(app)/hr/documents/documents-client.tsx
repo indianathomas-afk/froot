@@ -93,6 +93,8 @@ export interface HrDocumentRow {
   // DOC-6 (F2): the key register's switch. Offered on Acknowledgment only.
   tracksReturn: boolean
   returnItemLabel: string | null
+  // DOC-8: "sign within N days"; null = no due date. Acknowledgment only (F8).
+  signWithinDays: number | null
 }
 
 function formatSize(bytes: number): string {
@@ -721,6 +723,18 @@ function AddDocumentButton({
               <Label>Category</Label>
               <DocumentCategorySelect categories={categories} value={categoryId} onChange={setCategoryId} />
             </div>
+            {/* DOC-8 F8: the server copies the category's default N at create;
+                this only says so. Edit the document afterwards to change it. */}
+            {kind === "Acknowledgment" &&
+              (() => {
+                const n = categories.find((c) => c.id === categoryId)?.defaultSignWithinDays
+                return n ? (
+                  <p className="text-xs text-[var(--color-muted-foreground)]">
+                    Due within {n} day{n === 1 ? "" : "s"} of being assigned (this category&apos;s default).
+                    Change it later with Edit.
+                  </p>
+                ) : null
+              })()}
             {/* DOC-3: exactly one of these two renders. The File input is not
                 merely hidden on a Link — it is unmounted, so its `required`
                 cannot block a submit for a field the admin was never shown. */}
@@ -824,6 +838,10 @@ function EditDocumentButton({
   const canTrackReturn = doc.kind === "Acknowledgment"
   const [tracksReturn, setTracksReturn] = useState(doc.tracksReturn)
   const [returnItemLabel, setReturnItemLabel] = useState(doc.returnItemLabel ?? "")
+  // DOC-8 (F8): the same Acknowledgment-only rule as tracksReturn. Blank = no
+  // due date. Held as the input's string so a half-typed value is not coerced.
+  const canHaveDueDate = doc.kind === "Acknowledgment"
+  const [signWithin, setSignWithin] = useState(doc.signWithinDays?.toString() ?? "")
   const router = useRouter()
   const isLink = doc.kind === "Link"
 
@@ -831,6 +849,11 @@ function EditDocumentButton({
     e.preventDefault()
     if (isLink && !isValidExternalDocumentUrl(externalUrl.trim())) {
       setError(EXTERNAL_URL_ERROR)
+      return
+    }
+    const signWithinDays = signWithin.trim() === "" ? null : Number(signWithin)
+    if (canHaveDueDate && signWithinDays !== null && !(Number.isInteger(signWithinDays) && signWithinDays >= 1 && signWithinDays <= 365)) {
+      setError("Sign within must be a whole number of days from 1 to 365, or blank for no due date")
       return
     }
     setSaving(true)
@@ -851,6 +874,10 @@ function EditDocumentButton({
           ...(canTrackReturn
             ? { tracksReturn, returnItemLabel: tracksReturn ? returnItemLabel.trim() || null : doc.returnItemLabel }
             : {}),
+          // DOC-8: sent only when it CHANGED. The route keeps the clock's set
+          // stamp on a value → value change anyway (F5); not sending an
+          // unchanged value keeps that from being this dialog's concern.
+          ...(canHaveDueDate && signWithinDays !== doc.signWithinDays ? { signWithinDays } : {}),
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -916,6 +943,28 @@ function EditDocumentButton({
                 placeholder="https://www.youtube.com/watch?v=..."
               />
             </div>
+            {canHaveDueDate && (
+              <div className="space-y-1.5">
+                <Label>Sign within (days)</Label>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={365}
+                  value={signWithin}
+                  onChange={(e) => setSignWithin(e.target.value)}
+                  placeholder="No due date"
+                  className="w-32"
+                />
+                {/* DOC-8 rulings 2, 3, 6 and F1, in the words an admin needs. */}
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  Counted from whichever is latest: the person&apos;s hire or rehire date, when this
+                  document was assigned to them, or today if you&apos;re setting it for the first time.
+                  Someone moved into a store keeps their hire date, so they may show overdue straight
+                  away. Blank means no due date.
+                </p>
+              </div>
+            )}
             {canTrackReturn && (
               <div className="space-y-2 rounded-md border border-[var(--color-border)] p-3">
                 <label className="flex items-start gap-2 text-sm text-[var(--color-foreground)] cursor-pointer">

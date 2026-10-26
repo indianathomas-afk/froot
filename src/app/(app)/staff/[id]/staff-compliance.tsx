@@ -1,4 +1,5 @@
 import { formatInstant } from "@/lib/display-time"
+import { documentDueLabel } from "@/lib/hr-due-wording"
 import { Gauge, FileText, GraduationCap } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import type {
@@ -48,7 +49,16 @@ function StatusBadge({
 // DEBT-70b: every date on this tab renders in `timeZone` — the member's
 // primary store, else the org. It was UTC, which is how this tab read Aug 16
 // for a signature the Documents tab (a client component) read as Aug 15.
+// DOC-8 F7: an open document with "sign within N days" gains its due wording
+// after the line below ("v2 · 3 checkpoints · Due in 5 days"). No due date →
+// the line is exactly what it was before DOC-8.
 function docDetail(item: ComplianceDocItem, timeZone: string): string {
+  const base = docDetailBase(item, timeZone)
+  const due = documentDueLabel(item)
+  return due ? `${base} · ${due}` : base
+}
+
+function docDetailBase(item: ComplianceDocItem, timeZone: string): string {
   // R1: this line used to read "All N checkpoints acknowledged (vX) · record
   // pending" UNDER A GREEN "Complete" BADGE — the page stated in prose that no
   // record existed while badging the item done. The prose was right and the

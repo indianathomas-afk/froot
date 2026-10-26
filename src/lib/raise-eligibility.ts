@@ -240,6 +240,11 @@ function complianceCriterion(c: StaffComplianceDetail | undefined): RaiseCriteri
   const label = "Compliance"
   if (!c) return { key: "compliance", label, state: "no-data", detail: "No compliance record for this person." }
   // F2 (b): an overdue training, or ANY unsigned required document.
+  // DOC-8 F6 (Gary, 2026-10-26): BEHAVIOUR UNCHANGED, PREMISE NARROWED. F2(b)'s
+  // reason — "a document is owed from the day it applies" — no longer holds for
+  // a document with "sign within N days", which now has a due date. The gate
+  // still blocks on ANY unsigned document, not yet due included; a doc that has
+  // gone `overdue` is still `!== "complete"`, so it is counted once, here.
   const overdue = c.items.filter((i) => i.kind === "training" && i.status === "overdue").length
   const unsigned = c.items.filter((i) => i.kind === "document" && i.status !== "complete").length
   if (overdue === 0 && unsigned === 0) {

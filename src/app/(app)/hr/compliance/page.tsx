@@ -105,9 +105,10 @@ export default async function HrCompliancePage({
       valColor: "text-[var(--color-warning-text)]",
     },
     {
-      label: "Overdue Training",
+      // DOC-8 F7: documents can be overdue now, and overdueCount counts them.
+      label: "Overdue",
       value: totals.overdueCount,
-      sub: "Past due date, not completed",
+      sub: "Past due date, not completed or signed",
       icon: XCircle,
       color: "text-[var(--color-destructive)]",
       bg: "bg-red-50",

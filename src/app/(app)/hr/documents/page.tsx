@@ -112,6 +112,7 @@ export default async function HrDocumentsPage() {
       staffGrants: d.grants.filter((g) => g.granteeType === "STAFF").length,
       tracksReturn: d.tracksReturn,
       returnItemLabel: d.returnItemLabel,
+      signWithinDays: d.signWithinDays,
     }))
 
   return (

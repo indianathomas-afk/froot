@@ -12,6 +12,9 @@ export const DocumentCategorySchema = z.object({
   // runs CSS-first here with no safelist. TYPE-1_AUDIT §7.
   colorKey: z.string().refine(isBadgePresetKey, "Unknown colour"),
   sortOrder: z.number().int().optional(),
+  // DOC-8 ruling 1 / F8. The N a NEW Acknowledgment document in this category
+  // starts with; null = none. Copied once at document create, never propagated.
+  defaultSignWithinDays: z.number().int().min(1).max(365).nullable().optional(),
 })
 
 // Case-insensitive, because @@unique([organizationId, name]) is case-SENSITIVE.

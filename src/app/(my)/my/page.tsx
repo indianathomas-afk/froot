@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
 import { getStaffComplianceDetail, openComplianceItems, type ComplianceItem } from "@/lib/hr-compliance"
 import { HR_RECORD_MISSING_SIGNER_COPY } from "@/lib/hr-completion"
+import { documentDueLabel } from "@/lib/hr-due-wording"
 import { messageInclude, serializeMessage } from "@/lib/messages"
 import { MyShell } from "./my-shell"
 import { MyDenied } from "./denied"
@@ -207,11 +208,15 @@ function OpenItemRow({ item, timeZone }: { item: ComplianceItem; timeZone: strin
   const badge = recordMissing
     ? { label: "Not signed", className: "bg-amber-100 text-amber-700 border border-amber-200" }
     : (ITEM_STATUS_LABELS[item.status] ?? ITEM_STATUS_LABELS["not-started"])
+  // DOC-8 F7: an open document with a due date reads "2/7 checkpoints · Due in
+  // 5 days"; without one, exactly as before. recordMissing carries no due date
+  // (lib/hr-compliance.ts), so its copy is untouched.
+  const docDue = item.kind === "document" ? documentDueLabel(item) : null
   const detail =
     item.kind === "document"
       ? recordMissing
         ? HR_RECORD_MISSING_SIGNER_COPY
-        : `${item.ackedCount}/${item.requiredCount} checkpoints`
+        : `${item.ackedCount}/${item.requiredCount} checkpoints${docDue ? ` · ${docDue}` : ""}`
       : item.dueDate
         ? `Due ${formatInstant(item.dueDate, timeZone, "monthDay")}`
         : `${item.lessonsDone}/${item.lessonsTotal} lessons`

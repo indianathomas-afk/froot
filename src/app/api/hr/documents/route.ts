@@ -52,6 +52,10 @@ const fileBodySchema = z.object({
   title: z.string().trim().min(1),
   url: z.string().url(),
   fileName: z.string().trim().min(1),
+  // DOC-8 F8. ABSENT = inherit the category's defaultSignWithinDays (ruling 1);
+  // null = explicitly no due date; a number = that N. Acknowledgment only —
+  // refused below on Reference, the tracksReturn pattern.
+  signWithinDays: z.number().int().min(1).max(365).nullish(),
   ...instructionsFields,
 })
 
@@ -165,6 +169,19 @@ export async function POST(req: Request) {
   }
 
   const isAcknowledgment = kind === "Acknowledgment"
+  if (!isAcknowledgment && body.signWithinDays != null) {
+    return NextResponse.json(
+      { error: "A due date only applies to documents that are signed" },
+      { status: 400 }
+    )
+  }
+  // DOC-8 ruling 1 / F8: copied ONCE, here. The category's default is never
+  // read again for this document, so editing it later rewrites nothing.
+  const signWithinDays = isAcknowledgment
+    ? body.signWithinDays !== undefined
+      ? body.signWithinDays
+      : (resolved?.defaultSignWithinDays ?? null)
+    : null
   let meta
   try {
     meta = await readHrFileMeta(url, { includeBytes: isAcknowledgment })
@@ -216,6 +233,9 @@ export async function POST(req: Request) {
       instructionsVideoUrl,
       requiresAcknowledgment: isAcknowledgment,
       isActive: true,
+      // DOC-8 ruling 3 / F5: the set stamp travels with N, always together.
+      signWithinDays,
+      signWithinDaysSetAt: signWithinDays !== null ? new Date() : null,
       versions: {
         create: {
           versionNumber: 1,

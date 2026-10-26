@@ -62,7 +62,9 @@ export async function listDocumentCategories(organizationId: string) {
   return prisma.hrDocumentCategory.findMany({
     where: { organizationId },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    select: { id: true, name: true, colorKey: true, sortOrder: true },
+    // DOC-8: defaultSignWithinDays rides along so the Add Document dialog can
+    // say what a new signature document will inherit (F8).
+    select: { id: true, name: true, colorKey: true, sortOrder: true, defaultSignWithinDays: true },
   })
 }
 
@@ -73,12 +75,13 @@ export async function listDocumentCategories(organizationId: string) {
 export async function resolveDocumentCategoryId(
   organizationId: string,
   categoryId: string | null | undefined
-): Promise<{ id: string; name: string } | null | undefined | "invalid"> {
+): Promise<{ id: string; name: string; defaultSignWithinDays: number | null } | null | undefined | "invalid"> {
   if (categoryId === undefined) return undefined
   if (categoryId === null) return null
   const row = await prisma.hrDocumentCategory.findFirst({
     where: { id: categoryId, organizationId },
-    select: { id: true, name: true },
+    // DOC-8 F8: the default N a NEW Acknowledgment document copies at create.
+    select: { id: true, name: true, defaultSignWithinDays: true },
   })
   return row ?? "invalid"
 }

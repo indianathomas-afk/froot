@@ -79,7 +79,10 @@ export function ComplianceBanner() {
           You have {owed.openCount} item{plural} to complete
           {overdue ? ` · ${owed.overdueCount} overdue` : ""}
         </p>
-        {/* Ruled 2026-09-07: document-only debt renders a COUNT WITH NO
+        {/* NARROWED 2026-10-26 (DOC-8 F7): a document WITH "sign within N
+            days" now has a due date and can be the nearest one — the rule
+            below governs documents without an N. Kept unedited:
+            Ruled 2026-09-07: document-only debt renders a COUNT WITH NO
             DUE-DATE CLAUSE. HrDocument has no due-date column, so a person
             owing only unsigned documents has no date — the clause is absent
             from the sentence rather than filled with an em dash or a blank.

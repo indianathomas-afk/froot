@@ -39,6 +39,9 @@ const patchSchema = z
     // externalUrl, because the row's kind is the only trustworthy source.
     tracksReturn: z.boolean().optional(),
     returnItemLabel: z.string().trim().max(40).nullish(),
+    // DOC-8 (Gary, 2026-10-26). "Sign within N days"; null clears it.
+    // Acknowledgment only — enforced after the lookup, like tracksReturn (F8).
+    signWithinDays: z.number().int().min(1).max(365).nullable().optional(),
   })
   .refine((d) => Object.keys(d).length > 0, { message: "Nothing to update" })
 
@@ -73,8 +76,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // then reject with a 23514 the caller sees as a 500, and which, if the CHECK
   // were ever dropped by a baseline squash (MIGRATIONS.md Hazard 1), would
   // simply be wrong data. 400 says what happened.
-  const { externalUrl, instructionsHtml, instructionsVideoUrl, categoryId, returnItemLabel, ...rest } =
-    parsed.data
+  const {
+    externalUrl,
+    instructionsHtml,
+    instructionsVideoUrl,
+    categoryId,
+    returnItemLabel,
+    signWithinDays,
+    ...rest
+  } = parsed.data
   if (externalUrl !== undefined && doc.kind !== "Link") {
     return NextResponse.json(
       { error: "Only a Link document has an external URL" },
@@ -92,6 +102,31 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       { status: 400 }
     )
   }
+
+  // DOC-8 F8. Only a number is refused off-kind: clearing to null is harmless.
+  if (signWithinDays != null && doc.kind !== "Acknowledgment") {
+    return NextResponse.json(
+      { error: "A due date only applies to documents that are signed" },
+      { status: 400 }
+    )
+  }
+  // DOC-8 ruling 3 + F5 — the set stamp, the clock's launch-day floor.
+  //   null → N     stamp now: the clock cannot start before this moment
+  //   N → M        UNTOUCHED: shortening can make people overdue at once,
+  //                which is what an admin shortening it means
+  //   N → null     cleared, so a later N starts a fresh grace period
+  // A category change below NEVER touches N (ruling 1: the default is read
+  // once, at create).
+  const dueData =
+    signWithinDays === undefined
+      ? {}
+      : signWithinDays === null
+        ? { signWithinDays: null, signWithinDaysSetAt: null }
+        : {
+            signWithinDays,
+            signWithinDaysSetAt:
+              doc.signWithinDays !== null && doc.signWithinDaysSetAt ? doc.signWithinDaysSetAt : new Date(),
+          }
 
   const resolved = await resolveDocumentCategoryId(access.org.id, categoryId)
   if (resolved === "invalid") {
@@ -114,6 +149,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         ? { instructionsVideoUrl: instructionsVideoUrl?.trim() || null }
         : {}),
       ...(returnItemLabel !== undefined ? { returnItemLabel: returnItemLabel || null } : {}),
+      ...dueData,
     },
   })
   return NextResponse.json(updated)

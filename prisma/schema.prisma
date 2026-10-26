@@ -2176,7 +2176,7 @@ enum HrAnchorPlacement {
 // versions; checkpoints/fields describe what a staff member must sign or fill.
 // linkedFormId pairs Check-Out ↔ Check-In style forms.
 model HrDocument {
-  id                     String   @id @default(cuid())
+  id                     String    @id @default(cuid())
   organizationId         String
   kind                   String // Acknowledgment | FillableForm | Reference | Link
   title                  String
@@ -2203,9 +2203,9 @@ model HrDocument {
   // "all" and keeps reaching everyone, so no library goes dark and no
   // compliance denominator moves; only documents uploaded AFTER it start
   // closed. Read a row's value, never assume the default.
-  appliesTo              String   @default("selected") // all | selected (grants below)
-  requiresAcknowledgment Boolean  @default(false)
-  isActive               Boolean  @default(true)
+  appliesTo              String    @default("selected") // all | selected (grants below)
+  requiresAcknowledgment Boolean   @default(false)
+  isActive               Boolean   @default(true)
   linkedFormId           String? // Check-Out ↔ Check-In form pairing
   bodyText               String? // FillableForm: the agreement's fixed language, rendered above the fields
   // DOC-3, ruling 1 (DECISIONS.md 2026-08-24). kind:"Link" is a document that
@@ -2257,10 +2257,25 @@ model HrDocument {
   // produce; the PATCH route refuses the flag on any other kind. Keyed off this
   // flag and NEVER off the category, which an admin can rename (DOC-5).
   // Turning it off hides the register; the events stay (append-only).
-  tracksReturn           Boolean  @default(false)
+  tracksReturn           Boolean   @default(false)
   returnItemLabel        String? // what is issued, e.g. "Key"; null reads "Item"
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  // DOC-8 (Gary, 2026-10-26, F1–F9). "Sign within N days." NULL = NO DUE DATE,
+  // which is exactly the pre-DOC-8 behaviour: owed from the moment it applies,
+  // never overdue. ACKNOWLEDGMENT KIND ONLY (F8, the tracksReturn pattern); the
+  // PATCH route refuses it elsewhere. 1–365, enforced by zod — no CHECK (Prisma
+  // cannot express one; it would join the protected-index list).
+  //
+  // The clock is computed on read, per (document, member), by documentDueState()
+  // in lib/hr-compliance.ts and nowhere else. Nothing about it is stored.
+  signWithinDays         Int?
+  // DOC-8 ruling 3 (launch day) + F5. Stamped when signWithinDays goes
+  // null → value, cleared when it goes back to null, UNTOUCHED on value → value.
+  // The clock never starts before it, so setting N never makes anyone overdue
+  // overnight. This one column is the whole of ruling 3: N cannot be set before
+  // the migration that adds it, so it never predates go-live (audit § 8).
+  signWithinDaysSetAt    DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   organization      Organization             @relation(fields: [organizationId], references: [id])
   // onDelete: Restrict ANNOTATED, not defaulted — the TPL-1a/HR-20 drift lesson:
@@ -2292,13 +2307,18 @@ model HrDocument {
 // (src/lib/badge-presets.ts), never a class string — the Tailwind 4
 // constraint. No `active` column.
 model HrDocumentCategory {
-  id             String   @id @default(cuid())
-  organizationId String
-  name           String
-  colorKey       String   @default("gray")
-  sortOrder      Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  organizationId        String
+  name                  String
+  colorKey              String   @default("gray")
+  sortOrder             Int      @default(0)
+  // DOC-8 ruling 1 / F8. The N a NEW Acknowledgment document in this category
+  // starts with — copied once, at creation, by POST /api/hr/documents. Editing
+  // it NEVER rewrites an existing document; nothing reads it after creation.
+  // Null = new documents start with no due date.
+  defaultSignWithinDays Int?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
   documents    HrDocument[]
