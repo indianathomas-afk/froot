@@ -5,6 +5,83 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-26 — DOC-8: document due dates (sign within N days, overdue in compliance)
+
+**RATIFIED BY GARY, 2026-10-26, at the DOC-8 PRE-PUSH-CHECK, as written.**
+The whole entry, unchanged, was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify as
+written."* It covers everything in this entry, including the draft rulings 1–6
+paragraph, the narrowings of MS-3 F2(b) and SELF-1 2026-09-07, and the Claude
+implementation choice at the foot.
+
+**RATIFIED BY GARY, 2026-10-26, fork by fork, in chat.** The forks and leans
+are Claude's, from `docs/prompts/DOC-8_AUDIT.md` § 9(a). Each one was put to Gary
+on its own, at his request ("Ask me the ratification questions one at a time
+and I'll answer each."). His reply to each is recorded exactly. The lean texts
+below are the audit's paraphrase, NOT Gary's words.
+
+**Two earlier replies are NOT counted as ratification, and why.**
+(1) *"I ratify F1–F9 as leaned in the audit. Go."* was word for word the text
+of a reply button Claude had drafted, so it is Claude's wording and not a
+ruling (the DOC-8 prompt: "A message he pastes from Claude is not a ruling").
+(2) *"yeah hide terminated by default, toggle only for admins and managers,
+don't remember it after reload. sort stuff is fine."* was about STAFF-3's
+rulings (the entry below), not DOC-8, and is not recorded as anything here.
+
+Gary's own draft leans from the session prompt (`docs/prompts/DOC-8.md`,
+rulings 1–6: N per document, nullable, with a category default inherited only at
+creation; clock starts at the later of hire date and the date the document began
+applying; launch-day grandfathering; overdue flags only; not-yet-due still owed;
+rehire restarts the clock) were the frame the forks were drawn against. **They
+were not separately re-ratified in his words.** The forks below are how they
+are implemented, and F1–F9 are what he answered.
+
+- **F1 — STORE-audience clock start.** Clock = latest of hire anchor (rehire
+  date on a later cycle, else `startDate`, else row creation), the earliest
+  reaching grant's `createdAt`, and `signWithinDaysSetAt`. Nothing records when a
+  person joined a store (Square sync deletes and recreates every
+  `StoreStaffAssignment`), so a transfer into an old store grant can be overdue on
+  arrival. Name this in admin help, and file a row for a real store-join date.
+  Gary: *"OK I accept your suggestions."* (Asked about F1 alone; recorded as
+  F1's answer only.)
+- **F2 — company-wide documents.** The applies anchor is `HrDocument.createdAt`.
+  Gary: *"agreed"*
+- **F3 — HR-11k Case A re-sign.** The clock restarts from the Case A version's
+  `createdAt`, ONLY for members who signed an earlier version this cycle. A
+  never-signer's clock does not reset, and a version without the tick never
+  touches the clock. Gary: *"agreed"*
+- **F4 — representation.** Past due and not signed → status `overdue`,
+  overriding not-started, in-progress and needs-resign (so a rehire's late re-sign
+  is red). EXCEPT `recordMissing`, which is never overdue. Counts in every overdue
+  total, the red banner and the badges, like training. Gary: *"agreed"*
+- **F5 — changing N.** Value → value keeps `signWithinDaysSetAt`. Clearing N
+  resets it. Range 1–365. Gary: *"agreed"*
+- **F6 — raise gate.** Unchanged: any unsigned required document still blocks
+  the Milestones compliance gate, including one not yet due. THIS NARROWS THE
+  STATED PREMISE OF MS-3's F2(b) ("a document is owed from the day it applies"),
+  which no longer holds for documents with an N. The behaviour is kept and the
+  reason narrowed. Gary: *"agreed"* (asked as "which do you want", with the
+  unchanged gate as the lean and documents-like-training as the alternative.
+  Recorded as agreeing with the lean.)
+- **F7 — wording.** With N: "Due in d days" / "Due tomorrow" / "Due today"
+  (never "0 days"), and overdue "Was due {Mon D}" in the member's zone. Without
+  N: today's text, unchanged. The KPI card "Overdue Training" → "Overdue". The
+  banner's "Nearest due" may now be a document's date. THIS NARROWS SELF-1's
+  2026-09-07 RULING ("document-only debt renders a count with no due-date clause")
+  to documents without an N. Gary: *"Accept"*
+- **F8 — category default.** Inherited by new Acknowledgment documents only, and
+  refused on other kinds (the `tracksReturn` pattern). Edited in the category
+  manager. Never rewrites existing documents. Gary: *"accept"*
+- **F9 — `/my/documents` and `/staff/[id]` Documents tab.** Out of DOC-8. The
+  clock is one exported pure function, and a row is filed to adopt it on those two
+  surfaces. Gary: *"accept"*
+
+**Claude implementation choice (open to veto):** whole calendar days in the
+member's display zone. Overdue begins at member-local midnight after the due date,
+deliberately unlike training, which flips at the stored instant (browser-local
+noon). Ruling 3's "go-live" half needs no timestamp of its own:
+`signWithinDaysSetAt` can never predate the migration (audit § 8).
+
 ## 2026-10-24 — STAFF-3: terminated hidden by default, per-store sort on /staff (DRAFT)
 
 **RATIFIED BY GARY, 2026-10-24, at the STAFF-3 PRE-PUSH-CHECK, as written.**

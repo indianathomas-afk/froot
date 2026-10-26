@@ -31,6 +31,8 @@ export type DocumentCategory = {
   name: string
   colorKey: string
   sortOrder: number
+  // DOC-8 ruling 1 / F8: the N a NEW Acknowledgment document here starts with.
+  defaultSignWithinDays: number | null
   // Org-wide and archived-inclusive, computed by the API — this is the count
   // that governs deletion, deliberately NOT the per-view chip count.
   documentCount: number
@@ -51,14 +53,25 @@ export function DocumentCategoryManagerDialog({
   const [newColor, setNewColor] = useState<string>("gray")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [edits, setEdits] = useState<Record<string, { name: string; colorKey: string }>>({})
-  const [pendingRename, setPendingRename] = useState<{ id: string; from: string; to: string; colorKey: string; count: number } | null>(null)
+  // DOC-8: `dueDays` is the row's default-N input, held as its string ("" = none).
+  type Draft = { name: string; colorKey: string; dueDays: string }
+  const [edits, setEdits] = useState<Record<string, Draft>>({})
+  const [pendingRename, setPendingRename] = useState<
+    { id: string; from: string; to: string; colorKey: string; defaultSignWithinDays: number | null; count: number } | null
+  >(null)
   const [pendingDelete, setPendingDelete] = useState<DocumentCategory | null>(null)
   const [reassigning, setReassigning] = useState<DocumentCategory | null>(null)
   const [reassignTo, setReassignTo] = useState("")
 
-  function draftOf(c: DocumentCategory) {
-    return edits[c.id] ?? { name: c.name, colorKey: c.colorKey }
+  function draftOf(c: DocumentCategory): Draft {
+    return edits[c.id] ?? { name: c.name, colorKey: c.colorKey, dueDays: c.defaultSignWithinDays?.toString() ?? "" }
+  }
+
+  // DOC-8: "" → null; otherwise a whole number 1–365, or undefined = invalid.
+  function parseDueDays(s: string): number | null | undefined {
+    if (s.trim() === "") return null
+    const n = Number(s)
+    return Number.isInteger(n) && n >= 1 && n <= 365 ? n : undefined
   }
 
   function clearEdit(id: string) {
@@ -81,7 +94,10 @@ export function DocumentCategoryManagerDialog({
     return true
   }
 
-  async function patchCategory(id: string, patch: { name?: string; colorKey?: string; sortOrder?: number }) {
+  async function patchCategory(
+    id: string,
+    patch: { name?: string; colorKey?: string; sortOrder?: number; defaultSignWithinDays?: number | null }
+  ) {
     const ok = await call(`/api/hr/documents/categories/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -95,12 +111,24 @@ export function DocumentCategoryManagerDialog({
   // sees the count first (ruling 4, the Manage Types interaction shape).
   function handleSaveRow(c: DocumentCategory) {
     const draft = draftOf(c)
-    const renamed = draft.name.trim() !== c.name
-    if (renamed && c.documentCount > 0) {
-      setPendingRename({ id: c.id, from: c.name, to: draft.name.trim(), colorKey: draft.colorKey, count: c.documentCount })
+    const defaultSignWithinDays = parseDueDays(draft.dueDays)
+    if (defaultSignWithinDays === undefined) {
+      setError("Due within must be a whole number of days from 1 to 365, or blank for none")
       return
     }
-    patchCategory(c.id, { name: draft.name.trim(), colorKey: draft.colorKey })
+    const renamed = draft.name.trim() !== c.name
+    if (renamed && c.documentCount > 0) {
+      setPendingRename({
+        id: c.id,
+        from: c.name,
+        to: draft.name.trim(),
+        colorKey: draft.colorKey,
+        defaultSignWithinDays,
+        count: c.documentCount,
+      })
+      return
+    }
+    patchCategory(c.id, { name: draft.name.trim(), colorKey: draft.colorKey, defaultSignWithinDays })
   }
 
   async function handleAdd() {
@@ -183,7 +211,10 @@ export function DocumentCategoryManagerDialog({
               )}
               {categories.map((c, i) => {
                 const draft = draftOf(c)
-                const dirty = draft.name.trim() !== c.name || draft.colorKey !== c.colorKey
+                const dirty =
+                  draft.name.trim() !== c.name ||
+                  draft.colorKey !== c.colorKey ||
+                  draft.dueDays.trim() !== (c.defaultSignWithinDays?.toString() ?? "")
                 const inUse = c.documentCount > 0
                 return (
                   <div key={c.id} className="flex items-center gap-2 px-3 py-2 rounded-md border border-[var(--color-border)]">
@@ -199,6 +230,18 @@ export function DocumentCategoryManagerDialog({
                         onChange={(color) => setEdits((p) => ({ ...p, [c.id]: { ...draft, colorKey: color } }))}
                       />
                     </div>
+                    <Input
+                      className="h-8 w-20"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={365}
+                      aria-label={`Default sign-within days for ${c.name}`}
+                      title="Days new signature documents in this category are due within"
+                      placeholder="Due"
+                      value={draft.dueDays}
+                      onChange={(e) => setEdits((p) => ({ ...p, [c.id]: { ...draft, dueDays: e.target.value } }))}
+                    />
                     <span className="w-20 shrink-0 text-xs text-[var(--color-muted-foreground)] text-right">
                       {c.documentCount} document{c.documentCount === 1 ? "" : "s"}
                     </span>
@@ -247,6 +290,11 @@ export function DocumentCategoryManagerDialog({
             <p className="text-xs text-[var(--color-muted-foreground)]">
               A category in use cannot be deleted. Reassign its documents to another category first — the count includes agreement forms and archived documents.
             </p>
+            {/* DOC-8 ruling 1 / F8, stated where the field is. */}
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              Due is the number of days new signature documents in a category start with. Changing it
+              never changes documents that already exist — edit those one by one.
+            </p>
           </div>
 
           <DialogFooter>
@@ -272,7 +320,11 @@ export function DocumentCategoryManagerDialog({
             <AlertDialogAction
               onClick={() => {
                 if (!pendingRename) return
-                patchCategory(pendingRename.id, { name: pendingRename.to, colorKey: pendingRename.colorKey })
+                patchCategory(pendingRename.id, {
+                  name: pendingRename.to,
+                  colorKey: pendingRename.colorKey,
+                  defaultSignWithinDays: pendingRename.defaultSignWithinDays,
+                })
                 setPendingRename(null)
               }}
             >

@@ -32,12 +32,24 @@
 //      structurally, not by a filter — see :353.
 //   5. Counting READS. Nothing in this file writes, and no audience change ever
 //      deletes or alters a signed record.
+//
+// DOC-8 (2026-10-26) — A DOCUMENT CAN NOW BE OVERDUE. A document with "sign
+// within N days" carries a dueDate, and past it an open item reads "overdue"
+// exactly as training does (F4). WHAT DID NOT MOVE: requiredTotal, completedCount
+// and every pct. A document not yet due is still owed and still counted (Gary's
+// ruling 5) — the opposite of exclude-until-due, which HR-13 has not built for
+// training either. So overdue moves the overdue counts, the needs-resign count
+// (a late re-sign is overdue, not needs-resign) and nothing else. The clock is
+// documentDueState() below; N null = no due date = pre-DOC-8, unchanged.
 
 import { prisma } from "@/lib/prisma"
-import { AUDIENCE_INCLUDE, GRANTEE_STAFF, GRANTEE_STORE, grantedToStaff } from "@/lib/hr-documents-access"
+import { AUDIENCE_INCLUDE, COMPANY_WIDE, GRANTEE_STAFF, GRANTEE_STORE, grantedToStaff } from "@/lib/hr-documents-access"
 import { documentCompletion } from "@/lib/hr-completion"
 import { UNCATEGORIZED_LABEL, hrAudienceLabel } from "@/lib/hr-documents"
 import { DEFAULT_TIME_ZONE, displayTimeZone } from "@/lib/hr"
+import { addDays, daysBetween } from "@/lib/milestones"
+import { localDateStr } from "@/lib/reports"
+import { zonedInstant } from "@/lib/checklist-lifecycle"
 
 export type ComplianceItemStatus =
   | "complete"
@@ -85,6 +97,16 @@ export type ComplianceDocItem = {
    */
   signedVersionNumber: number | null
   completedAt: string | null
+  /**
+   * DOC-8 (Gary, 2026-10-26). The member-local CALENDAR DATE ("YYYY-MM-DD", in
+   * the detail's timeZone) this document must be signed by, or null when the
+   * document has no "sign within N days" — which is exactly pre-DOC-8. Also null
+   * once complete: a met obligation has no deadline left to show. See
+   * documentDueState() for the clock.
+   */
+  dueDate: string | null
+  /** DOC-8: whole member-local days from today to dueDate; negative once past. Null with dueDate. */
+  daysUntilDue: number | null
 }
 
 export type ComplianceTrainingItem = {
@@ -325,6 +347,12 @@ export async function computeStaffComplianceDetails(
         // met — and it is the same class of expected-but-surprising movement as
         // the R3 note at :353.
         ...AUDIENCE_INCLUDE,
+        // DOC-8: the same grant rows, one column wider — `createdAt` is when a
+        // grant began reaching its grantee (F1). Widened HERE rather than in the
+        // shared AUDIENCE_INCLUDE, so no other surface pays for a column only the
+        // due-date clock reads. Grants are delta-saved (audience route :361-364),
+        // so an unchanged grant keeps its createdAt.
+        grants: { select: { ...AUDIENCE_INCLUDE.grants.select, createdAt: true } },
         versions: {
           orderBy: { versionNumber: "desc" },
           select: {
@@ -332,6 +360,8 @@ export async function computeStaffComplianceDetails(
             versionNumber: true,
             isCurrent: true,
             requiresReacknowledgment: true,
+            // DOC-8 F3: a Case A version's upload is when its re-sign clock starts.
+            createdAt: true,
           },
         },
       },
@@ -405,6 +435,10 @@ export async function computeStaffComplianceDetails(
   return staff.map((member) => {
     const memberStoreIds = member.storeAssignments.map((a) => a.storeId)
     const primary = member.storeAssignments[0] ?? null
+    // DEBT-70b's zone, resolved once per member (it was computed only at the
+    // return below). DOC-8 needs it earlier: due dates are whole days in it.
+    const timeZone = displayTimeZone(member, orgZone ?? { timezone: DEFAULT_TIME_ZONE })
+    const today = localDateStr(now, timeZone)
 
     // The audience subject, assembled from rows already in memory (the fetch
     // above has no `select`, so isCorporate is present — it is read again at
@@ -533,12 +567,40 @@ export async function computeStaffComplianceDetails(
         allRequiredAcked: allAcked,
       })
 
-      const status: ComplianceItemStatus =
+      const baseStatus: ComplianceItemStatus =
         completion.status === "signed"
           ? "complete"
           : completion.status === "needs-current"
             ? "needs-resign"
             : completion.status
+
+      // ── DOC-8: THE DUE DATE (Gary, 2026-10-26, F1–F5) ─────────────────────
+      // Asked only of an OPEN item: a signed document has no deadline left.
+      // F3 — a Case A version restarts the clock ONLY for someone whose open
+      // item comes from Case A, i.e. who signed an earlier version THIS cycle.
+      // A never-signer owed it already; a fresh upload must not clear their flag.
+      // F4's recordMissing exception is applied HERE, at the source, rather than
+      // at each surface: that signer has nothing left to do, so they carry no
+      // deadline at all — not just no red. A surface cannot print "Was due" for
+      // a date it was never handed.
+      const due =
+        baseStatus === "complete" || completion.recordMissing
+          ? null
+          : documentDueState({
+              signWithinDays: d.signWithinDays,
+              signWithinDaysSetAt: d.signWithinDaysSetAt,
+              timeZone,
+              today,
+              member,
+              appliesAt: reachingSince(d, audienceSubject),
+              caseAVersionCreatedAt:
+                current.requiresReacknowledgment && priorSignedThisCycle ? current.createdAt : null,
+            })
+      // F4: past due → "overdue", over not-started, in-progress AND
+      // needs-resign (a rehire's late re-sign is red, ruling 6) — the training
+      // precedent at the trainingItems map below. EXCEPT recordMissing (R1:
+      // the gap is an admin's) — already excluded above, since `due` is null.
+      const status: ComplianceItemStatus = due?.overdue ? "overdue" : baseStatus
 
       return [
         {
@@ -584,6 +646,8 @@ export async function computeStaffComplianceDetails(
           // unruled change wearing a display fix's clothes.
           completedAt:
             (currentRecord ?? priorRecordThisCycle)?.completedAt.toISOString() ?? null,
+          dueDate: due?.dueDate ?? null,
+          daysUntilDue: due?.daysUntilDue ?? null,
         },
       ]
     })
@@ -632,9 +696,109 @@ export async function computeStaffComplianceDetails(
       overdueCount: items.filter((i) => i.status === "overdue").length,
       needsResignCount: items.filter((i) => i.status === "needs-resign").length,
       inProgressCount: items.filter((i) => i.status === "in-progress").length,
-      timeZone: displayTimeZone(member, orgZone ?? { timezone: DEFAULT_TIME_ZONE }),
+      timeZone,
     }
   })
+}
+
+// ─── DOC-8: the due-date clock, written once ─────────────────────────────────
+//
+// Rulings (Gary, 2026-10-26 — docs/DECISIONS.md; forks from
+// docs/prompts/DOC-8_AUDIT.md § 9(a)). EXPORTED AND PURE so the one rule can be
+// adopted by /my/documents and the /staff/[id] Documents tab later (F9, a filed
+// row) instead of being written a second time — DEBT-26's drift shape.
+//
+// THE CLOCK STARTS ON THE LATEST OF these member-local calendar dates:
+//   hire     — rehiredAt on a later signing cycle (ruling 6), else startDate
+//              (MS-1, already a calendar date), else when Froot's row was made
+//   applies  — when the document began reaching them: reachingSince() below
+//   set      — signWithinDaysSetAt (ruling 3 + F5). Never before go-live, since
+//              N cannot be set before the column exists, so nobody turns
+//              overdue overnight.
+//   Case A   — the re-sign version's upload, only when the caller says so (F3)
+// and the document is due N days after it.
+//
+// WHOLE DAYS IN THE MEMBER'S DISPLAY ZONE, DELIBERATELY UNLIKE TRAINING. A
+// training dueDate is an instant (browser-local noon at assignment) and turns
+// overdue at it (`a.dueDate < now`). A document is due through the END of its
+// due day where the member lives: overdue from local midnight after. The dates
+// decide, the calendar module's precedent (lib/calendar.ts daysOverdue) — not
+// the instant. Two rules, visibly different on purpose.
+//
+// NULL = NO DUE DATE = PRE-DOC-8 BEHAVIOUR, byte for byte: no N, or N without a
+// set stamp (the PATCH route always writes both; a row with only one was not
+// written by Froot, and inventing a clock start for it would be a guess).
+
+export type DocumentDueState = {
+  /** Member-local "YYYY-MM-DD". */
+  dueDate: string
+  /** dueDate minus today, in whole member-local days. 0 = due today; negative = past. */
+  daysUntilDue: number
+  overdue: boolean
+}
+
+export function documentDueState(input: {
+  signWithinDays: number | null
+  signWithinDaysSetAt: Date | null
+  timeZone: string
+  /** Member-local "YYYY-MM-DD" — passed in, not derived, so a fixture can pin it. */
+  today: string
+  member: { startDate: Date | null; createdAt: Date; rehiredAt: Date | null; signingCycle: number }
+  appliesAt: Date
+  caseAVersionCreatedAt: Date | null
+}): DocumentDueState | null {
+  const { signWithinDays: n, signWithinDaysSetAt: setAt, timeZone: tz, member } = input
+  if (n === null || n === undefined || !setAt) return null
+
+  const local = (at: Date) => localDateStr(at, tz)
+  const hire =
+    member.signingCycle > 1 && member.rehiredAt
+      ? local(member.rehiredAt)
+      : member.startDate
+        ? member.startDate.toISOString().slice(0, 10) // @db.Date: a calendar date, no zone
+        : local(member.createdAt)
+
+  const starts = [hire, local(input.appliesAt), local(setAt)]
+  if (input.caseAVersionCreatedAt) starts.push(local(input.caseAVersionCreatedAt))
+  const start = starts.sort().at(-1)!
+
+  const dueDate = addDays(start, n)
+  const daysUntilDue = daysBetween(input.today, dueDate)
+  return { dueDate, daysUntilDue, overdue: daysUntilDue < 0 }
+}
+
+// When a document began reaching this member (F1, F2). Called only for a
+// document grantedToStaff already admitted, so it answers "since when", never
+// "whether" — the audience rule stays in lib/hr-documents-access.ts.
+//
+// Company-wide → the document's own createdAt (F2: nothing records a later
+// selected → all switch). Otherwise → the EARLIEST grant that reaches them now:
+// their STAFF grant, or a STORE grant on a store they are assigned to — never a
+// STORE grant for corporate staff (R3, mirrored from grantedToStaff).
+//
+// F1, RATIFIED WITH ITS COST NAMED: Froot does not record when a person joined
+// a store (every StoreStaffAssignment writer deletes and recreates the set), so
+// a STORE grant's date is the store's, not the person's. Someone transferred
+// into a store holding an old grant starts from their hire date and can be
+// overdue on arrival. A real store-join date is a filed row.
+function reachingSince(
+  doc: {
+    appliesTo: string
+    createdAt: Date
+    grants: { granteeType: string; storeId: string | null; staffMemberId: string | null; createdAt: Date }[]
+  },
+  subject: { id: string; isCorporate: boolean; storeAssignments: { storeId: string }[] }
+): Date {
+  if (doc.appliesTo === COMPANY_WIDE) return doc.createdAt
+  const storeIds = new Set(subject.storeAssignments.map((a) => a.storeId))
+  const reaching = doc.grants
+    .filter((g) =>
+      g.granteeType === GRANTEE_STAFF
+        ? g.staffMemberId === subject.id
+        : g.granteeType === GRANTEE_STORE && !subject.isCorporate && !!g.storeId && storeIds.has(g.storeId)
+    )
+    .map((g) => g.createdAt.getTime())
+  return reaching.length ? new Date(Math.min(...reaching)) : doc.createdAt
 }
 
 // ─── /staff list column: batched summaries. Terminated staff always get
@@ -705,6 +869,15 @@ export type OwedSummary = {
   /**
    * ISO instant of the soonest due date among OPEN items, or null.
    *
+   * ── AMENDED 2026-10-26 (DOC-8 F7, Gary). READ THIS FIRST. ─────────────────
+   * DOCUMENTS WITH A "SIGN WITHIN N DAYS" NOW CARRY A DUE DATE AND JOIN THIS
+   * FIELD. A document's due date is a member-local calendar date; it enters as
+   * NOON of that day in detail.timeZone, so it sorts against training instants
+   * and renders the same calendar day through formatInstant(…, "monthDay"). The
+   * 2026-09-07 ruling below is NARROWED, not reversed: it still governs every
+   * document WITHOUT an N — those still have no date and the clause is still
+   * absent. The paragraph below was true when written and is kept unedited.
+   *
    * TRAINING ONLY, BY SCHEMA AND NOT BY CHOICE. ComplianceDocItem (:48) has no
    * due-date field because HrDocument has no due-date column — a required
    * document is owed from the moment it applies and has no deadline to miss.
@@ -729,8 +902,17 @@ export type OwedSummary = {
 export function summarizeOwed(detail: StaffComplianceDetail): OwedSummary {
   const open = openComplianceItems(detail)
   const dues = open
-    .filter((i): i is ComplianceTrainingItem => i.kind === "training" && !!i.dueDate)
-    .map((i) => i.dueDate!)
+    .flatMap((i) =>
+      i.kind === "training"
+        ? i.dueDate
+          ? [i.dueDate]
+          : []
+        : // DOC-8: a document's calendar due date as noon in the member's zone
+          // (see the amendment on OwedSummary.nearestDueDate).
+          i.dueDate
+          ? [zonedInstant(i.dueDate, "12:00", detail.timeZone)?.toISOString() ?? `${i.dueDate}T12:00:00.000Z`]
+          : []
+    )
     .sort()
   return {
     openCount: open.length,
@@ -1022,6 +1204,9 @@ export type DocumentCompliancePerson = {
   ackedCount: number
   requiredCount: number
   recordMissing: boolean
+  /** DOC-8: carried from the item, never recomputed by the pivot. */
+  dueDate: string | null
+  daysUntilDue: number | null
 }
 
 export type DocumentComplianceRow = {
@@ -1092,6 +1277,8 @@ export function pivotComplianceByDocument(
         ackedCount: item.ackedCount,
         requiredCount: item.requiredCount,
         recordMissing: item.recordMissing,
+        dueDate: item.dueDate,
+        daysUntilDue: item.daysUntilDue,
       })
     }
   }

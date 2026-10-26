@@ -19,6 +19,8 @@ export type DocumentCategoryOption = {
   name: string
   colorKey: string
   sortOrder: number
+  /** DOC-8: present where the list came from listDocumentCategories. */
+  defaultSignWithinDays?: number | null
 }
 
 // Radix Select cannot carry an empty-string value, so "no category" travels as

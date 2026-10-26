@@ -1704,3 +1704,43 @@ untouched.
 **Fixture:** `scripts/verify-notify-sched.ts`, 43 passed / 0 failed on dev
 (`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
 the work commit (`aca15ad`).
+
+## 2026-10-26 — `20261026200000_doc8_document_due_dates` (DOC-8)
+
+**APPLIED TO DEV ONLY, by Gary.** His report, recorded exactly: *"Applied to
+dev — please re-check the columns and continue."* An earlier report (*"I
+applied the DOC-8 migration to dev with migrate deploy."*) was premature. A
+read on dev straight after it (`neon.branch_id` = `br-broad-wave-a6vpjdw0`)
+found none of the three columns, and the newest `_prisma_migrations` row was
+`20261024170855_notify_sched_schedules`. The session stopped. After the second
+report, the same read on `br-broad-wave-a6vpjdw0` found all three columns and
+the row `20261026200000_doc8_document_due_dates`, finished
+`2026-10-26 21:11:55 UTC` (`14:11:55 PDT`). Staging and production get the
+migration through `prisma migrate deploy` in the Vercel build, on Gary's push.
+
+Timestamp note: the folder name is a hand-chosen `20:00:00 UTC` slot on the
+day of generation, not the instant of generation.
+
+Prisma commands for this migration: `format`, `validate`, `migrate diff`
+(once, generating this file), and `generate` (once by hand, and again inside
+`npm run build`). Gary ran `migrate deploy`. The dev reads above went through
+the Prisma client in a tsx script, not the CLI.
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "HrDocument" ADD COLUMN "signWithinDays" INTEGER` | additive, nullable |
+| `ALTER TABLE "HrDocument" ADD COLUMN "signWithinDaysSetAt" TIMESTAMP(3)` | additive, nullable |
+| `ALTER TABLE "HrDocumentCategory" ADD COLUMN "defaultSignWithinDays" INTEGER` | additive, nullable |
+
+**Why.** DOC-8 (`docs/prompts/DOC-8_AUDIT.md` § 9; rulings in
+`docs/DECISIONS.md` 2026-10-26): "sign within N days" per document, with a
+category default copied at create. Null = no due date = the pre-DOC-8
+behaviour. `signWithinDaysSetAt` is the launch-day floor for the clock (ruling 3).
+
+**No CHECK constraint.** The 1–365 range is enforced by zod in the routes.
+Prisma cannot express a CHECK, and one would join the § Protected indexes
+watch list. **No backfill, nothing altered or dropped.**
+
+**Fixture:** `scripts/verify-doc8-due-dates.ts`, 40 passed / 0 failed on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
+the work commit (`aa93e2b`).

@@ -22,6 +22,7 @@ export async function GET() {
       name: true,
       colorKey: true,
       sortOrder: true,
+      defaultSignWithinDays: true,
       // Org-wide, archived-inclusive, and counting forms too: this count
       // governs deletion, and every such row holds the FK. The library's filter
       // chips count per-view, client-side — two counts, deliberately different
@@ -36,6 +37,7 @@ export async function GET() {
       name: c.name,
       colorKey: c.colorKey,
       sortOrder: c.sortOrder,
+      defaultSignWithinDays: c.defaultSignWithinDays,
       documentCount: c._count.documents,
     }))
   )
@@ -62,8 +64,9 @@ export async function POST(req: Request) {
         name: parsed.data.name,
         colorKey: parsed.data.colorKey,
         sortOrder: parsed.data.sortOrder ?? 0,
+        defaultSignWithinDays: parsed.data.defaultSignWithinDays ?? null,
       },
-      select: { id: true, name: true, colorKey: true, sortOrder: true },
+      select: { id: true, name: true, colorKey: true, sortOrder: true, defaultSignWithinDays: true },
     })
     return NextResponse.json({ ...created, documentCount: 0 }, { status: 201 })
   } catch (err) {

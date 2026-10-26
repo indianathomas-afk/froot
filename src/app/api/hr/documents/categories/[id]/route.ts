@@ -42,8 +42,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         ...(data.name !== undefined && { name: data.name }),
         ...(data.colorKey !== undefined && { colorKey: data.colorKey }),
         ...(data.sortOrder !== undefined && { sortOrder: data.sortOrder }),
+        // DOC-8 ruling 1: THIS CATEGORY ROW ONLY. No document is touched — an
+        // existing document's N was copied at its create and is its own now.
+        ...(data.defaultSignWithinDays !== undefined && { defaultSignWithinDays: data.defaultSignWithinDays }),
       },
-      select: { id: true, name: true, colorKey: true, sortOrder: true, _count: { select: { documents: true } } },
+      select: {
+        id: true,
+        name: true,
+        colorKey: true,
+        sortOrder: true,
+        defaultSignWithinDays: true,
+        _count: { select: { documents: true } },
+      },
     })
 
     return NextResponse.json({
@@ -51,6 +61,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       name: updated.name,
       colorKey: updated.colorKey,
       sortOrder: updated.sortOrder,
+      defaultSignWithinDays: updated.defaultSignWithinDays,
       documentCount: updated._count.documents,
     })
   } catch (err) {

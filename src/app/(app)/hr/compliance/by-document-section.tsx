@@ -17,6 +17,7 @@ import type {
   DocumentComplianceRow,
   DocumentComplianceView,
 } from "@/lib/hr-compliance"
+import { documentDueLabel } from "@/lib/hr-due-wording"
 
 // DOC-2: By Document. Everything here is already computed server-side for
 // this page's scope (lib/hr-compliance.ts, pivotComplianceByDocument), so the
@@ -326,9 +327,23 @@ function DocumentRow({
 // The four statuses a document item can carry (training's "overdue" never
 // reaches a document). Wording follows the per-person Compliance tab: R2's
 // earlier-version signer is green "Signed vN", never amber.
+//
+// [CORRECTED 2026-10-26, DOC-8] The parenthesis above is no longer true. A
+// document with "sign within N days" can now be "overdue" (F4), and without the
+// case below it fell to `default` and read "Not started" — red information
+// rendered grey. An open item with a due date also carries the F7 wording after
+// its status ("· Due in 5 days"). No due date → exactly the pre-DOC-8 badge.
 function StatusBadge({ person: p }: { person: DocumentCompliancePerson }) {
   const base = "inline-block text-xs font-medium px-2 py-0.5 rounded-full shrink-0"
+  const due = documentDueLabel(p)
+  const dueSuffix = due ? ` · ${due}` : ""
   switch (p.status) {
+    case "overdue":
+      return (
+        <span className={`${base} bg-red-50 text-[var(--color-destructive)]`}>
+          Overdue{dueSuffix}
+        </span>
+      )
     case "complete":
       return (
         <span className={`${base} bg-[#25ba3b]/10 text-[var(--color-success-text,#1d7c2e)]`}>
@@ -340,19 +355,19 @@ function StatusBadge({ person: p }: { person: DocumentCompliancePerson }) {
         <span className={`${base} bg-[#0081f2]/10 text-[var(--color-info-text,#005bb0)]`}>
           {p.recordMissing
             ? "All checkpoints done · record missing"
-            : `In progress · ${p.ackedCount} of ${p.requiredCount}`}
+            : `In progress · ${p.ackedCount} of ${p.requiredCount}${dueSuffix}`}
         </span>
       )
     case "needs-resign":
       return (
         <span className={`${base} bg-[#efa201]/10 text-[var(--color-warning-text,#a36a00)]`}>
-          Needs re-sign
+          Needs re-sign{dueSuffix}
         </span>
       )
     default:
       return (
         <span className={`${base} bg-[var(--color-muted)] text-[var(--color-muted-foreground)]`}>
-          Not started
+          Not started{dueSuffix}
         </span>
       )
   }
