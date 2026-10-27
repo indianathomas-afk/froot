@@ -1707,6 +1707,18 @@ the work commit (`aca15ad`).
 
 ## 2026-10-26 — `20261026200000_doc8_document_due_dates` (DOC-8)
 
+**APPLIED TO ALL THREE BRANCHES — rider added 2026-10-27 by PROMOTE-DOCS
+DOC-8; the "APPLIED TO DEV ONLY" text below is kept as written and is now
+spent.**
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | 2026-10-26 21:11:55 UTC (14:11:55 PDT) | Gary, `npx prisma migrate deploy` from `froot/` |
+| staging `br-square-feather-a63z92vz` | 2026-10-26 22:54:33 UTC (15:54:33 PDT) | Vercel build (`prisma migrate deploy`), staging deploy of Gary's push |
+| production `br-sparkling-block-a620qvg4` | 2026-10-26 23:36:59 UTC (16:36:59 PDT) | Vercel build (`prisma migrate deploy`), production deploy of merge `0a239f6` |
+
+Staging and production readings are Gary's, from the Neon console, 2026-10-26.
+
 **APPLIED TO DEV ONLY, by Gary.** His report, recorded exactly: *"Applied to
 dev — please re-check the columns and continue."* An earlier report (*"I
 applied the DOC-8 migration to dev with migrate deploy."*) was premature. A

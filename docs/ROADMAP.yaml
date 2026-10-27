@@ -7059,14 +7059,37 @@ phases:
     # itself). NOT pushed when the check ran — Gary runs the push. DECISIONS
     # 2026-10-26 DOC-8 ratified by Gary at this check: "Ratify as written."
     # The "NOT PUSHED" line above holds until the push.
-    status: staging
+    # `staging` -> `shipped` 2026-10-26, stamped post-merge 2026-10-27 by
+    # PROMOTE-DOCS DOC-8 (on `staging`): merge 0a239f6 (DEPLOY_LOG entry
+    # `0a239f6 — 2026-10-26 — DOC-8`). Any "not pushed" / "staging" comment
+    # above is spent, kept.
+    status: shipped
+    shipped: 2026-10-26
     title: "Document due dates — sign within N days of assignment or hire, overdue shown in compliance"
     commits:
       - "aa93e2b"
       # + the docs commit immediately after aa93e2b: DOC-8 row, audit, rulings, migration log
       - "5b67c9d"
       # + the commit immediately after 5b67c9d: docs(DOC-8 PRE-PUSH-CHECK)
+      - "ed8829b"
+      - "0a239f6"
     notes: >
+      ── PROMOTED 2026-10-26 in merge 0a239f6 (rider prepended 2026-10-27 by
+      PROMOTE-DOCS DOC-8; nothing below is edited). ──
+      OBSERVED, STAGING: _prisma_migrations on br-square-feather-a63z92vz shows
+      20261026200000_doc8_document_due_dates finished 2026-10-26 22:54:33 UTC
+      (15:54:33 PDT). Browser, org not recorded: the Edit Document dialog on
+      "Test - Handbook Regression" shows the "Sign within (days)" field and its
+      help text. With N = 1, Tommy Thomas's /my shows "Due tomorrow" with status
+      "New version to sign" (not overdue yet), and his training row's wording
+      is unchanged. By Document totals match per-staff. A Reference document
+      shows no "Sign within" field.
+      OBSERVED, PRODUCTION: _prisma_migrations on br-sparkling-block-a620qvg4
+      shows the same migration finished 2026-10-26 23:36:59 UTC (16:36:59 PDT).
+      NOT OBSERVED: "Due in 7 days" rendering on /hr/compliance and on the
+      Compliance tab; category default inheritance; the overdue "Was due…"
+      state (the test document is left at N = 1, to check on 2026-10-28); any
+      production browser check.
       ── BUILT 2026-10-26, TIER 3 (prepended; nothing below is edited). ──
       Prompt docs/prompts/DOC-8.md; audit docs/prompts/DOC-8_AUDIT.md. Gary
       ratified forks F1–F9 one by one in his own words (docs/DECISIONS.md
