@@ -20922,6 +20922,9 @@ phases:
     status: planned
     title: "Employee-facing notifications — assignment emails and 'you have something to sign'"
     notes: >
+      NOTE 2026-10-27 (prepended; nothing below is edited). The MANAGER-facing
+      overdue & due-soon document digest shipped as NOTIFY-14, not here. This
+      row's scope and its 2026-09-20 deferral are unchanged.
       NOTE 2026-09-28 (prepended; nothing below is edited). "HR reminders" —
       nudge people with outstanding documents — was agreed by Gary ("Agreed",
       2026-09-28) alongside SIGNED-1 and is filed HERE rather than as a new
@@ -22064,6 +22067,108 @@ phases:
       monthly-only; its retirement still owed), NOTIFY-4 (first day-of-month
       consumer), NOTIFY-3 (reminders would be a scheduled kind), MS-4b
       (ruling 2's window, unchanged).
+
+  - id: NOTIFY-14
+    track: platform
+    size: M
+    # `in_progress` at de21089, set 2026-10-27 by the NOTIFY-DOC-DIGEST build
+    # session (TIER 3). Not pushed — Claude never pushes. PRE-PUSH-CHECK owns
+    # the flip to `staging`.
+    status: in_progress
+    title: "Overdue & due-soon document digest — a scheduled email to admins and managers"
+    commits:
+      - "de21089"
+      # + the docs commit immediately after de21089: docs(NOTIFY-14)
+    blockers:
+      - >
+        MIGRATION 20261027230046_notify14_doc_digest: applied to DEV by Gary
+        (his words: "Applied to dev. Please check the column yourself and
+        continue."). Verified by the session on br-broad-wave-a6vpjdw0:
+        Organization.docDigestEnabled boolean NOT NULL default false, and the
+        _prisma_migrations row finished 2026-10-27 23:02:52 UTC (16:02:52
+        PDT). Staging and production get it through `prisma migrate deploy` in
+        the Vercel build, on Gary's push. Additive: one column, nothing altered.
+      - >
+        UNVERIFIED ON STAGING (staging-SHA precondition first). Dev fixture
+        evidence only; the card was never rendered in a browser and the two
+        admin routes (PUT /api/doc-digest/settings, the preview on POST
+        /api/notify/test) were never called with a Clerk session. Staging
+        sends real email, so KEEP THE TOGGLE OFF and use "Send a preview to
+        me" (it reaches only the pressing admin). Test list, as an ADMIN on
+        /settings/notifications, naming the org id on every observation:
+        (1) the "Document due dates" card renders after Milestone emails,
+        switch Off, Schedule section reading "Default: every Monday at 8 AM
+        Pacific time."; (2) "Send a preview to me" as yourself — the email's
+        subject starts "Test — {org}:", and "Test - Handbook Regression"
+        shows for Tommy Thomas with DOC-8's wording (it was at N = 1 on
+        2026-10-26, so "Was due Oct 27" or later, if he is ACTIVE and has not
+        signed the current version); (3) "Preview as" a manager — only that
+        manager's stores, no Unassigned or Corporate; (4) untick "Overdue &
+        due-soon document digest" for a person in Edit User on /users and
+        confirm they are listed nowhere in the next real send (the preview
+        always reaches the pressing admin, so test with a hand-fired cron or
+        on the next Monday); (5) a "Recent emails" row for each preview,
+        labelled "Test"; (6) a MANAGER cannot PUT /api/doc-digest/settings
+        (403).
+    deferred:
+      - "Training items in the digest (draft ruling 8): filed as NOTIFY-15."
+      - "DEBT-106: a departed ADMIN still matches the recipient query and gets the org-wide digest every period, as with pace alerts. Not fixed here."
+      - "A manager whose store assignments change between the snapshot and a retry (12 h window) gets the snapshot's view. The view is never wider than what they could see at snapshot time."
+    notes: >
+      FILED AND BUILT 2026-10-27. Prompt: docs/prompts/NOTIFY-DOC-DIGEST.md;
+      audit: docs/prompts/NOTIFY-DOC-DIGEST_AUDIT.md (forks F1–F17, each with a
+      lean). Tier TIER 3 (schema, cron, a new email type, a new capability).
+      THE ID: NOTIFY-13 was the highest NOTIFY row and NOTIFY-14 appeared
+      nowhere in docs/, src/ or scripts/ (audit, top). NOT the NOTIFY-3 row
+      (employee-facing, deferred 2026-09-20), which is unchanged but for a
+      cross-reference. RULINGS: Gary answered F1–F17 one at a time in his own
+      words, every one "Agreed"/"agreed" (F17 "agreec.") — docs/DECISIONS.md
+      2026-10-27, which records each verbatim and why one pasted list was not
+      counted.
+      WHAT. kind hr.doc.digest. Every ADMIN gets the whole org, each MANAGER
+      their StoreUserAssignment stores, "Also send to" contacts the org-wide
+      version (store-login contacts drop out, NOTIFY-12 F9). Content is read
+      only off getOrgComplianceRollup() — the /hr/compliance call — plus one
+      window: an open document with a due date and daysUntilDue <= 3 (F7).
+      Grouped by store A–Z, then Unassigned, then Corporate (admins and
+      contacts only, F6); people A–Z; overdue first (F13). Subject "{Org}: {X}
+      overdue, {Y} due soon — documents to sign" (F14). Branded template with
+      new optional headed sections, plus a plain-text part (F16). Default
+      schedule weekly, Monday, 8 AM America/Los_Angeles, through a new
+      KindSchedule.defaultRow (F2); daily or weekly, 5 AM–8 PM (F3). Org
+      switch Organization.docDigestEnabled, default off (F4). Capability
+      notify.docdue.receive, deniable, never grantable (F5). HR available AND
+      active required everywhere (F10). One intent per org per period,
+      dedupeKey {orgId}:{ISO week | date} (F11). "Send a preview to me" with
+      "Preview as" a manager — real data, emailed only to the caller (F9).
+      The dispatcher's parallel AuditLog row gives draft ruling 9 with no code
+      of its own.
+      FIXTURE scripts/verify-notify14-doc-digest.ts on dev
+      (br-broad-wave-a6vpjdw0): 54/54, with three negative controls run and
+      restored (window predicate removed → 7 FAIL; exclude always false → 6
+      FAIL; toggle ignored → 3 FAIL). Regression green on dev:
+      verify-notify-template 35, verify-notify-sched 48, verify-notify12 54,
+      verify-notify6 78, verify-notify5 55, verify-ms4b 59, verify-ms6 45,
+      verify-f5-polish 63, verify-doc8-due-dates 40.
+      Cross-refs: DOC-8 (the engine and wording), NOTIFY-13 (the scheduler),
+      NOTIFY-12 (contacts), NOTIFY-2c (the capability pattern), F-5b (the
+      default-off switch), DEBT-106, NOTIFY-3, NOTIFY-15.
+
+  - id: NOTIFY-15
+    track: platform
+    size: S-M
+    status: planned
+    title: "Training section in the document digest — overdue and due-soon training assignments"
+    notes: >
+      FILED 2026-10-27 by the NOTIFY-14 build session, per the NOTIFY-14
+      prompt's draft ruling 8 ("Training. Out of scope. File a row for a
+      training section in the same digest later."). NOT DESIGNED. What is
+      known: training due dates are INSTANTS that turn overdue at the stored
+      moment (lib/hr-compliance.ts trainingItems, `a.dueDate < now`), unlike a
+      document's member-local due DAY (DOC-8), so "due within 3 days" needs
+      its own ruling for training before it can share the digest's window.
+      The digest builder (src/lib/hr-doc-digest.ts) skips training by its
+      `kind` test today; the rollup already carries the items.
 
 
 bugs:

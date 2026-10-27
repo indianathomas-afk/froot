@@ -1756,3 +1756,33 @@ watch list. **No backfill, nothing altered or dropped.**
 **Fixture:** `scripts/verify-doc8-due-dates.ts`, 40 passed / 0 failed on dev
 (`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
 the work commit (`aa93e2b`).
+
+## 2026-10-27 — `20261027230046_notify14_doc_digest` (NOTIFY-14)
+
+**APPLIED TO DEV ONLY, by Gary.** His report, recorded exactly: *"Applied to
+dev. Please check the column yourself and continue."* The session then read
+dev itself (`neon.branch_id` = `br-broad-wave-a6vpjdw0`, reported by the server
+in the same query): `Organization.docDigestEnabled` is `boolean`, `NOT NULL`,
+default `false`, and `_prisma_migrations` holds
+`20261027230046_notify14_doc_digest`, finished `2026-10-27 23:02:52 UTC`
+(`16:02:52 PDT`). Staging and production get it through `prisma migrate deploy`
+in the Vercel build, on Gary's push.
+
+Timestamp note: the folder name is the UTC instant of generation.
+
+Prisma commands for this migration: `validate`, `format`, `migrate diff` (twice:
+the first attempt could not reach dev from the sandbox and wrote nothing; the
+second wrote this file), and `generate` (once by hand, and again inside
+`npm run build`). Gary ran `migrate deploy`. The dev read above went through
+`@neondatabase/serverless` in a one-off `node` command, not the Prisma CLI.
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "Organization" ADD COLUMN "docDigestEnabled" BOOLEAN NOT NULL DEFAULT false` | additive, defaulted |
+
+Every existing org lands on `false`, so the promotion sends nothing (F-5b's
+argument). **No backfill, nothing altered or dropped.**
+
+**Fixture:** `scripts/verify-notify14-doc-digest.ts`, 54/54 on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
+the work commit (`de21089`).

@@ -5,6 +5,99 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-27 — NOTIFY-14: overdue & due-soon document digest for admins and managers (Gary)
+
+**RATIFIED BY GARY, 2026-10-27, fork by fork, in chat.** The forks and leans
+are Claude's, from `docs/prompts/NOTIFY-DOC-DIGEST_AUDIT.md` § 10(a). Gary asked
+for them one at a time ("ask me one at a time. but give the recommendation.").
+Each was put to him on its own with Claude's recommendation, and his whole
+reply to each is recorded exactly below. **The lean texts are Claude's
+paraphrase of the audit, NOT Gary's words.** The ID is NOTIFY-14; the deferred
+employee-facing NOTIFY-3 row is not this phase and was not changed.
+
+**One earlier reply is NOT counted as ratification, and why.** A message made
+up entirely of a pasted F1–F17 list ("F1, one send per org: agree. …
+F17, migration name `notify14_doc_digest`: agree.") repeated Claude's report
+wording back and addressed its reader in the second person ("You'll be reading
+these emails every Monday"). The phase prompt's rule is that text pasted from
+elsewhere is not a ruling, so it was set aside and the forks were asked again.
+
+Gary's draft leans in the session prompt (`docs/prompts/NOTIFY-DOC-DIGEST.md`,
+rulings 1–9) were the frame the forks were drawn against. **They were not
+separately re-ratified in his words**; F1–F17 are how they are implemented, and
+F1–F17 are what he answered.
+
+- **F1 — Delivery model.** One intent per org per period. Its payload holds the
+  org snapshot and a producer-built address → scope map ("all" for admins and
+  contacts, store ids for each manager). `exclude` drops any address not in the
+  map (fail closed) and any whose filtered digest is empty, with a named skip
+  log line; `render` filters by the map. *Gary: "Agreed."*
+- **F2 — Default schedule with no saved row.** A per-kind default row in code:
+  weekly, Monday, 08:00, America/Los_Angeles. "Reset to default" returns to it.
+  Pace and milestone no-row behaviour unchanged. *Gary: "Agreed."*
+- **F3 — Schedule editor.** Daily or weekly; hours 5 AM–8 PM local; weekly =
+  one day; no monthly; org-scoped zone pre-filled with the most common active
+  store zone, then frozen (NOTIFY-13 F3). *Gary: "Agreed"*
+- **F4 — Toggle.** `Organization.docDigestEnabled Boolean @default(false)`, the
+  phase's one migration, additive; every existing org lands off.
+  *Gary: "Agreed"*
+- **F5 — Per-person control.** Capability `notify.docdue.receive`, baseline
+  ADMIN + MANAGER, deniable in Edit User, never grantable. Grid label
+  "Overdue & due-soon document digest"; the note begins "A scheduled email"
+  (Claude's recommendation over "A weekly email", offered in the same
+  question). *Gary: "Agreed."* — read as agreeing to that recommendation; he
+  was told so and invited to correct it.
+- **F6 — Corporate and unassigned staff.** Admins and contacts only, under
+  "Unassigned" then "Corporate" after the stores; managers never.
+  *Gary: "Agreed."*
+- **F7 — "Due soon".** `daysUntilDue` 0–3 inclusive, whole member-local
+  calendar days, DOC-8's wording helper for every line, no cutoff on overdue.
+  *Gary: "Agreed."*
+- **F8 — "Also send to" contacts.** Allowed; they get the org-wide version. A
+  store-login contact drops out with the pace-alert warning. An address that is
+  both a manager and a picked contact gets the org-wide version. Any denied
+  user blocks a shared address (NOTIFY-12). *Gary: "agreed"*
+- **F9 — Preview.** "Send a preview to me" on the card: real data through the
+  cron's builder, emailed only to the pressing admin (sandbox bypass, as the
+  test kind). A "Preview as" manager choice renders that manager's view and
+  never changes the recipient. Subject prefixed "Test — "; empty → no email and
+  the button says so. *Gary: "agreed."*
+- **F10 — HR gate.** Only where `hrModuleAvailable(clerkOrgId)` and HR is active
+  for the org: in the runner leg, at dispatch (`enabled`), in the schedule
+  route, and on the card (no card / one disabled line). *Gary: "agreed"*
+- **F11 — Repeats.** Send lock `"{orgId}:{periodKey}"` (ISO week or local date);
+  a second run in the period sends nothing; the next period is a fresh
+  snapshot; freshness 12 h for retries; the preview is never locked.
+  *Gary: "agreed."*
+- **F12 — Names.** Kind key `hr.doc.digest`; send-log label "Document due-date
+  digest"; hub card "Document due dates", row "Overdue & due-soon documents".
+  *Gary: "agreed."*
+- **F13 — Order.** Stores A–Z, then Unassigned, then Corporate; people A–Z by
+  display name; within a person, overdue first (most overdue first), then due
+  soon (soonest first), ties by title; one group per person as on
+  `/hr/compliance`; empty stores omitted. *Gary: "agreed"*
+- **F14 — Subject.** "{Org}: {X} overdue, {Y} due soon — documents to sign",
+  counting documents in that recipient's view, a zero part omitted; the
+  preview prefixed "Test — ". *Gary: "agreed"*
+- **F15 — Statuses.** Any open document with a due date in the window: not
+  started, in progress, new version to sign; past due reads overdue (DOC-8 F4).
+  Out: signed, recordMissing, no N, terminated, archived, training. The email
+  shows the due wording only. *Gary: "agreed"*
+- **F16 — Body.** Heading "{N} documents are overdue or due within 3 days." (1 →
+  "1 document is"); intro "As of {weekday, Mon D}. Each line is a document
+  someone still needs to sign."; one section per store, rows "{Person} |
+  {Document} — {due label}" with the name repeated on every line; button
+  "Open compliance" → `/hr/compliance`; footer "You get this digest at most
+  once a week. An admin can turn it off for you in Users. Sent by USE Froot on
+  behalf of {org}. This address does not accept replies." ("a day" when daily);
+  plain text mirrors it. Needs an additive optional `sections` field on
+  `renderEmail()`, existing consumers byte-identical. *Gary: "agreed"* — read
+  as agreeing to the repeated name, which was the recommendation; he was told
+  so and invited to correct it.
+- **F17 — Migration name.** `<timestamp>_notify14_doc_digest`, not the prompt's
+  `notify3_doc_digest`. *Gary: "agreec."* (verbatim, an evident typo for
+  "agreed").
+
 ## 2026-10-26 — DOC-8: document due dates (sign within N days, overdue in compliance)
 
 **RATIFIED BY GARY, 2026-10-26, at the DOC-8 PRE-PUSH-CHECK, as written.**
