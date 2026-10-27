@@ -7,6 +7,13 @@ decisions too.)
 
 ## 2026-10-27 — NOTIFY-14: overdue & due-soon document digest for admins and managers (Gary)
 
+**RATIFIED BY GARY, 2026-10-27, at the NOTIFY-14 PRE-PUSH-CHECK, as written.**
+The whole entry, unchanged, was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify as
+written"* It covers everything in this entry, including the paragraph setting
+aside the pasted F1–F17 list, the note that the draft leans 1–9 were not
+separately re-ratified, and F1–F17 with their recorded replies.
+
 **RATIFIED BY GARY, 2026-10-27, fork by fork, in chat.** The forks and leans
 are Claude's, from `docs/prompts/NOTIFY-DOC-DIGEST_AUDIT.md` § 10(a). Gary asked
 for them one at a time ("ask me one at a time. but give the recommendation.").

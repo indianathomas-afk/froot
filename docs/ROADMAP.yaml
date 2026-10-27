@@ -22074,11 +22074,18 @@ phases:
     # `in_progress` at de21089, set 2026-10-27 by the NOTIFY-DOC-DIGEST build
     # session (TIER 3). Not pushed — Claude never pushes. PRE-PUSH-CHECK owns
     # the flip to `staging`.
-    status: in_progress
+    # `in_progress` -> `staging` 2026-10-27 by the NOTIFY-14 PRE-PUSH-CHECK, in
+    # the commit immediately after 2406e4c (its own SHA cannot be written inside
+    # itself). NOT pushed when the check ran — Gary runs the push. DECISIONS
+    # 2026-10-27 NOTIFY-14 ratified by Gary at this check: "Ratify as written"
+    # The "Not pushed" line above holds until the push.
+    status: staging
     title: "Overdue & due-soon document digest — a scheduled email to admins and managers"
     commits:
       - "de21089"
       # + the docs commit immediately after de21089: docs(NOTIFY-14)
+      - "2406e4c"
+      # + the commit immediately after 2406e4c: docs(NOTIFY-14 PRE-PUSH-CHECK)
     blockers:
       - >
         MIGRATION 20261027230046_notify14_doc_digest: applied to DEV by Gary
