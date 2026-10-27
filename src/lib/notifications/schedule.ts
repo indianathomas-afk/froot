@@ -141,7 +141,12 @@ export type SlotDecision =
  * scheduleProblem() before it is used.
  */
 export function slotDue(spec: KindSchedule, row: ScheduleRowLike | null, now: Date, zone: string): SlotDecision {
-  const usable = row && scheduleProblem(spec, row) === null ? row : null
+  const saved = row && scheduleProblem(spec, row) === null ? row : null
+  // NOTIFY-14 (F2): a kind with its own default evaluates it, in the default's
+  // own zone, exactly as if it were a saved row. Pace and milestones have no
+  // defaultRow, so their no-row path below is unchanged.
+  const usable = saved ?? spec.defaultRow ?? null
+  if (!saved && usable) zone = usable.timeZone ?? zone
   if (!usable) {
     if (now.getUTCHours() < spec.legacyUtcHour) return { due: false, reason: "before the default send hour" }
     const utcDate = now.toISOString().slice(0, 10)

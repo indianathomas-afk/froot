@@ -76,6 +76,33 @@ export function MilestoneAlertsToggle({ enabled: initialEnabled }: { enabled: bo
   )
 }
 
+// NOTIFY-14 (F4): the document digest switch, shaped on MilestoneAlertsToggle.
+export function DocDigestToggle({ enabled: initialEnabled }: { enabled: boolean }) {
+  const router = useRouter()
+  const [enabled, setEnabled] = useState(initialEnabled)
+  const [busy, setBusy] = useState(false)
+
+  async function toggle(next: boolean) {
+    setEnabled(next) // optimistic — reverted if the request fails
+    setBusy(true)
+    const res = await fetch("/api/doc-digest/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: next }),
+    }).catch(() => null)
+    if (!res?.ok) setEnabled(!next)
+    setBusy(false)
+    router.refresh()
+  }
+
+  return (
+    <label className="flex items-center gap-2 text-sm text-[var(--color-muted-foreground)] shrink-0">
+      {enabled ? "On" : "Off"}
+      <Switch checked={enabled} disabled={busy} onCheckedChange={toggle} aria-label="Enable the document digest" />
+    </label>
+  )
+}
+
 // ─── NOTIFY-2a: the per-org threshold (F1, Gary 2026-09-20) ──────────────────
 // BLANK IS A LEGITIMATE VALUE AND IT IS THE DEFAULT, not an unfilled form. It
 // stores NULL and the cron falls back to the deployment's own default, which is

@@ -65,6 +65,13 @@ export type EmailTemplateInput = {
   intro: string
   /** Label/value pairs rendered as a two-column table. */
   rows: EmailRow[]
+  /**
+   * NOTIFY-14 (F16). Optional headed groups of rows, rendered after `rows`:
+   * a heading, then that group's two-column table. The document digest groups
+   * by store. Absent or empty on every earlier consumer, whose html and text
+   * are therefore unchanged byte for byte (verify-notify-template).
+   */
+  sections?: { heading: string; rows: EmailRow[] }[]
   cta?: { label: string; url: string }
   /** The closing line. Today every consumer says the address takes no replies. */
   footer: string
@@ -169,6 +176,17 @@ function rowValue(r: EmailRow): string {
     : esc(r.value)
 }
 
+function sectionsHtml(sections: EmailTemplateInput["sections"]): string {
+  if (!sections || sections.length === 0) return ""
+  return sections
+    .map(
+      (sec, i) =>
+        `<h2 style="margin:${i === 0 ? "0" : "18px"} 0 4px;font-family:${FONT};font-size:14px;line-height:20px;font-weight:600;color:${INK};">${esc(sec.heading)}</h2>` +
+        rowsTable(sec.rows)
+    )
+    .join("")
+}
+
 function ctaButton(cta: { label: string; url: string } | undefined): string {
   const url = safeUrl(cta?.url)
   if (!cta || !url) return ""
@@ -209,6 +227,7 @@ function renderHtml(input: EmailTemplateInput): string {
       ? `<p style="margin:0 0 18px;font-family:${FONT};font-size:14px;line-height:22px;color:${MUTED_INK};">${esc(intro)}</p>`
       : "") +
     rowsTable(input.rows) +
+    sectionsHtml(input.sections) +
     ctaButton(input.cta) +
     `</td></tr>` +
     `<tr><td style="padding:16px 24px 22px;border-top:1px solid ${HAIRLINE};">` +
@@ -241,6 +260,13 @@ function renderText(input: EmailTemplateInput): string {
       const url = safeUrl(r.url)
       if (url) lines.push(`${"".padEnd(width)}${url}`)
     }
+  }
+
+  for (const sec of input.sections ?? []) {
+    if (sec.rows.length === 0) continue
+    const width = Math.max(...sec.rows.map((r) => r.label.length + 1)) + 2
+    lines.push("", sec.heading.toUpperCase())
+    for (const r of sec.rows) lines.push(`${(r.label + ":").padEnd(width)}${r.value}`)
   }
 
   const url = safeUrl(input.cta?.url)

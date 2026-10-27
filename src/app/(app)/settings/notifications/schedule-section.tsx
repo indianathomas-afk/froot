@@ -59,6 +59,10 @@ function frequencyHelp(kind: string, f: ScheduleFrequency): string {
     if (f === "weekly") return "At most one alert per store per week, on the day you pick, if the store is behind."
     return "At most one alert per store per day, on the checked days, while a store is behind."
   }
+  if (kind === "hr.doc.digest") {
+    if (f === "weekly") return "One email a week, on the day you pick, listing documents overdue or due within 3 days."
+    return "At most one email a day, on the checked days, listing documents overdue or due within 3 days."
+  }
   if (f === "weekly") return "One email a week, on the day you pick, listing milestones reached since the last one."
   if (f === "monthly") return "One email a month, on the day you pick."
   return "At most one email a day, on the checked days."
@@ -69,9 +73,10 @@ export function ScheduleSection({ view: initial }: { view: ScheduleView }) {
   const { kind, spec } = initial
   const [view, setView] = useState(initial)
 
-  const start = view.saved
+  // NOTIFY-14 (F2): a kind with its own default row starts the editor on it.
+  const start = view.saved ?? spec.defaultRow ?? null
   const hours = Array.from({ length: spec.hours.max - spec.hours.min + 1 }, (_, i) => spec.hours.min + i)
-  const defaultHour = Math.min(Math.max(8, spec.hours.min), spec.hours.max)
+  const defaultHour = spec.defaultRow?.sendHour ?? Math.min(Math.max(8, spec.hours.min), spec.hours.max)
 
   const [frequency, setFrequency] = useState<ScheduleFrequency>(
     (start?.frequency as ScheduleFrequency | undefined) ??
@@ -85,7 +90,7 @@ export function ScheduleSection({ view: initial }: { view: ScheduleView }) {
   )
   const [weeklyDay, setWeeklyDay] = useState(start?.frequency === "weekly" ? start.daysOfWeek[0] : 1)
   const [dayOfMonth, setDayOfMonth] = useState(start?.dayOfMonth ?? 1)
-  const [timeZone, setTimeZone] = useState(start?.timeZone ?? view.defaultZone)
+  const [timeZone, setTimeZone] = useState(view.saved?.timeZone ?? spec.defaultRow?.timeZone ?? view.defaultZone)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<string | null>(null)
@@ -139,12 +144,15 @@ export function ScheduleSection({ view: initial }: { view: ScheduleView }) {
       return
     }
     setView({ ...view, saved: null })
-    setFrequency(spec.frequencies.includes("monthly") && spec.monthly === "every-allowed-day" ? "monthly" : spec.frequencies[0])
+    setFrequency(
+      spec.defaultRow?.frequency ??
+        (spec.frequencies.includes("monthly") && spec.monthly === "every-allowed-day" ? "monthly" : spec.frequencies[0])
+    )
     setSendHour(defaultHour)
-    setDays(new Set(ALL_DAYS))
-    setWeeklyDay(1)
+    setDays(new Set(spec.defaultRow && spec.defaultRow.frequency !== "weekly" ? spec.defaultRow.daysOfWeek : ALL_DAYS))
+    setWeeklyDay(spec.defaultRow?.frequency === "weekly" ? spec.defaultRow.daysOfWeek[0] : 1)
     setDayOfMonth(1)
-    setTimeZone(view.defaultZone)
+    setTimeZone(spec.defaultRow?.timeZone ?? view.defaultZone)
     setDone("Back to the default schedule")
     setBusy(false)
     router.refresh()
@@ -158,6 +166,8 @@ export function ScheduleSection({ view: initial }: { view: ScheduleView }) {
       <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
         {view.saved ? (
           <>Custom schedule.</>
+        ) : spec.defaultText ? (
+          <>{spec.defaultText}</>
         ) : (
           // F6: no row = the old daily cron, 15:00 UTC. Said in UTC first
           // because that is what it is; the Pacific reading moves with DST.
@@ -355,8 +365,14 @@ export function ScheduleSection({ view: initial }: { view: ScheduleView }) {
               <AlertDialogHeader>
                 <AlertDialogTitle>Reset to the default schedule?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This removes your custom schedule. These emails go back to every day at 15:00 UTC
-                  {kind === "pace.alert" ? ", at most one alert per store per month" : ""}.
+                  {spec.defaultText ? (
+                    <>This removes your custom schedule. {spec.defaultText}</>
+                  ) : (
+                    <>
+                      This removes your custom schedule. These emails go back to every day at 15:00 UTC
+                      {kind === "pace.alert" ? ", at most one alert per store per month" : ""}.
+                    </>
+                  )}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

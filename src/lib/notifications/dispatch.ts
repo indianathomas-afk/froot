@@ -370,6 +370,7 @@ const ORG_SELECT = {
   activeModules: true,
   milestonesEnabled: true,
   milestoneAlertsEnabled: true,
+  docDigestEnabled: true,
   milestoneSettings: { select: { checklistMilestonesEnabled: true } },
 } as const
 

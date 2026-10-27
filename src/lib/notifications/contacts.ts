@@ -112,7 +112,10 @@ export async function validatePicks(
 ): Promise<PicksValidation> {
   const def = getKind(kind)
   if (!def || !def.extras) return { ok: false, status: 404, error: "Not found" }
-  if (kind === "hr.ack" && !hrModuleAvailable(org.clerkOrgId)) return { ok: false, status: 404, error: "Not found" }
+  // NOTIFY-14 (F10): the document digest is HR's too.
+  if ((kind === "hr.ack" || kind === "hr.doc.digest") && !hrModuleAvailable(org.clerkOrgId)) {
+    return { ok: false, status: 404, error: "Not found" }
+  }
 
   const parsed = picksBodySchema.safeParse(body)
   if (!parsed.success) return { ok: false, status: 400, error: "Invalid body" }

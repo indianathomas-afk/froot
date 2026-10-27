@@ -3,6 +3,7 @@ import { getOrganization, hrModuleAvailable, requireAdmin } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getKind } from "@/lib/notifications/registry"
 import { MILESTONE_KIND } from "@/lib/notifications/kinds/milestone"
+import { DOC_DIGEST_KIND } from "@/lib/notifications/kinds/doc-digest"
 import { loadScheduleView, parseScheduleBody } from "@/lib/notifications/schedule-settings"
 
 // PUT    /api/notify/schedule/[kind] — NOTIFY-SCHED, save one scheduled kind's
@@ -33,7 +34,8 @@ async function gate(ctx: Ctx) {
   if (!org) return { error: NextResponse.json({ error: "Org not found" }, { status: 404 }) }
   const { kind } = await ctx.params
   const spec = getKind(kind)?.schedule
-  if (!spec || (kind === MILESTONE_KIND && !hrModuleAvailable(org.clerkOrgId))) {
+  // NOTIFY-14 (F10): the document digest is HR's, gated exactly as milestones.
+  if (!spec || ((kind === MILESTONE_KIND || kind === DOC_DIGEST_KIND) && !hrModuleAvailable(org.clerkOrgId))) {
     return { error: NextResponse.json({ error: "Not found" }, { status: 404 }) }
   }
   return { admin, org, kind, spec }

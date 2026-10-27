@@ -57,7 +57,7 @@ export const DELIVERY_ACTIONS = [
   ACTION_DELAYED,
 ] as const
 
-export type NotificationKind = "hr.ack" | "pace.alert" | "test"
+export type NotificationKind = "hr.ack" | "pace.alert" | "test" | "hr.doc.digest"
 
 // MS-4b: THE READER LABELS FROM THE REGISTRY (kindLabel), so a new kind is
 // labelled by its own definition. This map is no longer read and is kept for

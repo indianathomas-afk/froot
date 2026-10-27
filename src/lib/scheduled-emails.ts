@@ -9,6 +9,8 @@ import { milestonesActive } from "@/lib/milestones-access"
 import { getKind } from "@/lib/notifications/registry"
 import { MILESTONE_KIND } from "@/lib/notifications/kinds/milestone"
 import { claimScheduleSlot, scheduleProblem, slotDue } from "@/lib/notifications/schedule"
+import { DOC_DIGEST_KIND, docDigestHrActive } from "@/lib/notifications/kinds/doc-digest"
+import { processDocDigest, type DocDigestOrgResult } from "@/lib/doc-digest-alerts"
 
 // ─── NOTIFY-SCHED: the hourly runner for scheduled email kinds ───────────────
 // docs/prompts/NOTIFY-SCHED_AUDIT.md § 5 and § 13 step 2. Called by
@@ -38,6 +40,11 @@ import { claimScheduleSlot, scheduleProblem, slotDue } from "@/lib/notifications
 // them up under F8. A slot is claimed BEFORE its producer runs, so a deferral
 // never splits one store's or org's work.
 //
+// NOTIFY-14 adds a THIRD LEG, the document digest: org-scoped like milestones,
+// gated by docDigestEnabled and HR available + active (F10), read here first
+// so an org that cannot send burns no run marker. Its no-row default is the
+// kind's own defaultRow (weekly, Monday, 8 AM Pacific — F2), not 15:00 UTC.
+//
 // PACE BEFORE MILESTONES, as in the old route. Each leg has its own try/catch
 // per unit; a failure in one store or org never stops the next.
 
@@ -65,6 +72,11 @@ export type ScheduledRunResult = {
   milestoneOrgsNotDue: number
   milestoneOrgsAlreadyRun: number
   milestoneOrgsDeferred: number
+  /** NOTIFY-14: the document digest leg. */
+  docDigest: DocDigestOrgResult[] | { error: string }
+  docDigestOrgsNotDue: number
+  docDigestOrgsAlreadyRun: number
+  docDigestOrgsDeferred: number
   /** Rows the evaluator could not use; those slots ran on the default (F6). */
   unusableSchedules: { organizationId: string; kind: string; problem: string }[]
 }
@@ -87,17 +99,18 @@ export async function runScheduledEmails(opts: {
   const orgScope = opts.organizationId ? { organizationId: opts.organizationId } : {}
   const paceSpec = getKind(PACE_KIND)?.schedule
   const milestoneSpec = getKind(MILESTONE_KIND)?.schedule
-  if (!paceSpec || !milestoneSpec) throw new Error("scheduled kinds are missing their schedule definitions")
+  const digestSpec = getKind(DOC_DIGEST_KIND)?.schedule
+  if (!paceSpec || !milestoneSpec || !digestSpec) throw new Error("scheduled kinds are missing their schedule definitions")
 
   const schedules = await prisma.notificationSchedule.findMany({
-    where: { kind: { in: [PACE_KIND, MILESTONE_KIND] }, ...orgScope },
+    where: { kind: { in: [PACE_KIND, MILESTONE_KIND, DOC_DIGEST_KIND] }, ...orgScope },
   })
   const scheduleOf = new Map<string, NotificationSchedule>(
     schedules.map((s) => [scheduleKey(s.organizationId, s.kind), s])
   )
   const unusableSchedules: ScheduledRunResult["unusableSchedules"] = []
   for (const s of schedules) {
-    const spec = s.kind === PACE_KIND ? paceSpec : milestoneSpec
+    const spec = s.kind === PACE_KIND ? paceSpec : s.kind === MILESTONE_KIND ? milestoneSpec : digestSpec
     const problem = scheduleProblem(spec, s)
     if (problem) unusableSchedules.push({ organizationId: s.organizationId, kind: s.kind, problem })
   }
@@ -224,6 +237,65 @@ export async function runScheduledEmails(opts: {
     milestones = { error: msg.slice(0, 200) }
   }
 
+  // ── The document digest leg (NOTIFY-14). One slot per org, in the saved
+  // row's zone or the default row's (slotDue resolves which).
+  let docDigest: DocDigestOrgResult[] | { error: string }
+  let docDigestOrgsNotDue = 0
+  let docDigestOrgsAlreadyRun = 0
+  let docDigestOrgsDeferred = 0
+  try {
+    const orgs = await prisma.organization.findMany({
+      where: { docDigestEnabled: true, ...(opts.organizationId ? { id: opts.organizationId } : {}) },
+      select: { id: true, clerkOrgId: true, activeModules: true },
+    })
+    const out: DocDigestOrgResult[] = []
+    for (const org of orgs) {
+      if (!docDigestHrActive(org)) continue
+      try {
+        const row = scheduleOf.get(scheduleKey(org.id, DOC_DIGEST_KIND)) ?? null
+        const decision = slotDue(digestSpec, row, now, row?.timeZone ?? DEFAULT_TIME_ZONE)
+        if (!decision.due) {
+          docDigestOrgsNotDue++
+          continue
+        }
+        if (Date.now() > deadline) {
+          docDigestOrgsDeferred++
+          continue
+        }
+        const claimed = await claimScheduleSlot({
+          organizationId: org.id,
+          kind: DOC_DIGEST_KIND,
+          scopeKey: "org",
+          slotDate: decision.slotDate,
+        })
+        if (!claimed) {
+          docDigestOrgsAlreadyRun++
+          continue
+        }
+        out.push(
+          await processDocDigest({
+            sender: opts.sender,
+            mode: opts.mode,
+            now,
+            organizationId: org.id,
+            // The kind has a defaultRow, so slotDue always returns a frequency.
+            frequency: decision.frequency ?? "weekly",
+            localDate: decision.localDate,
+          })
+        )
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        console.error(`[scheduled-emails] doc digest org=${org.id}: ${msg}`)
+        out.push({ organizationId: org.id, views: 0, recipients: 0, sent: 0, failed: 0, dryRun: 0, error: msg.slice(0, 200) })
+      }
+    }
+    docDigest = out
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "doc digest failed"
+    console.error(`[scheduled-emails] doc digest leg: ${msg}`)
+    docDigest = { error: msg.slice(0, 200) }
+  }
+
   return {
     mode: opts.mode,
     fallbackThresholdPct: fallbackPct,
@@ -240,6 +312,10 @@ export async function runScheduledEmails(opts: {
     milestoneOrgsNotDue,
     milestoneOrgsAlreadyRun,
     milestoneOrgsDeferred,
+    docDigest,
+    docDigestOrgsNotDue,
+    docDigestOrgsAlreadyRun,
+    docDigestOrgsDeferred,
     unusableSchedules,
   }
 }
@@ -282,6 +358,15 @@ export async function scheduledEmailsCron(req: Request, route: string): Promise<
         `${r.milestoneOrgsAlreadyRun} already run, ${r.milestoneOrgsDeferred} deferred` +
         (r.milestones.length
           ? ": " + r.milestones.map((m) => `${m.organizationId} queued=${m.queued} known=${m.known} sent=${m.sent} failed=${m.failed} dryRun=${m.dryRun}${m.error ? ` error=${m.error}` : ""}`).join("; ")
+          : "")
+    )
+  }
+  if (Array.isArray(r.docDigest)) {
+    console.log(
+      `[cron:${route}] doc digest mode=${r.mode} ${r.docDigest.length} org(s) run, ${r.docDigestOrgsNotDue} not due, ` +
+        `${r.docDigestOrgsAlreadyRun} already run, ${r.docDigestOrgsDeferred} deferred` +
+        (r.docDigest.length
+          ? ": " + r.docDigest.map((d) => `${d.organizationId} ${d.skipped ? `skipped=${d.skipped}` : `state=${d.intentState} sent=${d.sent} failed=${d.failed} dryRun=${d.dryRun}`}${d.error ? ` error=${d.error}` : ""}`).join("; ")
           : "")
     )
   }
