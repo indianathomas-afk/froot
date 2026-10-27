@@ -2,7 +2,28 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-10-26 — DOC-8: document due dates (sign within N days), overdue in compliance
+## 0a239f6 — 2026-10-26 — DOC-8: document due dates (sign within N days), overdue in compliance
+
+**PROMOTED 2026-10-26 in merge `0a239f6`** (`0a239f67fa190bb73b2d3c1f5b3d174210cf644d`,
+"Merge branch 'staging'", 2026-10-26 16:34:29 -0700 (Pacific) = 23:34:29 UTC),
+first parent `2c07301` (prior tip of `main`), second parent `ed8829b`. **3
+commits** in `0a239f6^1..0a239f6^2` — `aa93e2b`, `5b67c9d`, `ed8829b` — and
+**27 files**, read out of `git log` and `git diff --stat` at this stamp.
+Stamped post-merge by PROMOTE-DOCS DOC-8 (2026-10-27), on `staging`; the
+heading previously read "UNPROMOTED — 2026-10-26 — DOC-8: document due dates
+(sign within N days), overdue in compliance". The "staging only" status and
+"NEITHER WAS PUSHED" lines below are spent, kept.
+
+**Migration on production:** `_prisma_migrations` on `br-sparkling-block-a620qvg4`
+shows `20261026200000_doc8_document_due_dates` finished `2026-10-26 23:36:59 UTC`
+(16:36:59 PDT), 2 m 30 s after the merge commit (Gary's reading, Neon console).
+Staging (`br-square-feather-a63z92vz`) finished `2026-10-26 22:54:33 UTC`
+(15:54:33 PDT).
+
+**Rollback after promotion:** `git revert -m 1 0a239f6` on `main` (the whole
+merge; recipe in `docs/WORKFLOW.md` § Rolling a promotion back). This reverts
+the code only. The three nullable columns stay in place, which is harmless:
+nothing reads them after a revert. No env var, no cron.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
