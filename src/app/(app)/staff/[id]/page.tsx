@@ -26,8 +26,8 @@ import { StaffEditActions } from "./staff-edit-actions"
 import { StaffTraining, type StaffTrainingAssignment } from "./staff-training"
 import { StaffCompliance } from "./staff-compliance"
 import { getStaffComplianceDetail, type StaffComplianceDetail } from "@/lib/hr-compliance"
-import { attachDocumentDue, documentDueKey, sortByDue } from "@/lib/hr-due-order"
-import { documentCompletion } from "@/lib/hr-completion"
+import { attachDocumentDue, attachReSignNotice, documentDueKey, sortByDue } from "@/lib/hr-due-order"
+import { staffDocumentRows } from "./document-rows"
 import { attemptBreakdown, breakdownMatchesScore } from "@/lib/training-quiz"
 import { StaffMilestones } from "./staff-milestones"
 import { milestonesActive } from "@/lib/milestones-access"
@@ -219,154 +219,7 @@ export default async function StaffDetailPage({
   // this staff member's stores, with version-pinned status. Signed records
   // bind to the version they were signed against — a re-upload flips the
   // status to "needs-current" while the old record stays downloadable.
-  let documentRows: StaffDocumentRow[] = []
-  if (canSeeHrTabs) {
-    const docs = await prisma.hrDocument.findMany({
-      where: {
-        organizationId: member.organizationId,
-        kind: "Acknowledgment",
-        isActive: true,
-        requiresAcknowledgment: true,
-        // DOC-1 A: the hand-written OR clause became staffAudienceWhere. The
-        // subject is the PROFILE'S OWNER, never the manager reading the page —
-        // this tab has always answered "what does this person owe", and the
-        // audience rule keeps that subject.
-        ...staffAudienceWhere(member),
-      },
-      include: {
-        // DOC-5: the category relation — never the legacy string (F3).
-        docCategory: { select: { name: true, colorKey: true } },
-        // HR-11n: retired checkpoints leave the denominator (see hr-compliance.ts).
-        checkpoints: { where: { required: true, retiredAt: null }, select: { id: true } },
-        versions: {
-          orderBy: { versionNumber: "desc" },
-          include: {
-            // R2: ORDERING ADDED, AND IT IS NOW LOAD-BEARING. This was
-            // unordered and read as `[0]`, which was nearly harmless while the
-            // value only fed a boolean and a download link. R2 makes a record
-            // SELECT a version to display, and a rehire holds two records on one
-            // version across two cycles, so `[0]` was about to become "whatever
-            // Postgres returned". Newest tenure first, newest record first.
-            signedRecords: {
-              where: { staffMemberId: member.id },
-              orderBy: [{ signingCycle: "desc" }, { completedAt: "desc" }],
-            },
-            acknowledgments: {
-              where: { staffMemberId: member.id },
-              select: { checkpointId: true, signingCycle: true },
-            },
-          },
-        },
-      },
-      orderBy: { title: "asc" },
-    })
-
-    documentRows = docs.flatMap((d) => {
-      const current = d.versions.find((v) => v.isCurrent)
-      if (!current) return []
-      // HR-15 Policy B: only current-cycle signatures satisfy this tenure. A
-      // current-version record from a prior tenure reads "needs-current"
-      // (same lever as a version bump) with the old record still on file.
-      const currentRecord = current.signedRecords.find(
-        (r) => r.signingCycle === member.signingCycle
-      )
-      const priorCycleRecord = currentRecord ? undefined : current.signedRecords[0]
-      const ackedIds = new Set(
-        current.acknowledgments
-          .filter((a) => a.signingCycle === member.signingCycle)
-          .map((a) => a.checkpointId)
-      )
-      const requiredCount = d.checkpoints.length
-      const allAcked = requiredCount > 0 && d.checkpoints.every((c) => ackedIds.has(c.id))
-      // ── R2 (HR-11k Phase A, Gary 2026-08-15) ──────────────────────────────
-      // `v.signedRecords.length > 0` asked "did they ever sign this older
-      // version, in any tenure" — one question standing in for two, and R2
-      // answers them oppositely. Split by CYCLE, not by version: versions are
-      // already ordered versionNumber DESC above, so each find returns the
-      // highest match, and for R2 that is this signer's master document.
-      const priorSignedThisCycle = d.versions.find(
-        (v) =>
-          !v.isCurrent && v.signedRecords.some((r) => r.signingCycle === member.signingCycle)
-      )
-      const priorSignedPriorCycle = d.versions.find(
-        (v) =>
-          !v.isCurrent && v.signedRecords.some((r) => r.signingCycle !== member.signingCycle)
-      )
-
-      // R1: asked, not restated — the same predicate /my/documents and the
-      // compliance rollup use, so this tab and the portal cannot disagree about
-      // one person and one document by being edited apart.
-      const completion = documentCompletion({
-        hasCurrentCycleRecord: !!currentRecord,
-        hasPriorCycleRecordOnCurrentVersion: !!priorCycleRecord,
-        hasCurrentCycleRecordOnEarlierVersion: !!priorSignedThisCycle,
-        hasPriorCycleRecordOnEarlierVersion: !!priorSignedPriorCycle,
-        // Case A: read off the version IN FORCE, never off the version signed.
-        currentVersionRequiresReacknowledgment: current.requiresReacknowledgment,
-        requiredCount,
-        ackedCount: ackedIds.size,
-        allRequiredAcked: allAcked,
-      })
-
-      return [
-        {
-          documentId: d.id,
-          title: d.title,
-          categoryName: d.docCategory?.name ?? null,
-          categoryColorKey: d.docCategory?.colorKey ?? null,
-          currentVersionNumber: current.versionNumber,
-          status: completion.status,
-          recordMissing: completion.recordMissing,
-          signedOnEarlierVersion: completion.signedOnEarlierVersion,
-          reacknowledgmentRequired: completion.reacknowledgmentRequired,
-          // ── R1 (Gary, 2026-08-15): A VERSION NUMBER ONLY EVER COMES FROM A
-          // RECORD. The `allAcked` arm removed here returned
-          // current.versionNumber when NO record existed, so the admin surface
-          // printed "Signed v2" for a signature that was never executed — worse
-          // than printing nothing, because a version number reads as having been
-          // looked up rather than assumed. Each remaining branch names a record
-          // that exists: this cycle's, a prior cycle's on the current version, or
-          // one on an older version.
-          //
-          // R2 (2026-08-15) SPLITS THE LAST BRANCH IN TWO and preserves the
-          // invariant unchanged — both new branches still name a record. This
-          // cycle's older-version record is tried first because it is the one
-          // that produces a GREEN label, and picking the rehire's number there
-          // would print the wrong version under the right status.
-          signedVersionNumber: currentRecord
-            ? current.versionNumber
-            : priorCycleRecord
-              ? current.versionNumber
-              : (priorSignedThisCycle?.versionNumber ??
-                priorSignedPriorCycle?.versionNumber ??
-                null),
-          // Ruled 2026-08-16: the date comes from the record they actually
-          // signed. Resolved from the SAME record object the version number and
-          // the download link below resolve from, so all three name one record.
-          completedAt:
-            (
-              currentRecord ??
-              priorSignedThisCycle?.signedRecords.find(
-                (r) => r.signingCycle === member.signingCycle
-              )
-            )?.completedAt.toISOString() ?? null,
-          // The record behind the label, in the same precedence as the number
-          // above — so the download link and the version it claims can never
-          // name two different records.
-          signedRecordId:
-            currentRecord?.id ??
-            priorCycleRecord?.id ??
-            priorSignedThisCycle?.signedRecords.find(
-              (r) => r.signingCycle === member.signingCycle
-            )?.id ??
-            priorSignedPriorCycle?.signedRecords[0]?.id ??
-            null,
-          ackedCount: ackedIds.size,
-          requiredCount,
-        },
-      ]
-    })
-  }
+  const documentRows: StaffDocumentRow[] = canSeeHrTabs ? await staffDocumentRows(member) : []
 
   // HR-5 agreement forms: every applicable FillableForm with the staff
   // member's FULL submission history (re-execution is routine). Archived
@@ -634,7 +487,10 @@ export default async function StaffDetailPage({
   // DOC-13 (draft rulings 1 + 3): the Documents tab takes its due dates from
   // the Compliance tab's items above — same gate, same call, copied by
   // documentId — and sorts overdue first, then due soonest, then title order.
-  const documentRowsDue = sortByDue(attachDocumentDue(documentRows, complianceDetail), documentDueKey)
+  const documentRowsDue = sortByDue(
+    attachReSignNotice(attachDocumentDue(documentRows, complianceDetail), complianceDetail),
+    documentDueKey
+  )
 
   // MS-1 Milestones tab (F1, Gary 2026-10-15). THE COMPLIANCE TAB'S TIER
   // EXACTLY — canSeeHrTabs, ADMIN or MANAGER — with MANAGER store scope already

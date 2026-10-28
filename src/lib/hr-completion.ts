@@ -110,6 +110,13 @@ export type HrDocumentCompletionFacts = {
   ackedCount: number
   /** Every REQUIRED checkpoint acknowledged this cycle. */
   allRequiredAcked: boolean
+  /**
+   * DOC-7 (F3): the member's newest this-cycle signature on this document has
+   * passed its re-sign anniversary (lib/hr-resign.ts). When true, every fact
+   * above must be asked at the OWED renewal, not the expired one. Optional so
+   * callers on documents that never expire need not say so; absent = false.
+   */
+  hasExpiredRecord?: boolean
 }
 
 export type HrDocumentCompletion = {
@@ -145,6 +152,11 @@ export type HrDocumentCompletion = {
    * they sign again, and a rehire is not bound to anything.
    */
   reacknowledgmentRequired: boolean
+  /**
+   * DOC-7: needs-current because the member's signature EXPIRED (annual
+   * re-sign), not because of a rehire or a Case A version.
+   */
+  renewalDue: boolean
   /**
    * Every required checkpoint is acknowledged and NO record exists for this
    * cycle. The signer has nothing left to do and cannot fix it themselves — an
@@ -234,6 +246,7 @@ export function documentCompletion(facts: HrDocumentCompletionFacts): HrDocument
   // requiredCount > 0 guards the vacuous case: a document with no required
   // checkpoints must not report "everything is done but the record is missing",
   // which `every()` over an empty set would otherwise assert.
+  const hasExpiredRecord = facts.hasExpiredRecord === true
   const recordMissing = !hasCurrentCycleRecord && requiredCount > 0 && allRequiredAcked
 
   let status: HrDocumentCompletionStatus
@@ -241,7 +254,11 @@ export function documentCompletion(facts: HrDocumentCompletionFacts): HrDocument
   else if (recordMissing) status = "in-progress"
   else if (hasCurrentCycleRecordOnEarlierVersion)
     status = currentVersionRequiresReacknowledgment ? "needs-current" : "signed"
-  else if (hasPriorCycleRecordOnCurrentVersion || hasPriorCycleRecordOnEarlierVersion)
+  // DOC-7 F3: an expired signature sits in the prior-cycle arm's slot — "signed
+  // before, owes it again". Facts above are asked at the OWED renewal, which has
+  // no record by definition, so a finished re-sign still wins arm 1 and a
+  // finished-but-unminted one still wins arm 2.
+  else if (hasPriorCycleRecordOnCurrentVersion || hasPriorCycleRecordOnEarlierVersion || hasExpiredRecord)
     status = "needs-current"
   else if (ackedCount > 0) status = "in-progress"
   else status = "not-started"
@@ -269,11 +286,21 @@ export function documentCompletion(facts: HrDocumentCompletionFacts): HrDocument
     hasCurrentCycleRecordOnEarlierVersion &&
     currentVersionRequiresReacknowledgment
 
+  // DOC-7: the expiry arm fired, and not a rehire's (which outranks it in the
+  // same arm — a new tenure is the stronger reason). Gated on status, like the
+  // flag above.
+  const renewalDue =
+    status === "needs-current" &&
+    hasExpiredRecord &&
+    !hasPriorCycleRecordOnCurrentVersion &&
+    !hasPriorCycleRecordOnEarlierVersion
+
   return {
     status,
     isSigned: status === "signed",
     signedOnEarlierVersion,
     reacknowledgmentRequired,
+    renewalDue,
     recordMissing,
     requiredCount,
     ackedCount,

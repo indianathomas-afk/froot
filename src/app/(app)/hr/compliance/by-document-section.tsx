@@ -17,7 +17,7 @@ import type {
   DocumentComplianceRow,
   DocumentComplianceView,
 } from "@/lib/hr-compliance"
-import { documentDueLabel } from "@/lib/hr-due-wording"
+import { documentDueLabel, reSignNoticeLabel } from "@/lib/hr-due-wording"
 
 // DOC-2: By Document. Everything here is already computed server-side for
 // this page's scope (lib/hr-compliance.ts, pivotComplianceByDocument), so the
@@ -348,6 +348,8 @@ function StatusBadge({ person: p }: { person: DocumentCompliancePerson }) {
       return (
         <span className={`${base} bg-[#25ba3b]/10 text-[var(--color-success-text,#1d7c2e)]`}>
           Signed{p.signedOnEarlierVersion && p.signedVersionNumber !== null ? ` v${p.signedVersionNumber}` : ""}
+          {/* DOC-7 ruling 3: still signed, still counted — informational only. */}
+          {reSignNoticeLabel(p) ? ` · ${reSignNoticeLabel(p)}` : ""}
         </span>
       )
     case "in-progress":

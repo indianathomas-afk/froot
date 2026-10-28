@@ -57,6 +57,24 @@ export function attachDocumentDue<T extends { documentId: string }>(
   })
 }
 
+// DOC-7 ruling 3: the re-sign notice, carried exactly as the due date is —
+// from the compliance item, by documentId, never recomputed by the surface.
+export type ReSignNoticeFields = { reSignDueDate: string | null; reSignDaysUntilDue: number | null }
+export function attachReSignNotice<T extends { documentId: string }>(
+  rows: T[],
+  detail: StaffComplianceDetail | null | undefined
+): (T & ReSignNoticeFields)[] {
+  const byId = new Map<string, ReSignNoticeFields>()
+  for (const i of detail?.items ?? []) {
+    if (i.kind === "document")
+      byId.set(i.documentId, { reSignDueDate: i.reSignDueDate, reSignDaysUntilDue: i.reSignDaysUntilDue })
+  }
+  return rows.map((r) => {
+    const n = byId.get(r.documentId)
+    return { ...r, reSignDueDate: n?.reSignDueDate ?? null, reSignDaysUntilDue: n?.reSignDaysUntilDue ?? null }
+  })
+}
+
 // /my's list: the status rank it has always used, then the due order above.
 // Moved here from (my)/my/page.tsx so the fixture orders with the same code.
 const STATUS_RANK: Record<string, number> = { overdue: 0, "needs-resign": 1, "in-progress": 2, "not-started": 3 }

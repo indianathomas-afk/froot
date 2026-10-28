@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { RE_SIGN_CHOICES, reSignStampData } from "@/lib/hr-resign-choices"
 import { prisma } from "@/lib/prisma"
 import {
   EXTERNAL_URL_ERROR,
@@ -42,6 +43,14 @@ const patchSchema = z
     // DOC-8 (Gary, 2026-10-26). "Sign within N days"; null clears it.
     // Acknowledgment only — enforced after the lookup, like tracksReturn (F8).
     signWithinDays: z.number().int().min(1).max(365).nullable().optional(),
+    // DOC-7 (Gary, 2026-10-28). "Re-sign every N months": 6, 12 or 24 only
+    // (ruling 1); null clears it. Acknowledgment only, enforced after the lookup.
+    reSignEveryMonths: z
+      .number()
+      .int()
+      .refine((n) => (RE_SIGN_CHOICES as readonly number[]).includes(n), { message: "Choose 6, 12 or 24 months" })
+      .nullable()
+      .optional(),
   })
   .refine((d) => Object.keys(d).length > 0, { message: "Nothing to update" })
 
@@ -83,6 +92,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     categoryId,
     returnItemLabel,
     signWithinDays,
+    reSignEveryMonths,
     ...rest
   } = parsed.data
   if (externalUrl !== undefined && doc.kind !== "Link") {
@@ -128,6 +138,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
               doc.signWithinDays !== null && doc.signWithinDaysSetAt ? doc.signWithinDaysSetAt : new Date(),
           }
 
+  // DOC-7: same off-kind rule — only a number is refused; null is harmless.
+  if (reSignEveryMonths != null && doc.kind !== "Acknowledgment") {
+    return NextResponse.json(
+      { error: "Re-signing only applies to documents that are signed" },
+      { status: 400 }
+    )
+  }
+  // DOC-7 F6 — the set stamp, DOC-8 F5's rules, one pure function.
+  const reSignData = reSignStampData(doc, reSignEveryMonths, new Date())
+
   const resolved = await resolveDocumentCategoryId(access.org.id, categoryId)
   if (resolved === "invalid") {
     return NextResponse.json({ error: "Unknown category" }, { status: 400 })
@@ -150,6 +170,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         : {}),
       ...(returnItemLabel !== undefined ? { returnItemLabel: returnItemLabel || null } : {}),
       ...dueData,
+      ...reSignData,
     },
   })
   return NextResponse.json(updated)

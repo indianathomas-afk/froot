@@ -9,6 +9,7 @@ import {
   HR_ESIGN_CONSENT_VERSION,
 } from "@/lib/hr-documents"
 import { ensureSignedRecord, UnconfirmedAnchorsError } from "@/lib/hr-signed-pdf"
+import { loadRenewalView } from "@/lib/hr-resign"
 import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
 import { requireHrDocumentAccess } from "../../access"
 
@@ -264,6 +265,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const ipAddress = requestIp(req)
   const userAgent = req.headers.get("user-agent")
   const signedAt = new Date()
+  // DOC-7 (Gary, 2026-10-28): which signing these rows belong to — decided
+  // HERE, server-side, by the same rule every surface reads (lib/hr-resign.ts),
+  // and never accepted from the client. Inside the 30-day window or once
+  // expired it is the next renewal (a fresh ceremony); otherwise the newest
+  // one, so a second submission stays the no-op it always was.
+  const renewal = (await loadRenewalView(doc.id, staff.id))?.owedRenewal ?? 0
 
   const rows = liveEntries.map((entry) => {
     const checkpoint = checkpointById.get(entry.checkpointId)!
@@ -290,6 +297,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       // HR-15 Policy B: signatures belong to the tenure they were made in —
       // a rehire (bumped cycle) re-acknowledges as fresh rows.
       signingCycle: staff.signingCycle,
+      renewal,
       consentGiven: true,
       consentText: isAttested ? HR_ATTEST_CONSENT_TEXT : HR_ESIGN_CONSENT_TEXT,
       consentVersion: isAttested ? HR_ATTEST_CONSENT_VERSION : HR_ESIGN_CONSENT_VERSION,
@@ -319,7 +327,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // ── Completion check for the CURRENT version, current cycle ───────────────
   const acked = await prisma.hrDocumentAcknowledgment.findMany({
-    where: { hrDocumentVersionId: version.id, staffMemberId: staff.id, signingCycle: staff.signingCycle },
+    where: { hrDocumentVersionId: version.id, staffMemberId: staff.id, signingCycle: staff.signingCycle, renewal },
     select: { checkpointId: true },
   })
   const ackedIds = new Set(acked.map((a) => a.checkpointId))
@@ -355,7 +363,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   let signingUnavailable = false
   if (checkpointsComplete) {
     try {
-      signedRecordId = (await ensureSignedRecord(version.id, staff.id)).id
+      signedRecordId = (await ensureSignedRecord(version.id, staff.id, renewal)).id
     } catch (err) {
       if (err instanceof UnconfirmedAnchorsError) {
         signingUnavailable = true

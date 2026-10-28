@@ -8,6 +8,7 @@ import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
 import { getVersionAnchorReadiness } from "@/lib/hr-anchors"
 import { LegalNameRequired } from "@/components/hr/legal-name-required"
 import { SigningUnavailable } from "@/components/hr/signing-unavailable"
+import { loadRenewalView } from "@/lib/hr-resign"
 import { AcknowledgeClient } from "./acknowledge-client"
 import { SigningClient } from "./signing-client"
 
@@ -175,8 +176,17 @@ export default async function AcknowledgePage({
 
   // HR-15 Policy B: resume state is per signing cycle — a rehire starts the
   // current version fresh; their prior-cycle acknowledgments stay on file.
+  // DOC-7: and per RENEWAL — the signing the acknowledgments route will write
+  // to (lib/hr-resign.ts). In the 30-day window or once expired that is a new
+  // signing, so the ceremony opens fresh; otherwise the newest one, unchanged.
+  const renewal = (await loadRenewalView(doc.id, staff.id))?.owedRenewal ?? 0
   const existing = await prisma.hrDocumentAcknowledgment.findMany({
-    where: { hrDocumentVersionId: version.id, staffMemberId: staff.id, signingCycle: staff.signingCycle },
+    where: {
+      hrDocumentVersionId: version.id,
+      staffMemberId: staff.id,
+      signingCycle: staff.signingCycle,
+      renewal,
+    },
     select: { checkpointId: true },
   })
   const doneIds = new Set(existing.map((a) => a.checkpointId))
@@ -192,6 +202,7 @@ export default async function AcknowledgePage({
       hrDocumentVersionId: version.id,
       staffMemberId: staff.id,
       signingCycle: staff.signingCycle,
+      renewal,
     },
   })
   const hasSignedRecord = signedRecordCount > 0

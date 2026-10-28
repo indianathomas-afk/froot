@@ -8,8 +8,8 @@ import { Download, FileText, PenLine, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DocumentCategoryChip } from "@/components/hr/document-category"
 import { HR_RECORD_MISSING_ADMIN_COPY } from "@/lib/hr-completion"
-import { documentDueLabel } from "@/lib/hr-due-wording"
-import type { DocumentDueFields } from "@/lib/hr-due-order"
+import { documentDueLabel, reSignNoticeLabel } from "@/lib/hr-due-wording"
+import type { DocumentDueFields, ReSignNoticeFields } from "@/lib/hr-due-order"
 
 // One row per required Acknowledgment document for this staff member, with
 // the version-pinned status: a signed record binds to the version it was
@@ -97,7 +97,7 @@ export function StaffDocuments({
   rows,
 }: {
   staffId: string
-  rows: (StaffDocumentRow & DocumentDueFields)[]
+  rows: (StaffDocumentRow & DocumentDueFields & ReSignNoticeFields)[]
 }) {
   if (rows.length === 0) {
     return (
@@ -143,7 +143,9 @@ export function StaffDocuments({
                 the line is what it was (ruling 4). */}
             {(() => {
               const showVersion = !row.signedOnEarlierVersion && !row.reacknowledgmentRequired
-              const due = documentDueLabel(row)
+              // DOC-7 ruling 3: a signed row inside its re-sign window shows
+              // the notice where an open row shows its due date.
+              const due = documentDueLabel(row) ?? reSignNoticeLabel(row)
               if (!showVersion && !due) return null
               return (
                 <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">

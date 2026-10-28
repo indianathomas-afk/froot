@@ -14,7 +14,7 @@ import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
 import { getStaffComplianceDetail, openComplianceItems, type ComplianceItem } from "@/lib/hr-compliance"
 import { HR_RECORD_MISSING_SIGNER_COPY } from "@/lib/hr-completion"
-import { documentDueLabel } from "@/lib/hr-due-wording"
+import { documentDueLabel, reSignNoticeLabel } from "@/lib/hr-due-wording"
 import { openItemsInDueOrder } from "@/lib/hr-due-order"
 import { messageInclude, serializeMessage } from "@/lib/messages"
 import { MyShell } from "./my-shell"
@@ -84,6 +84,13 @@ export default async function MyPortalPage() {
   // which adds the due order (overdue most-overdue first, then documents due
   // soonest) shared with /my/documents and the /staff/[id] Documents tab.
   const openItems = openItemsInDueOrder(openComplianceItems(detail), detail?.timeZone ?? zone)
+  // DOC-7 F8 (Gary, 2026-10-28): signatures that still count but are inside
+  // their 30-day re-sign window. NOT open items — "all caught up" above stays
+  // keyed to what is owed (ruling 3) — so they get their own quiet line,
+  // soonest first, with the early re-sign link (ruling 4).
+  const comingUp = (detail?.items ?? [])
+    .flatMap((i) => (i.kind === "document" && reSignNoticeLabel(i) ? [i] : []))
+    .sort((a, b) => (a.reSignDaysUntilDue ?? 0) - (b.reSignDaysUntilDue ?? 0) || a.title.localeCompare(b.title))
 
   const messages = latestMessages.map((m) => serializeMessage(m, dbUser.id))
   const showInstagram = !!org.instagramEnabled && !!org.instagramAccessToken
@@ -117,6 +124,28 @@ export default async function MyPortalPage() {
               {openItems.map((item) => (
                 <OpenItemRow key={itemKey(item)} item={item} timeZone={zone} />
               ))}
+            </div>
+          )}
+          {comingUp.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-muted-foreground)] mb-1.5">
+                Coming up
+              </p>
+              <div className="space-y-1">
+                {comingUp.map((item) => (
+                  <Link
+                    key={item.documentId}
+                    href={`/my/documents/${item.documentId}`}
+                    className="flex items-center justify-between gap-3 min-h-11 text-sm"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-[var(--color-foreground)]">{item.title}</span>
+                      <span className="block text-xs text-[var(--color-info,#0081f2)]">{reSignNoticeLabel(item)}</span>
+                    </span>
+                    <span className="shrink-0 text-xs font-medium text-[var(--color-primary)]">Re-sign now</span>
+                  </Link>
+                ))}
+              </div>
             </div>
           )}
         </div>

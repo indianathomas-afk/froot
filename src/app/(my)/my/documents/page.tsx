@@ -7,8 +7,8 @@ import { getActiveStaffSelf } from "@/lib/auth"
 import { staffAudienceWhere } from "@/lib/hr-documents-access"
 import { HR_RECORD_MISSING_SIGNER_COPY } from "@/lib/hr-completion"
 import { getStaffComplianceDetail } from "@/lib/hr-compliance"
-import { documentDueLabel } from "@/lib/hr-due-wording"
-import { attachDocumentDue, documentDueKey, sortByDue, type DocumentDueFields } from "@/lib/hr-due-order"
+import { documentDueLabel, reSignNoticeLabel } from "@/lib/hr-due-wording"
+import { attachDocumentDue, attachReSignNotice, documentDueKey, sortByDue, type DocumentDueFields } from "@/lib/hr-due-order"
 import { UNCATEGORIZED_LABEL, externalUrlHost } from "@/lib/hr-documents"
 import { DocumentInstructions } from "@/components/hr/document-instructions"
 import { Badge } from "@/components/ui/badge"
@@ -122,7 +122,8 @@ export default async function MyDocumentsPage() {
   // to both sides — which is how a document with no signature reached Completed
   // AND cleared the TO SIGN list, so the signer was told they were finished and
   // would never be prompted again.
-  const rows = attachDocumentDue(baseRows, complianceDetail)
+  // DOC-7 ruling 3: the re-sign notice rides the same way, from the same items.
+  const rows = attachReSignNotice(attachDocumentDue(baseRows, complianceDetail), complianceDetail)
   // DOC-13 (draft ruling 3): overdue first, then due soonest, then title order.
   const pending = sortByDue(
     rows.filter((r) => r.status !== "signed"),
@@ -230,6 +231,23 @@ export default async function MyDocumentsPage() {
                       <> — need a copy? Ask your manager.</>
                     )}
                   </p>
+                  {/* DOC-7 rulings 3 + 4: inside the 30-day window the signature
+                      still counts (still Completed, still green) and the person
+                      may re-sign early. The ceremony opens FRESH here because it
+                      keys on the owed renewal (lib/hr-resign.ts) — this is the
+                      one case where linking a Completed row to the ceremony is
+                      intended. No notice → nothing renders. */}
+                  {reSignNoticeLabel(row) && (
+                    <p className="text-xs text-[var(--color-info,#0081f2)] mt-0.5">
+                      {reSignNoticeLabel(row)} ·{" "}
+                      <Link
+                        href={`/my/documents/${row.documentId}`}
+                        className="font-medium text-[var(--color-primary)] underline"
+                      >
+                        Re-sign now
+                      </Link>
+                    </p>
+                  )}
                 </div>
                 {statusBadge(row)}
               </div>

@@ -107,12 +107,15 @@ export async function sendAckNotification(signedRecordId: string): Promise<AckNo
   // acknowledgment rows, not on the record (HR-11c). Re-derived here exactly as
   // the certificate derives them (hr-signed-pdf.ts:424, :598-602, :617-619), on
   // the same three keys ensureSignedRecord mints under — an email that disagrees
-  // with the artifact it links to is worse than no email.
+  // with the artifact it links to is worse than no email. DOC-7: and the fourth
+  // key, `renewal` — a re-sign's email describes that signing, never a merge of
+  // it with the year-old one.
   const acks = await prisma.hrDocumentAcknowledgment.findMany({
     where: {
       hrDocumentVersionId: record.hrDocumentVersionId,
       staffMemberId: record.staffMemberId,
       signingCycle: record.signingCycle,
+      renewal: record.renewal,
     },
     select: {
       staffName: true,

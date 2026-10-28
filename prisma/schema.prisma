@@ -2280,6 +2280,17 @@ model HrDocument {
   // overnight. This one column is the whole of ruling 3: N cannot be set before
   // the migration that adds it, so it never predates go-live (audit § 8).
   signWithinDaysSetAt    DateTime?
+  // DOC-7 (Gary, 2026-10-28, F1–F10). "Re-sign every N months": 6, 12 or 24.
+  // NULL = A SIGNATURE NEVER EXPIRES, which is exactly the pre-DOC-7 behaviour.
+  // ACKNOWLEDGMENT KIND ONLY (the signWithinDays pattern); the PATCH route
+  // refuses it elsewhere. Each person's anniversary is their OWN latest
+  // this-cycle signature + N months, computed on read by lib/hr-resign.ts and
+  // nowhere else. Nothing about expiry is stored.
+  reSignEveryMonths      Int?
+  // DOC-7 ruling 6 + F6 — the launch-day floor. Stamped null → N, kept N → M,
+  // cleared N → null (DOC-8 F5's rules). No anniversary falls before this + 30
+  // days, so turning the setting on never makes anyone overdue overnight.
+  reSignEveryMonthsSetAt DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
@@ -2537,11 +2548,18 @@ model HrDocumentAcknowledgment {
   // HR-15 Policy B: the staff member's signingCycle at signing time. A rehire
   // (cycle bump) re-acknowledges as new rows; prior-cycle rows are untouched.
   signingCycle          Int          @default(1)
+  // DOC-7 F1 (Gary, 2026-10-28): which signing of this document, within one
+  // cycle, these rows belong to. 0 = the first signing; each annual re-sign is
+  // the next number, chosen SERVER-SIDE by lib/hr-resign.ts. NOT NULL DEFAULT
+  // 0, deliberately not nullable: NULLs are distinct in a unique key, which
+  // would let duplicate first signings past the skipDuplicates guard. HR-15b's
+  // signingCycle shape exactly.
+  renewal               Int          @default(0)
 
   checkpoint HrDocumentCheckpoint @relation(fields: [checkpointId], references: [id])
   version    HrDocumentVersion    @relation(fields: [hrDocumentVersionId], references: [id])
 
-  @@unique([checkpointId, hrDocumentVersionId, staffMemberId, signingCycle])
+  @@unique([checkpointId, hrDocumentVersionId, staffMemberId, signingCycle, renewal])
 }
 
 // HR-4: the executed-document artifact — one per (version, staff), created
@@ -2559,11 +2577,15 @@ model HrSignedRecord {
   // HR-15 Policy B: the tenure this record belongs to — a rehire earns a new
   // record for the same version under the new cycle; old records stand.
   signingCycle        Int      @default(1)
+  // DOC-7 F1: the renewal this record executes — see HrDocumentAcknowledgment.
+  // A re-sign mints a NEW record under the next number; the old one stands
+  // (ruling 7). Records with renewal >= 1 never issue a key (F5, hr-returns.ts).
+  renewal             Int      @default(0)
 
   version     HrDocumentVersion @relation(fields: [hrDocumentVersionId], references: [id])
   staffMember StaffMember       @relation(fields: [staffMemberId], references: [id])
 
-  @@unique([hrDocumentVersionId, staffMemberId, signingCycle])
+  @@unique([hrDocumentVersionId, staffMemberId, signingCycle, renewal])
   @@index([staffMemberId])
 }
 

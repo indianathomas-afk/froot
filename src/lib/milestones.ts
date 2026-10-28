@@ -97,6 +97,19 @@ export function addDays(date: string, days: number): string {
   return new Date(t).toISOString().slice(0, 10)
 }
 
+/** DOC-7: calendar months on a "YYYY-MM-DD", clamped to the target month's
+ *  last day (date-fns' rule): Jan 31 + 6 → Jul 31, Aug 31 + 6 → Feb 28/29,
+ *  Feb 29 + 12 → Feb 28. No zone: the input is already a local day. */
+export function addMonthsClamped(date: string, months: number): string {
+  const [y, m, d] = date.split("-").map(Number)
+  const index = y * 12 + (m - 1) + months
+  const year = Math.floor(index / 12)
+  const month = index - year * 12 // 0-based
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
+  const day = Math.min(d, lastDay)
+  return `${String(year).padStart(4, "0")}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+}
+
 /**
  * Where a member stands against the org's tenure milestones. The caller passes
  * ACTIVE AND ARCHIVED rows.
