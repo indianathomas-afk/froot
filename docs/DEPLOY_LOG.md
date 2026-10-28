@@ -2,6 +2,44 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-28 — DOC-13: due dates on /my/documents and the /staff/[id] Documents tab
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: three DOC-13 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `77f69da`, `0d54d62`, `0b11e50`, on top of
+`origin/staging`. **NONE WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `77f69da` | DOC-13 work: DOC-8's due wording and red Overdue badge on `/my/documents` and the `/staff/[id]` Documents tab; new `src/lib/hr-due-order.ts` (overdue first, most overdue first; then due soonest; then existing order), also used by `/my`; `scripts/verify-doc13-surfaces.ts` |
+| `0d54d62` | `docs(DOC-13)`: row (`in_progress`), DOC-8 overdue rider, draft rulings 1–5, `docs/prompts/DOC-13.md` |
+| `0b11e50` | `docs(DOC-13)`: Gary's lean on mixed most-overdue-first ordering, recorded in the DECISIONS entry |
+| the commit immediately after `0b11e50` | `docs(DOC-13 PRE-PUSH-CHECK)`: this entry, DECISIONS ratified (Gary: "Ratify as written"), row to `staging` |
+
+**Blast radius: DISPLAY AND ORDERING on three HR pages. NO SCHEMA, NO MIGRATION,
+NO API ROUTE, NO ENV VAR, NO CRON, NO PERMISSION CHANGE.**
+
+- **Pages:** `/my/documents`, `/my` (order of open items) and the `/staff/[id]`
+  Documents tab. The due dates are the compliance items' own
+  (`getStaffComplianceDetail`), copied onto rows by `documentId`;
+  `src/lib/hr-compliance.ts` is unchanged.
+- **`/my` order changes:** open items were by status rank only; now overdue
+  first (most overdue first, training mixed in with documents), then documents
+  due soonest, then the old order.
+- **Unchanged:** rows with no due date, signed rows, `recordMissing` rows.
+  `/staff/[id]` rides the existing `canSeeHrTabs` compliance load.
+
+**Rollback:** revert `77f69da`. Code only; nothing to undo in any database.
+
+**Evidence: dev only** (`br-broad-wave-a6vpjdw0`).
+`scripts/verify-doc13-surfaces.ts` 27/27; regression verify-doc8-due-dates
+40/40, verify-doc2-by-document all passed (34 emitted). **NOT VERIFIED:** any
+page in a browser, on any environment — on Gary's staging test after the push
+(staging-SHA precondition first).
+
 ## cf717ca — 2026-10-27 — NOTIFY-14: overdue & due-soon document digest for admins and managers
 
 **PROMOTED 2026-10-27 in merge `cf717ca`** (`cf717ca33af6c1d2d56825bb13f24015d0face71`,

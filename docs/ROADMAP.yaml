@@ -7074,6 +7074,14 @@ phases:
       - "ed8829b"
       - "0a239f6"
     notes: >
+      ── OBSERVED 2026-10-28 (rider prepended by the DOC-13 session; nothing
+      below is edited). ──
+      OBSERVED, STAGING, org not recorded: at 2026-10-28 07:18 PDT (14:18 UTC),
+      Tommy Thomas's /my shows "Test - Handbook Regression · 0/7 checkpoints ·
+      Was due Oct 27" with the red Overdue badge, sorted above his training
+      item. This moves the overdue "Was due…" state from NOT OBSERVED (rider
+      below) to observed. Source: Gary's report, carried in
+      docs/prompts/DOC-13.md. Claude did not observe it.
       ── PROMOTED 2026-10-26 in merge 0a239f6 (rider prepended 2026-10-27 by
       PROMOTE-DOCS DOC-8; nothing below is edited). ──
       OBSERVED, STAGING: _prisma_migrations on br-square-feather-a63z92vz shows
@@ -7327,9 +7335,51 @@ phases:
   - id: DOC-13
     track: hr
     size: S
-    status: planned
+    # `planned` -> `in_progress` 2026-10-28 by the DOC-13 build session. NOT
+    # PUSHED at the moment of writing — Claude never pushes. Work commit
+    # 77f69da; the docs commit is the one immediately after it and cannot name
+    # itself.
+    # `in_progress` -> `staging` 2026-10-28 by the DOC-13 PRE-PUSH-CHECK, in
+    # the commit immediately after 0b11e50 (its own SHA cannot be written inside
+    # itself). NOT pushed when the check ran — Gary runs the push. DECISIONS
+    # 2026-10-28 DOC-13 ratified by Gary at this check: "Ratify as written"
+    # The "NOT PUSHED" / "Not pushed" lines above hold until the push.
+    status: staging
     title: "Show document due dates on /my/documents and the /staff/[id] Documents tab"
+    commits:
+      - "77f69da"
+      # + the docs commit immediately after 77f69da: DOC-13 row, DOC-8 rider, draft rulings, prompt
+      - "0d54d62"
+      - "0b11e50"
+      # + the commit immediately after 0b11e50: docs(DOC-13 PRE-PUSH-CHECK)
     notes: >
+      ── BUILT 2026-10-28, TIER 2 (prepended; nothing below is edited). ──
+      Prompt docs/prompts/DOC-13.md. Draft rulings 1–5 in docs/DECISIONS.md
+      2026-10-28, marked DRAFT, awaiting Gary's ratification at PRE-PUSH-CHECK.
+      SCOPE WIDENED TO /my, ON GARY'S CHOICE. The audit found that ruling 3
+      ("matching /my") did not describe /my, which sorted by status rank only.
+      Claude stopped and asked. Gary picked the Claude-drafted button "Ruling 3,
+      all three", so /my takes the same order.
+      HOW: the dates are the compliance items' own. Both surfaces call
+      getStaffComplianceDetail (the /staff/[id] page already did, under the same
+      canSeeHrTabs gate) and copy dueDate / daysUntilDue onto their rows by
+      documentId. documentDueState() is not called per row, reachingSince() was
+      not exported, and lib/hr-compliance.ts is unchanged. The new
+      lib/hr-due-order.ts holds the one order: overdue first, most overdue
+      first; then documents due soonest; then the existing order (stable).
+      /my's status rank moved into it. Overdue training sorts by how overdue it
+      is, alongside documents. Upcoming training due dates do not move.
+      Overdue is a red "Overdue" badge plus "Was due {Mon D}" in red. On both
+      surfaces the badge replaces the status badge, as on /my. The
+      /staff/[id] row's due wording also shows on a Case A row, whose version
+      line is hidden.
+      VERIFIED ON DEV ONLY (br-broad-wave-a6vpjdw0):
+      scripts/verify-doc13-surfaces.ts 27/27. Regression on the same branch:
+      verify-doc8-due-dates 40/40; verify-doc2-by-document all passed (it
+      emits 34 checks; its row records 36/36, and the script is unchanged since
+      6401819). The /staff/[id] tab's own inline query is not importable, so
+      the fixture runs its attach + sort over /my/documents' rows (its twin).
+      NOT OBSERVED: anything on staging. Gary tests there after the push.
       FILED 2026-10-26 by the DOC-8 build session, per DOC-8 F9 (Gary:
       "accept"). Both surfaces derive status through documentCompletion directly
       ((my)/my/documents/data.ts, staff/[id]/page.tsx), not through the
