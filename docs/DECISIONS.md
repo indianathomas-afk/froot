@@ -5,6 +5,52 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-28 — DOC-13: due dates on /my/documents and the /staff/[id] Documents tab (DRAFT)
+
+**DRAFT — awaiting Gary's ratification** at the DOC-13 PRE-PUSH-CHECK. The
+five rulings below are the draft rulings in the session prompt
+(`docs/prompts/DOC-13.md`), copied as written. They are not yet Gary's
+ratified words.
+
+**One choice made mid-session, and how it was made.** The audit found that
+ruling 3's "matching `/my`" did not describe `/my`, which sorted open items by
+status rank only (overdue, then re-sign, in progress, not started) and never
+by due date. Claude stopped and asked. Gary picked the button Claude had
+drafted, labelled *"Ruling 3, all three"*. Its message read "Use ruling 3 as
+written (overdue most-overdue-first, then due-soon soonest-first, then today's
+order), and apply it to /my as well so all three surfaces agree. I accept /my
+being in scope." **That text is Claude's wording, so it is recorded as Gary's
+choice between two options, not as his ruling.** It is put to him at
+PRE-PUSH-CHECK with the rest.
+
+1. **One source.** Both surfaces use DOC-8's `documentDueState()` and the
+   wording helpers in `src/lib/hr-due-wording.ts`. No new due-date logic
+   anywhere. The two surfaces can never disagree with `/my` or
+   `/hr/compliance`.
+2. **Same wording as DOC-8 F7.** "Due in d days" / "Due tomorrow" / "Due
+   today" before the deadline; "Was due {Mon D}" plus the existing red Overdue
+   treatment after it.
+3. **Order.** Overdue first (most overdue first), then due soon (soonest
+   first), then everything else in today's existing order — matching `/my`.
+4. **Unchanged where there's no N.** Documents without a due date, signed
+   documents, and the `recordMissing` case look exactly as they do today.
+5. **Visibility unchanged.** Whoever can see the Documents tab today sees the
+   due dates; no new permission.
+
+**Claude's implementation choices (not rulings):**
+
+- Ruling 1 is met by copying the compliance items' `dueDate` / `daysUntilDue`
+  onto each surface's rows by `documentId`, not by calling
+  `documentDueState()` per row. The inputs are therefore compliance's output
+  by construction.
+- "Due soon" means any open document with an upcoming due date. No threshold
+  was ruled, so none was invented.
+- On `/my`, overdue training sorts by how overdue it is, alongside documents.
+  An upcoming training due date does not lift it into "due soon", because the
+  rulings are about documents.
+- Past due, the red "Overdue" badge replaces the status badge on both
+  surfaces, as `/my` already does.
+
 ## 2026-10-27 — NOTIFY-14: overdue & due-soon document digest for admins and managers (Gary)
 
 **RATIFIED BY GARY, 2026-10-27, at the NOTIFY-14 PRE-PUSH-CHECK, as written.**
