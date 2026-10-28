@@ -48,6 +48,15 @@ PRE-PUSH-CHECK with the rest.
 - On `/my`, overdue training sorts by how overdue it is, alongside documents.
   An upcoming training due date does not lift it into "due soon", because the
   rulings are about documents.
+  **Gary's lean, 2026-10-28, in his own words:** *"Let's do Most overdue first,
+  mixed together. Training from July goes above a document from yesterday.
+  This is my lean. The oldest problem should be the first thing someone
+  sees."* The build (`77f69da`) already did this, so no code changed. The
+  fixture's /my check holds a training item 10 days overdue between documents
+  15 and 5 days overdue. He called it a lean, so it is recorded as one, not as
+  a ratification, and it goes to PRE-PUSH-CHECK with the rest of this entry.
+  He said nothing about upcoming training due dates, so that half is still
+  Claude's choice.
 - Past due, the red "Overdue" badge replaces the status badge on both
   surfaces, as `/my` already does.
 
