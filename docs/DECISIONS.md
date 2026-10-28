@@ -5,7 +5,16 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-10-28 — DOC-13: due dates on /my/documents and the /staff/[id] Documents tab (DRAFT)
+## 2026-10-28 — DOC-13: due dates on /my/documents and the /staff/[id] Documents tab (Gary)
+
+**RATIFIED BY GARY, 2026-10-28, at the DOC-13 PRE-PUSH-CHECK, as written.**
+The whole entry, unchanged, was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify as
+written"* It covers everything in this entry as written: rulings 1–5, the
+choice that put `/my` in scope, and the paragraph recording his lean on
+ordering overdue training alongside documents. Nothing in the entry was
+reworded. The heading read "(DRAFT)" until this check; the DRAFT paragraph
+below is spent, kept.
 
 **DRAFT — awaiting Gary's ratification** at the DOC-13 PRE-PUSH-CHECK. The
 five rulings below are the draft rulings in the session prompt

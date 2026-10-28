@@ -7339,11 +7339,19 @@ phases:
     # PUSHED at the moment of writing — Claude never pushes. Work commit
     # 77f69da; the docs commit is the one immediately after it and cannot name
     # itself.
-    status: in_progress
+    # `in_progress` -> `staging` 2026-10-28 by the DOC-13 PRE-PUSH-CHECK, in
+    # the commit immediately after 0b11e50 (its own SHA cannot be written inside
+    # itself). NOT pushed when the check ran — Gary runs the push. DECISIONS
+    # 2026-10-28 DOC-13 ratified by Gary at this check: "Ratify as written"
+    # The "NOT PUSHED" / "Not pushed" lines above hold until the push.
+    status: staging
     title: "Show document due dates on /my/documents and the /staff/[id] Documents tab"
     commits:
       - "77f69da"
       # + the docs commit immediately after 77f69da: DOC-13 row, DOC-8 rider, draft rulings, prompt
+      - "0d54d62"
+      - "0b11e50"
+      # + the commit immediately after 0b11e50: docs(DOC-13 PRE-PUSH-CHECK)
     notes: >
       ── BUILT 2026-10-28, TIER 2 (prepended; nothing below is edited). ──
       Prompt docs/prompts/DOC-13.md. Draft rulings 1–5 in docs/DECISIONS.md
