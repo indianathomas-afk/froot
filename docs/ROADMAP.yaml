@@ -7036,11 +7036,18 @@ phases:
     # PUSHED at the moment of writing — Claude never pushes. Work commit
     # 60fee26; the docs commit is the one immediately after it and cannot name
     # itself.
-    status: in_progress
+    # `in_progress` -> `staging` 2026-10-28 by the DOC-7 PRE-PUSH-CHECK, in
+    # the commit immediately after e419319 (its own SHA cannot be written inside
+    # itself). NOT pushed when the check ran — Gary runs the push. DECISIONS
+    # 2026-10-28 DOC-7 ratified by Gary at this check: "Ratify as written"
+    # The "NOT PUSHED" / "Not pushed" lines above hold until the push.
+    status: staging
     title: "Annual re-sign — a document's signatures expire every N months (per document)"
     commits:
       - "60fee26"
       # + the docs commit immediately after 60fee26: DOC-7 row, audit, rulings, migration log, prompt
+      - "e419319"
+      # + the commit immediately after e419319: docs(DOC-7 PRE-PUSH-CHECK)
     blockers:
       - >
         MIGRATION 20261028202919_doc7_annual_resign: applied to DEV by Gary
@@ -7061,6 +7068,11 @@ phases:
         partly worded in the third person ("it should check the columns
         itself") and may have come from Gary's planning chat. Recorded as his
         instruction (DECISIONS.md 2026-10-28, DOC-7).
+        CONFIRMED at the PRE-PUSH-CHECK (2026-10-28). His first reply, "Ratify
+        as written", ratified the DECISIONS entry without answering this, so
+        it was put to him again as "Was the DOC-7 ordering message your own
+        instruction for this phase?" His reply, recorded exactly: "yes". This
+        blocker is spent, kept.
     notes: >
       ── BUILT 2026-10-28, TIER 3 (prepended; nothing below is edited). ──
       Prompt docs/prompts/DOC-7.md; audit docs/prompts/DOC-7_AUDIT.md. Gary

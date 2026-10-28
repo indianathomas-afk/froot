@@ -7,6 +7,16 @@ decisions too.)
 
 ## 2026-10-28 — DOC-7: annual re-sign, signatures that expire every N months (Gary)
 
+**RATIFIED BY GARY, 2026-10-28, at the DOC-7 PRE-PUSH-CHECK, as written.** The
+whole entry, unchanged, was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify as
+written"* Nothing in the entry was reworded. The same check also asked him,
+separately, to confirm the ordering message flagged at the end of the ORDERING
+paragraph; his reply did not address that, so it was put to him again as
+"Was the DOC-7 ordering message your own instruction for this phase?" His
+reply, recorded exactly: *"yes"* The ORDERING paragraph's "should be
+confirmed" is therefore spent, kept.
+
 **RATIFIED BY GARY, 2026-10-28, fork by fork, in chat.** The forks and leans
 are Claude's, from `docs/prompts/DOC-7_AUDIT.md` § 11(a). At his request ("One
 at a time") each was put to him on its own, and his reply to each is recorded

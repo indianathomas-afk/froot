@@ -2,6 +2,84 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-28 — DOC-7: annual re-sign, a document's signatures expire every N months
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two DOC-7 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `60fee26`, `e419319`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `60fee26` | DOC-7 work: migration `20261028202919_doc7_annual_resign`, `src/lib/hr-resign.ts` (`renewalView()`), the renewal-aware compliance engine, `ensureSignedRecord`, DOC-6 register and HR-16 email, `/staff/[id]` (rows moved to `document-rows.ts`), `/my` and `/my/documents`, both ceremony pages, the "Re-sign every" field on the document Edit dialog and its PATCH, `scripts/verify-doc7-annual-resign.ts` |
+| `e419319` | `docs(DOC-7)`: row (`in_progress`), DECISIONS entry F1–F10 + ordering FIX NOW, MIGRATIONS entry, `docs/prompts/DOC-7.md` and `DOC-7_AUDIT.md`; files DOC-15 |
+| the commit immediately after `e419319` | `docs(DOC-7 PRE-PUSH-CHECK)`: this entry, DECISIONS ratified (Gary: "Ratify as written") and ordering message confirmed (Gary: "yes"), row to `staging` |
+
+**Blast radius: SCHEMA (two index swaps + additive columns), compliance status
+for HR Acknowledgment documents, signed-record creation, and one admin write.
+NO NEW ROUTE, NO ENV VAR, NO CRON, NO PERMISSION CHANGE.**
+
+- **Schema:** `HrDocument.reSignEveryMonths` and `reSignEveryMonthsSetAt`
+  (nullable); `renewal INTEGER NOT NULL DEFAULT 0` on `HrDocumentAcknowledgment`
+  and `HrSignedRecord`; both tables' unique indexes DROPPED AND RECREATED one
+  column wider to include `renewal` (HR-15b's shape; F1). Every existing row
+  lands on `renewal = 0`, so the wider keys enforce exactly what the old ones
+  did on existing data. Applied by `prisma migrate deploy` in the Vercel build
+  on push.
+- **Inert until an admin sets "Re-sign every".** Every existing document lands
+  on "never expires"; every dev org's compliance rollup was identical
+  before/after except the three new fields (null/false everywhere; docs with
+  the setting on dev: 0).
+- **With N (6 / 12 / 24 months, Acknowledgment only):** each person's
+  signature lasts to its anniversary (newest this-cycle signature + N months,
+  floored at set date + 30 days). Last 30 days: still complete, "Re-sign due in
+  d days" + "Re-sign now". After: needs-current, overdue, "Was due {date}",
+  everywhere DOC-8/DOC-13 show due dates. NOTIFY-14 digest shows expired only
+  (F4). DOC-6 key register counts renewal-0 records only (F5).
+- **Signed-record writes:** `ensureSignedRecord` and the acknowledgments route
+  now write and look up by renewal; `recordRef` unchanged for renewal 0. Every
+  lookup picks the newest renewal by comparison, never row order (ordering FIX
+  NOW).
+- **Admin write:** "Re-sign every" on the document Edit dialog; PATCH 400s it
+  on non-Acknowledgment documents.
+
+**THE MIGRATION AND THE CODE SHIP TOGETHER.** Every `HrDocument`,
+`HrDocumentAcknowledgment` and `HrSignedRecord` read selects the new columns;
+code without the migration fails the HR documents, compliance and signing
+pages.
+
+**Rollback:** revert `60fee26`. Code only. **The columns, the wider indexes and
+any setting already saved stay** — schema is additive-only. Checked at this
+check: the pre-DOC-7 code reaches the old compound key only through
+`findUnique` (`src/lib/hr-signed-pdf.ts`, at `60fee26^` lines 339 and 810),
+which needs no matching DB index, so reverted code still runs. Caveat: any
+renewal ≥ 1 rows written between push and revert become extra rows the old
+code does not tell apart, and it picks among them by row order. Inert unless an
+admin has set "Re-sign every" in that window. Do not hand-edit
+`_prisma_migrations`.
+
+**Migration: applied to DEV ONLY, by Gary** (dev `br-broad-wave-a6vpjdw0`,
+`finished_at` 2026-10-28 20:55:39 UTC = 13:55:39 PDT; `docs/MIGRATIONS.md`
+DOC-7 entry). Before and after the push, Gary checks `_prisma_migrations` on
+staging `br-square-feather-a63z92vz` in the Neon console —
+`20261028202919_doc7_annual_resign` absent before; present after with
+`finished_at` set and `rolled_back_at` null. Same check on production at
+promotion.
+
+**Evidence: dev only** (`br-broad-wave-a6vpjdw0`).
+`scripts/verify-doc7-annual-resign.ts` 78/78, nine deliberate breaks each
+caught; regression verify-doc8-due-dates 40/40, verify-doc13-surfaces 27/27,
+verify-doc2-by-document 34, verify-notify14-doc-digest 54/54,
+verify-doc6-key-register all passed. **NOT VERIFIED:** any page in a browser,
+the PATCH route and the ceremony's early re-sign with a Clerk session — on
+Gary's staging test after the push (staging-SHA precondition first).
+
+**Ordering ruling's message: confirmed by Gary at this check** ("yes";
+DECISIONS 2026-10-28 DOC-7; DOC-7 row blockers). It does not change the code.
+
 ## ff1fd43 — 2026-10-28 — DOC-13: due dates on /my/documents and the /staff/[id] Documents tab
 
 **PROMOTED 2026-10-28 in merge `ff1fd43`** (`ff1fd43daa116a29f7cebac726dda5203ddb9b90`,
