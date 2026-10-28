@@ -1162,7 +1162,7 @@ export function complianceDocumentWhere(organizationId: string) {
 // store — the first in-scope store the member is assigned to. Corporate is the
 // caller's concern (By Store skips them; By Document names them) ────────────
 
-function rollupStoreGroupId(s: StaffComplianceDetail, storeIds: string[] | null): string | null {
+export function rollupStoreGroupId(s: StaffComplianceDetail, storeIds: string[] | null): string | null {
   // A member whose primary store is outside a manager's scope still appears
   // under one of the manager's stores they're assigned to.
   return storeIds !== null && s.primaryStoreId && !storeIds.includes(s.primaryStoreId)

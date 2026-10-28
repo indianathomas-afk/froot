@@ -111,6 +111,12 @@ model Organization {
   // paceAlertsEnabled's reason: nothing starts emailing managers as a side
   // effect of a deploy or an env flip.
   milestoneAlertsEnabled  Boolean   @default(false)
+  // NOTIFY-14 (F4, Gary 2026-10-27: "Agreed"). THE PER-ORG SWITCH FOR THE
+  // OVERDUE & DUE-SOON DOCUMENT DIGEST (kind hr.doc.digest). Only meaningful
+  // while HR is available and active (F10). Off = the scheduled-emails runner
+  // never evaluates the org and a queued digest intent expires at dispatch.
+  // Default false for paceAlertsEnabled's reason: promotion sends nothing.
+  docDigestEnabled        Boolean   @default(false)
   // Days an unacknowledged handoff note keeps surfacing past its target day.
   handoffNoteExpireDays   Int       @default(2)
   // HR-11b: governs inline `Date:` field stamps ONLY ("dateOnly" | "dateTime").

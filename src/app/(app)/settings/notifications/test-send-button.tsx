@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // NOTIFY-5 — "Send a test to me". The first UI caller of POST /api/notify/test;
 // until now the only way to prove delivery was the browser console.
@@ -21,10 +22,14 @@ type TestResult = {
   provider?: string
   id?: string
   error?: string
+  /** NOTIFY-14: the digest preview had nothing to show — no email was sent. */
+  empty?: boolean
+  message?: string
 }
 
 /** One line: where it went, the mode, and the provider id or the error. */
 function describe(r: TestResult): { text: string; failed: boolean } {
+  if (r.ok && r.empty) return { text: r.message ?? "Nothing to send — no email sent.", failed: false }
   if (!r.ok) {
     const where = r.to ? ` to ${r.to}` : ""
     const mode = r.mode ? ` (${r.mode})` : ""
@@ -49,15 +54,29 @@ function describe(r: TestResult): { text: string; failed: boolean } {
 // MS-4b: `kind` sends that kind's sample() through the same route
 // (?kind=…, still no body — the caller is still the only recipient). The
 // milestone card renders one with label "Send a sample to me".
-export function TestSendButton({ kind, label = "Send a test to me" }: { kind?: string; label?: string } = {}) {
+//
+// NOTIFY-14 (F9): `previewAs` adds a "Preview as" choice of the org's managers
+// (&asUser=…). It picks whose VIEW is rendered; the email still goes only to
+// the admin pressing the button.
+const ME = "__me__"
+
+export function TestSendButton({
+  kind,
+  label = "Send a test to me",
+  previewAs,
+}: { kind?: string; label?: string; previewAs?: { id: string; name: string }[] } = {}) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
+  const [asUser, setAsUser] = useState(ME)
   const [result, setResult] = useState<{ text: string; failed: boolean } | null>(null)
 
   async function send() {
     setBusy(true)
     setResult(null)
-    const url = kind ? `/api/notify/test?kind=${encodeURIComponent(kind)}` : "/api/notify/test"
+    const qs = new URLSearchParams()
+    if (kind) qs.set("kind", kind)
+    if (previewAs && asUser !== ME) qs.set("asUser", asUser)
+    const url = qs.size ? `/api/notify/test?${qs.toString()}` : "/api/notify/test"
     const res = await fetch(url, { method: "POST" }).catch(() => null)
     let body: TestResult = { ok: false, error: "network error" }
     if (res) {
@@ -77,6 +96,21 @@ export function TestSendButton({ kind, label = "Send a test to me" }: { kind?: s
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      {previewAs && previewAs.length > 0 && (
+        <Select value={asUser} onValueChange={setAsUser}>
+          <SelectTrigger className="w-56" aria-label="Preview as">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ME}>Preview as: me (all stores)</SelectItem>
+            {previewAs.map((m) => (
+              <SelectItem key={m.id} value={m.id}>
+                Preview as: {m.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
       <Button variant="outline" onClick={send} disabled={busy}>
         {busy ? "Sending…" : label}
       </Button>

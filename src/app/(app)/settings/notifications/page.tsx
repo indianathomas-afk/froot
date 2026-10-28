@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { ChevronLeft, Award, BriefcaseBusiness, CheckCircle, TrendingDown, XCircle } from "lucide-react"
+import { ChevronLeft, Award, BriefcaseBusiness, CheckCircle, FileClock, TrendingDown, XCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
@@ -9,7 +9,7 @@ import { listRecentEmails } from "@/lib/notification-log"
 import { contactPicksByKind, listContacts } from "@/lib/notifications/contacts"
 import { ContactsCard } from "./contacts-card"
 import { RecipientsSection } from "./recipients-section"
-import { MilestoneAlertsToggle, PaceAlertsToggle, PaceAlertThresholdField } from "./pace-alerts-actions"
+import { DocDigestToggle, MilestoneAlertsToggle, PaceAlertsToggle, PaceAlertThresholdField } from "./pace-alerts-actions"
 import { milestonesActive } from "@/lib/milestones-access"
 import { MILESTONE_KIND, milestoneCardText } from "@/lib/notifications/kinds/milestone"
 import type { ScheduleFrequency } from "@/lib/notifications/define"
@@ -17,6 +17,8 @@ import { RecentEmails } from "./recent-emails"
 import { TestSendButton } from "./test-send-button"
 import { ScheduleSection } from "./schedule-section"
 import { loadScheduleView } from "@/lib/notifications/schedule-settings"
+import { DOC_DIGEST_KIND, docDigestCardText } from "@/lib/notifications/kinds/doc-digest"
+import { prisma } from "@/lib/prisma"
 
 // NOTIFY-2a — every email setting on one page (Gary's ruling, 2026-09-20).
 // Before this, HR-16's acknowledgment recipients and F-5b's behind-pace toggle
@@ -89,12 +91,19 @@ export default async function NotificationSettingsPage() {
 
   // F2: the newest 50. Fetched here rather than behind a route — the page is
   // already the ADMIN_ONLY gate and the card neither refreshes nor paginates.
-  const [recentEmails, contacts, picks, paceSchedule, milestoneSchedule] = await Promise.all([
+  const [recentEmails, contacts, picks, paceSchedule, milestoneSchedule, digestSchedule, managers] = await Promise.all([
     listRecentEmails(org.id),
     listContacts(org.id),
     contactPicksByKind(org.id),
     loadScheduleView(org.id, "pace.alert"),
     loadScheduleView(org.id, MILESTONE_KIND),
+    loadScheduleView(org.id, DOC_DIGEST_KIND),
+    // NOTIFY-14 (F9): the "Preview as" choices — this org's managers only.
+    prisma.user.findMany({
+      where: { organizationId: org.id, role: "MANAGER" },
+      select: { id: true, name: true, email: true },
+      orderBy: [{ name: "asc" }, { email: "asc" }],
+    }),
   ])
   // F13: the cards' cadence words follow the SAVED schedule; no row → the
   // sentence is byte for byte what it was.
@@ -112,6 +121,10 @@ export default async function NotificationSettingsPage() {
   // Milestones is off for this org; the switch only when Milestones is on.
   const milestonesOn = milestonesActive(org)
   const milestoneAlertsActive = org.milestoneAlertsEnabled
+  // NOTIFY-14 (F10). The digest follows the same two gates as the HR cards:
+  // no card where HR does not exist here; one disabled line where HR is off.
+  const docDigestActive = org.docDigestEnabled
+  const docDigestText = docDigestCardText(digestSchedule?.saved?.frequency as ScheduleFrequency | undefined)
   // The fallback an empty threshold resolves to, read here rather than assumed
   // to be 90 — see the field's own comment.
   const paceDefaultPct = paceThresholdPct()
@@ -320,6 +333,70 @@ export default async function NotificationSettingsPage() {
                     <h3 className="font-medium text-[var(--color-foreground)]">Milestone reached emails</h3>
                     <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
                       Turn on Milestones in Settings to use milestone emails.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {hrAvailable && (
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>Document due dates</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {hrActive ? (
+              <>
+                <div className="flex items-start justify-between gap-3 p-4 border border-[var(--color-border)] rounded-lg">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-10 h-10 shrink-0 rounded bg-[var(--color-primary)] flex items-center justify-center text-white">
+                      <FileClock className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-medium text-[var(--color-foreground)]">Overdue &amp; due-soon documents</h3>
+                      <p className="text-sm text-[var(--color-muted-foreground)]">{docDigestText}</p>
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        {docDigestActive ? (
+                          <>
+                            <CheckCircle className="h-4 w-4 text-[var(--color-success)]" />
+                            <span className="text-sm text-[var(--color-success-text)] font-medium">Enabled</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                            <span className="text-sm text-[var(--color-muted-foreground)]">Disabled</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <DocDigestToggle enabled={docDigestActive} />
+                </div>
+                {/* F8: contacts get the org-wide version. */}
+                <RecipientsSection kind={DOC_DIGEST_KIND} contacts={contacts} pickedIds={picks[DOC_DIGEST_KIND] ?? []} />
+                {digestSchedule && <ScheduleSection view={digestSchedule} />}
+                {/* F9: real data, emailed only to the admin pressing it. */}
+                <div className="mt-4">
+                  <TestSendButton
+                    kind={DOC_DIGEST_KIND}
+                    label="Send a preview to me"
+                    previewAs={managers.map((m) => ({ id: m.id, name: m.name?.trim() || m.email }))}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="p-4 border border-[var(--color-border)] rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 shrink-0 rounded bg-[var(--color-muted)] flex items-center justify-center text-[var(--color-muted-foreground)]">
+                    <FileClock className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-[var(--color-foreground)]">Overdue &amp; due-soon documents</h3>
+                    <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
+                      Turn on HR in Settings to use the document digest.
                     </p>
                   </div>
                 </div>

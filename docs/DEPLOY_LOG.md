@@ -2,6 +2,72 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-27 — NOTIFY-14: overdue & due-soon document digest for admins and managers
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two NOTIFY-14 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `de21089`, `2406e4c`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `de21089` | NOTIFY-14 work: migration `20261027230046_notify14_doc_digest`, kind `hr.doc.digest` (`src/lib/notifications/kinds/doc-digest.ts`, `src/lib/hr-doc-digest.ts`, `src/lib/doc-digest-alerts.ts`), third leg in `src/lib/scheduled-emails.ts`, `KindSchedule.defaultRow`, capability `notify.docdue.receive`, optional `sections` on `renderEmail()`, `PUT /api/doc-digest/settings`, the preview on `POST /api/notify/test`, the "Document due dates" card on `/settings/notifications`, `scripts/verify-notify14-doc-digest.ts` |
+| `2406e4c` | `docs(NOTIFY-14)`: row (`in_progress`), DECISIONS entry F1–F17, MIGRATIONS entry, PERMISSIONS_INVENTORY, `docs/prompts/NOTIFY-DOC-DIGEST.md` and `NOTIFY-DOC-DIGEST_AUDIT.md`; files NOTIFY-15 |
+| the commit immediately after `2406e4c` | `docs(NOTIFY-14 PRE-PUSH-CHECK)`: this entry, DECISIONS ratified (Gary: "Ratify as written"), row to `staging` |
+
+**Blast radius: SCHEMA (one additive, defaulted column), a NEW EMAIL TYPE on the
+existing hourly scheduled-emails cron, one new admin route, one new capability.
+NO NEW CRON, NO NEW ENV VAR.**
+
+- **Schema:** `Organization.docDigestEnabled BOOLEAN NOT NULL DEFAULT false`.
+  Applied by `prisma migrate deploy` in the Vercel build on push.
+- **Inert until an admin turns it on.** Every existing org lands on `false`, so
+  the push and the promotion send nothing. The runner leg also requires HR
+  available AND active for the org (F10).
+- **When on:** one intent per org per period (dedupeKey `{orgId}:{ISO week |
+  date}`); default schedule weekly, Monday 8 AM America/Los_Angeles with no
+  saved row (F2). Admins and "Also send to" contacts get the whole org; each
+  manager only their assigned stores (F1, F6, F8). Content is read only off
+  `getOrgComplianceRollup()`, the `/hr/compliance` call.
+- **Capability:** `notify.docdue.receive`, baseline ADMIN + MANAGER, deniable,
+  never grantable (F5).
+- **Routes:** new `PUT /api/doc-digest/settings` (the toggle, admin);
+  `POST /api/notify/test` gains the preview ("Send a preview to me", emailed only
+  to the caller, F9); `api/notify/schedule/[kind]` 404s the new kind where HR is unavailable.
+- **Existing emails unchanged:** `renderEmail()` gains optional `sections`;
+  verify-notify-template 35/35 byte-for-byte. Pace and milestone no-row schedule
+  paths unchanged.
+
+**On staging, real email goes only to `NOTIFY_SANDBOX_ALLOWLIST`; the preview
+always reaches the pressing admin. Keep the toggle OFF on staging** (row
+blocker 2).
+
+**THE MIGRATION AND THE CODE SHIP TOGETHER.** Every `Organization` read selects
+the new column; code without the migration fails every org lookup.
+
+**Rollback:** revert `de21089`. **The column stays** — schema is additive-only;
+reverted code never reads it, and nothing sends without the code. Any
+`NotificationSchedule` row saved for `hr.doc.digest` stays and is ignored. Do not
+hand-edit `_prisma_migrations`.
+
+**Migration: applied to DEV ONLY, by Gary** (dev `br-broad-wave-a6vpjdw0`,
+`finished_at` 2026-10-27 23:02:52 UTC = 16:02:52 PDT; `docs/MIGRATIONS.md`
+NOTIFY-14 entry). Before and after the push, Gary checks `_prisma_migrations` on
+staging `br-square-feather-a63z92vz` in the Neon console —
+`20261027230046_notify14_doc_digest` absent before; present after with
+`finished_at` set and `rolled_back_at` null. Same check on production at
+promotion.
+
+**Evidence: dev only.** `scripts/verify-notify14-doc-digest.ts` 54/54 on dev,
+three negative controls run and restored; verify-notify-template, -notify-sched,
+-notify12, -notify6, -notify5, -ms4b, -ms6, -f5-polish, -doc8-due-dates green.
+**NOT VERIFIED:** the card in a browser, the two admin routes with a Clerk
+session, and any real send — all on Gary's staging test plan in the NOTIFY-14
+row.
+
 ## 0a239f6 — 2026-10-26 — DOC-8: document due dates (sign within N days), overdue in compliance
 
 **PROMOTED 2026-10-26 in merge `0a239f6`** (`0a239f67fa190bb73b2d3c1f5b3d174210cf644d`,

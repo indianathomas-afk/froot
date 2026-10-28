@@ -12,6 +12,12 @@ import {
 } from "@/lib/notifications/dispatch"
 import { sampleableKinds, type TestPayload } from "@/lib/notifications/kinds/test"
 import { savedScheduleFrequency } from "@/lib/notifications/schedule-settings"
+import { prisma } from "@/lib/prisma"
+import { DEFAULT_TIME_ZONE } from "@/lib/hr"
+import { localDateStr } from "@/lib/reports"
+import { docDigestView, digestIsEmpty } from "@/lib/hr-doc-digest"
+import { DOC_DIGEST_KIND, docDigestHrActive } from "@/lib/notifications/kinds/doc-digest"
+import type { ScheduleFrequency } from "@/lib/notifications/define"
 
 // POST /api/notify/test — NOTIFY-1. Proves real delivery from a deployed
 // environment without giving anyone a way to email arbitrary people.
@@ -46,6 +52,16 @@ import { savedScheduleFrequency } from "@/lib/notifications/schedule-settings"
 // one recipient, so nothing about the security model above changes. Only kinds
 // that define sample() are accepted; anything else is a 400.
 //
+// NOTIFY-14 (F9, Gary 2026-10-27: "agreed."): `?kind=hr.doc.digest` sends a
+// REAL-DATA preview of the document digest — built by the cron's own builder
+// for the caller's view (ADMIN: the whole org), or, with `&asUser=<userId>`
+// naming a MANAGER of THIS org, for that manager's stores. `asUser` chooses
+// whose VIEW is rendered and never who receives it: the recipient is still
+// only the caller, so the security model above is unchanged. An ADMIN already
+// sees the whole org on /hr/compliance, so nothing new is exposed. An empty
+// view sends nothing (draft ruling 4) and says so. HR available + active
+// (F10) or 404.
+//
 // CONSOLE MODE RETURNS ok: true AND THAT IS CORRECT. The console sender did
 // exactly what it is for — the response names the provider, so a "success"
 // with provider: "console" reads as "nothing left the building", which is the
@@ -60,8 +76,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 })
   }
 
-  const sampleOf = new URL(req.url).searchParams.get("kind") ?? undefined
-  if (sampleOf !== undefined && !sampleableKinds().includes(sampleOf)) {
+  const params = new URL(req.url).searchParams
+  const sampleOf = params.get("kind") ?? undefined
+  const isDigest = sampleOf === DOC_DIGEST_KIND
+  if (sampleOf !== undefined && !isDigest && !sampleableKinds().includes(sampleOf)) {
     return NextResponse.json({ error: `No sample for kind "${sampleOf}"` }, { status: 400 })
   }
 
@@ -73,6 +91,35 @@ export async function POST(req: Request) {
     org = await getOrganization()
   } catch {
     return NextResponse.json({ error: "Org not found" }, { status: 404 })
+  }
+
+  // NOTIFY-14: the digest preview's view, resolved before anything is sent.
+  let digestPreview: TestPayload["digestPreview"]
+  if (isDigest) {
+    if (!docDigestHrActive(org)) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    const asUser = params.get("asUser")
+    let storeIds: string[] | null = null
+    if (asUser) {
+      const manager = await prisma.user.findFirst({
+        where: { id: asUser, organizationId: org.id, role: "MANAGER" },
+        select: { storeAssignments: { select: { storeId: true } } },
+      })
+      if (!manager) return NextResponse.json({ error: "No such manager in this organization" }, { status: 400 })
+      storeIds = manager.storeAssignments.map((a) => a.storeId)
+    }
+    const view = await docDigestView(org.id, storeIds)
+    if (digestIsEmpty(view)) {
+      return NextResponse.json({ ok: true, empty: true, message: "Nothing overdue or due soon for this view — no email sent." })
+    }
+    const row = await prisma.notificationSchedule.findUnique({
+      where: { organizationId_kind: { organizationId: org.id, kind: DOC_DIGEST_KIND } },
+      select: { frequency: true, timeZone: true },
+    })
+    digestPreview = {
+      view,
+      asOf: localDateStr(new Date(), row?.timeZone ?? DEFAULT_TIME_ZONE),
+      frequency: (row?.frequency as ScheduleFrequency | undefined) ?? "weekly",
+    }
   }
 
   const to = await getClerkPrimaryEmail(userId)
@@ -92,14 +139,15 @@ export async function POST(req: Request) {
 
   // NOTIFY-13a: a sample follows the org's SAVED schedule wording (C5), like
   // the real emails. Still no body: the org is the caller's own.
-  const sampleFrequency = sampleOf ? await savedScheduleFrequency(org.id, sampleOf) : undefined
+  const sampleFrequency = sampleOf && !isDigest ? await savedScheduleFrequency(org.id, sampleOf) : undefined
   const payload: TestPayload = {
     to,
     provider,
     stamp,
     deployEnv,
     sha,
-    ...(sampleOf ? { sampleOf } : {}),
+    ...(sampleOf && !isDigest ? { sampleOf } : {}),
+    ...(digestPreview ? { digestPreview } : {}),
     ...(sampleFrequency ? { sampleFrequency } : {}),
   }
   const enq = await enqueueNotification({

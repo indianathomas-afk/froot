@@ -21,6 +21,9 @@ export type NotificationOrg = Pick<
   | "activeModules"
   | "milestonesEnabled"
   | "milestoneAlertsEnabled"
+  // NOTIFY-14 (F4). The document digest's switch; its kind also needs HR
+  // available and active (F10), read off clerkOrgId and activeModules above.
+  | "docDigestEnabled"
 > & {
   /** MS-4a F13: MilestoneSettings.checklistMilestonesEnabled; no row = false. */
   checklistMilestonesEnabled: boolean
@@ -110,6 +113,25 @@ export type KindSchedule = {
    * not a local one — today's local send time already moves with DST.
    */
   legacyUtcHour: number
+  /**
+   * NOTIFY-14 (F2, Gary 2026-10-27: "Agreed."). A kind with no pre-NOTIFY-13
+   * behaviour to preserve may name its own default instead: with no usable
+   * row, slotDue() evaluates THIS row and legacyUtcHour is never read. "Reset
+   * to default" deletes the saved row, so it returns here. An org-scoped
+   * default carries its own timeZone. Absent on pace and milestones (F6
+   * unchanged). `defaultText` is the Schedule section's "Default: …" sentence.
+   */
+  defaultRow?: ScheduleRowDefault
+  defaultText?: string
+}
+
+/** A KindSchedule.defaultRow: the NotificationSchedule fields slotDue() reads. */
+export type ScheduleRowDefault = {
+  frequency: ScheduleFrequency
+  sendHour: number
+  daysOfWeek: number[]
+  dayOfMonth: number | null
+  timeZone: string | null
 }
 
 type KindCommon<P> = {

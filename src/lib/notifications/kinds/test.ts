@@ -13,6 +13,8 @@
 import { renderEmail } from "@/lib/email-template"
 import { defineNotification, type GroupedKindDef, type ScheduleFrequency } from "../define"
 import { MILESTONE_KIND, milestoneKind } from "./milestone"
+import { renderDocDigest } from "./doc-digest"
+import type { DocDigestView } from "@/lib/hr-doc-digest"
 
 // MS-4b — "Send a sample to me". A kind with sample() can be rendered through
 // THIS kind, so the sample inherits this kind's whole security model: the
@@ -42,6 +44,13 @@ export type TestPayload = {
    * route at the press. Absent with no schedule row → today's wording.
    */
   sampleFrequency?: ScheduleFrequency
+  /**
+   * NOTIFY-14 (F9, Gary 2026-10-27: "agreed."). "Send a preview to me" on the
+   * document digest card: a REAL digest — the caller's own view, or a named
+   * manager's — built by the route through the cron's own builder and rendered
+   * by the real kind's renderer. Still this kind, so still only `to`.
+   */
+  digestPreview?: { view: DocDigestView; asOf: string; frequency: ScheduleFrequency }
 }
 
 export const testKind = defineNotification<TestPayload>({
@@ -64,6 +73,11 @@ export const testKind = defineNotification<TestPayload>({
 
   // The NOTIFY-1 text, unchanged and passed through the template verbatim.
   render(p, org, to) {
+    if (p.digestPreview) {
+      const d = p.digestPreview
+      const r = renderDocDigest(d.view, org.name, d.asOf, d.frequency)
+      return { ...r, subject: `Test — ${r.subject}` }
+    }
     const sampled = p.sampleOf ? SAMPLED[p.sampleOf] : undefined
     if (p.sampleOf) {
       if (!sampled?.sample) return { subject: `USE Froot test — ${p.stamp}`, error: `no sample for "${p.sampleOf}"` }
