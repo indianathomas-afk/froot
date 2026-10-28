@@ -2,7 +2,23 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-10-28 — DOC-13: due dates on /my/documents and the /staff/[id] Documents tab
+## ff1fd43 — 2026-10-28 — DOC-13: due dates on /my/documents and the /staff/[id] Documents tab
+
+**PROMOTED 2026-10-28 in merge `ff1fd43`** (`ff1fd43daa116a29f7cebac726dda5203ddb9b90`,
+"Merge branch 'staging'", 2026-10-28 10:32:58 -0700 (Pacific) = 2026-10-28
+17:32:58 UTC), first parent `8829de1` (prior tip of `main`), second parent
+`6d63827`. **4 commits** in `ff1fd43^1..ff1fd43^2` — `77f69da`, `0d54d62`,
+`0b11e50`, `6d63827` — and **10 files**, read out of `git log` and `git diff
+--stat` at this stamp. Stamped post-merge by PROMOTE-DOCS DOC-13 (2026-10-28), on
+`staging`; the heading previously read "UNPROMOTED — 2026-10-28 — DOC-13: due
+dates on /my/documents and the /staff/[id] Documents tab". The "staging only"
+status and "NONE WAS PUSHED" lines below are spent, kept.
+
+**No migration.** Nothing to apply on any branch.
+
+**Rollback after promotion:** `git revert -m 1 ff1fd43` on `main` (the whole
+merge; recipe in `docs/WORKFLOW.md` § Rolling a promotion back). Code only; no
+migration, env var or cron.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next

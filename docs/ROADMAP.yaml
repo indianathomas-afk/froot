@@ -7344,7 +7344,12 @@ phases:
     # itself). NOT pushed when the check ran — Gary runs the push. DECISIONS
     # 2026-10-28 DOC-13 ratified by Gary at this check: "Ratify as written"
     # The "NOT PUSHED" / "Not pushed" lines above hold until the push.
-    status: staging
+    # `staging` -> `shipped` 2026-10-28, stamped post-merge 2026-10-28 by
+    # PROMOTE-DOCS DOC-13 (on `staging`): merge ff1fd43 (DEPLOY_LOG entry
+    # `ff1fd43 — 2026-10-28 — DOC-13`). Any "not pushed" / "staging" comment
+    # above is spent, kept.
+    status: shipped
+    shipped: 2026-10-28
     title: "Show document due dates on /my/documents and the /staff/[id] Documents tab"
     commits:
       - "77f69da"
@@ -7352,7 +7357,22 @@ phases:
       - "0d54d62"
       - "0b11e50"
       # + the commit immediately after 0b11e50: docs(DOC-13 PRE-PUSH-CHECK)
+      - "6d63827"
+      - "ff1fd43"
     notes: >
+      ── PROMOTED 2026-10-28 in merge ff1fd43 (rider prepended 2026-10-28 by
+      PROMOTE-DOCS DOC-13; nothing below is edited). ──
+      OBSERVED, STAGING (build 6d63827-staging in the footer; org not
+      recorded): Tommy Thomas's /my lists "How to NOT piss off a customer ·
+      Due Jul 26" above "Test - Handbook Regression · 0/7 checkpoints · Was
+      due Oct 27", both with the red Overdue badge. That is the ratified
+      mixed, most-overdue-first order. Gary reported the rest of the test plan
+      verified: /my/documents (handbook first, red Overdue, "Was due Oct 27"),
+      the /staff/[id] Documents tab as indianathomas, a document with no due
+      date unchanged, and phone width.
+      OBSERVED, PRODUCTION: promoted in merge ff1fd43. No migration.
+      NOT OBSERVED: any production browser check (no production document has
+      a due date yet).
       ── BUILT 2026-10-28, TIER 2 (prepended; nothing below is edited). ──
       Prompt docs/prompts/DOC-13.md. Draft rulings 1–5 in docs/DECISIONS.md
       2026-10-28, marked DRAFT, awaiting Gary's ratification at PRE-PUSH-CHECK.
