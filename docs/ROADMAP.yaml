@@ -7032,9 +7032,85 @@ phases:
   - id: DOC-7
     track: hr
     size: M
-    status: planned
-    title: "Annual re-sign for policies — a per-category default re-sign interval"
+    # `planned` -> `in_progress` 2026-10-28 by the DOC-7 build session. NOT
+    # PUSHED at the moment of writing — Claude never pushes. Work commit
+    # 60fee26; the docs commit is the one immediately after it and cannot name
+    # itself.
+    status: in_progress
+    title: "Annual re-sign — a document's signatures expire every N months (per document)"
+    commits:
+      - "60fee26"
+      # + the docs commit immediately after 60fee26: DOC-7 row, audit, rulings, migration log, prompt
+    blockers:
+      - >
+        MIGRATION 20261028202919_doc7_annual_resign: applied to DEV by Gary
+        (his words: "The migration is applied to dev, and it should check the
+        columns itself."). Verified by the session on br-broad-wave-a6vpjdw0:
+        the two HrDocument columns nullable, renewal NOT NULL DEFAULT 0 on
+        both tables, both unique indexes ending in renewal, _prisma_migrations
+        finished 2026-10-28 20:55:39 UTC (13:55:39 PDT). Staging and production
+        get it through `prisma migrate deploy` in the Vercel build, on Gary's
+        push. Drops and recreates two unique indexes (HR-15b's shape, F1).
+      - >
+        UNVERIFIED ON STAGING (staging-SHA precondition first). Dev fixture
+        evidence only; no page was rendered signed in, and the PATCH route and
+        the ceremony's early re-sign were never called with a Clerk session.
+        Test plan in the DOC-7 session report.
+      - >
+        TO CONFIRM AT THE PRE-PUSH-CHECK: the ordering ruling's message was
+        partly worded in the third person ("it should check the columns
+        itself") and may have come from Gary's planning chat. Recorded as his
+        instruction (DECISIONS.md 2026-10-28, DOC-7).
     notes: >
+      ── BUILT 2026-10-28, TIER 3 (prepended; nothing below is edited). ──
+      Prompt docs/prompts/DOC-7.md; audit docs/prompts/DOC-7_AUDIT.md. Gary
+      ratified forks F1–F10 one at a time, each "agreed" (docs/DECISIONS.md
+      2026-10-28), then moved the record-ordering COMMENT into the phase as a
+      FIX NOW: newest renewal always wins, proven by fixture.
+      THE ROW'S OLD TITLE AND FIRST NOTE ARE SUPERSEDED, NOT DELETED. The title
+      read "Annual re-sign for policies — a per-category default re-sign
+      interval". F2 made it per document (a category default is DOC-15), and
+      the audit (§ 1, option D) showed HR-11k's Case A path cannot carry
+      per-person anniversaries, so it is not reused.
+      WHAT. HrDocument.reSignEveryMonths (6 | 12 | 24, null = never) +
+      reSignEveryMonthsSetAt (F6: DOC-8 F5's stamp rules). Acknowledgment
+      only, on the Edit dialog under "Sign within"; PATCH 400s it elsewhere.
+      Each person's anniversary = their newest this-cycle signature + N months
+      in their display zone (clamped month-ends), floored at set date + 30
+      days (ruling 6). Valid through the anniversary day (F10). 0–30 days out:
+      still complete, "Re-sign due in d days" + "Re-sign now" (F8, F9) in new
+      reSignDueDate/reSignDaysUntilDue fields, never in dueDate, so no total,
+      banner, digest (F4) or MS-3 gate moves. Past it: needs-current with
+      renewalDue, overdue on the anniversary via DOC-8 F4, "Was due {date}";
+      F7 takes the earlier of the anniversary and a Case A date.
+      HOW. A re-sign is a new SIGNING: renewal (0, 1, 2…) on acks and records,
+      in both unique keys (F1, HR-15b's shape). lib/hr-resign.ts renewalView()
+      decides which renewal counts and which one a new signature is written
+      under, by comparison (newest renewal, then later completedAt) — never
+      row order. The engine, /staff/[id], /my/documents, both ceremony pages,
+      the acknowledgments route and the signed-record route all ask it.
+      ensureSignedRecord takes the renewal and keys every lookup by it;
+      recordRef is unchanged for renewal 0. DOC-6 (F5): only renewal-0 records
+      issue a key. HR-16 email: acks by the record's renewal. The /staff/[id]
+      Documents rows moved verbatim to document-rows.ts so the fixture can
+      import the real derivation.
+      VERIFIED ON DEV ONLY (br-broad-wave-a6vpjdw0):
+      scripts/verify-doc7-annual-resign.ts 78/78. Nine deliberate breaks, each
+      caught then restored (acks across renewals 3 FAIL; no floor 6; counting
+      the owed renewal early 7; a re-sign issuing a key 1; oldest renewal wins
+      9; unclamped months 6; overdue on the anniversary day 1; /staff/[id]
+      picking by row order 1; ensureSignedRecord ignoring renewal 2). The
+      /staff/[id] break first passed, which exposed an untested cross-cycle
+      path; a third-tenure case (S13) was added before it was counted.
+      Regression on the same branch: verify-doc8-due-dates 40/40,
+      verify-doc13-surfaces 27/27, verify-doc2-by-document 34 (all passed),
+      verify-notify14-doc-digest 54/54, verify-doc6-key-register all passed.
+      Every dev org's getOrgComplianceRollup snapshotted before and after the
+      engine change: identical except the three new fields (null/false
+      everywhere; docs with the setting on dev: 0).
+      NOT DONE: the guide (DOC-8 added none either); a "Re-sign yearly"
+      label on the library row (display only, not ruled); a "Re-sign" chip on
+      Signed Records rows.
       FILED 2026-09-28 from Gary's message of that day ("Agreed"), alongside
       SIGNED-1. Scope as the SIGNED-1 prompt worded it: likely the existing
       Case A re-verification toggle (HR-11k Phase B), driven by a per-category
@@ -7429,6 +7505,20 @@ phases:
       join-history record. Schema, so TIER 3. DOC-1 ruling 1 (standing grants,
       not snapshots) still holds. This is about the PERSON's membership, not
       the audience. Cross-refs: DOC-8, DOC-1.
+
+  - id: DOC-15
+    track: hr
+    size: S
+    status: planned
+    title: "Category default for \"Re-sign every N months\", copied once at create"
+    notes: >
+      FILED 2026-10-28 by the DOC-7 build session, per DOC-7 F2 (Gary:
+      "agreed" to "per document only in this phase; a category default ...
+      is a later row"). DOC-8 F8's pattern exactly: a nullable
+      HrDocumentCategory.defaultReSignEveryMonths, edited in the category
+      manager, copied once by POST /api/hr/documents onto a NEW Acknowledgment
+      document (stamping reSignEveryMonthsSetAt), never propagated to existing
+      documents. Schema, so TIER 3. Cross-refs: DOC-7, DOC-8 (F8), DOC-5.
 
   - id: MS-1
     track: hr

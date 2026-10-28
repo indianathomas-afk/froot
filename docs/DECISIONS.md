@@ -5,6 +5,77 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-28 — DOC-7: annual re-sign, signatures that expire every N months (Gary)
+
+**RATIFIED BY GARY, 2026-10-28, fork by fork, in chat.** The forks and leans
+are Claude's, from `docs/prompts/DOC-7_AUDIT.md` § 11(a). At his request ("One
+at a time") each was put to him on its own, and his reply to each is recorded
+exactly. Every reply was *"agreed"*. The lean texts below are the audit's
+paraphrase, NOT Gary's words.
+
+**The draft rulings 1–8 in `docs/prompts/DOC-7.md`** (per document, 6/12/24
+months, Acknowledgment only; each person's own latest signature; still complete
+before the anniversary with a 30-day "Re-sign due in d days" notice; early
+re-sign renews; overdue after the anniversary; launch-day floor of set date +
+30 days; history kept; rehire and Case A restart the clock) were the frame the
+forks were drawn against. **They were not separately re-ratified in his words.**
+The forks below are how they are implemented.
+
+- **F1 — schema shape.** `renewal INTEGER NOT NULL DEFAULT 0` on
+  `HrDocumentAcknowledgment` and `HrSignedRecord`, with both unique keys dropped
+  and recreated to include it (HR-15b's precedent). Gary: *"agreed"*. **THIS
+  OVERRIDES THE DOC-7 PROMPT'S "additive, nullable only"** for these two
+  columns and two indexes, as the question stated. No column is dropped and no
+  existing row changes.
+- **F2 — per document or per category.** Per document only in this phase. A
+  category default (copied once at create, DOC-8 F8's pattern) is a later row.
+  Gary: *"agreed"*. This supersedes the DOC-7 ROADMAP row's "per-category
+  default" wording.
+- **F3 — representation.** Expiry is computed on read and never stored. One
+  shared pure function finds each person's latest this-cycle signature on the
+  document, its anniversary, and the renewal a new signature is written under.
+  The completion predicate gains one fact ("has an expired signature") giving
+  the needs-current state with its own flag. The engine, `/staff/[id]`,
+  `/my/documents` and both ceremony pages all use that one function.
+  Gary: *"agreed"*
+- **F4 — NOTIFY-14 digest.** Upcoming re-signs are left out. Expired ones appear
+  as overdue on their own. Gary: *"agreed"*
+- **F5 — key holder register (DOC-6).** A record with renewal ≥ 1 is not an
+  issue. Holding and the register's issue date, version and Field values come
+  from renewal-0 records. Gary: *"agreed"*. The question also offered an
+  optional "Last re-confirmed {date}" line; the one-word reply is recorded as
+  the lean only, so that line is NOT built.
+- **F6 — changing or clearing the setting.** DOC-8 F5 exactly: null → N stamps
+  the set date; N → M keeps it; N → null clears both. Gary: *"agreed"*
+- **F7 — expired while a Case A version is also pending.** The due date is the
+  earlier of the anniversary and DOC-8's Case A date (when the document has a
+  "sign within"). Gary: *"agreed"*
+- **F8 — the notice on /my.** A quiet "Coming up" line under the open list with
+  "Re-sign now". "You're all caught up" stays keyed to what is owed.
+  Gary: *"agreed"*
+- **F9 — early re-sign outside the window.** Not offered. Early re-sign is only
+  inside the 30-day window. Gary: *"agreed"*
+- **F10 — which day counts.** A signature counts through the end of the
+  anniversary day, member-local, reading "Re-sign due today". It is overdue from
+  local midnight after, "Was due {date}" (DOC-8's rule). Gary: *"agreed"*
+
+**ORDERING — FIX NOW (Gary, 2026-10-28, after the migration was generated).**
+The audit filed the record and acknowledgment lookups that keep the last row
+with no `orderBy` as a COMMENT. Gary moved it into this phase. His message,
+recorded exactly: *"The ordering problem has to be fixed in this phase. Because
+re-signs will create several records for the same person and document, every
+lookup in `ensureSignedRecord`, the compliance engine and `/staff/[id]` must
+always pick the newest renewal, with a fixture check that proves it."* (The same
+message's first item was worded in the third person — "it should check the
+columns itself" — and may have been composed in his planning chat. It is
+recorded here as his instruction for this phase and should be confirmed at the
+PRE-PUSH-CHECK.)
+
+**Claude implementation choice:** "newest renewal" means the highest `renewal`
+number within the member's current signing cycle, ties broken by the later
+`completedAt`. Every lookup orders explicitly (`renewal desc, completedAt desc`)
+or reduces with that comparison. None relies on row order.
+
 ## 2026-10-28 — DOC-13: due dates on /my/documents and the /staff/[id] Documents tab (Gary)
 
 **RATIFIED BY GARY, 2026-10-28, at the DOC-13 PRE-PUSH-CHECK, as written.**
