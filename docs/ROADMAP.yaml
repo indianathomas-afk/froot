@@ -22079,13 +22079,20 @@ phases:
     # itself). NOT pushed when the check ran — Gary runs the push. DECISIONS
     # 2026-10-27 NOTIFY-14 ratified by Gary at this check: "Ratify as written"
     # The "Not pushed" line above holds until the push.
-    status: staging
+    # `staging` -> `shipped` 2026-10-27, stamped post-merge 2026-10-28 by
+    # PROMOTE-DOCS NOTIFY-14 (on `staging`): merge cf717ca (DEPLOY_LOG entry
+    # `cf717ca — 2026-10-27 — NOTIFY-14`). Any "not pushed" / "staging" comment
+    # above is spent, kept.
+    status: shipped
+    shipped: 2026-10-27
     title: "Overdue & due-soon document digest — a scheduled email to admins and managers"
     commits:
       - "de21089"
       # + the docs commit immediately after de21089: docs(NOTIFY-14)
       - "2406e4c"
       # + the commit immediately after 2406e4c: docs(NOTIFY-14 PRE-PUSH-CHECK)
+      - "c624f01"
+      - "cf717ca"
     blockers:
       - >
         MIGRATION 20261027230046_notify14_doc_digest: applied to DEV by Gary
@@ -22122,6 +22129,24 @@ phases:
       - "DEBT-106: a departed ADMIN still matches the recipient query and gets the org-wide digest every period, as with pace alerts. Not fixed here."
       - "A manager whose store assignments change between the snapshot and a retry (12 h window) gets the snapshot's view. The view is never wider than what they could see at snapshot time."
     notes: >
+      ── PROMOTED 2026-10-27 in merge cf717ca (rider prepended 2026-10-28 by
+      PROMOTE-DOCS NOTIFY-14; nothing below is edited). ──
+      OBSERVED, STAGING: _prisma_migrations on br-square-feather-a63z92vz shows
+      20261027230046_notify14_doc_digest finished 2026-10-28 00:07:14 UTC
+      (2026-10-27 17:07:14 PDT). Browser as indianathomas, org not recorded: the
+      "Document due dates" card on /settings/notifications renders with the
+      switch Off and "Disabled", the recipients line (admins every store,
+      managers their assigned stores, Users page link), "Also send to" with the
+      Corporate store-login warning (F8), and Schedule reading "Default: every
+      Monday at 8 AM Pacific time." Gary reported "All worked" for the preview
+      to himself, the preview as a manager, the "Test" row in Recent emails,
+      and Tommy as MANAGER unable to turn it on.
+      OBSERVED, PRODUCTION: _prisma_migrations on br-sparkling-block-a620qvg4
+      shows the same migration finished 2026-10-28 03:29:44 UTC (2026-10-27
+      20:29:44 PDT). Switch left Off for every org.
+      NOT OBSERVED: a real scheduled send (the switch was never turned on
+      anywhere); unticking a person in Edit User (fixture-only); any
+      production browser check.
       FILED AND BUILT 2026-10-27. Prompt: docs/prompts/NOTIFY-DOC-DIGEST.md;
       audit: docs/prompts/NOTIFY-DOC-DIGEST_AUDIT.md (forks F1–F17, each with a
       lean). Tier TIER 3 (schema, cron, a new email type, a new capability).

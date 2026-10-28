@@ -1759,6 +1759,19 @@ the work commit (`aa93e2b`).
 
 ## 2026-10-27 — `20261027230046_notify14_doc_digest` (NOTIFY-14)
 
+**APPLIED TO ALL THREE BRANCHES — rider added 2026-10-28 by PROMOTE-DOCS
+NOTIFY-14; the "APPLIED TO DEV ONLY" text below is kept as written and is now
+spent.**
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | 2026-10-27 23:02:52 UTC (16:02:52 PDT) | Gary, `npx prisma migrate deploy` from `froot/` |
+| staging `br-square-feather-a63z92vz` | 2026-10-28 00:07:14 UTC (2026-10-27 17:07:14 PDT) | Vercel build (`prisma migrate deploy`), staging deploy of Gary's push |
+| production `br-sparkling-block-a620qvg4` | 2026-10-28 03:29:44 UTC (2026-10-27 20:29:44 PDT) | Vercel build (`prisma migrate deploy`), production deploy of merge `cf717ca` |
+
+Staging and production readings are Gary's, from the Neon console. The switch
+is left Off for every org on production.
+
 **APPLIED TO DEV ONLY, by Gary.** His report, recorded exactly: *"Applied to
 dev. Please check the column yourself and continue."* The session then read
 dev itself (`neon.branch_id` = `br-broad-wave-a6vpjdw0`, reported by the server

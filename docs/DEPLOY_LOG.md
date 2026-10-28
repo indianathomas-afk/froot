@@ -2,7 +2,29 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-10-27 — NOTIFY-14: overdue & due-soon document digest for admins and managers
+## cf717ca — 2026-10-27 — NOTIFY-14: overdue & due-soon document digest for admins and managers
+
+**PROMOTED 2026-10-27 in merge `cf717ca`** (`cf717ca33af6c1d2d56825bb13f24015d0face71`,
+"Merge branch 'staging'", 2026-10-27 20:29:07 -0700 (Pacific) = 2026-10-28
+03:29:07 UTC), first parent `6cefd63` (prior tip of `main`), second parent
+`c624f01`. **3 commits** in `cf717ca^1..cf717ca^2` — `de21089`, `2406e4c`,
+`c624f01` — and **31 files**, read out of `git log` and `git diff --stat` at
+this stamp. Stamped post-merge by PROMOTE-DOCS NOTIFY-14 (2026-10-28), on
+`staging`; the heading previously read "UNPROMOTED — 2026-10-27 — NOTIFY-14:
+overdue & due-soon document digest for admins and managers". The "staging only"
+status and "NEITHER WAS PUSHED" lines below are spent, kept.
+
+**Migration on production:** `_prisma_migrations` on `br-sparkling-block-a620qvg4`
+shows `20261027230046_notify14_doc_digest` finished `2026-10-28 03:29:44 UTC`
+(2026-10-27 20:29:44 PDT), 37 s after the merge commit (Gary's reading, Neon
+console). Staging (`br-square-feather-a63z92vz`) finished `2026-10-28 00:07:14
+UTC` (2026-10-27 17:07:14 PDT). The switch is Off for every org on production.
+
+**Rollback after promotion:** `git revert -m 1 cf717ca` on `main` (the whole
+merge; recipe in `docs/WORKFLOW.md` § Rolling a promotion back). This reverts
+the code only. `Organization.docDigestEnabled` stays in place, which is
+harmless: it defaults to false and nothing reads it after a revert. No env var,
+no cron.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
