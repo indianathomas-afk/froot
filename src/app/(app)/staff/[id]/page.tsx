@@ -26,6 +26,7 @@ import { StaffEditActions } from "./staff-edit-actions"
 import { StaffTraining, type StaffTrainingAssignment } from "./staff-training"
 import { StaffCompliance } from "./staff-compliance"
 import { getStaffComplianceDetail, type StaffComplianceDetail } from "@/lib/hr-compliance"
+import { attachDocumentDue, documentDueKey, sortByDue } from "@/lib/hr-due-order"
 import { documentCompletion } from "@/lib/hr-completion"
 import { attemptBreakdown, breakdownMatchesScore } from "@/lib/training-quiz"
 import { StaffMilestones } from "./staff-milestones"
@@ -630,6 +631,11 @@ export default async function StaffDetailPage({
     complianceDetail = await getStaffComplianceDetail(member.organizationId, member.id)
   }
 
+  // DOC-13 (draft rulings 1 + 3): the Documents tab takes its due dates from
+  // the Compliance tab's items above — same gate, same call, copied by
+  // documentId — and sorts overdue first, then due soonest, then title order.
+  const documentRowsDue = sortByDue(attachDocumentDue(documentRows, complianceDetail), documentDueKey)
+
   // MS-1 Milestones tab (F1, Gary 2026-10-15). THE COMPLIANCE TAB'S TIER
   // EXACTLY — canSeeHrTabs, ADMIN or MANAGER — with MANAGER store scope already
   // enforced above by getStaffMember() (an out-of-scope manager gets a 404 for
@@ -1065,7 +1071,7 @@ export default async function StaffDetailPage({
                   five API handlers this session migrated. Rendered separately so
                   denying the uploads does not blank the HR half, and vice
                   versa. */}
-              {canSeeHrTabs && <StaffDocuments staffId={member.id} rows={documentRows} />}
+              {canSeeHrTabs && <StaffDocuments staffId={member.id} rows={documentRowsDue} />}
               {canSeeHrTabs && <StaffReturnItems items={returnItems} />}
               {canSeeHrTabs && formDocRows.length > 0 && (
                 <StaffFormDocuments staffId={member.id} rows={formDocRows} />

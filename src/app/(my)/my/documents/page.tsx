@@ -6,6 +6,9 @@ import { prisma } from "@/lib/prisma"
 import { getActiveStaffSelf } from "@/lib/auth"
 import { staffAudienceWhere } from "@/lib/hr-documents-access"
 import { HR_RECORD_MISSING_SIGNER_COPY } from "@/lib/hr-completion"
+import { getStaffComplianceDetail } from "@/lib/hr-compliance"
+import { documentDueLabel } from "@/lib/hr-due-wording"
+import { attachDocumentDue, documentDueKey, sortByDue, type DocumentDueFields } from "@/lib/hr-due-order"
 import { UNCATEGORIZED_LABEL, externalUrlHost } from "@/lib/hr-documents"
 import { DocumentInstructions } from "@/components/hr/document-instructions"
 import { Badge } from "@/components/ui/badge"
@@ -22,7 +25,16 @@ import { requiredDocumentRows, type MyDocumentRow } from "./data"
 // `recordMissing` is tested BEFORE the switch, because the state it names has a
 // status of "in-progress" and must not be rendered as an ordinary N/M progress
 // count — this signer has nothing left to do and cannot fix it themselves.
-function statusBadge(row: MyDocumentRow) {
+//
+// DOC-13 (draft ruling 2): past its due date, the badge is the red Overdue that
+// /my shows for the same item. recordMissing never has a due date (it is
+// excluded at the source, lib/hr-compliance.ts), so its arm is untouched.
+function statusBadge(row: MyDocumentRow & DocumentDueFields) {
+  if (documentDueKey(row).overdue) return <Badge variant="destructive">Overdue</Badge>
+  return statusBadgeBase(row)
+}
+
+function statusBadgeBase(row: MyDocumentRow) {
   if (row.recordMissing) return <Badge variant="warning">{HR_RECORD_MISSING_SIGNER_COPY}</Badge>
   switch (row.status) {
     case "signed":
@@ -44,8 +56,12 @@ export default async function MyDocumentsPage() {
   // the org's. Resolved once per render through the one shared chain.
   const zone = displayTimeZone(staffMember, org)
 
-  const [rows, signedRecords, referenceDocs, sharedDocs] = await Promise.all([
+  const [baseRows, complianceDetail, signedRecords, referenceDocs, sharedDocs] = await Promise.all([
     requiredDocumentRows(staffMember),
+    // DOC-13 (draft ruling 1): the due dates are the compliance items' own —
+    // the same call /my makes — copied onto these rows by documentId, never
+    // recomputed here.
+    getStaffComplianceDetail(org.id, staffMember.id),
     // STAFF-1 (F4): every executed record this person holds — all versions and
     // signing cycles (a rehire's records coexist) — viewable inline, never
     // downloadable from here.
@@ -106,7 +122,12 @@ export default async function MyDocumentsPage() {
   // to both sides — which is how a document with no signature reached Completed
   // AND cleared the TO SIGN list, so the signer was told they were finished and
   // would never be prompted again.
-  const pending = rows.filter((r) => r.status !== "signed")
+  const rows = attachDocumentDue(baseRows, complianceDetail)
+  // DOC-13 (draft ruling 3): overdue first, then due soonest, then title order.
+  const pending = sortByDue(
+    rows.filter((r) => r.status !== "signed"),
+    documentDueKey
+  )
   const done = rows.filter((r) => r.status === "signed")
 
   return (
@@ -134,7 +155,18 @@ export default async function MyDocumentsPage() {
               <FileText className="h-5 w-5 shrink-0 text-[var(--color-primary)]" />
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-[var(--color-foreground)] truncate">{row.title}</p>
-                <div className="mt-1">{statusBadge(row)}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  {statusBadge(row)}
+                  {/* DOC-13 (ruling 2): DOC-8 F7's words. No due date → nothing
+                      here, so the row is exactly what it was (ruling 4). */}
+                  {documentDueLabel(row) && (
+                    <span
+                      className={`text-xs ${documentDueKey(row).overdue ? "font-medium text-[var(--color-destructive)]" : "text-[var(--color-muted-foreground)]"}`}
+                    >
+                      {documentDueLabel(row)}
+                    </span>
+                  )}
+                </div>
               </div>
               <ChevronRight className="h-5 w-5 shrink-0 text-[var(--color-muted-foreground)]" />
             </Link>

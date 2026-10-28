@@ -8,6 +8,8 @@ import { Download, FileText, PenLine, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DocumentCategoryChip } from "@/components/hr/document-category"
 import { HR_RECORD_MISSING_ADMIN_COPY } from "@/lib/hr-completion"
+import { documentDueLabel } from "@/lib/hr-due-wording"
+import type { DocumentDueFields } from "@/lib/hr-due-order"
 
 // One row per required Acknowledgment document for this staff member, with
 // the version-pinned status: a signed record binds to the version it was
@@ -58,6 +60,12 @@ const STATUS_STYLES: Record<StaffDocumentRow["status"], string> = {
 // ticks. Amber puts it with "needs current version": something is outstanding.
 const RECORD_MISSING_STYLE = "bg-amber-100 text-amber-700 border border-amber-200"
 
+// DOC-13 (draft ruling 2): past its due date the badge reads "Overdue" in /my's
+// red. The dates are the Compliance tab's (page.tsx copies them on); this file
+// only reads them. recordMissing never carries one (lib/hr-compliance.ts).
+const OVERDUE_STYLE = "bg-red-100 text-red-700 border border-red-200"
+const isOverdue = (row: DocumentDueFields) => row.daysUntilDue !== null && row.daysUntilDue < 0
+
 // R2 (Gary, 2026-08-15): the suffix, and NO STYLE CHANGE WITH IT. STATUS_STYLES
 // is untouched on purpose — a signer bound to a superseded version is compliant
 // and reads green. Amber stays reserved for what genuinely owes a signature: a
@@ -84,7 +92,13 @@ function statusLabel(row: StaffDocumentRow): string {
   }
 }
 
-export function StaffDocuments({ staffId, rows }: { staffId: string; rows: StaffDocumentRow[] }) {
+export function StaffDocuments({
+  staffId,
+  rows,
+}: {
+  staffId: string
+  rows: (StaffDocumentRow & DocumentDueFields)[]
+}) {
   if (rows.length === 0) {
     return (
       <div className="border border-dashed border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-12 text-center">
@@ -123,17 +137,38 @@ export function StaffDocuments({ staffId, rows }: { staffId: string; rows: Staff
                 reads "Needs v6 · signed v5" and already names both numbers, so
                 leaving this line would print v6 and v5 twice each — the exact
                 duplication 6b2054f was cleaning up. */}
-            {!row.signedOnEarlierVersion && !row.reacknowledgmentRequired && (
-              <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
-                Current version v{row.currentVersionNumber}
-                {row.status === "needs-current" && row.signedVersionNumber != null && (
-                  <> · signed v{row.signedVersionNumber}</>
-                )}
-              </p>
-            )}
+            {/* DOC-13: the due wording joins this line, and keeps it showing on a
+                Case A row (whose version line is hidden above) — Case A is
+                exactly the re-sign that can carry a due date. No due date →
+                the line is what it was (ruling 4). */}
+            {(() => {
+              const showVersion = !row.signedOnEarlierVersion && !row.reacknowledgmentRequired
+              const due = documentDueLabel(row)
+              if (!showVersion && !due) return null
+              return (
+                <p className="text-xs text-[var(--color-muted-foreground)] mt-0.5">
+                  {showVersion && (
+                    <>
+                      Current version v{row.currentVersionNumber}
+                      {row.status === "needs-current" && row.signedVersionNumber != null && (
+                        <> · signed v{row.signedVersionNumber}</>
+                      )}
+                    </>
+                  )}
+                  {due && (
+                    <>
+                      {showVersion && " · "}
+                      <span className={isOverdue(row) ? "font-medium text-[var(--color-destructive)]" : undefined}>
+                        {due}
+                      </span>
+                    </>
+                  )}
+                </p>
+              )
+            })()}
           </div>
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium shrink-0 ${row.recordMissing ? RECORD_MISSING_STYLE : STATUS_STYLES[row.status]}`}>
-            {statusLabel(row)}
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium shrink-0 ${row.recordMissing ? RECORD_MISSING_STYLE : isOverdue(row) ? OVERDUE_STYLE : STATUS_STYLES[row.status]}`}>
+            {!row.recordMissing && isOverdue(row) ? "Overdue" : statusLabel(row)}
           </span>
           <div className="flex items-center gap-2 shrink-0">
             {row.signedRecordId && (

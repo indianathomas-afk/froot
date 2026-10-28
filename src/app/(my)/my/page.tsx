@@ -15,6 +15,7 @@ import { getActiveStaffSelf } from "@/lib/auth"
 import { getStaffComplianceDetail, openComplianceItems, type ComplianceItem } from "@/lib/hr-compliance"
 import { HR_RECORD_MISSING_SIGNER_COPY } from "@/lib/hr-completion"
 import { documentDueLabel } from "@/lib/hr-due-wording"
+import { openItemsInDueOrder } from "@/lib/hr-due-order"
 import { messageInclude, serializeMessage } from "@/lib/messages"
 import { MyShell } from "./my-shell"
 import { MyDenied } from "./denied"
@@ -79,9 +80,10 @@ export default async function MyPortalPage() {
   // openComplianceItems() in lib/hr-compliance.ts, so this page and the
   // /dashboard banner cannot hold two definitions of "owed". A MOVE, not a
   // copy — the behaviour here is unchanged.
-  const openItems = openComplianceItems(detail)
-  const statusRank: Record<string, number> = { overdue: 0, "needs-resign": 1, "in-progress": 2, "not-started": 3 }
-  openItems.sort((a, b) => (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9))
+  // DOC-13: the status rank that sorted here moved into openItemsInDueOrder,
+  // which adds the due order (overdue most-overdue first, then documents due
+  // soonest) shared with /my/documents and the /staff/[id] Documents tab.
+  const openItems = openItemsInDueOrder(openComplianceItems(detail), detail?.timeZone ?? zone)
 
   const messages = latestMessages.map((m) => serializeMessage(m, dbUser.id))
   const showInstagram = !!org.instagramEnabled && !!org.instagramAccessToken
