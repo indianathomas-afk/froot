@@ -2,7 +2,29 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-10-28 — DOC-7: annual re-sign, a document's signatures expire every N months
+## 849550d — 2026-10-28 — DOC-7: annual re-sign, a document's signatures expire every N months
+
+**PROMOTED 2026-10-29 in merge `849550d`** (`849550d1c010215d96640098b40c8842949150f7`,
+"Merge branch 'staging'", 2026-10-29 14:54:00 -0700 (Pacific) = 2026-10-29
+21:54:00 UTC), first parent `aeda979` (prior tip of `main`), second parent
+`a27133a`. **3 commits** in `849550d^1..849550d^2` — `60fee26`, `e419319`,
+`a27133a` — and **35 files**, read out of `git log` and `git diff --stat` at
+this stamp. Stamped post-merge by PROMOTE-DOCS DOC-7 (2026-10-29), on
+`staging`; the heading previously read "UNPROMOTED — 2026-10-28 — DOC-7: annual
+re-sign, a document's signatures expire every N months". The "staging only"
+status and "NEITHER WAS PUSHED" lines below are spent, kept.
+
+**Migration applied to production:** `_prisma_migrations` on production
+`br-sparkling-block-a620qvg4` shows `20261028202919_doc7_annual_resign`
+finished 2026-10-29 21:54:28 UTC (14:54:28 PDT), by `prisma migrate deploy` in
+the Vercel build (Gary, Neon console). Staging `br-square-feather-a63z92vz`:
+finished 2026-10-28 23:38:28 UTC (16:38:28 PDT).
+
+**Rollback after promotion:** `git revert -m 1 849550d` on `main` (the whole
+merge; recipe in `docs/WORKFLOW.md` § Rolling a promotion back), or revert the
+work commit `60fee26` as below. Code only: the new columns and the widened
+unique indexes stay (additive-only schema). The caveat below about renewal ≥ 1
+rows still applies.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
