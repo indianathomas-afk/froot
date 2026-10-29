@@ -7,6 +7,7 @@ import {
   SignedRecordError,
   UnconfirmedAnchorsError,
 } from "@/lib/hr-signed-pdf"
+import { loadRenewalView } from "@/lib/hr-resign"
 import { AUDIENCE_INCLUDE, grantedToStaff } from "@/lib/hr-documents-access"
 import { requireHrDocumentAccess } from "../../access"
 
@@ -102,7 +103,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   try {
-    const record = await ensureSignedRecord(version.id, staffMemberId)
+    // DOC-7: mint the signing the ceremony writes to — the owed renewal — so a
+    // re-sign whose mint failed gets its OWN record, not the expired one back.
+    const renewal = (await loadRenewalView(doc.id, staffMemberId))?.owedRenewal ?? 0
+    const record = await ensureSignedRecord(version.id, staffMemberId, renewal)
     return NextResponse.json({ id: record.id }, { status: 201 })
   } catch (err) {
     // HR-11d 2b/2c: this route can be called BY THE SIGNER for themselves, so

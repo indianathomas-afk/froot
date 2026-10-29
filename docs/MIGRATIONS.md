@@ -1799,3 +1799,54 @@ argument). **No backfill, nothing altered or dropped.**
 **Fixture:** `scripts/verify-notify14-doc-digest.ts`, 54/54 on dev
 (`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
 the work commit (`de21089`).
+
+## 2026-10-28 — `20261028202919_doc7_annual_resign` (DOC-7)
+
+**APPLIED TO DEV ONLY, by Gary.** His report, recorded exactly: *"The migration
+is applied to dev, and it should check the columns itself."* The session then
+read dev itself (`neon.branch_id` = `br-broad-wave-a6vpjdw0`, reported by the
+server in the same query): `HrDocument.reSignEveryMonths` `integer` nullable,
+`HrDocument.reSignEveryMonthsSetAt` `timestamp without time zone` nullable,
+`HrDocumentAcknowledgment.renewal` and `HrSignedRecord.renewal` `integer`
+`NOT NULL` default `0`; both unique indexes now end in `renewal`; and
+`_prisma_migrations` holds `20261028202919_doc7_annual_resign`, finished
+`2026-10-28 20:55:39 UTC` (`13:55:39 PDT`). Staging and production get it
+through `prisma migrate deploy` in the Vercel build, on Gary's push.
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | 2026-10-28 20:55:39 UTC (13:55:39 PDT) | Gary |
+| staging `br-square-feather-a63z92vz` | not yet | Vercel build, on Gary's push |
+| production `br-sparkling-block-a620qvg4` | not yet | Vercel build, at promotion |
+
+Timestamp note: the folder name is the UTC instant of generation.
+
+Prisma commands for this migration: `format`, `validate`, `migrate diff` (once,
+writing this file), and `generate` (once by hand before the dev read, and again
+inside `npm run build`). Gary applied it. The dev read went through the app's
+Prisma client in a one-off `npx tsx` script, deleted afterwards.
+
+| Statement | Kind |
+|---|---|
+| `DROP INDEX "HrDocumentAcknowledgment_checkpointId_hrDocumentVersionId_s_key"` | index replaced (recreated below, one column wider) |
+| `DROP INDEX "HrSignedRecord_hrDocumentVersionId_staffMemberId_signingCyc_key"` | index replaced (recreated below, one column wider) |
+| `ALTER TABLE "HrDocument" ADD COLUMN "reSignEveryMonths" INTEGER, ADD COLUMN "reSignEveryMonthsSetAt" TIMESTAMP(3)` | additive, nullable |
+| `ALTER TABLE "HrDocumentAcknowledgment" ADD COLUMN "renewal" INTEGER NOT NULL DEFAULT 0` | additive, defaulted |
+| `ALTER TABLE "HrSignedRecord" ADD COLUMN "renewal" INTEGER NOT NULL DEFAULT 0` | additive, defaulted |
+| `CREATE UNIQUE INDEX "HrDocumentAcknowledgment_…_s_key" (checkpointId, hrDocumentVersionId, staffMemberId, signingCycle, renewal)` | index recreated |
+| `CREATE UNIQUE INDEX "HrSignedRecord_…_signingCyc_key" (hrDocumentVersionId, staffMemberId, signingCycle, renewal)` | index recreated |
+
+**THE TWO INDEX SWAPS ARE HR-15b's SHAPE EXACTLY** (`20260723180000_hr15b_signing_cycles`
+dropped and recreated the same two indexes to add `signingCycle`). Gary's F1
+ruling (DECISIONS.md 2026-10-28, DOC-7) chose `NOT NULL DEFAULT 0` over the
+prompt's "nullable only": a nullable column in a unique key lets duplicate
+first signings past `skipDuplicates`, because NULLs are distinct. Every
+existing row lands on `renewal = 0`, so the widened keys enforce exactly what
+the old ones did on existing data. **No column dropped, no row altered, no
+backfill.** Every existing document lands on "never expires". Both index names
+are Prisma's own, so the schema still describes them and no protected-index
+entry is needed.
+
+**Fixture:** `scripts/verify-doc7-annual-resign.ts`, 78/78 on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
+the work commit (`60fee26`).

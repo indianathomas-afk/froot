@@ -1,5 +1,5 @@
 import { formatInstant } from "@/lib/display-time"
-import { documentDueLabel } from "@/lib/hr-due-wording"
+import { documentDueLabel, reSignNoticeLabel } from "@/lib/hr-due-wording"
 import { Gauge, FileText, GraduationCap } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import type {
@@ -54,7 +54,9 @@ function StatusBadge({
 // the line is exactly what it was before DOC-8.
 function docDetail(item: ComplianceDocItem, timeZone: string): string {
   const base = docDetailBase(item, timeZone)
-  const due = documentDueLabel(item)
+  // DOC-7 ruling 3: a complete item inside its re-sign window carries the
+  // notice instead (the two never coexist — dueDate is null when complete).
+  const due = documentDueLabel(item) ?? reSignNoticeLabel(item)
   return due ? `${base} · ${due}` : base
 }
 

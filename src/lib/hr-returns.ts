@@ -37,7 +37,8 @@ export type ReturnEventType = "Returned" | "Reissued"
 //
 // - `signatures` is the completedAt of EVERY signed record the person has on the
 //   document — any version, any cycle (F4). None ⇒ never issued ⇒ not holding,
-//   whatever events exist.
+//   whatever events exist. DOC-7 F5: every FIRST signing — renewal 0. An annual
+//   re-sign is not an issue; loadReturnItems never passes one.
 // - Events order by `createdAt` (when recorded), NEVER by `occurredOn`, which
 //   is the date the manager typed and may be backdated.
 // - A signature AFTER a Returned re-issues on its own (R1): the rehire who
@@ -166,8 +167,14 @@ export async function loadReturnItems(
     ...(opts.storeIds ? { storeAssignments: { some: { storeId: { in: opts.storeIds } } } } : {}),
   }
 
+  // DOC-7 F5 (Gary, 2026-10-28): ONLY A FIRST SIGNING ISSUES. An annual re-sign
+  // (renewal >= 1) re-confirms the agreement; it does not hand over a key, so
+  // it can neither re-issue after a Returned nor become the register's "latest
+  // issue". Filtered at the query, so no consumer below can see one. Real
+  // re-issues are untouched: a rehire's new cycle and a Case A version both
+  // sign as renewal 0 (DOC-6 R1 unchanged).
   const records = await prisma.hrSignedRecord.findMany({
-    where: { version: { hrDocumentId: { in: docIds } }, staffMember: staffWhere },
+    where: { version: { hrDocumentId: { in: docIds } }, staffMember: staffWhere, renewal: 0 },
     select: {
       staffMemberId: true,
       completedAt: true,
@@ -222,6 +229,7 @@ export async function loadReturnItems(
         hrDocumentVersionId: r.hrDocumentVersionId,
         staffMemberId: r.staffMemberId,
         signingCycle: r.signingCycle,
+        renewal: 0,
       })),
     },
     select: {

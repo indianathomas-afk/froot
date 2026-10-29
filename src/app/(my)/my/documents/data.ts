@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma"
 import { staffAudienceWhere } from "@/lib/hr-documents-access"
 import { documentCompletion } from "@/lib/hr-completion"
+import { memberDisplayZone, newestRenewal, renewalView } from "@/lib/hr-resign"
+import { localDateStr } from "@/lib/reports"
 
 // Required-acknowledgment status rows for ONE staff member — the /my twin of
 // the /staff/[id] Documents-tab query, version-pinned the same way: a signed
@@ -86,7 +88,7 @@ export async function requiredDocumentRows(staffMember: {
           },
           acknowledgments: {
             where: { staffMemberId: staffMember.id },
-            select: { checkpointId: true, signingCycle: true },
+            select: { checkpointId: true, signingCycle: true, renewal: true },
           },
         },
       },
@@ -94,19 +96,40 @@ export async function requiredDocumentRows(staffMember: {
     orderBy: { title: "asc" },
   })
 
+  // DOC-7: the engine's zone and today, so the anniversary is the same day here.
+  const timeZone = await memberDisplayZone(staffMember.id)
+  const today = localDateStr(new Date(), timeZone)
+
   return docs.flatMap((d) => {
     const current = d.versions.find((v) => v.isCurrent)
     if (!current) return []
+    const cycle = staffMember.signingCycle
+    // ── DOC-7 (Gary, 2026-10-28): which signing of this cycle counts ─────────
+    // lib/hr-resign.ts, the rule every surface reads. No setting → the newest
+    // renewal (0 for every pre-DOC-7 row) → exactly the lookups below as they
+    // were. Every pick is by renewal and completedAt, never by row order.
+    const renewal = renewalView({
+      records: d.versions.flatMap((v) =>
+        v.signedRecords.filter((r) => r.signingCycle === cycle).map((r) => ({ ...r, versionId: v.id }))
+      ),
+      everyMonths: d.reSignEveryMonths,
+      setAt: d.reSignEveryMonthsSetAt,
+      timeZone,
+      today,
+    })
+    const countedOn = (v: (typeof d.versions)[number]) =>
+      newestRenewal(v.signedRecords.filter((r) => r.signingCycle === cycle && r.renewal === renewal.countedRenewal))
     // HR-15 Policy B: only signatures from this tenure (signing cycle) count.
     // A rehire's prior-cycle signature on the current version reads
     // needs-current — they re-read and re-sign the document.
-    const currentRecord = current.signedRecords.find(
-      (r) => r.signingCycle === staffMember.signingCycle
-    )
-    const priorCycleRecord = currentRecord ? undefined : current.signedRecords[0]
+    const currentRecord = countedOn(current) ?? undefined
+    // DOC-7: asked of OTHER cycles explicitly. It was `signedRecords[0]` when no
+    // current-cycle record existed, which could only be another cycle's until a
+    // this-cycle record could expire; an expired one must read renewalDue.
+    const priorCycleRecord = currentRecord ? undefined : current.signedRecords.find((r) => r.signingCycle !== cycle)
     const ackedIds = new Set(
       current.acknowledgments
-        .filter((a) => a.signingCycle === staffMember.signingCycle)
+        .filter((a) => a.signingCycle === cycle && a.renewal === renewal.countedRenewal)
         .map((a) => a.checkpointId)
     )
     const requiredCount = d.checkpoints.length
@@ -116,10 +139,7 @@ export async function requiredDocumentRows(staffMember: {
     // version this tenure" (R2 — signed, not prompted) with "signed it in a
     // previous tenure" (a rehire — needs-current). Versions are ordered
     // versionNumber DESC above, so each find returns the highest match.
-    const priorSignedThisCycle = d.versions.find(
-      (v) =>
-        !v.isCurrent && v.signedRecords.some((r) => r.signingCycle === staffMember.signingCycle)
-    )
+    const priorSignedThisCycle = d.versions.find((v) => !v.isCurrent && countedOn(v) !== null)
     const priorSignedPriorCycle = d.versions.find(
       (v) =>
         !v.isCurrent && v.signedRecords.some((r) => r.signingCycle !== staffMember.signingCycle)
@@ -139,6 +159,7 @@ export async function requiredDocumentRows(staffMember: {
       requiredCount,
       ackedCount: ackedIds.size,
       allRequiredAcked: allAcked,
+      hasExpiredRecord: renewal.expired,
     })
 
     return [
@@ -158,17 +179,16 @@ export async function requiredDocumentRows(staffMember: {
             ? current.versionNumber
             : (priorSignedThisCycle?.versionNumber ??
               priorSignedPriorCycle?.versionNumber ??
-              null),
+              // DOC-7: an expired signer's version is the expired record's.
+              (renewal.expired && renewal.governing
+                ? (d.versions.find((v) => v.id === renewal.governing!.versionId)?.versionNumber ?? null)
+                : null)),
         signedOnEarlierVersion: completion.signedOnEarlierVersion,
         // Ruled 2026-08-16: the date comes from the record they actually signed
         // — the same record the version number above resolves from.
         completedAt:
-          (
-            currentRecord ??
-            priorSignedThisCycle?.signedRecords.find(
-              (r) => r.signingCycle === staffMember.signingCycle
-            )
-          )?.completedAt.toISOString() ?? null,
+          (currentRecord ?? (priorSignedThisCycle ? countedOn(priorSignedThisCycle) : null))?.completedAt.toISOString() ??
+          null,
         ackedCount: ackedIds.size,
         requiredCount,
         recordMissing: completion.recordMissing,

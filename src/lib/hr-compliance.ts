@@ -48,6 +48,7 @@ import { documentCompletion } from "@/lib/hr-completion"
 import { UNCATEGORIZED_LABEL, hrAudienceLabel } from "@/lib/hr-documents"
 import { DEFAULT_TIME_ZONE, displayTimeZone } from "@/lib/hr"
 import { addDays, daysBetween } from "@/lib/milestones"
+import { newestRenewal, renewalView } from "@/lib/hr-resign"
 import { localDateStr } from "@/lib/reports"
 import { zonedInstant } from "@/lib/checklist-lifecycle"
 
@@ -107,6 +108,18 @@ export type ComplianceDocItem = {
   dueDate: string | null
   /** DOC-8: whole member-local days from today to dueDate; negative once past. Null with dueDate. */
   daysUntilDue: number | null
+  /**
+   * DOC-7 ruling 3 (Gary, 2026-10-28). The member-local anniversary of a STILL
+   * VALID signature, set only when status is "complete" and the anniversary is
+   * 0–30 days away. Deliberately NOT dueDate: the item is complete and owes
+   * nothing yet. Null everywhere else, including every document without
+   * "re-sign every".
+   */
+  reSignDueDate: string | null
+  /** DOC-7: whole member-local days to reSignDueDate (0 = today). Null with it. */
+  reSignDaysUntilDue: number | null
+  /** DOC-7: needs-resign/overdue because the signature EXPIRED (not a rehire or Case A). */
+  renewalDue: boolean
 }
 
 export type ComplianceTrainingItem = {
@@ -391,7 +404,13 @@ export async function computeStaffComplianceDetails(
     allVersionIds.length
       ? prisma.hrSignedRecord.findMany({
           where: { hrDocumentVersionId: { in: allVersionIds }, staffMemberId: { in: allStaffIds } },
-          select: { hrDocumentVersionId: true, staffMemberId: true, completedAt: true, signingCycle: true },
+          select: {
+            hrDocumentVersionId: true,
+            staffMemberId: true,
+            completedAt: true,
+            signingCycle: true,
+            renewal: true,
+          },
         })
       : [],
     currentVersionIds.length
@@ -400,28 +419,53 @@ export async function computeStaffComplianceDetails(
             hrDocumentVersionId: { in: currentVersionIds },
             staffMemberId: { in: allStaffIds },
           },
-          select: { hrDocumentVersionId: true, staffMemberId: true, checkpointId: true, signingCycle: true },
+          select: {
+            hrDocumentVersionId: true,
+            staffMemberId: true,
+            checkpointId: true,
+            signingCycle: true,
+            renewal: true,
+          },
         })
       : [],
   ])
 
   // HR-15 Policy B: signatures count only under the member's current signing
-  // cycle — keyed (versionId:staffId:cycle). A record from ANY cycle still
-  // marks "was signed before" (versionId:staffId) so a rehire shows
-  // needs-resign rather than not-started.
-  const recordByVersionStaffCycle = new Map<string, { completedAt: Date }>()
-  const recordAnyCycle = new Map<string, { completedAt: Date }>()
+  // cycle. A record from ANY cycle still marks "was signed before" so a rehire
+  // shows needs-resign rather than not-started.
+  //
+  // ── DOC-7 (Gary, 2026-10-28). ONE SIGNING = ONE (cycle, renewal). ──────────
+  // A re-sign adds a second record for the same (version, member, cycle) under
+  // the next renewal. These used to be last-write-wins maps over an unordered
+  // findMany, which was safe only while the unique key made duplicates
+  // impossible. Now every record of a (document, member, cycle) is KEPT, and
+  // renewalView() (lib/hr-resign.ts) picks the newest renewal by comparison —
+  // never by row order (Gary's ordering ruling, same day).
+  const docIdByVersion = new Map<string, string>()
+  for (const d of docs) for (const v of d.versions) docIdByVersion.set(v.id, d.id)
+  type CycleRecord = { versionId: string; completedAt: Date; renewal: number }
+  const recordsByDocStaffCycle = new Map<string, CycleRecord[]>()
+  const cyclesByVersionStaff = new Map<string, Set<number>>()
   for (const r of signedRecords) {
-    recordByVersionStaffCycle.set(`${r.hrDocumentVersionId}:${r.staffMemberId}:${r.signingCycle}`, {
+    const docId = docIdByVersion.get(r.hrDocumentVersionId)!
+    const key = `${docId}:${r.staffMemberId}:${r.signingCycle}`
+    if (!recordsByDocStaffCycle.has(key)) recordsByDocStaffCycle.set(key, [])
+    recordsByDocStaffCycle.get(key)!.push({
+      versionId: r.hrDocumentVersionId,
       completedAt: r.completedAt,
+      renewal: r.renewal,
     })
-    recordAnyCycle.set(`${r.hrDocumentVersionId}:${r.staffMemberId}`, { completedAt: r.completedAt })
+    const vKey = `${r.hrDocumentVersionId}:${r.staffMemberId}`
+    if (!cyclesByVersionStaff.has(vKey)) cyclesByVersionStaff.set(vKey, new Set())
+    cyclesByVersionStaff.get(vKey)!.add(r.signingCycle)
   }
-  const ackedByVersionStaffCycle = new Map<string, Set<string>>()
+  // Acks keyed by the ONE signing they belong to — a re-sign's checkpoints must
+  // never be satisfied by the previous signing's rows.
+  const ackedBySigning = new Map<string, Set<string>>()
   for (const a of acks) {
-    const key = `${a.hrDocumentVersionId}:${a.staffMemberId}:${a.signingCycle}`
-    if (!ackedByVersionStaffCycle.has(key)) ackedByVersionStaffCycle.set(key, new Set())
-    ackedByVersionStaffCycle.get(key)!.add(a.checkpointId)
+    const key = `${a.hrDocumentVersionId}:${a.staffMemberId}:${a.signingCycle}:${a.renewal}`
+    if (!ackedBySigning.has(key)) ackedBySigning.set(key, new Set())
+    ackedBySigning.get(key)!.add(a.checkpointId)
   }
 
   const assignmentsByStaff = new Map<string, typeof assignments>()
@@ -508,8 +552,24 @@ export async function computeStaffComplianceDetails(
       if (!current) return []
 
       const cycle = member.signingCycle
-      const currentRecord = recordByVersionStaffCycle.get(`${current.id}:${member.id}:${cycle}`)
-      const ackedIds = ackedByVersionStaffCycle.get(`${current.id}:${member.id}:${cycle}`) ?? new Set()
+      // DOC-7: which signing counts now. No setting → the newest renewal, which
+      // is 0 for every pre-DOC-7 row — today's behaviour exactly.
+      const thisCycle = recordsByDocStaffCycle.get(`${d.id}:${member.id}:${cycle}`) ?? []
+      const renewal = renewalView({
+        records: thisCycle,
+        everyMonths: d.reSignEveryMonths,
+        setAt: d.reSignEveryMonthsSetAt,
+        timeZone,
+        today,
+      })
+      const counted = thisCycle.filter((r) => r.renewal === renewal.countedRenewal)
+      const countedOn = (versionId: string) => newestRenewal(counted.filter((r) => r.versionId === versionId))
+      const signedInOtherCycle = (versionId: string) =>
+        [...(cyclesByVersionStaff.get(`${versionId}:${member.id}`) ?? [])].some((c) => c !== cycle)
+
+      const currentRecord = countedOn(current.id) ?? undefined
+      const ackedIds =
+        ackedBySigning.get(`${current.id}:${member.id}:${cycle}:${renewal.countedRenewal}`) ?? new Set()
       const requiredCount = d.checkpoints.length
       const allAcked = requiredCount > 0 && d.checkpoints.every((c) => ackedIds.has(c.id))
       // ── R2 (HR-11k Phase A, Gary 2026-08-15) ──────────────────────────────
@@ -520,32 +580,29 @@ export async function computeStaffComplianceDetails(
       // versionNumber DESC (:259), so both finds return the HIGHEST matching
       // version — for R2 that is this signer's master document.
       //
-      // recordByVersionStaffCycle is built over allVersionIds, not just the
-      // current one (:280, :308), so the cycle-keyed answer needs no new query.
-      const priorSignedThisCycle = d.versions.find(
-        (v) => !v.isCurrent && recordByVersionStaffCycle.has(`${v.id}:${member.id}:${cycle}`)
-      )
+      // The records are built over allVersionIds, not just the current one, so
+      // the cycle-keyed answer needs no new query. DOC-7: "this cycle" means the
+      // COUNTED signing of this cycle.
+      const priorSignedThisCycle = d.versions.find((v) => !v.isCurrent && countedOn(v.id) !== null)
       // Rehire on an older version: a record exists but not under this tenure.
       // Asked per version so a version carrying BOTH a this-cycle and an
       // earlier-cycle record is not miscounted as a rehire — it is R2's case,
-      // and the predicate's arm order settles it either way.
+      // and the predicate's arm order settles it either way. DOC-7: any renewal
+      // of this cycle on the version rules out "rehire".
       const priorSignedPriorCycle = d.versions.find(
-        (v) =>
-          !v.isCurrent &&
-          recordAnyCycle.has(`${v.id}:${member.id}`) &&
-          !recordByVersionStaffCycle.has(`${v.id}:${member.id}:${cycle}`)
+        (v) => !v.isCurrent && signedInOtherCycle(v.id) && !thisCycle.some((r) => r.versionId === v.id)
       )
       // R2 ruling 2026-08-16: the DATE comes from the record they actually
-      // signed, never the current version's. Same map, same key as the version
-      // number above — so the number and the date describe ONE record and
-      // cannot name two.
-      const priorRecordThisCycle = priorSignedThisCycle
-        ? recordByVersionStaffCycle.get(`${priorSignedThisCycle.id}:${member.id}:${cycle}`)
-        : undefined
+      // signed, never the current version's. Same lookup as the version number
+      // above — so the number and the date describe ONE record.
+      const priorRecordThisCycle = priorSignedThisCycle ? (countedOn(priorSignedThisCycle.id) ?? undefined) : undefined
       // Rehire: a current-version record from an earlier tenure doesn't
       // satisfy this cycle — needs-resign, same loudness as a version bump.
-      const priorCycleRecord =
-        !currentRecord && recordAnyCycle.has(`${current.id}:${member.id}`)
+      // DOC-7: asked of OTHER cycles explicitly. It used to be "any record on
+      // the current version", which equalled this only while a this-cycle
+      // record was always the current one; an EXPIRED this-cycle record must
+      // read renewalDue, not rehire.
+      const priorCycleRecord = !currentRecord && signedInOtherCycle(current.id)
 
       // ── R1: ASKED, NOT RESTATED (Gary, 2026-08-15) ────────────────────────
       // The same move DOC-1 C made for the audience rule at the grantedToStaff
@@ -565,6 +622,7 @@ export async function computeStaffComplianceDetails(
         requiredCount,
         ackedCount: ackedIds.size,
         allRequiredAcked: allAcked,
+        hasExpiredRecord: renewal.expired,
       })
 
       const baseStatus: ComplianceItemStatus =
@@ -583,19 +641,37 @@ export async function computeStaffComplianceDetails(
       // at each surface: that signer has nothing left to do, so they carry no
       // deadline at all — not just no red. A surface cannot print "Was due" for
       // a date it was never handed.
+      //
+      // DOC-7: an EXPIRED signature is due on its anniversary — "sign within"
+      // plays no part (audit § 2). F7: if the current version is also a Case A
+      // re-sign for this signer, the earlier of the two dates.
+      const docClock = (caseAFor: boolean) =>
+        documentDueState({
+          signWithinDays: d.signWithinDays,
+          signWithinDaysSetAt: d.signWithinDaysSetAt,
+          timeZone,
+          today,
+          member,
+          appliesAt: reachingSince(d, audienceSubject),
+          caseAVersionCreatedAt: current.requiresReacknowledgment && caseAFor ? current.createdAt : null,
+        })
+      const anniversaryDue = (anniversary: string): DocumentDueState => {
+        const daysUntilDue = daysBetween(today, anniversary)
+        return { dueDate: anniversary, daysUntilDue, overdue: daysUntilDue < 0 }
+      }
+      const expiredCaseA =
+        renewal.expired &&
+        current.requiresReacknowledgment &&
+        !!renewal.governing &&
+        renewal.governing.versionId !== current.id
       const due =
         baseStatus === "complete" || completion.recordMissing
           ? null
-          : documentDueState({
-              signWithinDays: d.signWithinDays,
-              signWithinDaysSetAt: d.signWithinDaysSetAt,
-              timeZone,
-              today,
-              member,
-              appliesAt: reachingSince(d, audienceSubject),
-              caseAVersionCreatedAt:
-                current.requiresReacknowledgment && priorSignedThisCycle ? current.createdAt : null,
-            })
+          : renewal.expired && renewal.anniversary
+            ? [anniversaryDue(renewal.anniversary), expiredCaseA ? docClock(true) : null]
+                .filter((x): x is DocumentDueState => x !== null)
+                .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0]
+            : docClock(!!priorSignedThisCycle)
       // F4: past due → "overdue", over not-started, in-progress AND
       // needs-resign (a rehire's late re-sign is red, ruling 6) — the training
       // precedent at the trainingItems map below. EXCEPT recordMissing (R1:
@@ -631,13 +707,18 @@ export async function computeStaffComplianceDetails(
           // version, this cycle's on an older version (R2), or a prior cycle's
           // on an older version. There is no branch that reports a version
           // nobody signed, which is exactly the branch R1 deleted.
+          //
+          // DOC-7: an expired signer's version comes from the expired record
+          // itself (the governing one) — still a record that exists.
           signedVersionNumber: currentRecord
             ? current.versionNumber
             : priorCycleRecord
               ? current.versionNumber
               : (priorSignedThisCycle?.versionNumber ??
                 priorSignedPriorCycle?.versionNumber ??
-                null),
+                (renewal.expired && renewal.governing
+                  ? (d.versions.find((v) => v.id === renewal.governing!.versionId)?.versionNumber ?? null)
+                  : null)),
           // Ruled 2026-08-16. Was `currentRecord?.completedAt ?? null`, which
           // left an R2 signer's badge reading "Signed v5 · current is v6" with
           // no date where it used to carry one. Only the R2 branch is added:
@@ -648,6 +729,12 @@ export async function computeStaffComplianceDetails(
             (currentRecord ?? priorRecordThisCycle)?.completedAt.toISOString() ?? null,
           dueDate: due?.dueDate ?? null,
           daysUntilDue: due?.daysUntilDue ?? null,
+          // DOC-7 ruling 3: informational, on a COMPLETE item only, inside the
+          // 30-day window. Never in dueDate, so no total, banner, digest or
+          // sort that reads dueDate/status moves.
+          reSignDueDate: status === "complete" && renewal.inWindow ? renewal.anniversary : null,
+          reSignDaysUntilDue: status === "complete" && renewal.inWindow ? renewal.daysToAnniversary : null,
+          renewalDue: completion.renewalDue,
         },
       ]
     })
@@ -1207,6 +1294,9 @@ export type DocumentCompliancePerson = {
   /** DOC-8: carried from the item, never recomputed by the pivot. */
   dueDate: string | null
   daysUntilDue: number | null
+  /** DOC-7: carried from the item, as dueDate is. */
+  reSignDueDate: string | null
+  reSignDaysUntilDue: number | null
 }
 
 export type DocumentComplianceRow = {
@@ -1279,6 +1369,8 @@ export function pivotComplianceByDocument(
         recordMissing: item.recordMissing,
         dueDate: item.dueDate,
         daysUntilDue: item.daysUntilDue,
+        reSignDueDate: item.reSignDueDate,
+        reSignDaysUntilDue: item.reSignDaysUntilDue,
       })
     }
   }

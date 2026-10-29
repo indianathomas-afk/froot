@@ -313,7 +313,14 @@ class CertificateWriter {
 // current-cycle record when one is already on file — records are append-only
 // and never regenerated. Throws SignedRecordError when required checkpoints
 // are incomplete.
-export async function ensureSignedRecord(hrDocumentVersionId: string, staffMemberId: string) {
+//
+// DOC-7 (Gary, 2026-10-28): `renewal` names WHICH signing of this cycle to
+// mint — the caller's renewalView().owedRenewal (lib/hr-resign.ts), never a
+// client value. It is required, not defaulted, so no caller can mint a re-sign
+// under renewal 0 by forgetting it. Every lookup below is keyed by it: one
+// (version, staff, cycle, renewal) is exactly one signing, so the early return,
+// the ack load and the race catch can never pick another signing's rows.
+export async function ensureSignedRecord(hrDocumentVersionId: string, staffMemberId: string, renewal: number) {
   const staff = await prisma.staffMember.findUnique({
     where: { id: staffMemberId },
     select: {
@@ -336,7 +343,12 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
 
   const existing = await prisma.hrSignedRecord.findUnique({
     where: {
-      hrDocumentVersionId_staffMemberId_signingCycle: { hrDocumentVersionId, staffMemberId, signingCycle },
+      hrDocumentVersionId_staffMemberId_signingCycle_renewal: {
+        hrDocumentVersionId,
+        staffMemberId,
+        signingCycle,
+        renewal,
+      },
     },
   })
   if (existing) return existing
@@ -374,8 +386,11 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
     doc.checkpoints.filter((c) => c.retiredAt != null).map((c) => c.id)
   )
 
+  // DOC-7: this signing's rows only (one per checkpoint by the unique key), in
+  // a stated order — the Map below must never depend on row order.
   const acks = await prisma.hrDocumentAcknowledgment.findMany({
-    where: { hrDocumentVersionId, staffMemberId, signingCycle },
+    where: { hrDocumentVersionId, staffMemberId, signingCycle, renewal },
+    orderBy: [{ signedAt: "asc" }, { id: "asc" }],
   })
   const ackByCheckpoint = new Map(
     acks.filter((a) => !retiredCheckpointIds.has(a.checkpointId)).map((a) => [a.checkpointId, a])
@@ -506,7 +521,9 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
     }
     // Stable, record-independent reference shown on the signature stamp.
     const recordRef = createHash("sha256")
-      .update(`${hrDocumentVersionId}:${staffMemberId}:${signingCycle}`)
+      // DOC-7: a re-sign gets its own reference; renewal 0 hashes exactly as
+      // before, so a first signing's reference is unchanged.
+      .update(`${hrDocumentVersionId}:${staffMemberId}:${signingCycle}${renewal > 0 ? `:${renewal}` : ""}`)
       .digest("hex")
       .slice(0, 12)
       .toUpperCase()
@@ -772,6 +789,7 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
         hrDocumentVersionId,
         staffMemberId,
         signingCycle,
+        renewal,
         completedAt,
         signedPdfPathname: uploaded.pathname,
         signedPdfHash,
@@ -803,11 +821,16 @@ export async function ensureSignedRecord(hrDocumentVersionId: string, staffMembe
     scheduleAckNotification(created.id)
     return created
   } catch (err) {
-    // Concurrent completion: the unique (version, staff, cycle) key means
-    // someone else just created it — theirs is the record.
+    // Concurrent completion: the unique (version, staff, cycle, renewal) key
+    // means someone else just created it — theirs is the record.
     const race = await prisma.hrSignedRecord.findUnique({
       where: {
-        hrDocumentVersionId_staffMemberId_signingCycle: { hrDocumentVersionId, staffMemberId, signingCycle },
+        hrDocumentVersionId_staffMemberId_signingCycle_renewal: {
+          hrDocumentVersionId,
+          staffMemberId,
+          signingCycle,
+          renewal,
+        },
       },
     })
     if (race) return race

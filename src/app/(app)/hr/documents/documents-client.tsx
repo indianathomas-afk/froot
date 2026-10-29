@@ -34,6 +34,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { RE_SIGN_CHOICES } from "@/lib/hr-resign-choices"
 import {
   EXTERNAL_URL_ERROR,
   HR_KIND_LABELS,
@@ -95,6 +96,8 @@ export interface HrDocumentRow {
   returnItemLabel: string | null
   // DOC-8: "sign within N days"; null = no due date. Acknowledgment only (F8).
   signWithinDays: number | null
+  // DOC-7: "re-sign every N months" (6 | 12 | 24); null = never expires.
+  reSignEveryMonths: number | null
 }
 
 function formatSize(bytes: number): string {
@@ -842,6 +845,8 @@ function EditDocumentButton({
   // due date. Held as the input's string so a half-typed value is not coerced.
   const canHaveDueDate = doc.kind === "Acknowledgment"
   const [signWithin, setSignWithin] = useState(doc.signWithinDays?.toString() ?? "")
+  // DOC-7 (ruling 1): same Acknowledgment-only gate. "never" = null.
+  const [reSignEvery, setReSignEvery] = useState(doc.reSignEveryMonths?.toString() ?? "never")
   const router = useRouter()
   const isLink = doc.kind === "Link"
 
@@ -852,6 +857,7 @@ function EditDocumentButton({
       return
     }
     const signWithinDays = signWithin.trim() === "" ? null : Number(signWithin)
+    const reSignEveryMonths = reSignEvery === "never" ? null : Number(reSignEvery)
     if (canHaveDueDate && signWithinDays !== null && !(Number.isInteger(signWithinDays) && signWithinDays >= 1 && signWithinDays <= 365)) {
       setError("Sign within must be a whole number of days from 1 to 365, or blank for no due date")
       return
@@ -878,6 +884,9 @@ function EditDocumentButton({
           // stamp on a value → value change anyway (F5); not sending an
           // unchanged value keeps that from being this dialog's concern.
           ...(canHaveDueDate && signWithinDays !== doc.signWithinDays ? { signWithinDays } : {}),
+          // DOC-7: likewise sent only when it changed (F6's stamp rules live in
+          // the route).
+          ...(canHaveDueDate && reSignEveryMonths !== doc.reSignEveryMonths ? { reSignEveryMonths } : {}),
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -962,6 +971,31 @@ function EditDocumentButton({
                   document was assigned to them, or today if you&apos;re setting it for the first time.
                   Someone moved into a store keeps their hire date, so they may show overdue straight
                   away. Blank means no due date.
+                </p>
+              </div>
+            )}
+            {canHaveDueDate && (
+              <div className="space-y-1.5">
+                <Label>Re-sign every</Label>
+                <Select value={reSignEvery} onValueChange={setReSignEvery}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="never">Never</SelectItem>
+                    {RE_SIGN_CHOICES.map((m) => (
+                      <SelectItem key={m} value={String(m)}>
+                        {m} months
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {/* DOC-7 rulings 2, 3, 5 and 6, in the words an admin needs. */}
+                <p className="text-xs text-[var(--color-muted-foreground)]">
+                  Each person re-signs this many months after their own latest signature. In the last
+                  30 days they see &ldquo;Re-sign due&rdquo; — their signature still counts until the
+                  date passes, then it shows overdue. Turning this on never makes anyone overdue right
+                  away: anyone whose signature is already older gets 30 days from today.
                 </p>
               </div>
             )}

@@ -7,6 +7,7 @@ import { SigningClient } from "@/app/(app)/hr/acknowledge/[documentId]/signing-c
 import { LegalNameRequired } from "@/components/hr/legal-name-required"
 import { SigningUnavailable } from "@/components/hr/signing-unavailable"
 import { MyShell } from "../../my-shell"
+import { loadRenewalView } from "@/lib/hr-resign"
 import { MyDenied } from "../../denied"
 
 // /my/documents/[documentId] — self-serve acknowledgment inside the staff
@@ -81,11 +82,16 @@ export default async function MyAcknowledgePage({
 
   // HR-15 Policy B: resume state is per signing cycle — a rehire starts the
   // current version fresh; their prior-cycle acknowledgments stay on file.
+  // DOC-7: and per RENEWAL — the signing the acknowledgments route will write
+  // to. In the 30-day window or once expired that is a new signing, so the
+  // ceremony opens fresh ("Re-sign now"); otherwise unchanged.
+  const renewal = (await loadRenewalView(doc.id, staffMember.id))?.owedRenewal ?? 0
   const existing = await prisma.hrDocumentAcknowledgment.findMany({
     where: {
       hrDocumentVersionId: version.id,
       staffMemberId: staffMember.id,
       signingCycle: staffMember.signingCycle,
+      renewal,
     },
     select: { checkpointId: true },
   })
@@ -99,6 +105,7 @@ export default async function MyAcknowledgePage({
       hrDocumentVersionId: version.id,
       staffMemberId: staffMember.id,
       signingCycle: staffMember.signingCycle,
+      renewal,
     },
   })
 

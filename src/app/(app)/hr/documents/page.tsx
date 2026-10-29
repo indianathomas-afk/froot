@@ -113,6 +113,7 @@ export default async function HrDocumentsPage() {
       tracksReturn: d.tracksReturn,
       returnItemLabel: d.returnItemLabel,
       signWithinDays: d.signWithinDays,
+      reSignEveryMonths: d.reSignEveryMonths,
     }))
 
   return (

@@ -22,3 +22,16 @@ export function documentDueLabel(item: { dueDate: string | null; daysUntilDue: n
   if (d === 1) return "Due tomorrow"
   return `Due in ${d} days`
 }
+
+// DOC-7 ruling 3 (Gary, 2026-10-28) — the re-sign notice on a STILL VALID
+// signature, 0–30 days before its anniversary. Informational: the item is
+// complete and owes nothing yet, so this is never red and never "overdue".
+//   "Re-sign due in 12 days" · "Re-sign due tomorrow" · "Re-sign due today"
+// Null when there is no notice — the caller renders exactly what it did before.
+export function reSignNoticeLabel(item: { reSignDueDate: string | null; reSignDaysUntilDue: number | null }): string | null {
+  if (!item.reSignDueDate || item.reSignDaysUntilDue === null || item.reSignDaysUntilDue < 0) return null
+  const d = item.reSignDaysUntilDue
+  if (d === 0) return "Re-sign due today"
+  if (d === 1) return "Re-sign due tomorrow"
+  return `Re-sign due in ${d} days`
+}

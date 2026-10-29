@@ -85,14 +85,10 @@ async function main() {
   const plan: { versionNumber: number; versionId: string; acks: number; protected: boolean }[] = []
 
   for (const v of doc.versions) {
-    const signed = await prisma.hrSignedRecord.findUnique({
-      where: {
-        hrDocumentVersionId_staffMemberId_signingCycle: {
-          hrDocumentVersionId: v.id,
-          staffMemberId: staff.id,
-          signingCycle: cycle,
-        },
-      },
+    // DOC-7: ANY renewal's record protects the version — a re-sign adds records
+    // under renewal 1, 2…, and every one of them is append-only.
+    const signed = await prisma.hrSignedRecord.findFirst({
+      where: { hrDocumentVersionId: v.id, staffMemberId: staff.id, signingCycle: cycle },
     })
     const ackCount = await prisma.hrDocumentAcknowledgment.count({
       where: { hrDocumentVersionId: v.id, staffMemberId: staff.id, signingCycle: cycle },
