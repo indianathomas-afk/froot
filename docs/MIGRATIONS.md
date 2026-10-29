@@ -1816,8 +1816,13 @@ through `prisma migrate deploy` in the Vercel build, on Gary's push.
 | Branch | Applied (`_prisma_migrations.finished_at`) | By |
 |---|---|---|
 | dev `br-broad-wave-a6vpjdw0` | 2026-10-28 20:55:39 UTC (13:55:39 PDT) | Gary |
-| staging `br-square-feather-a63z92vz` | not yet | Vercel build, on Gary's push |
-| production `br-sparkling-block-a620qvg4` | not yet | Vercel build, at promotion |
+| staging `br-square-feather-a63z92vz` | 2026-10-28 23:38:28 UTC (16:38:28 PDT) | Vercel build, on Gary's push |
+| production `br-sparkling-block-a620qvg4` | 2026-10-29 21:54:28 UTC (14:54:28 PDT) | Vercel build, at promotion (merge `849550d`) |
+
+**Applied to staging and production** — rider 2026-10-29, PROMOTE-DOCS DOC-7.
+Both `finished_at` values read by Gary from `_prisma_migrations` in the Neon
+console on the named branch. Before this rider the staging and production
+cells read "not yet"; the "APPLIED TO DEV ONLY" line above is spent, kept.
 
 Timestamp note: the folder name is the UTC instant of generation.
 

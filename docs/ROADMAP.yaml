@@ -7041,13 +7041,20 @@ phases:
     # itself). NOT pushed when the check ran — Gary runs the push. DECISIONS
     # 2026-10-28 DOC-7 ratified by Gary at this check: "Ratify as written"
     # The "NOT PUSHED" / "Not pushed" lines above hold until the push.
-    status: staging
+    # `staging` -> `shipped` 2026-10-29, stamped post-merge 2026-10-29 by
+    # PROMOTE-DOCS DOC-7 (on `staging`): merge 849550d (DEPLOY_LOG entry
+    # `849550d — 2026-10-28 — DOC-7`). Any "not pushed" / "staging" comment
+    # above is spent, kept.
+    status: shipped
+    shipped: 2026-10-29
     title: "Annual re-sign — a document's signatures expire every N months (per document)"
     commits:
       - "60fee26"
       # + the docs commit immediately after 60fee26: DOC-7 row, audit, rulings, migration log, prompt
       - "e419319"
       # + the commit immediately after e419319: docs(DOC-7 PRE-PUSH-CHECK)
+      - "a27133a"
+      - "849550d"
     blockers:
       - >
         MIGRATION 20261028202919_doc7_annual_resign: applied to DEV by Gary
@@ -7074,6 +7081,26 @@ phases:
         instruction for this phase?" His reply, recorded exactly: "yes". This
         blocker is spent, kept.
     notes: >
+      ── PROMOTED 2026-10-29 in merge 849550d (rider prepended 2026-10-29 by
+      PROMOTE-DOCS DOC-7; nothing below is edited). ──
+      MIGRATION APPLIED: staging br-square-feather-a63z92vz, _prisma_migrations
+      shows 20261028202919_doc7_annual_resign finished 2026-10-28 23:38:28 UTC
+      (16:38:28 PDT); production br-sparkling-block-a620qvg4, finished
+      2026-10-29 21:54:28 UTC (14:54:28 PDT). Both by `prisma migrate deploy`
+      in the Vercel build, read by Gary in the Neon console.
+      OBSERVED, STAGING (as indianathomas; org not recorded): the Edit
+      Document dialog on a signature document ("Test - Handbook Regression")
+      shows "Re-sign every" (default Never) under "Sign within", with the
+      30-day help text; a Reference document ("I-9 Employee Verification",
+      link type) shows neither "Sign within" nor "Re-sign every". Gary
+      reported "All is working" for the rest of the UI checks.
+      OBSERVED, PRODUCTION: every document defaults to Never. No production
+      browser check.
+      NOT OBSERVED (fixture-only so far): the "Re-sign due in d days" notice,
+      "Re-sign now" early re-sign, overdue after an anniversary, and the
+      digest leaving upcoming re-signs out. No staging signature is old
+      enough yet (oldest 2026-07-24); natural proof is due around late
+      December 2026 if a staging document is set to 6 months.
       ── BUILT 2026-10-28, TIER 3 (prepended; nothing below is edited). ──
       Prompt docs/prompts/DOC-7.md; audit docs/prompts/DOC-7_AUDIT.md. Gary
       ratified forks F1–F10 one at a time, each "agreed" (docs/DECISIONS.md
