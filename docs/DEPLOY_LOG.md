@@ -2,6 +2,60 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-30 — L-4a: LaborAssignment data model (additive table, nothing reads it)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two L-4a commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `9fc21d6`, `3bd3bf6`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `9fc21d6` | L-4a work: `LaborAssignment` model in `prisma/schema.prisma`, migration `20261030200242_l4a_labor_assignment`, `scripts/verify-l4a-labor-assignment.ts` |
+| `3bd3bf6` | `docs(L-4a)`: L-4 row (`in_progress`), DECISIONS entry (rulings 1–5 + F1), MIGRATIONS log entry and § Protected indexes fix, LABOR.md § L-4, `docs/prompts/L-4a_assignment_data_model.md` |
+| the commit immediately after `3bd3bf6` | `docs(L-4a PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`; DECISIONS re-ratified by Gary at this check ("Ratify as written") |
+
+**Blast radius: SCHEMA, ONE NEW TABLE, AND NOTHING ELSE. NO ROUTE, NO PAGE, NO
+ENV VAR, NO CRON, NO PERMISSION CHANGE, NO EXISTING TABLE ALTERED.**
+
+- **Schema:** `CREATE TABLE "LaborAssignment"`, two indexes
+  (`organizationId, storeId, date`) and (`staffMemberId, date`), three FKs
+  (Organization RESTRICT, Store CASCADE, StaffMember RESTRICT), and one
+  hand-appended CHECK `LaborAssignment_minutes_check`
+  (0 ≤ startMinutes < endMinutes ≤ 1440). Applied by `prisma migrate deploy`
+  in the Vercel build on push.
+- **Inert.** Nothing in `src/` reads or writes the table (grep at this check:
+  the only hit is `src/generated/roadmap.ts`, which is row text). The table
+  stays empty until L-4b ships write routes.
+- **One side effect to know about:** the StaffMember FK is RESTRICT. With the
+  table empty it can never fire. L-4b owes the staff DELETE route a
+  `laborAssignment` count (ruling 3) before any row can exist.
+
+**The code does not depend on the migration.** No query selects the new table,
+so a deploy whose migrate step failed would still serve every page. The
+migration still ships with this push and must be confirmed applied.
+
+**Rollback:** revert `9fc21d6`. **The table, indexes and CHECK stay** —
+schema is additive-only, and the empty table is harmless to reverted code. Do
+not hand-edit `_prisma_migrations`.
+
+**Migration: applied to DEV ONLY, by Gary** (dev `br-broad-wave-a6vpjdw0`,
+`finished_at` 2026-10-30 20:07:38 UTC = 13:07:38 PDT; `docs/MIGRATIONS.md`
+L-4a entry). Before and after the push, Gary checks `_prisma_migrations` on
+staging `br-square-feather-a63z92vz` in the Neon console —
+`20261030200242_l4a_labor_assignment` absent before; present after with
+`finished_at` set and `rolled_back_at` null. Same check on production at
+promotion.
+
+**Evidence: dev only** (`br-broad-wave-a6vpjdw0`).
+`scripts/verify-l4a-labor-assignment.ts` 24/24 (refuses any other branch,
+leaves no rows). **Nothing to verify in a browser** — no surface reads the
+table. Staging check after the push is the migration row above, with the
+staging-SHA precondition first.
+
 ## UNPROMOTED — 2026-10-30 — L-4-0: labor assignment layer scoping (docs only)
 
 **Staging only, not yet promoted.** Docs only: no code, no migration, no env

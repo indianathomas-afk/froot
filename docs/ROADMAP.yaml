@@ -13237,13 +13237,20 @@ phases:
     # and L-4-0 moved none — status = where the code is, so it stays `planned`.
     # L-4a (data model) 2026-10-30: status planned -> in_progress. The work is
     # committed (9fc21d6) and NOT pushed — Gary runs the push.
-    status: in_progress
+    # L-4a PRE-PUSH-CHECK 2026-10-30: status in_progress -> staging (the
+    # check's own step; Gary runs the push). Docs SHA 3bd3bf6 recorded; this
+    # check is the commit immediately after 3bd3bf6 (its own SHA cannot be
+    # written inside itself). DECISIONS 2026-10-30 L-4a ratified by Gary at
+    # this check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written.
+    status: staging
     title: "Labor assignment layer — named-person shifts, GM days off, per-person breaks (Froot-only)"
     commits:
       - "b4cb5e7"
       # + the commit immediately after b4cb5e7: docs(L-4-0 PRE-PUSH-CHECK)
       - "9fc21d6"
       # + the commit immediately after 9fc21d6: docs(L-4a)
+      - "3bd3bf6"
+      # + the commit immediately after 3bd3bf6: docs(L-4a PRE-PUSH-CHECK)
     notes: >
       ── L-4a BUILT 2026-10-30 (TIER 3, work commit 9fc21d6; prepended,
       nothing below is edited). ── Prompt
