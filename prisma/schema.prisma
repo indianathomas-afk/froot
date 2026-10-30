@@ -218,6 +218,7 @@ model Organization {
   laborPositionStoreHours       LaborPositionStoreHours[]
   laborSalariedPeople           LaborSalariedPerson[]
   laborSalariedAllocations      LaborSalariedAllocation[]
+  laborAssignments              LaborAssignment[]
   laborSettings                 LaborSettings[]
   salesForecasts                SalesForecast[]
   laborDaySplits                LaborDaySplit[]
@@ -380,6 +381,7 @@ model Store {
   laborDayAdjustments       LaborDayAdjustment[]
   laborPositionStoreHours   LaborPositionStoreHours[]
   laborSalariedAllocations  LaborSalariedAllocation[]
+  laborAssignments          LaborAssignment[]
   weeklyDayHours            WeeklyDayHours[]
   squareTimecards           SquareTimecard[]
   squareLaborSyncState      SquareLaborSyncState?
@@ -542,6 +544,9 @@ model StaffMember {
   calendarCompletions CalendarOccurrence[]     @relation("CalendarOccurrenceCompletedByStaff")
   // MS-3b. PAY DATA — never `include` this outside src/lib/raise-history.ts.
   lastRaise           StaffLastRaise?
+  // L-4a. onDelete: Restrict on the far side — a person with assignments is
+  // terminated, never deleted (DECISIONS.md 2026-10-30 L-4a, ruling 3).
+  laborAssignments    LaborAssignment[]
 
   @@unique([organizationId, squareTeamMemberId])
 }
@@ -3223,6 +3228,48 @@ model LaborSalariedAllocation {
 
   @@unique([personId, storeId])
   @@index([organizationId, storeId])
+}
+
+/// L-4a: one named person at one store on one store-local day, start–end.
+/// Rulings: docs/DECISIONS.md "2026-10-30 — L-4a: labor assignment data model
+/// (Gary)"; design docs/LABOR.md § "L-4 · Assignment layer".
+///
+/// BESIDE THE CORE ENGINES (L-4-0 ruling 3). Nothing in labor-plan, -coverage,
+/// -budget, -daily, -week or -forecast reads it; dropping this table leaves
+/// every labor number byte-identical. Feeding core is L-5. Never a bare `Shift`
+/// (L-2 DON'T 2).
+///
+/// A PERSON MAY HOLD SEVERAL ROWS ON ONE DAY, at one store or several (the
+/// split manager) — so there is no unique key. The database does NOT refuse
+/// overlapping times, a store or person from another org, or a person who is
+/// TERMINATED or not assigned to the store. Those are L-4b's write routes.
+model LaborAssignment {
+  id              String   @id @default(cuid())
+  organizationId  String
+  storeId         String
+  staffMemberId   String
+  /// Store-local CALENDAR date (@db.Date, the CAL-1 precedent) — never an instant.
+  date            DateTime @db.Date
+  /// Minutes from store-local midnight, gmOnFloorStartMinutes' shape. No shift
+  /// crosses midnight in L-4: 0 <= startMinutes < endMinutes <= 1440, enforced by
+  /// the hand-written CHECK "LaborAssignment_minutes_check" in the migration.
+  /// Prisma cannot express it — see docs/MIGRATIONS.md § Protected indexes.
+  startMinutes    Int
+  endMinutes      Int
+  /// A plain id with NO foreign key (the InventoryAdjustment pattern): deleting
+  /// a User never blocks, and the id is kept for audit.
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  /// Restrict, stated deliberately (MIGRATIONS.md § Hand-authored FK ON DELETE).
+  staffMember  StaffMember  @relation(fields: [staffMemberId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, storeId, date])
+  // L-4d's ruling 6c question: any assignment for this person this week, any store.
+  @@index([staffMemberId, date])
 }
 
 /// Org default settings (storeId null) with optional per-store override rows.
