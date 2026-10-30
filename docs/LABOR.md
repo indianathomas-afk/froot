@@ -295,3 +295,80 @@ pre-reset sections above are the retired 0–4 foundation). Migration
 
 Fixtures: `verify-labor-coverage.ts` extended (floor-first split, GM cap);
 `verify-labor-budget.ts` unchanged at 182h/18.8%.
+
+## L-4 · Assignment layer (scoped 2026-10-30 by L-4-0 — no code yet)
+
+L-4 puts names on the plan: "Maria, Monday 7–2 at Las Brisas", not only "Las
+Brisas needs 3 people Monday 7–2". Scope: named-person assignments, GM days off,
+per-person planned breaks. **Froot-only** — the Square push half is struck
+(`docs/DECISIONS.md`, "Froot is read-only toward Square; the name write-back
+dies — 2026-08-18"). Rulings: `docs/DECISIONS.md` "2026-10-30 — L-4-0: labor
+assignment layer scoping (Gary)", eight items, all ratified as written. Row:
+`L-4` in `docs/ROADMAP.yaml`; feeding core is the separate row `L-5`.
+
+### Rulings in force (summary — DECISIONS.md is the text of record)
+
+1. No Square push. A future schedule write needs a new ruling, consent event and row.
+2. An assignment keys on `StaffMember` (people with no login and no Square id included).
+3. Assignments sit **beside** the core engines, like labor-actuals. They decide
+   only whether the manager band draws — never `gmHoursByDay`, the floor credit
+   or the GM cap. Feeding core is `L-5`.
+4. Breaks are planned annotations only; no labor-law check in L-4.
+5. Named schedules: ADMIN and MANAGER (store-scoped) under a new deniable
+   capability. STORE sees counts only via `labor.schedule.view`; no STORE-role
+   user sees named shifts in L-4.
+6. (a) A salaried person resolves to a StaffMember by
+   (organizationId, squareTeamMemberId); no active match → band as today.
+   (b) Band hours stay the store's `gmOnFloor` setting; an assignment decides
+   only whether it draws that day. (c) A salaried person with any assignment in
+   a week is off on their unassigned days that week; none that week → band as
+   today. No separate days-off table.
+
+### Phase A findings (measured at `c416ee3`)
+
+- **Who is a person.** `User` (`prisma/schema.prisma:243`) is Clerk accounts
+  only. `StaffMember` (`:452`) is per-org, `userId` nullable ("most staff never
+  get one"), `squareTeamMemberId` nullable (manual members exist), status
+  ACTIVE | TERMINATED, stores via `StoreStaffAssignment` (`:549`). The manager
+  band is driven by `LaborSalariedPerson` (`:3166`), keyed on a REQUIRED
+  `squareTeamMemberId`, allocated to stores by `LaborSalariedAllocation`. The
+  Square mirrors (`SquareScheduledShift` `:3619`, `SquareTimecard`,
+  `SquareTeamMemberWage`) key on Square team-member id strings.
+- **"Shift" is spent.** `SquareScheduledShift` is a built model; the word also
+  appears in `ShiftNote` (`dashboard-client.tsx:62`), `ShiftDetails` /
+  `ScheduledShiftPayload` / `EffectiveShift` (`labor-schedule.ts:79/90/151`),
+  `InspectorShiftRow` (`labor-inspector.ts:234`), `AttendanceShift`
+  (`attendance.ts:112`), `TeamMessage.shiftPhase` (schema `:2026`), and the
+  "Shift blocks" UI. The new model is never a bare `Shift`.
+- **The band is not display-only.** `hasGm = salaried.hasSalariedPerson`
+  (`labor-plan.ts:262`). One loop (`:294-301`) builds both `gmWindowByDay` (the
+  band) and `gmHoursByDay`, which feeds `capGmFloorCredits` (`:320-321`,
+  `WEEKLY_GM_CAP_HOURS = 40` at `:43`) and `floorByDay` (`:322`). The window
+  is the per-store setting with the hardcoded `14` default (`:296-297`,
+  DEBT-83). Drawn at `labor-coverage-card.tsx:450` and
+  `weekly-plan-client.tsx:717`. R7-E keeps the manager out of headcount
+  (`labor-coverage.ts:105-111`). So L-4d must change the band's draw WITHOUT
+  touching `gmHoursByDay` (ruling 3).
+- **Comments that name L-4** — `labor-daily.ts:48-50`, `labor-plan.ts:431`,
+  `labor-coverage.ts:108` — describe feeding core, which is now `L-5`.
+- **Boundary.** Seam (b) as amended (`DECISIONS.md`, R7 seam amendment) admits
+  admin-entered Froot facts to core. Under ruling 3, dropping the assignment
+  tables leaves every number byte-identical; only the band can differ.
+- **Permissions.** `labor.view` ALL (nav only), `labor.access` MANAGE (front
+  door, `labor-access.ts:90`), `labor.schedule.view` OPERATIONAL and promises
+  "COUNTS ONLY… no per-person field" (`permissions.ts:428-444`),
+  `labor.costs.view` / `labor.manage` MANAGE. STORE accounts are shared iPad
+  logins. AL-3 rule (`labor-dashboard.ts:86-91`): the capability decides
+  whether to RUN THE QUERY, never whether to render the cell — named
+  assignments follow it.
+
+### Proposed split (sub-rows not filed by L-4-0 — not approved as rows)
+
+| Phase | Tier · size | Touches | Does NOT |
+|---|---|---|---|
+| **L-4a — data model** | 3 · S, migration (session stops) | Additive `LaborAssignment`: org, store, `staffMemberId`, `date @db.Date`, `startMinutes`/`endMinutes` store-local, `createdByUserId`, index (org, store, date). Fixture. | UI, engines, Square. No days-off table (ruling 6c). |
+| **L-4b — scheduler UI + write routes** | 3 · L | Week grid on `/labor` against the plan's daily headcount; `/api/labor/assignments` via `requireLaborContext` + `requireLaborStore`; picker from `StoreStaffAssignment`, ACTIVE only; new deniable capability (ruling 5). | Engines, Square, staff notifications, STORE names. |
+| **L-4d — band reads assignments** | 3 · S | Whether the band draws per day (rulings 6a–6c); fallback = today. Closes the R7-C residue. | The label (never widened), window hours (DEBT-83), `gmHoursByDay` / cap (L-5). |
+| **L-4c — per-person breaks** | 3 · S | Additive break windows on an assignment; display. | Compliance checks (ruling 4), engine math. |
+
+Order: a → b → d → c (d is the visible payoff; c is least valuable).

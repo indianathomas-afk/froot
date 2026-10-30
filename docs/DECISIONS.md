@@ -5,6 +5,49 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-30 — L-4-0: labor assignment layer scoping (Gary)
+
+**RATIFIED BY GARY, 2026-10-30, in chat, as written.** The eight drafts below
+are Claude's wording from the L-4-0 session
+(`docs/prompts/L-4-0_assignment_layer_scoping.md`, Phase B). Each was put to him
+as "Ratify as written, or give me your wording." His reply, recorded exactly:
+*"Ratify all nine as written. One addition: file a planned ROW (next free ID,
+read from the file) for "assignments feed core — GM days off move the floor
+split and GM cap," citing ruling 3 and the three code comments at
+labor-daily.ts:48-50, labor-plan.ts:431, labor-coverage.ts:108 that say L-4
+does this. No row for the Nevada break check. Then proceed to Phase C."* The
+addition is filed as `L-5` in `docs/ROADMAP.yaml`.
+
+1. **Square push.** L-4's Square push is struck; any future schedule write to
+   Square needs a new ruling, its own consent event and its own row.
+2. **Who the person is.** An assignment keys on `StaffMember`, so staff without
+   a Froot login or a Square id can be scheduled.
+3. **Beside core, not in it.** In L-4, assignments sit beside the core engines
+   like labor-actuals; they decide only whether the manager band draws, never
+   `gmHoursByDay`, the floor credit or the GM cap; feeding core is its own row.
+4. **Breaks.** L-4c breaks are planned annotations only; any Nevada rest/meal
+   check is its own row and is not encoded from memory.
+5. **Visibility.** Named schedules are visible to ADMIN and MANAGER
+   (store-scoped) under a new deniable capability; STORE sees counts only via
+   `labor.schedule.view`, and no STORE-role user sees named shifts in L-4.
+6. **(a) Salaried person to staff member.** L-4d resolves a salaried person to
+   a StaffMember by (organizationId, squareTeamMemberId); if there is no active
+   match, the band behaves as today.
+7. **(b) Band hours.** The band's hours stay the store's `gmOnFloor` setting;
+   an assignment decides only whether it draws that day.
+8. **(c) Days off.** A salaried person with any assignment in a week is off on
+   their unassigned days that week; with none that week, the band behaves as
+   today. No separate days-off table.
+
+**"ALL NINE" WAS CLAUDE'S MISCOUNT, NOT A NINTH RULING.** Phase B printed EIGHT
+draft wordings (items 1–5 and 6a–6c, numbered 1–8 above) but its summary said
+"nine", and Gary's reply used that number. Every draft he was shown is recorded
+above; nothing was added to make the count match. (Claude)
+
+**Per Gary's reply, no row is filed for the Nevada break check.** Ruling 4
+still says such a check would be its own row; it is simply not filed now.
+Design and Phase A findings: `docs/LABOR.md` § "L-4 · Assignment layer".
+
 ## 2026-10-28 — DOC-7: annual re-sign, signatures that expire every N months (Gary)
 
 **RATIFIED BY GARY, 2026-10-28, at the DOC-7 PRE-PUSH-CHECK, as written.** The

@@ -13228,8 +13228,36 @@ phases:
     track: labor
     size: L
     status: planned
-    title: "Labor assignment layer — named-person shifts, GM days off, per-person breaks, Square push"
+    title: "Labor assignment layer — named-person shifts, GM days off, per-person breaks (Froot-only)"
     notes: >
+      ── CORRECTED 2026-10-30 BY L-4-0, TIER 3 (prepended; nothing below is
+      edited). ── Prompt docs/prompts/L-4-0_assignment_layer_scoping.md;
+      rulings docs/DECISIONS.md "2026-10-30 — L-4-0: labor assignment layer
+      scoping (Gary)", ratified as written.
+      THE ROW'S OLD TITLE IS SUPERSEDED, NOT DELETED. It read "Labor assignment
+      layer — named-person shifts, GM days off, per-person breaks, Square push".
+      THE SQUARE PUSH HALF IS STRUCK FROM THIS ROW, per DECISIONS.md "Froot is
+      read-only toward Square; the name write-back dies — 2026-08-18 (Gary)":
+      "No write permission will ever be requested from a merchant." TIMECARDS_WRITE
+      is a write permission, so the 2026-08-05 CROSS-NOTE below and the blocker's
+      "THIS ROW ADDS ONE OF ITS OWN" paragraph describe a scope that will never be
+      requested. REOPENING A PUSH NEEDS A NEW RULING AND ITS OWN ROW — never an
+      edit to this one; the ruling itself says a schedule write "gets its own
+      ruling, its own consent event, and a real feature behind it". THE "BATCH
+      L-2's AND L-4's SCOPES INTO ONE CONSENT MOMENT" ARGUMENT IS RETIRED WITH IT:
+      L-4 adds no scope, so there is nothing to batch. "Shares Square OAuth scopes
+      with L-2" (first note line) is retired for the same reason.
+      "Confirm L-3/L-4 order" is moot — L-3 shipped 2026-07-21.
+      NAMING, RE-MEASURED AT c416ee3: SquareScheduledShift is a BUILT model
+      (prisma/schema.prisma:3619), not a reserved name, and "Shift" is now also
+      spent on ShiftNote, ShiftDetails, EffectiveShift, InspectorShiftRow,
+      AttendanceShift and TeamMessage.shiftPhase. L-2 DON'T 2 binds harder than
+      when written.
+      ASSIGNMENTS SIT BESIDE THE CORE ENGINES IN THIS ROW (ruling 3): they decide
+      only whether the manager band draws, never gmHoursByDay, the floor credit
+      or the GM cap. Feeding core is L-5.
+      STATUS STAYS planned — no code exists. Design, Phase A findings and the
+      proposed L-4a–L-4d split: docs/LABOR.md § "L-4 · Assignment layer".
       Confirm L-3/L-4 order when scoping past L-2. Shares Square OAuth scopes
       with L-2.
       CROSS-NOTE 2026-08-05 — THE SQUARE PUSH HALF INHERITS L-2's WHOLE SEAM.
@@ -13264,21 +13292,65 @@ phases:
       this row is about to make the split real. Read it together with R7-C's first
       blocker, which carries the original hazard verbatim.
     blockers:
+      - resolved: true
+        text: >
+          CLOSED 2026-10-30 (L-4-0). L-2 shipped 2026-08-19 in merge 5e2f4d7. The
+          entry below cleared on "L-2 clears, with L-4's write scope included in
+          that single consent"; the first half happened and the second is ruled
+          out by the 2026-08-18 read-only ruling. Its own last sentence — the
+          Froot-only layer "could be scoped independently" — is what L-4 now is.
+          Kept verbatim below per preserve-and-mark.
+      - resolved: true
+        text: >
+          BEHIND L-2 — promoted from this row's prose to a blocker entry
+          2026-08-06 so the board can tell this row from a ready one. The Square
+          push half inherits L-2's whole seam: the same squareLaborEnabled toggle,
+          off by default, and the assignment layer must stay fully usable as a
+          Froot-only scheduler with the toggle off or Square down. So every gate
+          on L-2 is a gate here — read them there rather than restated here, which
+          is how they drift.
+          THIS ROW ADDS ONE OF ITS OWN: write-back needs TIMECARDS_WRITE on top of
+          L-2's read scopes. That is the SAME re-consent event, which is the whole
+          argument for batching L-2's and L-4's scope additions into one consent
+          moment rather than re-consenting every merchant twice.
+          CLEARS WHEN: L-2 clears, with L-4's write scope included in that single
+          consent. The Froot-only assignment layer — everything except the Square
+          push — is not gated by any of this and could be scoped independently.
+
+  - id: L-5
+    track: labor
+    size: M
+    status: planned
+    title: "Assignments feed core — GM days off move the floor split and GM cap"
+    notes: >
+      FILED 2026-10-30 BY L-4-0 ON GARY'S INSTRUCTION. L-4-0 ruling 3 (docs/
+      DECISIONS.md "2026-10-30 — L-4-0: labor assignment layer scoping (Gary)")
+      keeps L-4's assignments BESIDE the core engines: they decide only whether
+      the manager band draws, never gmHoursByDay, the floor credit or the GM cap,
+      and "feeding core is its own row". This is that row.
+      THE CODE ALREADY NAMES THIS AS L-4's JOB, in three comments measured at
+      c416ee3: labor-daily.ts:48-50 ("WHICH specific days the GM is off is the
+      assignment layer (L-4); L-3 only caps the weekly TOTAL, so the scaling is
+      deliberately day-agnostic"), labor-plan.ts:431 ("Which specific days/hours
+      the GM is off is the assignment layer (L-4)"), and labor-coverage.ts:108
+      (the manager "does NOT know WHICH 20 (that is L-4)"). Under ruling 3 those
+      comments now point here, not at L-4; whoever builds this row repoints them.
+      WHAT IT WOULD CHANGE. The GM window and the GM floor hours come out of the
+      same per-day loop (labor-plan.ts:294-301): gmWindowByDay draws the band,
+      gmHoursByDay feeds capGmFloorCredits (:320-321) and so floorByDay (:322).
+      Feeding assignments in means a GM day off zeroes that day's credit, the
+      floor split moves, and the 40h cap is applied to assigned days rather than
+      scaled across all open days.
+      THE BOUNDARY TEST IS WHAT THIS ROW HAS TO ANSWER. With assignments beside
+      core (L-4), dropping the assignment tables leaves every number
+      byte-identical. Once they feed core, that holds only while the tables are
+      EMPTY — the R7-B shape, where emptiness becomes the promotion guarantee
+      (DECISIONS.md, R7 seam amendment). Admin-entered Froot facts may reach core
+      under that amendment, so it is permitted; it is not free.
+    blockers:
       - >
-        BEHIND L-2 — promoted from this row's prose to a blocker entry
-        2026-08-06 so the board can tell this row from a ready one. The Square
-        push half inherits L-2's whole seam: the same squareLaborEnabled toggle,
-        off by default, and the assignment layer must stay fully usable as a
-        Froot-only scheduler with the toggle off or Square down. So every gate
-        on L-2 is a gate here — read them there rather than restated here, which
-        is how they drift.
-        THIS ROW ADDS ONE OF ITS OWN: write-back needs TIMECARDS_WRITE on top of
-        L-2's read scopes. That is the SAME re-consent event, which is the whole
-        argument for batching L-2's and L-4's scope additions into one consent
-        moment rather than re-consenting every merchant twice.
-        CLEARS WHEN: L-2 clears, with L-4's write scope included in that single
-        consent. The Froot-only assignment layer — everything except the Square
-        push — is not gated by any of this and could be scoped independently.
+        BEHIND L-4 — there is nothing to feed until assignments exist and the
+        L-4d band behaviour has shipped.
 
   - id: CRON-1
     track: labor
