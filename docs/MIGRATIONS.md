@@ -56,11 +56,12 @@ npx prisma migrate diff --from-empty \
 ```
 
 > ⚠️ **After regenerating `0_init`, re-append every object in the "Protected
-> indexes" table by hand — five at time of writing (three partial indexes and
-> two CHECK constraints) — or the baseline is wrong.** `--to-schema-datamodel`
+> indexes" table by hand — seven at time of writing (three partial indexes and
+> four CHECK constraints) — or the baseline is wrong.** `--to-schema-datamodel`
 > generates from the schema, which cannot express any of them. **Count them out
 > of that table, not out of this sentence**, which said "both" from when there
-> were two until DOC-3 made it five (2026-08-24).
+> were two until DOC-3 made it five (2026-08-24), and "five" until L-4a found
+> NOTIFY-12's CHECK missing and added its own (2026-10-30).
 
 > ⚠️ **THE CURRENT MIGRATIONS FOLDER CANNOT REBUILD THE LIVE SCHEMA, AND THIS
 > STEP WILL SILENTLY ADOPT THE DIFFERENCE RATHER THAN SURFACE IT.** Relocated
@@ -158,9 +159,14 @@ Rules:
 
 ## Protected indexes — expressible only in migration SQL, not in the schema
 
-Three unique indexes and **two** CHECK constraints exist in every database but
+Three unique indexes and **four** CHECK constraints exist in every database but
 **cannot be written in `prisma/schema.prisma`** — Prisma has no `WHERE` clause
 on `@@unique` and no CHECK support at all:
+
+(Count corrected 2026-10-30 by L-4a, ruled by Gary as F1. It read "**two**"
+CHECKs, but NOTIFY-12's `NotificationRecipientPick_one_target_check`
+(2026-10-23) had already made three and was missing from the table below; L-4a
+adds the fourth. Both rows are appended at the bottom.)
 
 | Object | Table | Predicate | Origin |
 |---|---|---|---|
@@ -169,6 +175,8 @@ on `@@unique` and no CHECK support at all:
 | `HrDocumentStoreAssignment_staff_grant_key` | `HrDocumentStoreAssignment` | `WHERE "granteeType" = 'STAFF'` — one STAFF grant per (document, person) | `20260812171500_doc1a_document_audience_grants` |
 | `hrdoc_grant_shape` (**CHECK**, not an index) | `HrDocumentStoreAssignment` | STORE rows carry `storeId` only; STAFF rows carry `staffMemberId` only | `20260812171500_doc1a_document_audience_grants` |
 | `hrdoc_link_shape` (**CHECK**, not an index) | `HrDocument` | `("kind" = 'Link') = ("externalUrl" IS NOT NULL)` — only a Link carries a URL, and every Link carries one | `20260824193000_doc3_document_links_and_instructions` |
+| `NotificationRecipientPick_one_target_check` (**CHECK**, not an index) | `NotificationRecipientPick` | `("userId" IS NULL) <> ("contactId" IS NULL)` — exactly one target per pick | `20261023200000_notify12_recipients` |
+| `LaborAssignment_minutes_check` (**CHECK**, not an index) | `LaborAssignment` | `"startMinutes" >= 0 AND "startMinutes" < "endMinutes" AND "endMinutes" <= 1440` — no overnight, no zero-length, inside one day | `20261030200242_l4a_labor_assignment` |
 
 **The DOC-3 row's table needs no `@@map` warning and that is worth stating,
 because the two rows above it do.** `hrdoc_link_shape` sits on `HrDocument`,
@@ -1855,3 +1863,56 @@ entry is needed.
 **Fixture:** `scripts/verify-doc7-annual-resign.ts`, 78/78 on dev
 (`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
 the work commit (`60fee26`).
+
+## 2026-10-30 — `20261030200242_l4a_labor_assignment` (L-4a)
+
+**APPLIED TO DEV ONLY, by Gary.** His report, recorded exactly: *"Applied to
+dev br-broad-wave. migrate status and migrate deploy output below."* No output
+reached the session after that sentence, so none is quoted here. The session
+then read dev itself (`neon.branch_id` =
+`br-broad-wave-a6vpjdw0`, reported by the server in the same query): table
+`LaborAssignment` with all ten columns `NOT NULL` (`date` is `date`,
+`startMinutes`/`endMinutes` are `integer`), `LaborAssignment_minutes_check`
+present, the three foreign keys with the ruled `ON DELETE` (organization
+RESTRICT, store CASCADE, staff member RESTRICT), both indexes, 0 rows; and
+`_prisma_migrations` holds `20261030200242_l4a_labor_assignment`, finished
+`2026-10-30 20:07:38 UTC` (`13:07:38 PDT`), 77 applied in all. Staging and
+production get it through `prisma migrate deploy` in the Vercel build, on
+Gary's push.
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | 2026-10-30 20:07:38 UTC (13:07:38 PDT) | Gary |
+| staging `br-square-feather-a63z92vz` | not yet | Vercel build, on Gary's push |
+| production `br-sparkling-block-a620qvg4` | not yet | Vercel build, at promotion |
+
+Timestamp note: the folder name is the UTC instant of generation.
+
+Prisma commands for this migration: `format`, `validate`, `migrate diff` (once,
+writing this file), and `generate` (once by hand after the apply, and again
+inside `npm run build`). Gary applied it. The pre-diff branch check and the dev
+read went through one-off Node scripts using `@neondatabase/serverless`,
+read-only, kept in the session scratchpad and not in the repo.
+
+| Statement | Kind |
+|---|---|
+| `CREATE TABLE "LaborAssignment"` (10 columns, `LaborAssignment_pkey`) | additive, new table |
+| `CREATE INDEX "LaborAssignment_organizationId_storeId_date_idx"` | additive, new table |
+| `CREATE INDEX "LaborAssignment_staffMemberId_date_idx"` | additive, new table (ruling 5) |
+| `ADD CONSTRAINT "LaborAssignment_organizationId_fkey"` `ON DELETE RESTRICT` | on the new table |
+| `ADD CONSTRAINT "LaborAssignment_storeId_fkey"` `ON DELETE CASCADE` | on the new table (ruling 3) |
+| `ADD CONSTRAINT "LaborAssignment_staffMemberId_fkey"` `ON DELETE RESTRICT` | on the new table (ruling 3) |
+| `ADD CONSTRAINT "LaborAssignment_minutes_check"` CHECK | **hand-written — see § Protected indexes** (ruling 2) |
+
+**ADDITIVE ONLY: nothing touches an existing table.** The generated diff
+contained no constraint churn on any other table, so the schema and dev
+agreed before the edit. Every `ON DELETE` is either Prisma's own default for
+the relation (organization) or stated in the schema (`onDelete: Cascade` on
+store, `onDelete: Restrict` on staff member), so § Hand-authored FK `ON DELETE`
+has nothing to mirror. The CHECK is the only object the schema cannot describe,
+and it is now in § Protected indexes. Rulings: `docs/DECISIONS.md` "2026-10-30 —
+L-4a: labor assignment data model (Gary)".
+
+**Fixture:** `scripts/verify-l4a-labor-assignment.ts`, 24/24 on dev
+(`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
+the work commit (`9fc21d6`). It refuses any other branch and leaves no rows.

@@ -372,3 +372,34 @@ assignment layer scoping (Gary)", eight items, all ratified as written. Row:
 | **L-4c — per-person breaks** | 3 · S | Additive break windows on an assignment; display. | Compliance checks (ruling 4), engine math. |
 
 Order: a → b → d → c (d is the visible payoff; c is least valuable).
+
+### L-4a · data model — BUILT 2026-10-30 (work commit `9fc21d6`)
+
+The heading's "no code yet" was true when L-4-0 wrote it; L-4a is the first
+code. Rulings: `docs/DECISIONS.md` "2026-10-30 — L-4a: labor assignment data
+model (Gary)". The final model (`prisma/schema.prisma`, `model LaborAssignment`):
+
+| Field | Type | Note |
+|---|---|---|
+| `organizationId` | String → `Organization` | implied RESTRICT, like every labor neighbour |
+| `storeId` | String → `Store` | `onDelete: Cascade` — a store delete takes its assignments (ruling 3) |
+| `staffMemberId` | String → `StaffMember` | `onDelete: Restrict` — terminate, never delete (ruling 3) |
+| `date` | `DateTime @db.Date` | store-local calendar date |
+| `startMinutes`, `endMinutes` | Int | from store-local midnight; `0 ≤ start < end ≤ 1440`, enforced by CHECK `LaborAssignment_minutes_check` (ruling 2) |
+| `createdByUserId` | String | plain id, no FK — a user delete never blocks (ruling 3) |
+| `createdAt`, `updatedAt` | DateTime | |
+
+Indexes `(organizationId, storeId, date)` and `(staffMemberId, date)` (ruling 5).
+**No unique key**: several rows per person per day, at one store or several
+(ruling 1).
+
+**What the database does NOT refuse, and L-4b must:** overlapping times
+(ruling 1); a store or person from another org, a TERMINATED person, or one not
+assigned to the store (ruling 4); and the staff DELETE route's record count
+must gain a `laborAssignment` line, or a person with assignments 500s instead of
+the 409 (ruling 3).
+
+Fixture: `scripts/verify-l4a-labor-assignment.ts` (dev only, refuses any other
+branch, leaves no rows) — 24/24 on `br-broad-wave-a6vpjdw0`. Migration:
+`20261030200242_l4a_labor_assignment` (`docs/MIGRATIONS.md`). Nothing in the core
+engines reads the table (ruling 3 of L-4-0).

@@ -13235,12 +13235,45 @@ phases:
     # STATUS DELIBERATELY NOT FLIPPED to `staging`, on Gary's go-ahead at this
     # check ("Yes, as recommended"): PRE-PUSH-CHECK's flip assumes code moved,
     # and L-4-0 moved none — status = where the code is, so it stays `planned`.
-    status: planned
+    # L-4a (data model) 2026-10-30: status planned -> in_progress. The work is
+    # committed (9fc21d6) and NOT pushed — Gary runs the push.
+    status: in_progress
     title: "Labor assignment layer — named-person shifts, GM days off, per-person breaks (Froot-only)"
     commits:
       - "b4cb5e7"
       # + the commit immediately after b4cb5e7: docs(L-4-0 PRE-PUSH-CHECK)
+      - "9fc21d6"
+      # + the commit immediately after 9fc21d6: docs(L-4a)
     notes: >
+      ── L-4a BUILT 2026-10-30 (TIER 3, work commit 9fc21d6; prepended,
+      nothing below is edited). ── Prompt
+      docs/prompts/L-4a_assignment_data_model.md. SHIPPED: the additive model
+      LaborAssignment (organization x store x StaffMember x store-local
+      `date @db.Date`, startMinutes/endMinutes from store-local midnight,
+      createdByUserId as a plain id, createdAt/updatedAt; indexes
+      (organizationId, storeId, date) and (staffMemberId, date)); migration
+      20261030200242_l4a_labor_assignment with one hand-appended CHECK,
+      LaborAssignment_minutes_check (0 <= start < end <= 1440, no overnight),
+      listed in docs/MIGRATIONS.md § Protected indexes; fixture
+      scripts/verify-l4a-labor-assignment.ts. Nothing reads the table yet — no
+      UI, no route, no capability, no engine import (boundary grep: zero hits in
+      labor-plan/-coverage/-budget/-daily/-week/-forecast and in all of src/).
+      RULINGS: docs/DECISIONS.md "2026-10-30 — L-4a: labor assignment data model
+      (Gary)", five rulings plus F1, all "Ratify all as written".
+      MIGRATION: dev br-broad-wave-a6vpjdw0 applied by Gary 2026-10-30
+      20:07:38 UTC; staging and production pending (Vercel build, on Gary's push).
+      FIXTURE: 24/24 on dev br-broad-wave-a6vpjdw0 (refuses any other branch,
+      leaves no rows).
+      L-4b OWES ONE LINE IT MUST NOT MISS (ruling 3): the staff DELETE route's
+      record count list (src/app/api/staff/[id]/route.ts:215-228) must gain a
+      laborAssignment count. The FK is RESTRICT, so without it a delete of a
+      person with assignments 500s instead of returning the 409 "terminate them
+      instead" — the DOC-6 hrReturnEvent case exactly (:225). No row can exist
+      until L-4b writes one, which is why it is L-4b's and not a defect now.
+      L-4b ALSO OWNS what the database deliberately does not refuse (rulings 1
+      and 4): overlapping times, a store or person from another org, and a
+      person who is TERMINATED or not assigned to the store.
+      ── L-4-0 RECORD BELOW, UNEDITED ──
       ── CORRECTED 2026-10-30 BY L-4-0, TIER 3 (prepended; nothing below is
       edited). ── Prompt docs/prompts/L-4-0_assignment_layer_scoping.md;
       rulings docs/DECISIONS.md "2026-10-30 — L-4-0: labor assignment layer

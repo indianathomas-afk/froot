@@ -5,6 +5,39 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-30 — L-4a: labor assignment data model (Gary)
+
+**RATIFIED BY GARY, 2026-10-30, in chat.** The drafts below are Claude's
+wording from the L-4a session (`docs/prompts/L-4a_assignment_data_model.md`,
+Phase B), each put to him as "Ratify as written, or give me your wording." His
+reply, recorded exactly: *"Ratify all as written"*.
+
+1. **Several shifts per person per day.** A person may hold more than one
+   assignment on a day, at the same or different stores. The database does not
+   refuse overlapping times; L-4b's write routes do.
+2. **No overnight.** No assignment crosses midnight in L-4. The database
+   enforces 0 ≤ startMinutes < endMinutes ≤ 1440 with a hand-written CHECK,
+   listed in MIGRATIONS.md § Protected indexes.
+3. **Deletes.** Deleting a store deletes its assignments. Deleting a staff
+   member who has any assignment is refused — terminate them instead — and L-4b
+   adds the count to the staff DELETE route. createdByUserId is a plain id with
+   no foreign key, so deleting a user never blocks and the id is kept.
+4. **Integrity in code.** That the store and person belong to the assignment's
+   org, and that the person is ACTIVE and assigned to that store, is enforced by
+   L-4b's routes, not the database.
+5. **Second index.** Add @@index([staffMemberId, date]) beside the approved
+   (organizationId, storeId, date).
+
+**F1 (an out-of-scope finding, same reply).** § Protected indexes in
+`docs/MIGRATIONS.md` omitted NOTIFY-12's
+`NotificationRecipientPick_one_target_check` and counted "two" CHECKs where
+there were three. Claude's lean, ratified: fix it in the L-4a migration-log pass,
+since that pass edits the same table and count line.
+
+Built as work commit `9fc21d6`; fixture
+`scripts/verify-l4a-labor-assignment.ts`, 24/24 on dev `br-broad-wave-a6vpjdw0`.
+Row: `L-4` in `docs/ROADMAP.yaml`.
+
 ## 2026-10-30 — L-4-0: labor assignment layer scoping (Gary)
 
 **RATIFIED BY GARY, 2026-10-30, in chat, as written.** The eight drafts below
