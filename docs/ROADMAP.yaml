@@ -13227,8 +13227,19 @@ phases:
   - id: L-4
     track: labor
     size: L
+    # L-4-0 (scoping, docs only) recorded 2026-10-30 by the L-4-0
+    # PRE-PUSH-CHECK, in the commit immediately after b4cb5e7 (its own SHA
+    # cannot be written inside itself). NOT pushed when the check ran — Gary
+    # runs the push. DECISIONS 2026-10-30 L-4-0 ratified by Gary at this check:
+    # "Ratify as written"
+    # STATUS DELIBERATELY NOT FLIPPED to `staging`, on Gary's go-ahead at this
+    # check ("Yes, as recommended"): PRE-PUSH-CHECK's flip assumes code moved,
+    # and L-4-0 moved none — status = where the code is, so it stays `planned`.
     status: planned
     title: "Labor assignment layer — named-person shifts, GM days off, per-person breaks (Froot-only)"
+    commits:
+      - "b4cb5e7"
+      # + the commit immediately after b4cb5e7: docs(L-4-0 PRE-PUSH-CHECK)
     notes: >
       ── CORRECTED 2026-10-30 BY L-4-0, TIER 3 (prepended; nothing below is
       edited). ── Prompt docs/prompts/L-4-0_assignment_layer_scoping.md;

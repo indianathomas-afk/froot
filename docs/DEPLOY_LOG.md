@@ -2,6 +2,24 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-30 — L-4-0: labor assignment layer scoping (docs only)
+
+**Staging only, not yet promoted.** Docs only: no code, no migration, no env
+change, nothing a user can see. Blast radius is the docs build alone —
+`docs/ROADMAP.yaml` is typechecked at prebuild, so a bad row fails the deploy.
+
+- **Commits:** `b4cb5e7` (L-4 row corrected, L-5 filed, DECISIONS entry,
+  LABOR.md § "L-4 · Assignment layer", saved prompt) + the L-4-0
+  PRE-PUSH-CHECK commit immediately after it (row SHAs, this entry).
+- **Rulings:** DECISIONS.md "2026-10-30 — L-4-0: labor assignment layer
+  scoping (Gary)", eight rulings, ratified as written. L-4's Square push is
+  struck (read-only ruling 2026-08-18); L-4 adds no OAuth scope.
+- **Status:** L-4 stays `planned` and L-5 is filed `planned`; neither has code.
+  The pre-push status flip was deliberately skipped (Gary, at the check).
+- **Verify after deploy:** the build is green. Nothing else to look at.
+- **Rollback:** not needed for behaviour; revert the two docs commits if the
+  rows themselves are wrong.
+
 ## 849550d — 2026-10-28 — DOC-7: annual re-sign, a document's signatures expire every N months
 
 **PROMOTED 2026-10-29 in merge `849550d`** (`849550d1c010215d96640098b40c8842949150f7`,
