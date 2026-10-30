@@ -4,7 +4,10 @@ TIER 1: no code changes. At most one docs commit (reworded ruling or a fixed
 doc). Verifies <PHASE-ID> is ready for Gary to push. Never pushes.
 
 ## Repo gate (one command at a time, paste results)
-pwd                → must end in Froot/froot
+pwd                → must end in Froot/froot. If it ends in capital-F
+                     Froot (the parent folder), run
+                     cd /Users/garythomas/Claude_Projects/Froot/froot
+                     and run pwd again. Anything else: STOP.
 git status         → on staging, tree clean
 
 ## Step 1 — rulings (hard STOP if any)
@@ -51,6 +54,13 @@ found / OK-or-DRIFT)
 - CLAUDE.md: if this phase changed a house rule or pattern, it's reflected;
   if not, confirm untouched.
 - docs/prompts/: this phase's session prompt(s) are committed.
+DOCS-ONLY PHASES (no work commit, no code — e.g. a -0 scoping phase):
+- Row status does NOT flip to staging. It stays what the phase set
+  (usually planned), because status says where the code is and there
+  is none. Record the phase's docs SHA(s) on the row it edited.
+- DEPLOY_LOG gets a short UNPROMOTED entry (a few lines: docs only,
+  no code, no migration), not a full promotion entry.
+- Precedent: L-4-0, check commit 9d5f209.
 Any DRIFT: STOP, report, and propose the one-commit fix. Do not fix
 without Gary's go-ahead.
 
