@@ -2,6 +2,58 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-30 — L-4d: manager band follows the Square schedule (display only)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two L-4d commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `4dad553`, `a295d98`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `4dad553` | L-4d work: `src/lib/labor-schedule.ts` (`decideManagerBands`, `applyManagerBand`, `bandWindowFor`, `getManagerBandDecisions`), `/api/labor/coverage`, `/api/labor/weekly-plan`, `scripts/verify-l4d-band.ts` |
+| `a295d98` | `docs(L-4d)`: L-4 row (`in_progress`), DECISIONS entry (R1–R5), LABOR.md § L-4 "L-4d, as built", `docs/prompts/L-4d_band_reads_square_schedule.md` |
+| the commit immediately after `a295d98` | `docs(L-4d PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging` (R5); DECISIONS re-ratified by Gary at this check ("Ratify as written") |
+
+**Blast radius: TWO LABOR API ROUTES, DISPLAY ONLY. NO SCHEMA, NO MIGRATION, NO
+ENV VAR, NO CRON, NO NEW SQUARE CALL OR SCOPE, NO PERMISSION CHANGE.**
+
+- **What changes:** the manager band on the coverage card and the Weekly Plan
+  day detail draws only on days Square's schedule has an allocated salaried
+  person at that store, at her scheduled hours (start floored, end ceiled,
+  clipped to the open window). `/api/labor/coverage` replaces `gmWindow` and
+  `points[].gm` only; `/api/labor/weekly-plan` replaces `days[].gmWindow` only.
+- **What does not:** `gmHoursByDay`, floor credit, GM cap, headcount,
+  Suggested and the budget are computed before the band and never see Square
+  data (fixture boundary test, byte-identical). `covByDay` untouched.
+- **Fallback is the band as today** — overlay off, viewer without
+  `labor.schedule.view` (R1), sync not `fresh`/`synced-empty`, any allocated
+  person with no shift that week (R2), a day past the last sync window end
+  (R3), a closed day. Reads mirrored `SquareScheduledShift` rows only; no
+  notes, job or wage column selected.
+- **Surface:** Labor module only (`LABOR_MODULE_AVAILABLE` + `activeModules`
+  "labor"), so production orgs see it only where Labor is on.
+
+**Rollback:** revert `4dad553`. No schema, no data written — the band returns
+to the engine's `hasGm` decision on the next request. The docs commits can
+stay or go with it.
+
+**Evidence so far: fixture only.** `scripts/verify-l4d-band.ts` PASS, 73
+checks (pure, no DB, no branch). **Nothing has been observed on staging.**
+After the push, in order: the staging-SHA precondition (deployed SHA = local
+`HEAD`); Gary's Neon-console read on staging `br-square-feather-a63z92vz` that
+Kristie's `SquareScheduledShift` rows carry her team member id (owed, LABOR.md
+L-4d definition); then the coverage card and a Weekly Plan day detail at her
+store, under a named org id — band on her scheduled days at her hours, absent
+on her days off. Staging syncs the schedule only on dashboard load (the cron is
+production-only), so load the dashboard first.
+
+**Known, not fixed** (B6, in the row): the overlay and comparison themselves
+never check `laborOverlayOn`; "(incl. manager)" heading is stale copy.
+
 ## UNPROMOTED — 2026-10-30 — L-4-1: Square is the schedule source; L-4b paused; L-4d and L-5 rescoped (docs only)
 
 **Staging only, not yet promoted.** Docs only: no code, no migration, no env

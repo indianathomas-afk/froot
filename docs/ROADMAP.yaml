@@ -13257,7 +13257,13 @@ phases:
     # R5 (ratified by Gary: "Ratify all as written"). Work commit 4dad553 is
     # committed and NOT pushed — Gary runs the push. Back to `staging` at the
     # L-4d PRE-PUSH-CHECK.
-    status: in_progress
+    # L-4d PRE-PUSH-CHECK 2026-10-30: status in_progress -> staging (R5; the
+    # check's own step). Docs SHA a295d98 recorded; this check is the commit
+    # immediately after a295d98 (its own SHA cannot be written inside
+    # itself). DECISIONS 2026-10-30 L-4d ratified by Gary at this check:
+    # "Ratify as written". DEPLOY_LOG UNPROMOTED entry written. NOT pushed
+    # when the check ran — Gary runs the push.
+    status: staging
     title: "Manager band follows the Square schedule — Square is the schedule source (Froot-native scheduler deferred)"
     commits:
       - "b4cb5e7"
@@ -13272,6 +13278,8 @@ phases:
       # + the commit immediately after f10688b: docs(L-4-1 PRE-PUSH-CHECK)
       - "4dad553"
       # + the commit immediately after 4dad553: docs(L-4d)
+      - "a295d98"
+      # + the commit immediately after a295d98: docs(L-4d PRE-PUSH-CHECK)
     notes: >
       ── L-4d BUILT 2026-10-30 (TIER 3; prepended, nothing below is edited). ──
       Work commit 4dad553, committed and NOT pushed — Gary runs the push.
