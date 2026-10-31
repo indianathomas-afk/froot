@@ -5,6 +5,68 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-31 — BUG-17: heal stale open timecards, 24h guard (Gary)
+
+**RULED BY GARY, 2026-10-31, in chat.** Rulings 1–4 are Claude's drafts from
+the BUG-17 session (`docs/prompts/BUG-17_heal_open_timecards.md`, Phase B6),
+put to him as "Ratify as written, or give me your wording." Ruling 5 is Gary's
+own wording. His reply, recorded exactly: *"Ratify rulings 1–4 as written.
+Ruling 5, my wording: Dashboard note: "N timecards have been open more than 24
+hours and aren't counted — labor cost may read low until Square confirms the
+clock-out." Inspector notice: "N timecards have been open more than 24 hours.
+They're shown but not counted in paid hours, Double, Unscheduled or No-show
+until Square confirms the clock-out." File both B7 ROW rows in Phase D as you
+proposed. Proceed to Phase C."*
+
+They sit under the TIMECARD-HEAL-0 rulings R1–R5 (next entry) and fill the gaps
+those left.
+
+1. **Heal latency.** "The heal fetches at most 5 cards at a time, each with a
+   10-second timeout, and stops for that store after 20 seconds or on any 429
+   or 5xx; what is left is logged as deferred."
+2. **Heal order, and 404s holding the cap.** "The heal checks the cards Froot
+   asked Square about least recently first. A 404 updates only the card's
+   last-checked time, so a deleted card cannot hold a heal slot forever;
+   nothing else on the row changes."
+3. **What "unknown" means for on-time.** "A scheduled shift whose only possible
+   clock-in is a timecard open over 24 hours is left out of on-time: neither on
+   time nor a no-show. A possible clock-in is a card that started within 24
+   hours before the shift's start and before its end."
+4. **How far R5 reaches.** "In BUG-17, Inspector paid hours are clipped to the
+   viewed day for open cards only; closed midnight-crossing cards keep
+   whole-card hours until their own row." (That row is BUG-18.)
+5. **On-screen wording.** Dashboard note: "N timecards have been open more
+   than 24 hours and aren't counted — labor cost may read low until Square
+   confirms the clock-out." Inspector notice: "N timecards have been open more
+   than 24 hours. They're shown but not counted in paid hours, Double,
+   Unscheduled or No-show until Square confirms the clock-out."
+
+**Approved by Gary at the C2 stop, same day.** Two checks in
+`scripts/verify-labor-actuals.ts` asserted that an open card read days later
+costs up to the window end, which R1 replaces. His reply, recorded exactly:
+*"Update the two verify-labor-actuals checks as proposed (read at 19 hours, plus
+a new check that the three-days-later read gives 0 hours and counts as stuck).
+Your one-card grammar and stopping the heal on timeout, network failure or
+401/403 are both approved. Continue."* So:
+
+- the one-card form of both notes reads "1 timecard has been open more than 24
+  hours and isn't counted …" and "… It's shown but not counted …";
+- the heal also stops on a timeout, a network failure or a 401/403, not only on
+  a 429 or 5xx.
+
+**Claude** (implementation choices, not rulings): a card's age is measured
+against now, not against a window's end, so a card read for a past window is
+judged by how long it has really been open. "Older than 24 hours" is strict:
+exactly 24h still counts. A stuck card covers no day in the labor % coverage
+pair, so its day's sales are not divided by none of its cost. A stuck card is
+left out of Double and Unscheduled as well as No-show, and its Inspector bar is
+still drawn to the ceiling (the existing "Open, stale" look). `staleOpenCount` is
+absent, not 0, when there are none, so the payload with no stuck card is the
+pre-BUG-17 payload byte for byte. The dashboard note is a warning (like the
+wage gap), not a muted line. Clipped open-card hours take unpaid breaks out in
+proportion to the part kept, because Froot stores break minutes, not break
+times.
+
 ## 2026-10-31 — TIMECARD-HEAL-0: stuck open timecards (Gary)
 
 **RATIFIED BY GARY, 2026-10-31, in chat.** The five drafts below are Claude's

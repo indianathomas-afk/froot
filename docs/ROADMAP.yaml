@@ -24421,14 +24421,64 @@ bugs:
     # Gary at this check: "Ratify as written"
     # STATUS STAYS `planned`: TIMECARD-HEAL-0 moved no code (PRE-PUSH-CHECK,
     # docs-only phases; precedent L-4-0, 9d5f209).
-    status: planned
+    # BUG-17 BUILD 2026-10-31: planned -> in_progress at work commit 52f12a6.
+    # NOT pushed — Gary runs the push. Next is Gary's PRE-PUSH-CHECK.
+    status: in_progress
     title: >
       Timecards stored while open are never re-fetched once their start day
       leaves the sync window, so they stay open in Froot forever
     commits:
       - "eeb94ae"
       # + the commit immediately after eeb94ae: docs(TIMECARD-HEAL-0 PRE-PUSH-CHECK)
+      - "52f12a6"
+      # + the commit immediately after 52f12a6: docs(BUG-17)
     notes: >
+      ── BUILT 2026-10-31 by the BUG-17 session (TIER 3), work commit 52f12a6.
+      Prepended; NOTHING BELOW IS EDITED. Prompt:
+      docs/prompts/BUG-17_heal_open_timecards.md. NOT PUSHED.
+      WHAT SHIPPED. (1) THE HEAL: syncTimecardsForStore
+      (src/lib/labor-actuals.ts) now ends with healStaleOpenTimecards, which
+      asks Square for each card Froot holds as open from before the window, by
+      id (GET /v2/labor/timecards/{id}, TIMECARDS_READ, no new scope, no
+      write), least recently checked first, 25 per store per run, 5 at a time,
+      10s per fetch, 20s per store. Answers go through writeTimecards, the same
+      version-guarded upsert. A 404 is logged ("heal 404 timecard=… left as
+      is") and only syncedAt moves. A 429, 5xx, 401/403, timeout or network
+      failure stops the heal and never fails the sync. One summary line per
+      store: "heal: N checked, C closed, F 404, D deferred". It rides the cron,
+      the dashboard trigger and the manual route. (2) THE GUARD: isStaleOpen /
+      STALE_OPEN_HOURS = 24; clockedEndMs and paidMinutesOf take a REQUIRED
+      nowMs and return null for an open card older than 24h, so labor %, cost,
+      hours, covered days, tips, attendance pairing, the clocked-in curve and
+      roster, and the Inspector all agree. On-time leaves out a shift whose only
+      possible clock-in is a stuck card (claimsShiftAsUnknown,
+      labor-inspector.ts). LaborActualsResult / LaborBlock carry
+      staleOpenCount, ABSENT when 0. Dashboard note and Inspector notice use
+      Gary's wording. (3) R5: Inspector paid hours for OPEN cards count only
+      the viewed day; closed midnight-crossing cards are unchanged (BUG-18).
+      RULINGS: docs/DECISIONS.md 2026-10-31 "TIMECARD-HEAL-0" (R1 guard's age,
+      R2 scope, R3 heal method, R4 404, R5 Inspector paid hours) and 2026-10-31
+      "BUG-17" (1 heal latency, 2 heal order and 404 rotation, 3 unknown
+      on-time, 4 R5 open cards only, 5 wording).
+      FIXTURE: scripts/verify-bug17-heal.ts — 58 passed, 0 failed, dev
+      br-broad-wave-a6vpjdw0, mocked Square, no rows left. Its A1 boundary
+      check: with no stale card, every number is byte-identical to
+      scripts/bug17-boundary-golden.json, written at 84e7f6c before any BUG-17
+      code. Regressions green: verify-labor-actuals (two clamp checks now read
+      at 19h, plus R1 checks, Gary 2026-10-31), verify-labor-inspector,
+      verify-labor-schedule, verify-ms2 90/90, verify-ms3 95/95, verify-ms3b
+      80/80, verify-labor-coverage.
+      EVIDENCE (Gary, Neon console, 2026-10-31): staging
+      br-square-feather-a63z92vz — 155 open-older-than-24h cards across 8
+      stores, oldest start 2026-08-20 22:00 UTC (Las Brisas 58, South Reno 44,
+      Carson 29, Meadowood Mall 9, UNR 7, Southgate 5, Spanish Springs 2,
+      University Village 1), status_says_closed 0. Production
+      br-sparkling-block-a620qvg4 — 0.
+      UNVERIFIED ON STAGING: needs the push, the SHA precondition, then
+      dashboard loads to heal (see the BUG-17 report). Filed alongside: BUG-18
+      (closed midnight-crossing Inspector hours), DEBT-122 (no manual
+      timecard re-sync on staging).
+      ── ORIGINAL NOTES ──
       FILED 2026-10-31 by TIMECARD-HEAL-0 (investigation only, at dbf0121).
       Audit of record: docs/prompts/TIMECARD-HEAL-0_AUDIT.md. Rulings:
       docs/DECISIONS.md 2026-10-31 "TIMECARD-HEAL-0". THE ID was read from
@@ -24492,6 +24542,30 @@ bugs:
       in every case.
       RELATED: BUG-10 (the same mechanism, closed in production by the cron),
       CRON-1, the deletion-blindness limit (labor-actuals.ts:749-753).
+
+  - id: BUG-18
+    status: planned
+    title: >
+      Day Inspector paid hours count a closed midnight-crossing timecard whole
+      on both days it touches
+    notes: >
+      FILED 2026-10-31 by the BUG-17 session, from the TIMECARD-HEAL-0 audit's
+      B5 ROW finding (docs/prompts/TIMECARD-HEAL-0_AUDIT.md). THE ID was
+      confirmed free: BUG-17 was the highest bug id and BUG-18 appears nowhere
+      else. SEEN: a CLOSED 22:00→02:00 card shows its full hours on both the
+      day it starts and the day it ends, so the per-person "Xh paid" is larger
+      than the bar beside it (OVL-S5's 2026-08-21 COMMENT (a) describes the same
+      gap). OPEN cards were fixed by BUG-17 (R5, open cards only — DECISIONS
+      2026-10-31 BUG-17 ruling 4: "closed midnight-crossing cards keep
+      whole-card hours until their own row"). This row is that "own row".
+      WHERE: src/lib/labor-inspector.ts, inspectorPaidMinutes — today it
+      returns whole-card paidMinutesOf for every closed card. A fix would clip
+      closed cards to [dayStart, dayEnd) the way it clips open ones (unpaid
+      breaks pro rata, since only break minutes are stored). NEEDS A RULING
+      FIRST: S5-A6 shows a card whole on every day it touches, and clipping
+      changes production's Inspector hours for every midnight-crossing card.
+      Display only: labor %, cost and attendance are not affected (they anchor
+      a card to its start day). RELATED: BUG-17, OVL-S5.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
@@ -34363,6 +34437,28 @@ debt:
       410 route, and the parity notes. A column drop needs Gary's ruling first,
       because CLAUDE.md's additive-only rule forbids it by default.
       RELATED: NOTIFY-12, HR-16.
+
+  - id: DEBT-122
+    status: planned
+    title: >
+      No operator lever re-pulls a range of Square timecards on staging: the
+      manual sync route has no UI caller
+    notes: >
+      FILED 2026-10-31 by the BUG-17 session, from the TIMECARD-HEAL-0 audit's
+      B5 ROW finding (docs/prompts/TIMECARD-HEAL-0_AUDIT.md). THE ID was
+      confirmed free: DEBT-121 was the highest and DEBT-122 appears nowhere
+      else (NOTIFY-SCHED_AUDIT.md only names it as "next free").
+      POST /api/square/labor/sync (src/app/api/square/labor/sync/route.ts)
+      takes a startDate..endDate but nothing in src/ calls it, so it can only
+      be called by hand. Vercel runs crons on production only, so staging's
+      only timecard sync is the dashboard trigger, which fetches TODAY only
+      (src/lib/labor-dashboard.ts:213-214). A manager correction to an older
+      CLOSED card therefore never reaches staging. LOW PRIORITY since BUG-17:
+      the heal re-asks Square about every card Froot holds as OPEN, which was
+      the costly case. What remains is corrections to cards already closed.
+      Out of scope of BUG-17 by its prompt ("No manual re-sync button").
+      A button that calls an existing read-only route adds no Square scope.
+      RELATED: BUG-17, BUG-10, CRON-1.
 
 rulings:
   - id: R1
