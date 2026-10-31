@@ -13263,7 +13263,12 @@ phases:
     # itself). DECISIONS 2026-10-30 L-4d ratified by Gary at this check:
     # "Ratify as written". DEPLOY_LOG UNPROMOTED entry written. NOT pushed
     # when the check ran — Gary runs the push.
-    status: staging
+    # `staging` -> `shipped` 2026-10-30, stamped post-merge 2026-10-31 by L-4
+    # PROMOTION STAMP (on `staging`): merge a4a33b9 (DEPLOY_LOG entries
+    # `a4a33b9 — 2026-10-30 — L-4d / L-4-1 / L-4a / L-4-0`). Any "not pushed" /
+    # "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-30
     title: "Manager band follows the Square schedule — Square is the schedule source (Froot-native scheduler deferred)"
     commits:
       - "b4cb5e7"
@@ -13280,7 +13285,29 @@ phases:
       # + the commit immediately after 4dad553: docs(L-4d)
       - "a295d98"
       # + the commit immediately after a295d98: docs(L-4d PRE-PUSH-CHECK)
+      - "1f6afc2"
+      - "a4a33b9"
     notes: >
+      ── PROMOTED 2026-10-30 in merge a4a33b9 (rider prepended 2026-10-31 by L-4
+      PROMOTION STAMP; nothing below is edited). ──
+      Merge a4a33b9 (parents c416ee3, 1f6afc2) carried 11 commits, b4cb5e7
+      through 1f6afc2: L-4-0, L-4a, L-4-1 and L-4d. THE GUARD "L-4 IS NOT
+      SHIPPED UNTIL L-4d SHIPS" IS NOW SATISFIED — L-4d is in production, so the
+      row is `shipped`.
+      MIGRATION APPLIED: production br-sparkling-block-a620qvg4
+      (ep-green-smoke-a6xthq4r), 20261030200242_l4a_labor_assignment applied
+      2026-10-31 05:52:37 UTC (22:52:37 PDT) by `prisma migrate deploy` in the
+      Vercel build of a4a33b9, read from the build log. All three branches now
+      applied (docs/MIGRATIONS.md L-4a).
+      OBSERVED, PRODUCTION (Gary, recorded exactly): "Las Brisas, week of Nov 2,
+      on usefroot.com, signed in as gary@kevajuice.com in the Keva Juice org,
+      Clerk Production instance. Monday Nov 2 showed the GM band, "Manager
+      expected 7a–3p." Saturday Nov 7 showed no band and no "Manager expected"
+      line." Org named, not given by id.
+      STILL OPEN, UNCHANGED BY THIS STAMP: L-4b paused (its staff-DELETE
+      laborAssignment count still binds when it resumes); L-4c paused with it;
+      L-5 stays `planned`; the B6 findings below (overlay/comparison never check
+      laborOverlayOn; stale "(incl. manager)" heading) stay open.
       ── L-4d BUILT 2026-10-30 (TIER 3; prepended, nothing below is edited). ──
       Work commit 4dad553, committed and NOT pushed — Gary runs the push.
       Prompt docs/prompts/L-4d_band_reads_square_schedule.md; rulings

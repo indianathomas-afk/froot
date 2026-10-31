@@ -1883,8 +1883,18 @@ Gary's push.
 | Branch | Applied (`_prisma_migrations.finished_at`) | By |
 |---|---|---|
 | dev `br-broad-wave-a6vpjdw0` | 2026-10-30 20:07:38 UTC (13:07:38 PDT) | Gary |
-| staging `br-square-feather-a63z92vz` | not yet | Vercel build, on Gary's push |
-| production `br-sparkling-block-a620qvg4` | not yet | Vercel build, at promotion |
+| staging `br-square-feather-a63z92vz` | applied — `finished_at` not read at this stamp | Vercel build, on Gary's push |
+| production `br-sparkling-block-a620qvg4` | 2026-10-31 05:52:37 UTC (22:52:37 PDT) | Vercel build, at promotion (merge `a4a33b9`) |
+
+**Applied to all three branches** — rider 2026-10-31, L-4 PROMOTION STAMP.
+Production's time is the Vercel build log's "Applying migration
+`20261030200242_l4a_labor_assignment`" line for the build of `a4a33b9`, whose
+datasource was `ep-green-smoke-a6xthq4r` — production `br-sparkling-block`, per
+Gary in the Neon console → Computes, 2026-10-30 22:57 PDT. It was read from the
+log, not from `_prisma_migrations`. Staging is recorded as applied on the stamp
+prompt's statement; no staging `finished_at` reached this session, so none is
+written. Before this rider both cells read "not yet"; the "APPLIED TO DEV ONLY"
+line above is spent, kept.
 
 Timestamp note: the folder name is the UTC instant of generation.
 

@@ -2,7 +2,31 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-10-30 — L-4d: manager band follows the Square schedule (display only)
+## a4a33b9 — 2026-10-30 — L-4d: manager band follows the Square schedule (display only)
+
+**PROMOTED 2026-10-30 in merge `a4a33b9`** (`a4a33b912bbd524c1688bf3fa7ed80ee66ce1100`,
+"Merge branch 'staging'", 2026-10-30 22:51:03 -0700 (Pacific) = 2026-10-31
+05:51:03 UTC), first parent `c416ee3` (prior tip of `main`), second parent
+`1f6afc2`. **11 commits** in `a4a33b9^1..a4a33b9^2` — `b4cb5e7` through
+`1f6afc2` — and **18 files**, read out of `git log` and `git diff --shortstat`
+at this stamp. The merge carried four entries: this one, L-4-1, L-4a and L-4-0
+below. Stamped post-merge by L-4 PROMOTION STAMP (2026-10-31), on `staging`;
+the heading previously read "UNPROMOTED — 2026-10-30 — L-4d: manager band
+follows the Square schedule (display only)". The "staging only" status and
+"NEITHER WAS PUSHED" lines below are spent, kept.
+
+**Observed, production** (Gary, recorded exactly): *"Las Brisas, week of Nov 2,
+on usefroot.com, signed in as gary@kevajuice.com in the Keva Juice org, Clerk
+Production instance. Monday Nov 2 showed the GM band, "Manager expected 7a–3p."
+Saturday Nov 7 showed no band and no "Manager expected" line."* The org was
+named, not given by id. The band on a scheduled day, at hours ending 3p instead
+of the old hard-coded 14:00, and absent on a day off, is the L-4d behaviour.
+
+**Rollback after promotion:** `git revert -m 1 a4a33b9` on `main` (the whole
+merge; recipe in `docs/WORKFLOW.md` § Rolling a promotion back; keep this log),
+or revert the work commit `4dad553` as below. Code only: the band returns to
+the engine's `hasGm` decision on the next request. The L-4a table stays (see
+the L-4a entry).
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
@@ -54,7 +78,14 @@ production-only), so load the dashboard first.
 **Known, not fixed** (B6, in the row): the overlay and comparison themselves
 never check `laborOverlayOn`; "(incl. manager)" heading is stale copy.
 
-## UNPROMOTED — 2026-10-30 — L-4-1: Square is the schedule source; L-4b paused; L-4d and L-5 rescoped (docs only)
+## a4a33b9 — 2026-10-30 — L-4-1: Square is the schedule source; L-4b paused; L-4d and L-5 rescoped (docs only)
+
+**PROMOTED 2026-10-30 in merge `a4a33b9`** — merge details, production
+evidence and rollback are in the L-4d entry above. Stamped post-merge by L-4
+PROMOTION STAMP (2026-10-31), on `staging`; the heading previously read
+"UNPROMOTED — 2026-10-30 — L-4-1: Square is the schedule source; L-4b paused;
+L-4d and L-5 rescoped (docs only)". The "Staging only" line below is spent,
+kept.
 
 **Staging only, not yet promoted.** Docs only: no code, no migration, no env
 change, nothing a user can see. Blast radius is the docs build alone —
@@ -73,7 +104,31 @@ change, nothing a user can see. Blast radius is the docs build alone —
 - **Rollback:** not needed for behaviour; revert the two docs commits if the
   rows themselves are wrong.
 
-## UNPROMOTED — 2026-10-30 — L-4a: LaborAssignment data model (additive table, nothing reads it)
+## a4a33b9 — 2026-10-30 — L-4a: LaborAssignment data model (additive table, nothing reads it)
+
+**PROMOTED 2026-10-30 in merge `a4a33b9`** — merge details and the live check
+are in the L-4d entry above. Stamped post-merge by L-4 PROMOTION STAMP
+(2026-10-31), on `staging`; the heading previously read "UNPROMOTED —
+2026-10-30 — L-4a: LaborAssignment data model (additive table, nothing reads
+it)". The "staging only", "NEITHER WAS PUSHED" and "applied to DEV ONLY" lines
+below are spent, kept.
+
+**Migration applied to production:** the Vercel production build (Branch
+`main`, Commit `a4a33b9`) logged `Datasource "db": … at
+"ep-green-smoke-a6xthq4r…"`, "Applying migration
+`20261030200242_l4a_labor_assignment`" at 22:52:37 PDT (2026-10-31 05:52:37
+UTC), "All migrations have been successfully applied", and "Deployment
+completed". Endpoint identity (Gary, Neon console → Computes, 2026-10-30 22:57
+PDT): production `br-sparkling-block-a620qvg4` = `ep-green-smoke-a6xthq4r`;
+staging `br-square-feather-a63z92vz` = `ep-odd-rain-a6gr4xmm`; dev
+`br-broad-wave-a6vpjdw0` = `ep-late-water-a6k53nv2`. So the migration ran on
+production. Read from the build log, not from `_prisma_migrations`.
+
+**Rollback after promotion:** `git revert -m 1 a4a33b9` on `main` (recipe in
+`docs/WORKFLOW.md` § Rolling a promotion back; keep this log). **The
+`LaborAssignment` table stays in production after a revert** — it is additive
+and empty, reverted code never touches it, and dropping it would need its own
+migration. Do not hand-edit `_prisma_migrations`.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
@@ -127,7 +182,13 @@ leaves no rows). **Nothing to verify in a browser** — no surface reads the
 table. Staging check after the push is the migration row above, with the
 staging-SHA precondition first.
 
-## UNPROMOTED — 2026-10-30 — L-4-0: labor assignment layer scoping (docs only)
+## a4a33b9 — 2026-10-30 — L-4-0: labor assignment layer scoping (docs only)
+
+**PROMOTED 2026-10-30 in merge `a4a33b9`** — merge details, production
+evidence and rollback are in the L-4d entry above. Stamped post-merge by L-4
+PROMOTION STAMP (2026-10-31), on `staging`; the heading previously read
+"UNPROMOTED — 2026-10-30 — L-4-0: labor assignment layer scoping (docs only)".
+The "Staging only" line below is spent, kept.
 
 **Staging only, not yet promoted.** Docs only: no code, no migration, no env
 change, nothing a user can see. Blast radius is the docs build alone —
