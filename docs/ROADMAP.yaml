@@ -24413,6 +24413,76 @@ bugs:
       Pacific lands on the wrong day. The server clamps only the future end
       (/api/labor/day-inspector, the schedule horizon), so no data is wrong.
 
+  - id: BUG-17
+    status: planned
+    title: >
+      Timecards stored while open are never re-fetched once their start day
+      leaves the sync window, so they stay open in Froot forever
+    notes: >
+      FILED 2026-10-31 by TIMECARD-HEAL-0 (investigation only, at dbf0121).
+      Audit of record: docs/prompts/TIMECARD-HEAL-0_AUDIT.md. Rulings:
+      docs/DECISIONS.md 2026-10-31 "TIMECARD-HEAL-0". THE ID was read from
+      this file: BUG-16 was the highest bug id.
+      SEEN: on staging, the Day Inspector (Las Brisas, 2026-10-29) showed
+      almost everyone as "Open, stale" and often "Double". Bars spanned the
+      whole day and paid hours ran into the thousands. Production on the same
+      store-day was clean.
+      B1 VERDICT: RIGHT. Every Square timecard read is
+      syncTimecardsForStore (src/lib/labor-actuals.ts:660). It selects ONLY by
+      the store-local START date (workday + match_timecards_by START_AT,
+      labor-actuals.ts:684-688). The cron uses 3 start-days
+      (src/app/api/cron/labor-timecards/route.ts:60, :91-94), but it runs on
+      production only. Staging's only sync is the dashboard trigger, which
+      fetches TODAY only (src/lib/labor-dashboard.ts:213-214; called from
+      api/dashboard/sales :183, rollup :207, summary :160; 15-minute cooldown
+      :59, cap of 3 stores per load :67). The manual route
+      api/square/labor/sync has no UI caller. Nothing re-fetches a card
+      Froot holds as open once its start day has left the window. The upsert
+      (labor-actuals.ts:789-820, version guard :818) only updates what a fetch
+      returns. Production can rot the same way: 3 failed cron nights for a
+      store, an org gate off at cron time (route.ts:81-83 skips silently), or
+      a forgotten clock-out fixed 4+ days later. NOT PROVEN: that every staging
+      card is CLOSED in Square (A6 query plus a Square-side spot check).
+      IT IS NOT ONLY A DISPLAY DEFECT. (1) Labor % / cost / hours: an open
+      card is costed to min(now, windowEnd) (labor-actuals.ts:141, :236-241).
+      So any range containing its start day is overstated, month-to-date
+      included (dashboard sales, summary, rollup, /api/square/labor/actuals).
+      Tips' hourly divisor is inflated the same way (:553). (2) On-time %:
+      attendance.ts reads open cards with no lower bound (:334-343). A stuck
+      card pairs with every later shift and is the earliest pairing, so every
+      later shift counts as on time and never as a no-show (:180-190). This
+      feeds /staff, Milestones, and raise eligibility
+      (raise-eligibility.ts:289-302). (3) Inspector: open cards have no lower
+      bound (labor-inspector.ts:902-904), the bar runs to min(now, dayEnd)
+      (:379), "Double" is any 1-minute overlap (:457-469, :77), and paid hours
+      are not clipped to the viewed day (:514). A card opened Aug 1 is
+      credited about 2,140h on Oct 29.
+      SQUARE SIDE (from the local square CLI schema, read offline; there is no
+      SDK in node_modules): the filter has no updated_at; status OPEN/CLOSED
+      exists but cannot find a card that is CLOSED in Square; fetch by id
+      exists. Confirm the REST by-id path at build time. TIMECARDS_READ only,
+      no new scope.
+      B2 FIX (ratified): a heal pass inside syncTimecardsForStore that fetches
+      by id each card Froot holds as open whose start precedes the window,
+      capped per store per run, with a named "deferred N" log line. A 404 is
+      logged and not acted on. PLUS a guard in the shared helpers
+      (clockedEndMs / paidMinutesOf and the attendance pairing): an open card
+      older than 24h counts as unknown, never as paid time or attendance. PLUS
+      Inspector paid hours count only the viewed day. A wider window was
+      rejected because it only moves the cliff.
+      B3: TIER 3 (Square sync, money, attendance feeding raise eligibility),
+      medium size. NO MIGRATION: endAt, status, startAt, squareVersion and
+      squareTimecardId already exist. FIXTURE is synthetic, because dev
+      (br-broad-wave-a6vpjdw0) held 0 timecards on 2026-10-31. It covers: the
+      heal selects only open cards that started before the window and honours
+      the cap; a mocked CLOSED v+1 closes the row and v-1 is discarded; a 404
+      leaves the row; a stale open card adds 0 to computeLaborActuals,
+      computeTipPayout and the Inspector and does not pair in assembleOnTime;
+      a card opened today and under 24h still accrues. The clock is injected
+      in every case.
+      RELATED: BUG-10 (the same mechanism, closed in production by the cron),
+      CRON-1, the deletion-blindness limit (labor-actuals.ts:749-753).
+
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
 #

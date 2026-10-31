@@ -5,6 +5,28 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-31 — TIMECARD-HEAL-0: stuck open timecards (Gary)
+
+**RATIFIED BY GARY, 2026-10-31, in chat.** The five drafts below are Claude's
+wording from the TIMECARD-HEAL-0 session
+(`docs/prompts/TIMECARD-HEAL-0_open_card_investigation.md`, Phase B4), put to
+him as "Ratify as written, or give me your wording." His reply, recorded
+exactly: *"Ratify as written"*.
+
+The fix phase is BUG-17 (`docs/ROADMAP.yaml`). The audit of record is
+`docs/prompts/TIMECARD-HEAL-0_AUDIT.md`.
+
+- **R1. The guard's age.** "An open timecard older than 24 hours is counted as
+  unknown, never as paid time or attendance."
+- **R2. Scope.** "The heal and the guard ship together; the heal alone leaves
+  staging and deletions wrong."
+- **R3. Heal method.** "Heal by fetching each stale open card by id, at most 25
+  per store per run."
+- **R4. A card Square no longer has.** "A 404 on heal is logged, not acted on,
+  until the deletion ruling."
+- **R5. Inspector paid hours.** "Inspector paid hours count only the viewed
+  day."
+
 ## 2026-10-30 — L-4d: the manager band reads the Square schedule (Gary)
 
 **RATIFIED BY GARY, 2026-10-30, in chat.** The five drafts below are Claude's
