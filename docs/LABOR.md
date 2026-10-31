@@ -298,6 +298,89 @@ Fixtures: `verify-labor-coverage.ts` extended (floor-first split, GM cap);
 
 ## L-4 · Assignment layer (scoped 2026-10-30 by L-4-0 — no code yet)
 
+### L-4-1 pivot — Square is the schedule (2026-10-30)
+
+**This block is prepended, and it supersedes the L-4-0 design below where they
+conflict.** Rulings: `docs/DECISIONS.md` "2026-10-30 — L-4-1: Square is the
+schedule (Gary)", ten items, ratified as written. Prompt:
+`docs/prompts/L-4-1_square_schedule_rescope.md`. Row title is now "Manager band
+follows the Square schedule — Square is the schedule source (Froot-native
+scheduler deferred)".
+
+**Why.** Every Keva store's managers already schedule everyone in Square,
+salaried managers included. A Froot scheduler would mean entering every shift
+twice. For an org that schedules in Square, Square is the source of truth, and
+Froot never keeps a competing schedule for that org. A Froot-native scheduler
+waits for a real customer that doesn't schedule in Square, and will be a per-org
+setting, never both. `LaborAssignment` stays in place, empty and unread, as its
+storage. **L-4b (scheduler UI) and L-4c (breaks) are paused**, not cancelled.
+
+**Cost vs presence.** A salaried allocation decides **cost** only: which store's
+budget carries the salary. **Presence** — which store a person is at on a day —
+comes from the schedule. Today one number does both, which is why Kristie is
+set 10% Las Brisas / 10% UNR / 80% "Cafe De Cafe": the 80% exists so she stops
+counting as floor coverage at the real stores.
+
+**What a 10% allocation does today (A1, read in code at `45fcf5f`).**
+
+| Question | Answer | Cite |
+|---|---|---|
+| Does the band draw? | Yes, every open day, full window (open → 14:00) | `hasGm = salaried.hasSalariedPerson`, `labor-plan.ts:262`; true at any share > 0, `labor-salaried.ts:80,91` |
+| Is `gmHoursByDay` scaled by 10%? | No — the full window | `labor-plan.ts:295-301` |
+| Is the credited floor time scaled? | Yes — the ceiling is her allocated hours (4 at 10% of 40), and the week is scaled to it: ~0.6 h/day, on days she may not work | `labor-plan.ts:320`, `labor-position-hours.ts:69-71`, `labor-daily.ts:51-57`, `floorByDay` `labor-plan.ts:322` |
+| Does the "40-hour cap" see her? | As 4 hours, not 40 | same |
+| Does the coverage floor count her? | No (R7-D) | `labor-coverage.ts:88-97` |
+| What reaches cost? | 10% of `weeklyCost`, taken off the budget before hourly dollars | `labor-salaried.ts:79`, `labor-budget.ts:84-94` |
+
+So Froot does **not** plan materially fewer crew hours because of her. The
+over-statement is the band, which is visual, plus ~4 credited hours a week
+spread evenly. Not material; L-5 fixes the credit.
+
+**Latent, found here and owned by L-5:** in a week with no forecast the budget is
+null (`labor-budget.ts:65`), so the ceiling falls back to 40 while `hasGm` is
+still true (`labor-plan.ts:320`) — the case the comment at `:309-319` calls
+"load-bearing and wrong". Not confirmed to render.
+
+**L-4d, redefined.** At a store on a day, the manager band draws only when the
+Square schedule has that salaried person there that day:
+
+- **Match:** `LaborSalariedPerson.squareTeamMemberId` =
+  `SquareScheduledShift.effectiveTeamMemberId`, same org, effective shift
+  (published if present, else draft), not deleted, on that store's local date.
+  No `StaffMember` step (`attendance.ts:168-186` already matches this way).
+- **Hours:** her Square shift times, clipped to the open window.
+- **Fallback — as today:** she has no Square shift anywhere that week; the
+  org's Square labor integration is off; or that store's schedule sync is not
+  healthy.
+- **Display-only.** `gmHoursByDay`, the floor credit and the GM cap do not move.
+  Presence is computed on the schedule side of the import wall
+  (`labor-schedule.ts` / the route); `labor-plan.ts` and `labor-coverage.ts`
+  never import it. Seam (b)'s boundary test passes by construction: no Square
+  data means "as today". Owned trade-off until L-5: on a day the band is hidden,
+  her ~0.6 credited hours still count.
+- **TIER 3 · S.** No migration, no new scope — scheduled-shift reads ride
+  `TIMECARDS_READ`. Its Phase A confirms via the Neon console that Kristie's
+  staging shifts carry her team member id.
+
+**Feeding core is `L-5`, rescoped** to "Square schedule presence feeds the floor
+credit and GM cap". It needs its own L-2 seam (b) amendment first, because a
+`SquareScheduledShift` value would then reach `labor-plan.ts`.
+
+**What Square data already exists** (A3): `SquareScheduledShift`
+(`prisma/schema.prisma:3666`) holds draft, published and effective location,
+job, start/end (UTC), timezone, deleted flag and team member; `storeId` is
+resolved via `Store.squareLocationId` at sync (`labor-schedule.ts:208-212`).
+Window 3 days back / 28 forward (`:66-67`); cron daily 11:45 UTC, production
+only. Read today by the coverage overlay, attendance and the inspector.
+**Time off (A4): unclear** — Froot has no Square SDK installed to check, and no
+probe has looked. L-4d does not depend on it.
+
+**Remaining L-4 work:** L-4d only. L-4 is not shipped until L-4d ships.
+
+---
+
+*Below: the L-4-0 and L-4a design, kept as written. Superseded where marked.*
+
 L-4 puts names on the plan: "Maria, Monday 7–2 at Las Brisas", not only "Las
 Brisas needs 3 people Monday 7–2". Scope: named-person assignments, GM days off,
 per-person planned breaks. **Froot-only** — the Square push half is struck
@@ -307,6 +390,11 @@ assignment layer scoping (Gary)", eight items, all ratified as written. Row:
 `L-4` in `docs/ROADMAP.yaml`; feeding core is the separate row `L-5`.
 
 ### Rulings in force (summary — DECISIONS.md is the text of record)
+
+> **SUPERSEDED IN PART 2026-10-30 by L-4-1:** rulings 4, 5, 6a, 6b and 6c no
+> longer apply (see the pivot block above). 1 stands; 2 holds for the dormant
+> `LaborAssignment` table only; 3's rule carries forward with Square presence
+> in place of assignments.
 
 1. No Square push. A future schedule write needs a new ruling, consent event and row.
 2. An assignment keys on `StaffMember` (people with no login and no Square id included).
@@ -363,6 +451,10 @@ assignment layer scoping (Gary)", eight items, all ratified as written. Row:
   assignments follow it.
 
 ### Proposed split (sub-rows not filed by L-4-0 — not approved as rows)
+
+> **SUPERSEDED 2026-10-30 by L-4-1:** L-4a is built; L-4b and L-4c are paused;
+> L-4d is redefined to read the Square schedule (pivot block above). The table
+> is kept as the L-4-0 plan of record.
 
 | Phase | Tier · size | Touches | Does NOT |
 |---|---|---|---|
