@@ -1342,3 +1342,250 @@ export async function getScheduledHoursByDay(
 
   return computeScheduledHoursByDay({ rows, dates, timeZone: store.timezone })
 }
+
+// ─── L-4d: THE MANAGER BAND READS THE SQUARE SCHEDULE ─────────────────────────
+//
+// Rulings: docs/DECISIONS.md, L-4-1 ruling 5/5a/5b/5c (2026-10-30) and the L-4d
+// entry above it (R1-R4). Definition: docs/LABOR.md § L-4, "L-4d".
+//
+// DISPLAY ONLY, AND THE STRUCTURE IS WHAT ENFORCES IT. The band is decided here,
+// on the schedule side of the seam-(b) wall, and applied in the two routes AFTER
+// getWeeklyDayPlan and computeDayCoverage have returned. gmHoursByDay, the floor
+// credit, the GM cap, headcount and the budget are computed before any of this
+// runs and nothing here is ever passed back in. The only fields it may replace
+// are `gmWindow` and `points[].gm` — the band — and no number reads either
+// (labor-coverage.ts: headcount = hourly only; suggestedHoursForDay reads
+// gmCreditHours, not the band).
+//
+// DO NOT SOLVE IT BY WIDENING THE LABEL (R7-C). The band keeps its label; what
+// changes is WHICH DAYS it draws on, and at what hours.
+
+export type ManagerBand = { startHour: number; endHour: number }
+
+/// Per store-local date. `as-today` leaves the engine's band exactly as it was —
+/// the fallback every unknown takes. `absent` draws no band. `present` draws the
+/// scheduled hours.
+export type ManagerBandDecision =
+  | { kind: "as-today" }
+  | { kind: "absent" }
+  | { kind: "present"; band: ManagerBand }
+
+/// The row the decision needs. NO notes column, and no job or wage column: the
+/// band is unnamed on STORE-visible surfaces (L-4-1 ruling 7) and needs only
+/// where, who and when.
+export type ManagerBandShiftRow = {
+  storeId: string
+  effectiveTeamMemberId: string | null
+  effectiveStartAt: Date
+  effectiveEndAt: Date
+  effectiveIsDeleted: boolean
+}
+
+const AS_TODAY: ManagerBandDecision = { kind: "as-today" }
+
+/// PURE — no DB, injected timezone. Decides the band for each date of ONE store's
+/// week (Mon..Sun, `dates` in order).
+///
+///   GATES (all → as-today): the org's Square labor overlay is off; the viewer
+///     lacks labor.schedule.view (R1); the store's sync is not fresh or
+///     synced-empty (5c — never / stale / error); no allocated salaried person.
+///   WEEK (→ as-today, every day): any allocated person has no live shift at ANY
+///     store that week (ruling 5 / R2) — "no data" is not "not there".
+///   DAY (→ as-today): the date is past the store's last sync window end (R3), or
+///     the store is closed (the engine draws no band on a closed day either).
+///   Otherwise: the union of every allocated person's shifts AT THIS STORE that
+///     overlap the day — first start to last end (R2, R4) — start floored, end
+///     ceiled to whole hours (R4), clipped to the open window (5b). Nothing left
+///     → absent.
+///
+/// The shift is the EFFECTIVE one (5a) — draft counts — because the rows carry
+/// effective* columns only. Tombstones are filtered here as well as in the query,
+/// the same deliberate redundancy computeScheduledHoursByDay carries.
+export function decideManagerBands({
+  storeId,
+  dates,
+  openByDate,
+  timeZone,
+  overlayOn,
+  viewerCanSee,
+  health,
+  lastWindowEnd,
+  teamMemberIds,
+  shifts,
+}: {
+  storeId: string
+  dates: string[]
+  openByDate: Record<string, ManagerBand | null>
+  timeZone: string
+  overlayOn: boolean
+  viewerCanSee: boolean
+  health: ScheduleSyncHealth
+  /// Store-local yyyy-mm-dd, INCLUSIVE (the sync's endDate). Null → as-today.
+  lastWindowEnd: string | null
+  teamMemberIds: string[]
+  shifts: ManagerBandShiftRow[]
+}): Record<string, ManagerBandDecision> {
+  const allAsToday = () => Object.fromEntries(dates.map((d) => [d, AS_TODAY]))
+
+  if (!overlayOn || !viewerCanSee) return allAsToday()
+  if (health !== "fresh" && health !== "synced-empty") return allAsToday()
+  if (teamMemberIds.length === 0 || dates.length === 0) return allAsToday()
+
+  const people = new Set(teamMemberIds)
+  const live = shifts.filter(
+    (s) => !s.effectiveIsDeleted && s.effectiveTeamMemberId != null && people.has(s.effectiveTeamMemberId)
+  )
+
+  const weekStart = localMidnightUtc(dates[0], timeZone).getTime()
+  const weekEnd = localMidnightUtc(addDaysStr(dates[dates.length - 1], 1), timeZone).getTime()
+  const overlaps = (s: ManagerBandShiftRow, from: number, to: number) =>
+    s.effectiveStartAt.getTime() < to && s.effectiveEndAt.getTime() > from
+
+  // R2 — ONE PERSON WITHOUT DATA MAKES THE WEEK UNKNOWN. Drawing the others'
+  // shifts would show a band that silently omits her.
+  for (const id of people) {
+    if (!live.some((s) => s.effectiveTeamMemberId === id && overlaps(s, weekStart, weekEnd))) return allAsToday()
+  }
+
+  const here = live.filter((s) => s.storeId === storeId)
+  const out: Record<string, ManagerBandDecision> = {}
+
+  for (const date of dates) {
+    const open = openByDate[date] ?? null
+    if (lastWindowEnd == null || date > lastWindowEnd || !open) {
+      out[date] = AS_TODAY
+      continue
+    }
+
+    const dayStart = localMidnightUtc(date, timeZone).getTime()
+    const dayEnd = localMidnightUtc(addDaysStr(date, 1), timeZone).getTime()
+
+    let startHour: number | null = null
+    let endHour: number | null = null
+    for (const s of here) {
+      if (!overlaps(s, dayStart, dayEnd)) continue
+      const from = Math.max(s.effectiveStartAt.getTime(), dayStart)
+      const to = Math.min(s.effectiveEndAt.getTime(), dayEnd)
+      // Floor the start; ceil the end — `to - 1` puts an on-the-hour end in the
+      // hour before it, and +1 makes it exclusive. 13:00 → 13, 13:45 → 14.
+      const sh = localHourOf(new Date(from), timeZone)
+      const eh = localHourOf(new Date(to - 1), timeZone) + 1
+      startHour = startHour == null ? sh : Math.min(startHour, sh)
+      endHour = endHour == null ? eh : Math.max(endHour, eh)
+    }
+
+    if (startHour == null || endHour == null) {
+      out[date] = { kind: "absent" }
+      continue
+    }
+    const clippedStart = Math.max(startHour, open.startHour)
+    const clippedEnd = Math.min(endHour, open.endHour)
+    out[date] =
+      clippedEnd > clippedStart
+        ? { kind: "present", band: { startHour: clippedStart, endHour: clippedEnd } }
+        : { kind: "absent" }
+  }
+
+  return out
+}
+
+/// The band a decision draws, given the engine's own. For payloads that carry a
+/// bare gmWindow (the weekly-plan strip).
+export function bandWindowFor(engineWindow: ManagerBand | null, decision: ManagerBandDecision | undefined): ManagerBand | null {
+  if (!decision || decision.kind === "as-today") return engineWindow
+  return decision.kind === "absent" ? null : { ...decision.band }
+}
+
+/// Applies a decision to a coverage result. REPLACES `gmWindow` AND `points[].gm`
+/// AND NOTHING ELSE — every other field, headcount included, is carried by
+/// reference from the engine's output. `as-today` returns the SAME object, so the
+/// fallback is identity rather than a copy that merely looks equal.
+///
+/// Structurally typed rather than importing CoverageResult: this module imports
+/// nothing from a core engine, in either direction.
+export function applyManagerBand<
+  C extends { gmWindow: ManagerBand | null; points: { hour: number; gm: boolean; open: boolean }[] },
+>(coverage: C | null, decision: ManagerBandDecision | undefined): C | null {
+  if (!coverage || !decision || decision.kind === "as-today") return coverage
+  const band = decision.kind === "present" ? decision.band : null
+  return {
+    ...coverage,
+    gmWindow: band ? { ...band } : null,
+    points: coverage.points.map((p) => ({
+      ...p,
+      gm: !!band && p.open && p.hour >= band.startHour && p.hour < band.endHour,
+    })),
+  }
+}
+
+/// The read path. NO SQUARE CALL — mirrored rows only. Gates are checked BEFORE
+/// any query, so an org with the overlay off (or a viewer without the capability)
+/// costs nothing.
+///
+/// THE PEOPLE ARE THE SAME SET hasGm COUNTS: resolveStoreSalariedFor's query
+/// (labor-salaried.ts — exempt null OR false, the explicit OR that must stay one)
+/// narrowed to the rows that contribute hours, allocationBps > 0 and
+/// weeklyHours > 0, because salariedHours > 0 is what hasSalariedPerson tests.
+/// The join is direct, effectiveTeamMemberId = squareTeamMemberId, same org — the
+/// attendance.ts precedent; no StaffMember step.
+export async function getManagerBandDecisions({
+  organizationId,
+  storeId,
+  timeZone,
+  dates,
+  openByDate,
+  overlayOn,
+  viewerCanSee,
+}: {
+  organizationId: string
+  storeId: string
+  timeZone: string
+  dates: string[]
+  openByDate: Record<string, ManagerBand | null>
+  overlayOn: boolean
+  viewerCanSee: boolean
+}): Promise<Record<string, ManagerBandDecision>> {
+  const base = { storeId, dates, openByDate, timeZone, overlayOn, viewerCanSee }
+  if (!overlayOn || !viewerCanSee || dates.length === 0) {
+    return decideManagerBands({ ...base, health: "never", lastWindowEnd: null, teamMemberIds: [], shifts: [] })
+  }
+
+  const [sync, state, allocations] = await Promise.all([
+    getScheduleSyncSummary(storeId),
+    prisma.squareScheduleSyncState.findUnique({ where: { storeId }, select: { lastWindowEnd: true } }),
+    prisma.laborSalariedAllocation.findMany({
+      where: {
+        organizationId,
+        storeId,
+        allocationBps: { gt: 0 },
+        person: { OR: [{ exempt: null }, { exempt: false }], weeklyHours: { gt: 0 } },
+      },
+      select: { person: { select: { squareTeamMemberId: true } } },
+    }),
+  ])
+  const teamMemberIds = [...new Set(allocations.map((a) => a.person.squareTeamMemberId))]
+  const lastWindowEnd = state?.lastWindowEnd ? state.lastWindowEnd.toISOString().slice(0, 10) : null
+
+  const healthy = sync.health === "fresh" || sync.health === "synced-empty"
+  const shifts =
+    healthy && teamMemberIds.length > 0
+      ? await prisma.squareScheduledShift.findMany({
+          where: {
+            organizationId,
+            effectiveTeamMemberId: { in: teamMemberIds },
+            effectiveIsDeleted: false,
+            effectiveStartAt: { lt: localMidnightUtc(addDaysStr(dates[dates.length - 1], 1), timeZone) },
+            effectiveEndAt: { gt: localMidnightUtc(dates[0], timeZone) },
+          },
+          select: {
+            storeId: true,
+            effectiveTeamMemberId: true,
+            effectiveStartAt: true,
+            effectiveEndAt: true,
+            effectiveIsDeleted: true,
+          },
+        })
+      : []
+
+  return decideManagerBands({ ...base, health: sync.health, lastWindowEnd, teamMemberIds, shifts })
+}
