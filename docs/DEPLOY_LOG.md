@@ -2,6 +2,25 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-31 — TIMECARD-HEAL-0: stuck open timecards investigation (docs only)
+
+**Staging only, not yet promoted.** Docs only: no code, no migration, no env
+change, nothing a user can see. Blast radius is the docs build alone —
+`docs/ROADMAP.yaml` is typechecked at prebuild, so a bad row fails the deploy.
+
+- **Commits:** `eeb94ae` (BUG-17 filed, DECISIONS entry, audit
+  `docs/prompts/TIMECARD-HEAL-0_AUDIT.md`, saved prompt) + the
+  TIMECARD-HEAL-0 PRE-PUSH-CHECK commit immediately after it (row SHAs, this
+  entry).
+- **Rulings:** DECISIONS.md "2026-10-31 — TIMECARD-HEAL-0: stuck open
+  timecards (Gary)", five rulings, ratified as written.
+- **Status:** BUG-17 is filed `planned` and has no code. The fix is a
+  separate TIER 3 phase. The stuck open cards on staging are unchanged by
+  this push.
+- **Verify after deploy:** the build is green. Nothing else to look at.
+- **Rollback:** not needed for behaviour; revert the two docs commits if the
+  rows themselves are wrong.
+
 ## a4a33b9 — 2026-10-30 — L-4d: manager band follows the Square schedule (display only)
 
 **PROMOTED 2026-10-30 in merge `a4a33b9`** (`a4a33b912bbd524c1688bf3fa7ed80ee66ce1100`,

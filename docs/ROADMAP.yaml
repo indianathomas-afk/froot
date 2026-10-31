@@ -24414,10 +24414,20 @@ bugs:
       (/api/labor/day-inspector, the schedule horizon), so no data is wrong.
 
   - id: BUG-17
+    # TIMECARD-HEAL-0 (investigation, docs only) recorded 2026-10-31 by the
+    # TIMECARD-HEAL-0 PRE-PUSH-CHECK, in the commit immediately after eeb94ae
+    # (its own SHA cannot be written inside itself). NOT pushed when the check
+    # ran — Gary runs the push. DECISIONS 2026-10-31 TIMECARD-HEAL-0 ratified by
+    # Gary at this check: "Ratify as written"
+    # STATUS STAYS `planned`: TIMECARD-HEAL-0 moved no code (PRE-PUSH-CHECK,
+    # docs-only phases; precedent L-4-0, 9d5f209).
     status: planned
     title: >
       Timecards stored while open are never re-fetched once their start day
       leaves the sync window, so they stay open in Froot forever
+    commits:
+      - "eeb94ae"
+      # + the commit immediately after eeb94ae: docs(TIMECARD-HEAL-0 PRE-PUSH-CHECK)
     notes: >
       FILED 2026-10-31 by TIMECARD-HEAL-0 (investigation only, at dbf0121).
       Audit of record: docs/prompts/TIMECARD-HEAL-0_AUDIT.md. Rulings:
