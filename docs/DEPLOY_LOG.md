@@ -2,6 +2,67 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-31 — BUG-17: heal stale open timecards by id; 24h guard on paid time and attendance
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two BUG-17 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `52f12a6`, `09961fc`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `52f12a6` | BUG-17 work: `src/lib/labor-actuals.ts` (heal + `isStaleOpen` guard), `attendance.ts`, `labor-inspector.ts`, `labor-judgment.ts`, `labor-schedule.ts`, `raise-eligibility.ts`; fixture `scripts/verify-bug17-heal.ts` + boundary golden; three existing fixtures updated for the new `nowMs` argument |
+| `09961fc` | `docs(BUG-17)`: row `in_progress`, DECISIONS entry (rulings 1–5 + C2 approvals), LABOR.md § BUG-17, BUG-18 and DEBT-122 filed, `docs/prompts/BUG-17_heal_open_timecards.md` |
+| the commit immediately after `09961fc` | `docs(BUG-17 PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`; DECISIONS ratified by Gary at this check ("Ratify as written") |
+
+**Blast radius: LABOR NUMBERS AND ATTENDANCE, ORG-WIDE WHERE LABOR IS ON. NEW
+SQUARE READ, NO WRITE. NO SCHEMA, NO MIGRATION, NO ENV VAR, NO NEW SCOPE, NO
+PERMISSION CHANGE.**
+
+- **New Square call:** `GET /v2/labor/timecards/{id}` (a read, on the held
+  `TIMECARDS_READ`), only for cards Froot holds as open from before the sync
+  window. 25 per store per run, 5 at a time, 10s per fetch, 20s per store;
+  stops on 429 / 5xx / 401 / 403 / timeout / network failure and never fails
+  the sync. Rides the cron, the dashboard trigger and the manual route.
+  Writes go through the existing version-guarded upsert. A 404 moves only
+  `syncedAt`.
+- **What changes in the numbers:** an open card older than 24h now counts as
+  unknown — 0 paid time — in labor %, cost, hours, covered days, tips, the
+  clocked-in curve and roster, and the Day Inspector (paid hours, Double,
+  Unscheduled, No-show). On-time leaves out a shift whose only possible
+  clock-in is such a card, which feeds /staff, Milestones and raise
+  eligibility. Inspector paid hours for OPEN cards count only the viewed day.
+  Dashboard note and Inspector notice appear when any such card exists.
+- **What does not:** with no stuck card, every number is byte-identical to
+  the pre-BUG-17 golden (`scripts/bug17-boundary-golden.json`, written at
+  `84e7f6c`); `staleOpenCount` is absent, so the payload is unchanged.
+  Closed midnight-crossing Inspector hours are untouched (BUG-18).
+- **Expected on staging:** 155 stuck cards across 8 stores
+  (`br-square-feather-a63z92vz`, Gary, Neon console, 2026-10-31) — labor
+  cost there will DROP and the notes will show until the heal closes them.
+  **Production: 0** (`br-sparkling-block-a620qvg4`), so promotion should
+  change no production number.
+
+**Rollback:** revert `52f12a6`. No schema, no data shape change — the guard
+disappears on the next request. Cards the heal already closed stay closed;
+they are Square's own answers, written through the same upsert the normal sync
+uses, so nothing needs undoing. The docs commits can stay or go with it.
+
+**Evidence so far: fixture only.** `scripts/verify-bug17-heal.ts` 58 passed,
+0 failed (dev `br-broad-wave-a6vpjdw0`, mocked Square, no rows left);
+regressions green per the row. **Nothing has been observed on staging.**
+After the push, in order: the staging-SHA precondition (deployed SHA = local
+`HEAD`); load the dashboard (staging syncs only on dashboard load, 3 stores
+per load, 15-minute cooldown) under a named org id; look for the
+"heal: N checked, C closed, F 404, D deferred" log lines; then the Day
+Inspector at Las Brisas 2026-10-29 — "Open, stale" bars and thousand-hour paid
+totals should be gone or carry the notice. Gary's Neon-console re-count of
+open-older-than-24h cards on `br-square-feather-a63z92vz` should fall from 155
+over repeated loads.
+
 ## UNPROMOTED — 2026-10-31 — TIMECARD-HEAL-0: stuck open timecards investigation (docs only)
 
 **Staging only, not yet promoted.** Docs only: no code, no migration, no env

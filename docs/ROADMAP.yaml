@@ -24423,7 +24423,12 @@ bugs:
     # docs-only phases; precedent L-4-0, 9d5f209).
     # BUG-17 BUILD 2026-10-31: planned -> in_progress at work commit 52f12a6.
     # NOT pushed — Gary runs the push. Next is Gary's PRE-PUSH-CHECK.
-    status: in_progress
+    # BUG-17 PRE-PUSH-CHECK 2026-10-31: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after 09961fc (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-10-31 BUG-17 ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written.
+    status: staging
     title: >
       Timecards stored while open are never re-fetched once their start day
       leaves the sync window, so they stay open in Froot forever
@@ -24432,6 +24437,8 @@ bugs:
       # + the commit immediately after eeb94ae: docs(TIMECARD-HEAL-0 PRE-PUSH-CHECK)
       - "52f12a6"
       # + the commit immediately after 52f12a6: docs(BUG-17)
+      - "09961fc"
+      # + the commit immediately after 09961fc: docs(BUG-17 PRE-PUSH-CHECK)
     notes: >
       ── BUILT 2026-10-31 by the BUG-17 session (TIER 3), work commit 52f12a6.
       Prepended; NOTHING BELOW IS EDITED. Prompt:
