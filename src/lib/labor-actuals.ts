@@ -84,6 +84,11 @@ export type LaborActualsResult = {
   /// Overtime stays deferred by ruling (Gary, 2026-08-18).
   otApplied: false
   lastSyncOkAt: string | null
+  /// BUG-17 — open cards older than 24 hours, counted as unknown and left out of
+  /// cost, hours and openTimecardCount. ABSENT, not 0, when there are none, so a
+  /// store with no stuck card returns exactly the payload it did before BUG-17
+  /// (the boundary test, scripts/verify-bug17-heal.ts).
+  staleOpenCount?: number
 }
 
 // Dollars ↔ integer cents. docs/LABOR.md § Money convention: dollars in and out,
@@ -137,14 +142,19 @@ export function computeLaborActuals({
   let costCents = 0
   let openCount = 0
   let wageMissing = 0
+  let staleCount = 0
 
-  const ceiling = Math.min(now.getTime(), windowEnd.getTime())
+  const nowMs = now.getTime()
+  const ceiling = Math.min(nowMs, windowEnd.getTime())
 
   for (const tc of timecards) {
-    const isOpen = tc.endAt === null
-    if (isOpen) openCount++
+    // BUG-17: a stale open card is nobody "on the clock" — it is a clock-out
+    // Square has not confirmed to Froot. Counted apart, and paidMinutesOf below
+    // returns null for it, so it adds no cost and no hours.
+    if (isStaleOpen(tc, nowMs)) staleCount++
+    else if (tc.endAt === null) openCount++
 
-    const minutes = paidMinutesOf(tc, ceiling)
+    const minutes = paidMinutesOf(tc, ceiling, nowMs)
     if (minutes === null) continue
     paidMinutes += minutes
 
@@ -177,6 +187,7 @@ export function computeLaborActuals({
     costComplete: wageMissing === 0,
     otApplied: false,
     lastSyncOkAt: syncState?.lastSyncOkAt?.toISOString() ?? null,
+    ...(staleCount > 0 ? { staleOpenCount: staleCount } : {}),
   }
 }
 
@@ -211,8 +222,37 @@ export function computeHealth(
 /// runs to the ceiling, the earlier of `now` and the window end. A card left open
 /// on Tuesday must not accrue into Thursday's query, and it must never occupy an
 /// hour that has not happened yet.
-export function clockedEndMs(tc: { endAt: Date | null }, ceilingMs: number): number {
+///
+/// BUG-17 — AND AN OPEN CARD OLDER THAN 24 HOURS HAS NO END AT ALL. It returns
+/// null, which every caller reads as "unknown": no paid time, no attendance, no
+/// overlap (DECISIONS 2026-10-31 TIMECARD-HEAL-0 R1). `nowMs` is REQUIRED, not
+/// defaulted, so the build lists every caller and none can opt out of the guard
+/// by forgetting it (CLAUDE.md § Verifying a guard covers every path).
+export function clockedEndMs(
+  tc: { startAt: Date; endAt: Date | null },
+  ceilingMs: number,
+  nowMs: number
+): number | null {
+  if (isStaleOpen(tc, nowMs)) return null
   return tc.endAt === null ? ceilingMs : tc.endAt.getTime()
+}
+
+/// BUG-17 R1 — "An open timecard older than 24 hours is counted as unknown, never
+/// as paid time or attendance." Measured against NOW, not against a window's
+/// ceiling: a card opened late on Tuesday and still open on Friday is a missed
+/// clock-out whichever day is being read, and costing it to Tuesday's midnight
+/// would book an hour nobody can vouch for.
+///
+/// 24 hours is the lookback the clocked-in curve already used on the same
+/// reasoning ("a card open longer than 24h is a data problem, not a shift",
+/// labor-schedule.ts). STRICTLY older: a card open exactly 24h still counts.
+///
+/// This is not the Inspector's "Open, stale", which is a DATE comparison and fires
+/// on a card opened last night. That flag says "go look"; this decides money.
+export const STALE_OPEN_HOURS = 24
+
+export function isStaleOpen(tc: { startAt: Date; endAt: Date | null }, nowMs: number): boolean {
+  return tc.endAt === null && nowMs - tc.startAt.getTime() > STALE_OPEN_HOURS * 60 * 60 * 1000
 }
 
 /// AL-3 — THE PAID-MINUTES RULE, EXTRACTED SO TWO CALCULATIONS CANNOT DRIFT.
@@ -233,11 +273,17 @@ export function clockedEndMs(tc: { endAt: Date | null }, ceilingMs: number): num
 /// derivation uses it as the "does this row contribute any work at all" test, so
 /// a row this function drops is dropped by the chart too. Exported rather than
 /// copied, per the same argument the paragraphs above make.
+///
+/// BUG-17: a stale open card (isStaleOpen) returns null here too, through
+/// clockedEndMs, so every caller that already skips a null skips it.
 export function paidMinutesOf(
   tc: { startAt: Date; endAt: Date | null; breakUnpaidMinutes: number },
-  ceilingMs: number
+  ceilingMs: number,
+  nowMs: number
 ): number | null {
-  const grossMinutes = (clockedEndMs(tc, ceilingMs) - tc.startAt.getTime()) / 60000
+  const endMs = clockedEndMs(tc, ceilingMs, nowMs)
+  if (endMs === null) return null
+  const grossMinutes = (endMs - tc.startAt.getTime()) / 60000
   if (grossMinutes <= 0) return null
   return Math.max(0, grossMinutes - tc.breakUnpaidMinutes)
 }
@@ -273,7 +319,12 @@ export async function getLaborActuals(
   // and no per-person field is read to get it: a timecard's own startAt rendered
   // in the store's zone is the business day it belongs to, which is the same
   // notion of "a day" the sync's `workday` filter and SalesPeriodCache.date use.
-  const coveredDates = [...new Set(rows.map((r) => localDateStr(r.startAt, store.timezone)))].sort()
+  //
+  // BUG-17: a stale open card covers nothing. Counting its day as covered would
+  // put that day's sales in the denominator with none of its cost.
+  const coveredDates = [
+    ...new Set(rows.filter((r) => !isStaleOpen(r, now.getTime())).map((r) => localDateStr(r.startAt, store.timezone))),
+  ].sort()
 
   // THE DENOMINATOR IS RESTRICTED TO THOSE DAYS. `date: { in: … }` rather than a
   // range, so a month with three synced days divides three days of cost by three
@@ -363,9 +414,10 @@ export async function getLaborActualsForStores(
     else rowsByStore.set(r.storeId, [r])
   }
 
+  // BUG-17: stale open cards cover nothing — the single-store read's rule.
   const coveredByStore = new Map<string, string[]>()
   for (const st of stores) {
-    const list = rowsByStore.get(st.id) ?? []
+    const list = (rowsByStore.get(st.id) ?? []).filter((r) => !isStaleOpen(r, now.getTime()))
     coveredByStore.set(st.id, [...new Set(list.map((r) => localDateStr(r.startAt, st.timezone)))].sort())
   }
 
@@ -506,7 +558,8 @@ export function computeTipPayout({
     // is why AL-1 stored the flag at all.
     if (tc.wageTipEligible === false) continue
 
-    const minutes = paidMinutesOf(tc, ceiling)
+    // BUG-17: a stale open card returns null and adds no hours to the divisor.
+    const minutes = paidMinutesOf(tc, ceiling, now.getTime())
     if (minutes === null) continue
     eligibleMinutes += minutes
     if (tc.wageTipEligible === null) unknownMinutes += minutes
@@ -579,9 +632,10 @@ export async function getTipPayoutForStores(
     else rowsByStore.set(r.storeId, [r])
   }
 
+  // BUG-17: stale open cards cover nothing — the cost side's rule.
   const coveredByStore = new Map<string, string[]>()
   for (const st of stores) {
-    const list = rowsByStore.get(st.id) ?? []
+    const list = (rowsByStore.get(st.id) ?? []).filter((r) => !isStaleOpen(r, now.getTime()))
     coveredByStore.set(st.id, [...new Set(list.map((r) => localDateStr(r.startAt, st.timezone)))].sort())
   }
 
@@ -621,7 +675,19 @@ export async function getTipPayoutForStores(
 
 // ─── THE SYNC (POLL, NOT WEBHOOK) ─────────────────────────────────────────────
 
-export type LaborSyncResult = { timecards: number; written: number; pages: number }
+export type LaborSyncResult = { timecards: number; written: number; pages: number; healed: HealResult }
+
+/// BUG-17 — what one heal pass did. `deferred` is every stale candidate it did
+/// not reach (past the cap, the budget or a stop), so a capped pass can never
+/// read as a complete one.
+export type HealResult = {
+  candidates: number
+  checked: number
+  closed: number
+  notFound: number
+  deferred: number
+  stopped: string | null
+}
 
 type SquareMoney = { amount?: number; currency?: string } | null | undefined
 type SquareBreak = { start_at?: string; end_at?: string | null; is_paid?: boolean }
@@ -716,7 +782,10 @@ export async function syncTimecardsForStore(
       `[labor-actuals] org=${org.id} store=${store.id} ${startDate}..${endDate}: ` +
         `${collected.length} timecards, ${written} written, ${pages} page(s)`
     )
-    return { timecards: collected.length, written, pages }
+    // BUG-17 — AFTER the window is written and recorded ok, so nothing the heal
+    // does can fail the sync. healStaleOpenTimecards never throws.
+    const healed = await healStaleOpenTimecards(org, store, client, startDate)
+    return { timecards: collected.length, written, pages, healed }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "sync failed"
     // Log the REAL cause before anything upstream gets a chance to mask it —
@@ -725,6 +794,148 @@ export async function syncTimecardsForStore(
     await recordSyncError(store.id, msg)
     throw e
   }
+}
+
+// ─── THE HEAL (BUG-17) ────────────────────────────────────────────────────────
+
+/// R3 — "at most 25 per store per run".
+export const HEAL_CAP = 25
+/// Ruling 1 (BUG-17, 2026-10-31): "The heal fetches at most 5 cards at a time,
+/// each with a 10-second timeout, and stops for that store after 20 seconds or on
+/// any 429 or 5xx; what is left is logged as deferred."
+export const HEAL_CONCURRENCY = 5
+export const HEAL_FETCH_TIMEOUT_MS = 10_000
+export const HEAL_BUDGET_MS = 20_000
+
+/// BUG-17 — RE-ASK SQUARE ABOUT CARDS FROZEN OPEN.
+///
+/// The window search selects by START date only (above), so a card Froot stored
+/// while it was open is never fetched again once its start day leaves every
+/// caller's window. This asks Square for each such card BY ID —
+/// GET /v2/labor/timecards/{id}, TIMECARDS_READ, a read like every other call in
+/// this module — and writes the answer through writeTimecards, the same guarded
+/// upsert the window uses, so a healed card is indistinguishable from a synced
+/// one. It rides every caller: the production cron, staging's dashboard trigger
+/// and the manual route.
+///
+/// WHICH CARDS: open in Froot, started before this run's window, this store.
+/// LEAST RECENTLY CHECKED FIRST (syncedAt, then startAt) — ruling 2: "The heal
+/// checks the cards Froot asked Square about least recently first. A 404 updates
+/// only the card's last-checked time, so a deleted card cannot hold a heal slot
+/// forever; nothing else on the row changes." A card Square still holds as open
+/// refreshes syncedAt through the upsert and goes to the back the same way.
+///
+/// A 404 IS LOGGED, NOT ACTED ON (R4): the row keeps endAt null and the 24h guard
+/// keeps it out of every number. Deleting or tombstoning it waits on the
+/// deletion ruling (writeTimecards' KNOWN LIMIT).
+///
+/// NEVER THROWS. Any other non-OK answer, a timeout or the budget stops the pass;
+/// the sync it rides has already succeeded and stays successful.
+async function healStaleOpenTimecards(
+  org: Organization,
+  store: Store,
+  client: { baseUrl: string; headers: Record<string, string> },
+  windowStartDate: string
+): Promise<HealResult> {
+  const result: HealResult = { candidates: 0, checked: 0, closed: 0, notFound: 0, deferred: 0, stopped: null }
+  try {
+    const where = {
+      organizationId: org.id,
+      storeId: store.id,
+      endAt: null,
+      startAt: { lt: localMidnightUtc(windowStartDate, store.timezone) },
+    }
+    const [rows, total] = await Promise.all([
+      prisma.squareTimecard.findMany({
+        where,
+        orderBy: [{ syncedAt: "asc" }, { startAt: "asc" }],
+        take: HEAL_CAP,
+        select: { squareTimecardId: true },
+      }),
+      prisma.squareTimecard.count({ where }),
+    ])
+    result.candidates = total
+    if (rows.length === 0) return result
+
+    const deadline = Date.now() + HEAL_BUDGET_MS
+    const queue = rows.map((r) => r.squareTimecardId)
+    const fetched: SquareTimecardPayload[] = []
+    const missing: string[] = []
+
+    const worker = async () => {
+      while (queue.length > 0 && result.stopped === null) {
+        if (Date.now() >= deadline) {
+          result.stopped = `budget ${HEAL_BUDGET_MS / 1000}s`
+          return
+        }
+        const id = queue.shift()!
+        let res: Response
+        try {
+          res = await fetch(`${client.baseUrl}/v2/labor/timecards/${encodeURIComponent(id)}`, {
+            method: "GET",
+            headers: client.headers,
+            signal: AbortSignal.timeout(HEAL_FETCH_TIMEOUT_MS),
+          })
+        } catch (e) {
+          // A timeout or a network failure: Square is not answering, so the rest
+          // of this store's pass would only spend the budget waiting.
+          result.stopped = e instanceof Error && e.name === "TimeoutError" ? "timeout" : "fetch failed"
+          return
+        }
+        result.checked++
+        if (res.status === 404) {
+          missing.push(id)
+          console.log(`[labor-actuals] store=${store.id} heal 404 timecard=${id} left as is`)
+          continue
+        }
+        if (!res.ok) {
+          // 429, 5xx — and a 401/403 too, which would fail every card the same way.
+          result.stopped = `SQUARE_TIMECARD_${res.status}`
+          return
+        }
+        const data = (await res.json().catch(() => null)) as { timecard?: SquareTimecardPayload } | null
+        if (data?.timecard) fetched.push(data.timecard)
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(HEAL_CONCURRENCY, queue.length) }, worker))
+
+    if (fetched.length > 0) {
+      await writeTimecards(org, store, fetched, new Date())
+      // Counted from the ROWS, not the payloads: a payload the version guard
+      // discarded closed nothing, and the log must not say it did.
+      result.closed = await prisma.squareTimecard.count({
+        where: {
+          organizationId: org.id,
+          storeId: store.id,
+          squareTimecardId: { in: fetched.map((p) => p.id) },
+          endAt: { not: null },
+        },
+      })
+    }
+    if (missing.length > 0) {
+      // Raw SQL ON PURPOSE: updatedAt is @updatedAt, and Prisma would stamp it
+      // too. Ruling 2 says nothing else on the row changes.
+      await prisma.$executeRaw`
+        UPDATE "SquareTimecard" SET "syncedAt" = ${new Date()}
+        WHERE "organizationId" = ${org.id} AND "storeId" = ${store.id}
+          AND "endAt" IS NULL AND "squareTimecardId" IN (${Prisma.join(missing)})
+      `
+    }
+    result.notFound = missing.length
+  } catch (e) {
+    result.stopped = e instanceof Error ? e.message.slice(0, 200) : "heal failed"
+    console.error(`[labor-actuals] org=${org.id} store=${store.id} heal failed: ${result.stopped}`)
+  }
+  result.deferred = Math.max(0, result.candidates - result.checked)
+  if (result.candidates > 0) {
+    // THE DEFERRAL, NAMED — MAX_SYNCS_PER_LOAD's lesson: a capped pass that logs
+    // nothing reads as a complete one.
+    console.log(
+      `[labor-actuals] org=${org.id} store=${store.id} heal: ${result.checked} checked, ${result.closed} closed, ` +
+        `${result.notFound} 404, ${result.deferred} deferred${result.stopped ? `, stopped: ${result.stopped}` : ""}`
+    )
+  }
+  return result
 }
 
 /// THE GUARDED UPSERT. BUG-7's lesson, with a better guard column than

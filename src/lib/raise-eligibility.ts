@@ -520,7 +520,9 @@ export async function getRaiseEligibility(
     for (const c of cards) {
       const memberId = byTeamMember.get(c.squareTeamMemberId)
       if (!memberId) continue
-      const paid = paidMinutesOf(c, now.getTime())
+      // Closed cards only (the select above), so BUG-17's stale-open guard never
+      // fires here; `now` is passed because the helper requires it.
+      const paid = paidMinutesOf(c, now.getTime(), now.getTime())
       if (paid === null) continue
       const monday = mondayOfWeekStr(localDateStr(c.startAt, zoneOf.get(c.storeId) ?? org.timezone))
       const m = minutes.get(memberId) ?? new Map<string, number>()

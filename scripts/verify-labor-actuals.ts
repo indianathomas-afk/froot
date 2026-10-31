@@ -99,16 +99,31 @@ console.log("\n3. An OPEN timecard costs to `now`, clamped by the window end")
   check("laborCost", r.laborCost, 70)
   check("openTimecardCount", r.openTimecardCount, 1)
 
-  // The same card queried three days later must NOT have accrued three days of
-  // cost — the window end is the ceiling, not the clock.
+  // The same card queried after the window has closed must NOT accrue past it —
+  // the window end is the ceiling, not the clock. BUG-17 (Gary, 2026-10-31): read
+  // at 19h, past the window end and still under the 24h guard. This case used to
+  // read three days later; under R1 that card is now unknown (next check).
   const later = computeLaborActuals({
+    timecards: open,
+    netSales: 700,
+    now: utc("2026-08-19T10:00:00.000"),
+    windowEnd: WINDOW_END,
+    syncState: FRESH_SYNC,
+  })
+  check("clamped to window end (hours)", later.laborHours, 16)
+
+  // BUG-17 R1 — the three-days-later read: open over 24h, so unknown — no hours,
+  // and counted as stuck rather than as on the clock.
+  const daysLater = computeLaborActuals({
     timecards: open,
     netSales: 700,
     now: utc("2026-08-21T20:00:00.000"),
     windowEnd: WINDOW_END,
     syncState: FRESH_SYNC,
   })
-  check("clamped to window end (hours)", later.laborHours, 16)
+  check("three days later: 0 hours (BUG-17 R1)", daysLater.laborHours, 0)
+  check("three days later: counted as stuck", daysLater.staleOpenCount, 1)
+  check("three days later: not on the clock", daysLater.openTimecardCount, 0)
 }
 
 console.log("\n4. A missing wage keeps the hours and drops the dollars")
@@ -388,12 +403,22 @@ console.log("\n9. AL-2 — the estate roll-up")
   const openPastWindow = computeTipPayout({
     timecards: [tc({ endAt: null })],
     posTips: 16,
-    // `now` is two days later; the WINDOW END is the ceiling, so a card left
-    // open on Tuesday must not accrue tips-hours into Thursday.
-    now: D("2026-08-22T00:00:00.000Z"),
+    // `now` is past the window; the WINDOW END is the ceiling, so an open card
+    // must not accrue tips-hours beyond it. BUG-17 (Gary, 2026-10-31): read at
+    // 19h, under the 24h guard — this used to read two days later.
+    now: D("2026-08-20T11:00:00.000Z"),
     windowEnd: D("2026-08-19T23:00:00.000Z"),
   })
   check("an open card is clamped by the window end", openPastWindow.eligibleHours, 7)
+
+  // BUG-17 R1 — the two-days-later read: open over 24h, so no tips-hours at all.
+  const openDaysLater = computeTipPayout({
+    timecards: [tc({ endAt: null })],
+    posTips: 16,
+    now: D("2026-08-22T00:00:00.000Z"),
+    windowEnd: D("2026-08-19T23:00:00.000Z"),
+  })
+  check("two days later: 0 tips-hours (BUG-17 R1)", openDaysLater.eligibleHours, 0)
 
   // The coverage pair rides through unchanged, so the card can say "N of M days
   // synced" about the tip rate as well as the labor percentage.

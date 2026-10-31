@@ -854,11 +854,12 @@ export function computeClockedInCoverage({
   for (const r of rows) {
     // The SAME does-this-row-count test the cost calculation uses. A clock-skewed
     // or zero-length row is dropped by both or by neither.
-    if (paidMinutesOf(r, ceilingMs) === null) continue
+    // BUG-17: a stale open card (over 24h) is dropped here too, by the same test.
+    if (paidMinutesOf(r, ceilingMs, now.getTime()) === null) continue
 
     const start = r.startAt.getTime()
-    const end = clockedEndMs(r, ceilingMs)
-    if (!(start < dayEnd && end > dayStart)) continue
+    const end = clockedEndMs(r, ceilingMs, now.getTime())
+    if (end === null || !(start < dayEnd && end > dayStart)) continue
 
     const from = Math.max(start, dayStart)
     const to = Math.min(end, dayEnd)
@@ -1176,8 +1177,11 @@ export function assembleClockedInRoster({
 }): ClockedInRosterEntry[] {
   const ceilingMs = now.getTime()
 
+  // BUG-17: a card open over 24h is dropped by both sides on the same test too.
   const kept = rows.filter(
-    (r) => paidMinutesOf({ startAt: r.startAt, endAt: null, breakUnpaidMinutes: r.breakUnpaidMinutes }, ceilingMs) !== null
+    (r) =>
+      paidMinutesOf({ startAt: r.startAt, endAt: null, breakUnpaidMinutes: r.breakUnpaidMinutes }, ceilingMs, ceilingMs) !==
+      null
   )
 
   // Longest on the floor first — the reader's question is usually "who is due a

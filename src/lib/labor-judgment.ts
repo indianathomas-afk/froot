@@ -125,6 +125,9 @@ export type LaborBlock = {
   lastSyncOkAt: string | null
   /// Dollars. MANAGE-tier viewers only; absent — not zeroed — for everyone else.
   laborCost?: number
+  /// BUG-17 — see LaborActualsResult.staleOpenCount. Absent when 0, so a store
+  /// with no stuck card carries the pre-BUG-17 payload byte for byte.
+  staleOpenCount?: number
 }
 
 /// Narrows a full LaborActualsResult down to what a dashboard may carry.
@@ -147,6 +150,7 @@ export function toLaborBlock(
     otApplied: false,
     lastSyncOkAt: actuals.lastSyncOkAt,
     ...(includeDollars ? { laborCost: actuals.laborCost } : {}),
+    ...(actuals.staleOpenCount ? { staleOpenCount: actuals.staleOpenCount } : {}),
   }
 }
 
@@ -199,6 +203,7 @@ export function aggregateLaborActuals(
     .map((r) => r.result.lastSyncOkAt)
     .filter((v): v is string => v !== null)
     .sort()
+  const staleOpen = results.reduce((s, r) => s + (r.result.staleOpenCount ?? 0), 0)
 
   return {
     laborPct: totalSales > 0 ? (totalCost / totalSales) * 100 : null,
@@ -217,6 +222,7 @@ export function aggregateLaborActuals(
     lastSyncOkAt: lastOk[0] ?? null,
     storesReporting: reporting.length,
     storesTotal: results.length,
+    ...(staleOpen > 0 ? { staleOpenCount: staleOpen } : {}),
   }
 }
 
@@ -269,6 +275,17 @@ export function laborFootnotes(block: LaborBlock, timeZone?: string): { text: st
     out.push({
       tone: "muted",
       text: `${block.openTimecardCount} on the clock — this number is still moving.`,
+    })
+  }
+  // BUG-17 — Gary's wording, 2026-10-31 (DECISIONS, BUG-17 R5). A warning, not a
+  // muted line: like the wage gap, it says the cost is understated.
+  if (block.staleOpenCount) {
+    const n = block.staleOpenCount
+    out.push({
+      tone: "warn",
+      text: `${n} timecard${n === 1 ? " has" : "s have"} been open more than 24 hours and ${
+        n === 1 ? "isn't" : "aren't"
+      } counted — labor cost may read low until Square confirms the clock-out.`,
     })
   }
   // LAST, and unconditional whenever there is a number: straight time only. Kept

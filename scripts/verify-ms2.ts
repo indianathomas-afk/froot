@@ -338,10 +338,10 @@ async function overlayOff() {
 console.log("\nD. Day Inspector output identical before/after the pairing move (F12)")
 check("D1. every seeded scenario byte-identical to the pre-move golden file", serialiseAll() + "\n" === readFileSync(GOLDEN_PATH, "utf8"), true)
 const insp = readFileSync("src/lib/labor-inspector.ts", "utf8")
-check("D2. inspector calls pairsAsAttendance in both loops", (insp.match(/pairsAsAttendance\(tc, s, ceilingMs, thresholds\.showedUpMinOverlapMinutes\)/g) ?? []).length, 2)
+check("D2. inspector calls pairsAsAttendance in both loops", (insp.match(/pairsAsAttendance\(tc, s, ceilingMs, thresholds\.showedUpMinOverlapMinutes, nowMs\)/g) ?? []).length, 2)
 check("D3. inspector's NO-SHOW wait still 20 minutes", /export const NO_SHOW_GRACE_MINUTES = 20\n/.test(insp), true)
 const att = readFileSync("src/lib/attendance.ts", "utf8")
-check("D4. attendance.ts pairs only via pairsAsAttendance — no overlap arithmetic of its own", [/overlapMinutes/.test(att), /pairsAsAttendance\(c, s, ceilingMs, SHOWED_UP_MIN_OVERLAP_MINUTES\)/.test(att)], [false, true])
+check("D4. attendance.ts pairs only via pairsAsAttendance — no overlap arithmetic of its own", [/overlapMinutes/.test(att), /pairsAsAttendance\(c, s, ceilingMs, SHOWED_UP_MIN_OVERLAP_MINUTES, ceilingMs\)/.test(att)], [false, true])
 
 // ─── E. DATABASE ─────────────────────────────────────────────────────────────
 async function db() {

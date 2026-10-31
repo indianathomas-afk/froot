@@ -3,8 +3,10 @@ import { localDateStr } from "@/lib/reports"
 import {
   clockedEndMs,
   computeHealth,
+  isStaleOpen,
   paidMinutesOf,
   DEFAULT_STALE_AFTER_MINUTES,
+  STALE_OPEN_HOURS,
   type LaborHealth,
 } from "@/lib/labor-actuals"
 import {
@@ -208,6 +210,7 @@ export type InspectorNoticeCode =
   | "no-show-pending"
   | "unassigned-shifts"
   | "duration-suppressed"
+  | "stale-open"
 
 export type InspectorNotice = { code: InspectorNoticeCode; text: string }
 
@@ -377,6 +380,9 @@ export function assembleDayInspector({
   // running to now. Reused rather than re-derived so the timeline and the curve
   // cannot disagree about where an open card stops.
   const ceilingMs = Math.min(now.getTime(), dayEnd)
+  const nowMs = now.getTime()
+  // BUG-17 — cards open over 24h, drawn but not counted. Named in one notice.
+  let staleOpen = 0
 
   // HOW FAR THE TIMECARD SYNC HAS ACTUALLY REACHED — and this one is different
   // from the bar ceiling on purpose. Using the bar ceiling for a flag would let a
@@ -438,6 +444,7 @@ export function assembleDayInspector({
     unmapped: boolean
     flags: Set<FlagCode>
     paidMinutes: number
+    unknownCards: number
     hasCards: boolean
     bars: Omit<InspectorBar, "key">[]
     ghosts: Omit<InspectorBar, "key">[]
@@ -454,11 +461,16 @@ export function assembleDayInspector({
 
     // DOUBLE — pairwise within this member. O(n²) over one person's cards in one
     // day, which is at most a handful; the clarity is worth more than the loop.
+    // BUG-17: a card open over 24h has no known end, so it can overlap nothing —
+    // two frozen cards for one person were "Double" on every day after them.
     const doubled = new Set<number>()
     for (let i = 0; i < cards.length; i++) {
       for (let j = i + 1; j < cards.length; j++) {
+        const endI = clockedEndMs(cards[i], ceilingMs, nowMs)
+        const endJ = clockedEndMs(cards[j], ceilingMs, nowMs)
+        if (endI === null || endJ === null) continue
         const overlap =
-          Math.min(clockedEndMs(cards[i], ceilingMs), clockedEndMs(cards[j], ceilingMs)) -
+          Math.min(endI, endJ) -
           Math.max(cards[i].startAt.getTime(), cards[j].startAt.getTime())
         if (overlap >= thresholds.doubleMinOverlapMinutes * 60000) {
           doubled.add(i)
@@ -469,6 +481,7 @@ export function assembleDayInspector({
     if (doubled.size > 0) flags.add("DOUBLE")
 
     let paidMinutes = 0
+    let unknownCards = 0
     const bars: Omit<InspectorBar, "key">[] = []
 
     cards.forEach((tc, index) => {
@@ -478,6 +491,8 @@ export function assembleDayInspector({
 
       const startedDate = localDateStr(tc.startAt, timeZone)
       const isOpen = tc.endAt === null
+      const stale = isStaleOpen(tc, nowMs)
+      if (stale) staleOpen++
 
       // OPEN-STALE — a date comparison against store-local TODAY, never against
       // the viewed day. A card opened on the 19th is stale when read on the 21st
@@ -498,9 +513,11 @@ export function assembleDayInspector({
       }
       // UNSCHEDULED — no scheduled shift of this member's overlaps this card by
       // enough to count as attendance.
-      if (hasSchedule) {
+      // BUG-17: not for a card open over 24h, which can pair with nothing and so
+      // would read as unscheduled on every day it is drawn.
+      if (hasSchedule && !stale) {
         const matched = memberShifts.some((s) =>
-          pairsAsAttendance(tc, s, ceilingMs, thresholds.showedUpMinOverlapMinutes)
+          pairsAsAttendance(tc, s, ceilingMs, thresholds.showedUpMinOverlapMinutes, nowMs)
         )
         if (!matched) {
           barFlags.add("UNSCHEDULED")
@@ -511,15 +528,22 @@ export function assembleDayInspector({
       const jobId = tc.wageJobId ?? UNKNOWN_JOB_ID
       jobIds.add(jobId)
 
-      const minutes = paidMinutesOf(tc, ceilingMs)
+      // BUG-17 R5: an open card's hours are clipped to the viewed day; a stale
+      // one returns null and is counted as unknown instead.
+      const minutes = inspectorPaidMinutes(tc, dayStart, ceilingMs, nowMs)
       if (minutes !== null) paidMinutes += minutes
+      if (stale) unknownCards++
       cardsOnFloor++
 
-      const endMs = clockedEndMs(tc, ceilingMs)
+      // THE BAR IS DRAWN TO THE CEILING EVEN WHEN THE CARD IS STALE. That is the
+      // existing "Open, stale" look, kept on purpose (BUG-17 B3): the reader needs
+      // to see the card to go and fix it. Drawing only — nothing is counted from it.
+      const endMs = tc.endAt === null ? ceilingMs : tc.endAt.getTime()
       const detailBits = [
         `${formatClockInLabel(tc.startAt, timeZone)} → ${tc.endAt ? formatClockInLabel(tc.endAt, timeZone) : "open"}`,
       ]
-      if (minutes !== null) detailBits.push(`${(minutes / 60).toFixed(1)}h paid`)
+      if (stale) detailBits.push("open over 24h — hours unknown")
+      else if (minutes !== null) detailBits.push(`${(minutes / 60).toFixed(1)}h paid`)
       if (tc.breakUnpaidMinutes > 0) detailBits.push(`${tc.breakUnpaidMinutes}m unpaid break`)
       if (tc.breakPaidMinutes > 0) detailBits.push(`${tc.breakPaidMinutes}m paid break`)
       // A row whose Square status disagrees with its own endAt is itself a
@@ -550,9 +574,12 @@ export function assembleDayInspector({
           noShowPending++
         } else {
           const matched = cards.some((tc) =>
-            pairsAsAttendance(tc, s, ceilingMs, thresholds.showedUpMinOverlapMinutes)
+            pairsAsAttendance(tc, s, ceilingMs, thresholds.showedUpMinOverlapMinutes, nowMs)
           )
-          if (!matched) {
+          // BUG-17 R3: a shift whose only possible clock-in is a stale open card
+          // is unknown — not a no-show, the same shifts attendance.ts leaves out.
+          const unknown = !matched && cards.some((tc) => claimsShiftAsUnknown(tc, s, nowMs))
+          if (!matched && !unknown) {
             ghostFlags.add("NO-SHOW")
             flags.add("NO-SHOW")
           }
@@ -567,6 +594,7 @@ export function assembleDayInspector({
       unmapped,
       flags,
       paidMinutes,
+      unknownCards,
       hasCards: cards.length > 0,
       bars,
       ghosts,
@@ -588,7 +616,9 @@ export function assembleDayInspector({
       name: d.name,
       unmapped: d.unmapped,
       flags: [...d.flags],
-      paidLabel: d.hasCards ? `${(d.paidMinutes / 60).toFixed(1)}h paid` : null,
+      paidLabel: d.hasCards
+        ? `${(d.paidMinutes / 60).toFixed(1)}h paid${d.unknownCards > 0 ? ` · ${d.unknownCards} unknown` : ""}`
+        : null,
       bars: d.bars.map((b, bi) => ({ ...b, key: `p${i}b${bi}` })),
       ghosts: d.ghosts.map((g, gi) => ({ ...g, key: `p${i}g${gi}` })),
     }
@@ -656,6 +686,17 @@ export function assembleDayInspector({
         `${n === 1 ? "It is" : "They are"} drawn as ${n === 1 ? "a plain scheduled shift" : "plain scheduled shifts"} and counted nowhere.`,
     })
   }
+  // BUG-17 — Gary's wording, 2026-10-31 (DECISIONS, BUG-17 R5).
+  if (staleOpen > 0) {
+    const one = staleOpen === 1
+    notices.push({
+      code: "stale-open",
+      text:
+        `${staleOpen} timecard${one ? " has" : "s have"} been open more than 24 hours. ` +
+        `${one ? "It's" : "They're"} shown but not counted in paid hours, Double, Unscheduled or No-show ` +
+        "until Square confirms the clock-out.",
+    })
+  }
   if (durationSuppressed) {
     notices.push({
       code: "duration-suppressed",
@@ -698,20 +739,70 @@ export function assembleDayInspector({
 ///
 /// The caller supplies member and store: both reads are per store and grouped by
 /// member, so pairing never crosses either. An open card runs to `ceilingMs`.
+///
+/// BUG-17 R1: a card open over 24 hours NEVER pairs — clockedEndMs has no end
+/// for it. `nowMs` is required for the same reason it is there.
 export function pairsAsAttendance(
   card: { startAt: Date; endAt: Date | null },
   shift: { effectiveStartAt: Date; effectiveEndAt: Date },
   ceilingMs: number,
-  showedUpMinOverlapMinutes: number
+  showedUpMinOverlapMinutes: number,
+  nowMs: number
 ): boolean {
+  const endMs = clockedEndMs(card, ceilingMs, nowMs)
+  if (endMs === null) return false
   return (
     overlapMinutes(
       card.startAt.getTime(),
-      clockedEndMs(card, ceilingMs),
+      endMs,
       shift.effectiveStartAt.getTime(),
       shift.effectiveEndAt.getTime()
     ) >= showedUpMinOverlapMinutes
   )
+}
+
+/// BUG-17 R3 — "A scheduled shift whose only possible clock-in is a timecard open
+/// over 24 hours is left out of on-time: neither on time nor a no-show. A possible
+/// clock-in is a card that started within 24 hours before the shift's start and
+/// before its end." (Gary, 2026-10-31.)
+///
+/// THE ONLY COPY, beside pairsAsAttendance and for the same reason: the Inspector's
+/// NO-SHOW and attendance.ts's on-time must leave out exactly the same shifts. The
+/// caller asks it only after pairing found nothing.
+export function claimsShiftAsUnknown(
+  card: { startAt: Date; endAt: Date | null },
+  shift: { effectiveStartAt: Date; effectiveEndAt: Date },
+  nowMs: number
+): boolean {
+  if (!isStaleOpen(card, nowMs)) return false
+  const start = card.startAt.getTime()
+  return (
+    start >= shift.effectiveStartAt.getTime() - STALE_OPEN_HOURS * 60 * 60 * 1000 &&
+    start < shift.effectiveEndAt.getTime()
+  )
+}
+
+/// BUG-17 R5 — "Inspector paid hours count only the viewed day", applied to OPEN
+/// cards only by Gary's RULING NOW 4 (2026-10-31): closed midnight-crossing cards
+/// keep whole-card hours until their own row.
+///
+/// An open card that started before the viewed day is counted from dayStart to
+/// the ceiling. Froot stores break MINUTES, not break times, so unpaid breaks come
+/// out in proportion to the part of the card that is kept. Every other card is
+/// paidMinutesOf unchanged — the branch is what keeps a same-day card's number
+/// byte-identical to before (the boundary test).
+function inspectorPaidMinutes(
+  tc: { startAt: Date; endAt: Date | null; breakUnpaidMinutes: number },
+  dayStart: number,
+  ceilingMs: number,
+  nowMs: number
+): number | null {
+  const whole = paidMinutesOf(tc, ceilingMs, nowMs)
+  if (whole === null || tc.endAt !== null || tc.startAt.getTime() >= dayStart) return whole
+  const keptMs = ceilingMs - dayStart
+  if (keptMs <= 0) return null
+  const fullMs = ceilingMs - tc.startAt.getTime()
+  return Math.max(0, keptMs / 60000 - tc.breakUnpaidMinutes * (keptMs / fullMs))
 }
 
 /// Overlap of two half-open intervals, in minutes. Zero where they merely touch or
