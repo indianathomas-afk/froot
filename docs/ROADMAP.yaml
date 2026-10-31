@@ -13247,6 +13247,12 @@ phases:
     # check is the commit immediately after 3bd3bf6 (its own SHA cannot be
     # written inside itself). DECISIONS 2026-10-30 L-4a ratified by Gary at
     # this check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written.
+    # L-4-1 PRE-PUSH-CHECK 2026-10-30: docs-only phase, so status stays
+    # `staging` (no flip; L-4-0 precedent, check 9d5f209). Docs SHA f10688b
+    # recorded; this check is the commit immediately after f10688b (its own
+    # SHA cannot be written inside itself). DECISIONS 2026-10-30 L-4-1
+    # ratified by Gary at this check: "Ratify as written". DEPLOY_LOG
+    # UNPROMOTED entry written. NOT pushed when the check ran — Gary runs it.
     status: staging
     title: "Manager band follows the Square schedule — Square is the schedule source (Froot-native scheduler deferred)"
     commits:
@@ -13258,6 +13264,8 @@ phases:
       # + the commit immediately after 3bd3bf6: docs(L-4a PRE-PUSH-CHECK)
       # + docs(L-4-1) rescope, on top of 45fcf5f — its SHA is recorded by the
       #   next PRE-PUSH-CHECK (a commit cannot name itself).
+      - "f10688b"
+      # + the commit immediately after f10688b: docs(L-4-1 PRE-PUSH-CHECK)
     notes: >
       ── L-4-1 RESCOPED 2026-10-30 (TIER 3, docs only; prepended, nothing below
       is edited). ── Prompt docs/prompts/L-4-1_square_schedule_rescope.md;
@@ -13280,6 +13288,11 @@ phases:
       docs/prompts/L-4b_scheduler_ui_and_routes.md, was never run and is left
       UNTRACKED, per the L-4-1 prompt. The "L-4b owes the staff-DELETE
       laborAssignment count" line below still binds whenever L-4b resumes.
+      [L-4-1 PRE-PUSH-CHECK 2026-10-30: that L-4b prompt file is NOT present in
+      this checkout and is absent from git history (git log --all finds
+      nothing); where it lives is unknown. The sentence above is kept as
+      written. Annotated on Gary's go-ahead at the check: "Annotate row in
+      check".]
       L-4c (breaks) IS PAUSED WITH IT (ruling 8): Square scheduled shifts carry
       no break fields (labor-schedule.ts:79-88), and L-4c's breaks annotate
       LaborAssignment rows that won't exist.

@@ -2,6 +2,25 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-30 — L-4-1: Square is the schedule source; L-4b paused; L-4d and L-5 rescoped (docs only)
+
+**Staging only, not yet promoted.** Docs only: no code, no migration, no env
+change, nothing a user can see. Blast radius is the docs build alone —
+`docs/ROADMAP.yaml` is typechecked at prebuild, so a bad row fails the deploy.
+
+- **Commits:** `f10688b` (DECISIONS entry, LABOR.md § L-4 A1 findings, L-4
+  and L-5 rows rescoped, saved prompt) + the L-4-1 PRE-PUSH-CHECK commit
+  immediately after it (row SHA, L-4b prompt annotation, this entry).
+- **Rulings:** DECISIONS.md "2026-10-30 — L-4-1: Square is the schedule
+  (Gary)", ten items, ratified as written (again at this check). Square is
+  the schedule source; L-4b and L-4c paused; L-4d redefined as a display-only
+  band that follows the Square schedule; L-5 needs a seam (b) amendment.
+- **Status:** L-4 stays `staging` (L-4a's empty table), size L -> S; L-5
+  stays `planned`. No status flip — no code moved.
+- **Verify after deploy:** the build is green. Nothing else to look at.
+- **Rollback:** not needed for behaviour; revert the two docs commits if the
+  rows themselves are wrong.
+
 ## UNPROMOTED — 2026-10-30 — L-4a: LaborAssignment data model (additive table, nothing reads it)
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
