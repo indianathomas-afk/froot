@@ -34492,6 +34492,28 @@ debt:
       Out of scope of BUG-17 by its prompt ("No manual re-sync button").
       A button that calls an existing read-only route adds no Square scope.
       RELATED: BUG-17, BUG-10, CRON-1.
+  - id: DEBT-123
+    status: planned
+    title: >
+      The Square schedule overlay and the scheduled-vs-suggested comparison
+      never check laborOverlayOn
+    notes: >
+      FILED 2026-10-31 by the DOCS-SWEEP session. Found in L-4d Phase B6,
+      2026-10-30 (the L-4 row names it "a ROW candidate, not filed here").
+      THE ID was confirmed free: DEBT-122 was the highest and DEBT-123 appears
+      nowhere in docs/ or CLAUDE.md. Cites re-measured at 6089816:
+      src/app/api/labor/coverage/route.ts:90-91 builds `overlay` on
+      can(labor.schedule.view) alone, and
+      src/app/api/labor/weekly-plan/route.ts:134-136 builds `comparison` the
+      same way. Neither reads laborOverlayOn. The L-4d manager band in both
+      routes DOES pass it (coverage :74, weekly-plan :98). With the Square
+      labor integration toggled off, rows already mirrored can still render,
+      labelled stale. That breaks src/lib/labor-dashboard.ts:45: "GATE 1-4 OFF
+      ⇒ THE DASHBOARD RENDERS EXACTLY AS IT DID BEFORE AL-2." No live impact
+      today: Keva has the toggle on. FIX SHAPE: gate both reads on
+      laborOverlayOn(ctx.org) as well as canSeeSchedule, so the key is absent
+      when the toggle is off. No schema, no new Square call or scope.
+      RELATED: L-4, L-4d.
 
 rulings:
   - id: R1
