@@ -2,7 +2,50 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-10-31 — BUG-17: heal stale open timecards by id; 24h guard on paid time and attendance
+## 0ff5628 — 2026-10-31 — BUG-17: heal stale open timecards by id; 24h guard on paid time and attendance
+
+**PROMOTED 2026-10-31 in merge `0ff5628`** (`0ff56287a5bd63592fd74c3115774a4e20a31f2d`,
+"Merge branch 'staging'", 2026-10-31 12:54:46 -0700 (Pacific) = 2026-10-31
+19:54:46 UTC), made by `git merge staging --no-ff --no-edit`. First parent
+`a4a33b9` (prior tip of `main`), second parent `b2fd9e3` (staging tip). **6
+commits** in `0ff5628^1..0ff5628^2` — `dbf0121` (L-4 stamp), `eeb94ae` and
+`84e7f6c` (TIMECARD-HEAL-0), `52f12a6`, `09961fc` and `b2fd9e3` (BUG-17) — and
+**21 files**, read out of `git log` and `git diff --shortstat` at this stamp.
+The merge carried two entries: this one and TIMECARD-HEAL-0 below. Pushed to
+`main`; `staging` brought level with `main`. **No migration.** Stamped
+post-merge by BUG-17 PROMOTION STAMP (2026-10-31), on `staging`; the heading
+previously read "UNPROMOTED — 2026-10-31 — BUG-17: heal stale open timecards by
+id; 24h guard on paid time and attendance". The "staging only", "NEITHER WAS
+PUSHED" and "Nothing has been observed on staging" lines below are spent, kept.
+
+**Observed, staging (Gary, 2026-10-31), before the merge:**
+- **Las Brisas dashboard on staging (footer `b2fd9e3~staging`):** the October
+  stuck-card note read 16 at 12:06 PDT and 8 at 12:25 PDT, and was gone at
+  12:48 PDT (19:06 / 19:25 / 19:48 UTC).
+- **Neon, staging `br-square-feather-a63z92vz`:** open-older-than-24h went from
+  **155 to 68**. Las Brisas 58 → 0 and Carson 29 → 0. The rest are unchanged
+  only because their dashboards hadn't synced yet: South Reno 44, Meadowood
+  Mall 9, UNR 7, Southgate 5, Spanish Springs 2, University Village 1 — total 68
+  confirmed by a one-row count.
+
+**Observed, production (Gary, after the merge, recorded verbatim):**
+
+> Vercel production build for 0ff5628 (branch main), Ready:
+> 12:57:11.089 Datasource "db": PostgreSQL database "neondb", schema "public" at "ep-green-smoke-a6xthq4r.us-west-2.aws.neon.tech"
+> 12:57:12.669 No pending migrations to apply.
+> 12:58:37.807 Deployment completed
+> usefroot.com/dashboard, South Reno, signed in as gary@kevajuice.com in the Keva Juice org, Clerk Production instance. Footer shows 0ff5628~main. No "open more than 24 hours" note appeared. Production Neon count (br-sparkling-block-a620qvg4): 0 open over 24h.
+
+Build times are PDT (19:57:11 / 19:58:37 UTC). `ep-green-smoke-a6xthq4r` is
+production `br-sparkling-block-a620qvg4` (endpoint mapping in the L-4a entry
+below). The org was named, not given by id. The stamp prompt asked for Las
+Brisas; Gary checked South Reno — recorded as given. Production held 0 stuck
+cards before and after, so no production number was expected to move and the
+absent note is the expected behaviour.
+
+**Rollback after promotion:** `git revert -m 1 0ff5628` on `main` (the whole
+merge; recipe in `docs/WORKFLOW.md` § Rolling a promotion back; keep this log),
+or revert the work commit `52f12a6` as below. There is no schema to unwind.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
@@ -63,7 +106,14 @@ totals should be gone or carry the notice. Gary's Neon-console re-count of
 open-older-than-24h cards on `br-square-feather-a63z92vz` should fall from 155
 over repeated loads.
 
-## UNPROMOTED — 2026-10-31 — TIMECARD-HEAL-0: stuck open timecards investigation (docs only)
+## 0ff5628 — 2026-10-31 — TIMECARD-HEAL-0: stuck open timecards investigation (docs only)
+
+**PROMOTED 2026-10-31 in merge `0ff5628`** — merge details, production
+evidence and rollback are in the BUG-17 entry above. Stamped post-merge by
+BUG-17 PROMOTION STAMP (2026-10-31), on `staging`; the heading previously read
+"UNPROMOTED — 2026-10-31 — TIMECARD-HEAL-0: stuck open timecards investigation
+(docs only)". The "Staging only" line and the "BUG-17 is filed `planned`"
+status below are spent, kept.
 
 **Staging only, not yet promoted.** Docs only: no code, no migration, no env
 change, nothing a user can see. Blast radius is the docs build alone —

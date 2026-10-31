@@ -24428,7 +24428,12 @@ bugs:
     # own SHA cannot be written inside itself). NOT pushed when the check ran —
     # Gary runs the push. DECISIONS 2026-10-31 BUG-17 ratified by Gary at this
     # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written.
-    status: staging
+    # `staging` -> `shipped` 2026-10-31, stamped post-merge 2026-10-31 by BUG-17
+    # PROMOTION STAMP (on `staging`): merge 0ff5628 (DEPLOY_LOG entries
+    # `0ff5628 — 2026-10-31 — BUG-17 / TIMECARD-HEAL-0`). Any "not pushed" /
+    # "staging" / "STATUS STAYS `planned`" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-10-31
     title: >
       Timecards stored while open are never re-fetched once their start day
       leaves the sync window, so they stay open in Froot forever
@@ -24439,7 +24444,28 @@ bugs:
       # + the commit immediately after 52f12a6: docs(BUG-17)
       - "09961fc"
       # + the commit immediately after 09961fc: docs(BUG-17 PRE-PUSH-CHECK)
+      - "b2fd9e3"
+      - "0ff5628"
     notes: >
+      ── PROMOTED 2026-10-31 in merge 0ff5628 (rider prepended 2026-10-31 by
+      BUG-17 PROMOTION STAMP; nothing below is edited). ──
+      Merge 0ff5628 (parents a4a33b9, b2fd9e3) carried 6 commits: dbf0121 (L-4
+      stamp), eeb94ae and 84e7f6c (TIMECARD-HEAL-0), 52f12a6, 09961fc and
+      b2fd9e3 (BUG-17). No migration ("No pending migrations to apply" in the
+      Vercel production build, Datasource ep-green-smoke-a6xthq4r).
+      OBSERVED, STAGING (Gary, 2026-10-31): br-square-feather-a63z92vz
+      open-older-than-24h went 155 -> 68 — Las Brisas 58 -> 0, Carson 29 -> 0;
+      the other 68 (South Reno 44, Meadowood Mall 9, UNR 7, Southgate 5,
+      Spanish Springs 2, University Village 1) only because those dashboards
+      had not synced yet. Las Brisas staging note read 16 at 12:06 PDT, 8 at
+      12:25 PDT, gone at 12:48 PDT. The heal works.
+      OBSERVED, PRODUCTION (Gary, recorded exactly): "usefroot.com/dashboard,
+      South Reno, signed in as gary@kevajuice.com in the Keva Juice org, Clerk
+      Production instance. Footer shows 0ff5628~main. No "open more than 24
+      hours" note appeared. Production Neon count (br-sparkling-block-a620qvg4):
+      0 open over 24h." Org named, not given by id. Full build lines in
+      DEPLOY_LOG.
+      STILL OPEN, UNCHANGED BY THIS STAMP: BUG-18 and DEBT-122 stay `planned`.
       ── BUILT 2026-10-31 by the BUG-17 session (TIER 3), work commit 52f12a6.
       Prepended; NOTHING BELOW IS EDITED. Prompt:
       docs/prompts/BUG-17_heal_open_timecards.md. NOT PUSHED.

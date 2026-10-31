@@ -1883,7 +1883,7 @@ Gary's push.
 | Branch | Applied (`_prisma_migrations.finished_at`) | By |
 |---|---|---|
 | dev `br-broad-wave-a6vpjdw0` | 2026-10-30 20:07:38 UTC (13:07:38 PDT) | Gary |
-| staging `br-square-feather-a63z92vz` | applied — `finished_at` not read at this stamp | Vercel build, on Gary's push |
+| staging `br-square-feather-a63z92vz` | 2026-10-30 20:23:50 UTC (13:23:50 PDT) | Vercel build, on Gary's push (build of `45fcf5f`) |
 | production `br-sparkling-block-a620qvg4` | 2026-10-31 05:52:37 UTC (22:52:37 PDT) | Vercel build, at promotion (merge `a4a33b9`) |
 
 **Applied to all three branches** — rider 2026-10-31, L-4 PROMOTION STAMP.
@@ -1895,6 +1895,14 @@ log, not from `_prisma_migrations`. Staging is recorded as applied on the stamp
 prompt's statement; no staging `finished_at` reached this session, so none is
 written. Before this rider both cells read "not yet"; the "APPLIED TO DEV ONLY"
 line above is spent, kept.
+
+**Staging time filled** — rider 2026-10-31, BUG-17 PROMOTION STAMP. Source: the
+Vercel staging build log for `45fcf5f`, line "Applying migration
+`20261030200242_l4a_labor_assignment`" at 13:23:50.546 PDT (2026-10-30
+20:23:50 UTC), as given in the stamp prompt. Like production's, it was read from
+the build log, not from `_prisma_migrations`. The staging cell previously read
+"applied — `finished_at` not read at this stamp"; the "no staging `finished_at`
+reached this session" sentence above is spent, kept.
 
 Timestamp note: the folder name is the UTC instant of generation.
 
