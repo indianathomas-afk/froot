@@ -2,6 +2,149 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-10-30 — L-4d: manager band follows the Square schedule (display only)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two L-4d commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `4dad553`, `a295d98`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `4dad553` | L-4d work: `src/lib/labor-schedule.ts` (`decideManagerBands`, `applyManagerBand`, `bandWindowFor`, `getManagerBandDecisions`), `/api/labor/coverage`, `/api/labor/weekly-plan`, `scripts/verify-l4d-band.ts` |
+| `a295d98` | `docs(L-4d)`: L-4 row (`in_progress`), DECISIONS entry (R1–R5), LABOR.md § L-4 "L-4d, as built", `docs/prompts/L-4d_band_reads_square_schedule.md` |
+| the commit immediately after `a295d98` | `docs(L-4d PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging` (R5); DECISIONS re-ratified by Gary at this check ("Ratify as written") |
+
+**Blast radius: TWO LABOR API ROUTES, DISPLAY ONLY. NO SCHEMA, NO MIGRATION, NO
+ENV VAR, NO CRON, NO NEW SQUARE CALL OR SCOPE, NO PERMISSION CHANGE.**
+
+- **What changes:** the manager band on the coverage card and the Weekly Plan
+  day detail draws only on days Square's schedule has an allocated salaried
+  person at that store, at her scheduled hours (start floored, end ceiled,
+  clipped to the open window). `/api/labor/coverage` replaces `gmWindow` and
+  `points[].gm` only; `/api/labor/weekly-plan` replaces `days[].gmWindow` only.
+- **What does not:** `gmHoursByDay`, floor credit, GM cap, headcount,
+  Suggested and the budget are computed before the band and never see Square
+  data (fixture boundary test, byte-identical). `covByDay` untouched.
+- **Fallback is the band as today** — overlay off, viewer without
+  `labor.schedule.view` (R1), sync not `fresh`/`synced-empty`, any allocated
+  person with no shift that week (R2), a day past the last sync window end
+  (R3), a closed day. Reads mirrored `SquareScheduledShift` rows only; no
+  notes, job or wage column selected.
+- **Surface:** Labor module only (`LABOR_MODULE_AVAILABLE` + `activeModules`
+  "labor"), so production orgs see it only where Labor is on.
+
+**Rollback:** revert `4dad553`. No schema, no data written — the band returns
+to the engine's `hasGm` decision on the next request. The docs commits can
+stay or go with it.
+
+**Evidence so far: fixture only.** `scripts/verify-l4d-band.ts` PASS, 73
+checks (pure, no DB, no branch). **Nothing has been observed on staging.**
+After the push, in order: the staging-SHA precondition (deployed SHA = local
+`HEAD`); Gary's Neon-console read on staging `br-square-feather-a63z92vz` that
+Kristie's `SquareScheduledShift` rows carry her team member id (owed, LABOR.md
+L-4d definition); then the coverage card and a Weekly Plan day detail at her
+store, under a named org id — band on her scheduled days at her hours, absent
+on her days off. Staging syncs the schedule only on dashboard load (the cron is
+production-only), so load the dashboard first.
+
+**Known, not fixed** (B6, in the row): the overlay and comparison themselves
+never check `laborOverlayOn`; "(incl. manager)" heading is stale copy.
+
+## UNPROMOTED — 2026-10-30 — L-4-1: Square is the schedule source; L-4b paused; L-4d and L-5 rescoped (docs only)
+
+**Staging only, not yet promoted.** Docs only: no code, no migration, no env
+change, nothing a user can see. Blast radius is the docs build alone —
+`docs/ROADMAP.yaml` is typechecked at prebuild, so a bad row fails the deploy.
+
+- **Commits:** `f10688b` (DECISIONS entry, LABOR.md § L-4 A1 findings, L-4
+  and L-5 rows rescoped, saved prompt) + the L-4-1 PRE-PUSH-CHECK commit
+  immediately after it (row SHA, L-4b prompt annotation, this entry).
+- **Rulings:** DECISIONS.md "2026-10-30 — L-4-1: Square is the schedule
+  (Gary)", ten items, ratified as written (again at this check). Square is
+  the schedule source; L-4b and L-4c paused; L-4d redefined as a display-only
+  band that follows the Square schedule; L-5 needs a seam (b) amendment.
+- **Status:** L-4 stays `staging` (L-4a's empty table), size L -> S; L-5
+  stays `planned`. No status flip — no code moved.
+- **Verify after deploy:** the build is green. Nothing else to look at.
+- **Rollback:** not needed for behaviour; revert the two docs commits if the
+  rows themselves are wrong.
+
+## UNPROMOTED — 2026-10-30 — L-4a: LaborAssignment data model (additive table, nothing reads it)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two L-4a commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `9fc21d6`, `3bd3bf6`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `9fc21d6` | L-4a work: `LaborAssignment` model in `prisma/schema.prisma`, migration `20261030200242_l4a_labor_assignment`, `scripts/verify-l4a-labor-assignment.ts` |
+| `3bd3bf6` | `docs(L-4a)`: L-4 row (`in_progress`), DECISIONS entry (rulings 1–5 + F1), MIGRATIONS log entry and § Protected indexes fix, LABOR.md § L-4, `docs/prompts/L-4a_assignment_data_model.md` |
+| the commit immediately after `3bd3bf6` | `docs(L-4a PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`; DECISIONS re-ratified by Gary at this check ("Ratify as written") |
+
+**Blast radius: SCHEMA, ONE NEW TABLE, AND NOTHING ELSE. NO ROUTE, NO PAGE, NO
+ENV VAR, NO CRON, NO PERMISSION CHANGE, NO EXISTING TABLE ALTERED.**
+
+- **Schema:** `CREATE TABLE "LaborAssignment"`, two indexes
+  (`organizationId, storeId, date`) and (`staffMemberId, date`), three FKs
+  (Organization RESTRICT, Store CASCADE, StaffMember RESTRICT), and one
+  hand-appended CHECK `LaborAssignment_minutes_check`
+  (0 ≤ startMinutes < endMinutes ≤ 1440). Applied by `prisma migrate deploy`
+  in the Vercel build on push.
+- **Inert.** Nothing in `src/` reads or writes the table (grep at this check:
+  the only hit is `src/generated/roadmap.ts`, which is row text). The table
+  stays empty until L-4b ships write routes.
+- **One side effect to know about:** the StaffMember FK is RESTRICT. With the
+  table empty it can never fire. L-4b owes the staff DELETE route a
+  `laborAssignment` count (ruling 3) before any row can exist.
+
+**The code does not depend on the migration.** No query selects the new table,
+so a deploy whose migrate step failed would still serve every page. The
+migration still ships with this push and must be confirmed applied.
+
+**Rollback:** revert `9fc21d6`. **The table, indexes and CHECK stay** —
+schema is additive-only, and the empty table is harmless to reverted code. Do
+not hand-edit `_prisma_migrations`.
+
+**Migration: applied to DEV ONLY, by Gary** (dev `br-broad-wave-a6vpjdw0`,
+`finished_at` 2026-10-30 20:07:38 UTC = 13:07:38 PDT; `docs/MIGRATIONS.md`
+L-4a entry). Before and after the push, Gary checks `_prisma_migrations` on
+staging `br-square-feather-a63z92vz` in the Neon console —
+`20261030200242_l4a_labor_assignment` absent before; present after with
+`finished_at` set and `rolled_back_at` null. Same check on production at
+promotion.
+
+**Evidence: dev only** (`br-broad-wave-a6vpjdw0`).
+`scripts/verify-l4a-labor-assignment.ts` 24/24 (refuses any other branch,
+leaves no rows). **Nothing to verify in a browser** — no surface reads the
+table. Staging check after the push is the migration row above, with the
+staging-SHA precondition first.
+
+## UNPROMOTED — 2026-10-30 — L-4-0: labor assignment layer scoping (docs only)
+
+**Staging only, not yet promoted.** Docs only: no code, no migration, no env
+change, nothing a user can see. Blast radius is the docs build alone —
+`docs/ROADMAP.yaml` is typechecked at prebuild, so a bad row fails the deploy.
+
+- **Commits:** `b4cb5e7` (L-4 row corrected, L-5 filed, DECISIONS entry,
+  LABOR.md § "L-4 · Assignment layer", saved prompt) + the L-4-0
+  PRE-PUSH-CHECK commit immediately after it (row SHAs, this entry).
+- **Rulings:** DECISIONS.md "2026-10-30 — L-4-0: labor assignment layer
+  scoping (Gary)", eight rulings, ratified as written. L-4's Square push is
+  struck (read-only ruling 2026-08-18); L-4 adds no OAuth scope.
+- **Status:** L-4 stays `planned` and L-5 is filed `planned`; neither has code.
+  The pre-push status flip was deliberately skipped (Gary, at the check).
+- **Verify after deploy:** the build is green. Nothing else to look at.
+- **Rollback:** not needed for behaviour; revert the two docs commits if the
+  rows themselves are wrong.
+
 ## 849550d — 2026-10-28 — DOC-7: annual re-sign, a document's signatures expire every N months
 
 **PROMOTED 2026-10-29 in merge `849550d`** (`849550d1c010215d96640098b40c8842949150f7`,

@@ -11,7 +11,10 @@ import {
   getScheduleSyncSummary,
   getOverlayJobs,
   UNKNOWN_JOB_ID,
+  getManagerBandDecisions,
+  applyManagerBand,
 } from "@/lib/labor-schedule"
+import { laborOverlayOn } from "@/lib/labor-dashboard"
 
 // GET /api/labor/coverage?storeId=&date= — demand-shaped, budget-capped
 // recommended coverage for one day (guidance). Works for FUTURE days (up to the
@@ -56,7 +59,22 @@ export async function GET(req: Request) {
   if (!plan.budget) return NextResponse.json({ ...base, hasForecast: false, hasShape: false, coverage: null, adjustment: null })
 
   const day = plan.days.find((d) => d.date === date) ?? plan.days[0]
-  const coverage = await computeDayCoverage(storeId, day, today, plan.hasHourlySupervisor)
+  const engineCoverage = await computeDayCoverage(storeId, day, today, plan.hasHourlySupervisor)
+
+  // L-4d — THE BAND IS REPLACED AFTER THE ENGINE HAS RETURNED, never fed into it.
+  // applyManagerBand touches gmWindow and points[].gm only; every number above
+  // was computed without Square data. Any gate off → the engine's band, as today.
+  const canSeeSchedule = can(ctx.actor, "labor.schedule.view")
+  const bands = await getManagerBandDecisions({
+    organizationId: ctx.org.id,
+    storeId,
+    timeZone: store.timezone,
+    dates: plan.days.map((d) => d.date),
+    openByDate: Object.fromEntries(plan.days.map((d) => [d.date, d.open])),
+    overlayOn: laborOverlayOn(ctx.org),
+    viewerCanSee: canSeeSchedule,
+  })
+  const coverage = applyManagerBand(engineCoverage, bands[day.date])
 
   // BUG-1 evidence line: request duration in the runtime logs.
   console.log(`[api/labor/coverage] ${Date.now() - t0}ms store=${storeId} date=${date}`)
@@ -69,7 +87,7 @@ export async function GET(req: Request) {
   // TODAY, which the card's old `isFuture` check silently excluded.
   const projected = demandShapeSource(date, today).actualsDate === null
 
-  const overlay = can(ctx.actor, "labor.schedule.view")
+  const overlay = canSeeSchedule
     ? await buildOverlay(ctx.org.id, storeId, date, today)
     : undefined
 

@@ -6,7 +6,8 @@ import { mondayOfWeekStr } from "@/lib/labor-week"
 import { getWeeklyDayPlan, computeDayCoverage, addDaysStr } from "@/lib/labor-plan"
 import { suggestedHoursForDay } from "@/lib/labor-coverage"
 import { can } from "@/lib/permissions"
-import { getScheduleSyncSummary, getScheduledHoursByDay } from "@/lib/labor-schedule"
+import { getScheduleSyncSummary, getScheduledHoursByDay, getManagerBandDecisions, bandWindowFor } from "@/lib/labor-schedule"
+import { laborOverlayOn } from "@/lib/labor-dashboard"
 
 // GET /api/labor/weekly-plan?storeId=&weekStart= — the Weekly Plan week strip
 // (Layer 1). Assembles the shared L-3 day plan (floor-first split + GM cap +
@@ -84,6 +85,20 @@ export async function GET(req: Request) {
   // Per-day coverage from the same engine the detail renders → consistent status.
   const covByDay = await Promise.all(plan.days.map((d) => computeDayCoverage(storeId, d, today, plan.hasHourlySupervisor)))
 
+  // L-4d — the strip's gmWindow agrees with the detail chart's band. Display
+  // only: covByDay (status, comparison) is the ENGINE'S coverage and is not
+  // touched; only the payload's gmWindow field reads the decision.
+  const canSeeSchedule = can(ctx.actor, "labor.schedule.view")
+  const bands = await getManagerBandDecisions({
+    organizationId: ctx.org.id,
+    storeId,
+    timeZone: store.timezone,
+    dates,
+    openByDate: Object.fromEntries(plan.days.map((d) => [d.date, d.open])),
+    overlayOn: laborOverlayOn(ctx.org),
+    viewerCanSee: canSeeSchedule,
+  })
+
   const days = plan.days.map((d, i) => {
     const forecastSales = goalByDate.get(d.date) ?? null
     const lastYear = lastYearByDate.get(lastYearDates[i]) ?? null
@@ -111,12 +126,12 @@ export async function GET(req: Request) {
       splitHourlyHours: d.splitHourlyHours,
       adjustmentPct: d.adjustmentPct,
       adjustmentReason: d.adjustmentReason,
-      gmWindow: d.gmWindow,
+      gmWindow: bandWindowFor(d.gmWindow, bands[d.date]),
       status: dayStatus(!!d.open, covByDay[i]),
     }
   })
 
-  const comparison = can(ctx.actor, "labor.schedule.view")
+  const comparison = canSeeSchedule
     ? await buildComparison(storeId, dates, covByDay, plan.days.map((d) => d.gmCreditHours))
     : undefined
 

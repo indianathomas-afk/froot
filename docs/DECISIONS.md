@@ -5,6 +5,198 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-30 — L-4d: the manager band reads the Square schedule (Gary)
+
+**RATIFIED BY GARY, 2026-10-30, in chat.** The five drafts below are Claude's
+wording from the L-4d session (`docs/prompts/L-4d_band_reads_square_schedule.md`,
+Phase B5), each put to him as "Ratify as written, or give me your wording."
+His reply, recorded exactly: *"Ratify all as written"*.
+
+They sit under L-4-1 ruling 5/5a/5b/5c (below), which already settled band
+times (her shift times, clipped to the open window) and draft shifts (they
+count, as the effective shift). These five fill the gaps those left.
+
+- **R1. Viewer denied `labor.schedule.view`.** "The schedule-derived band
+  applies only for a viewer who holds `labor.schedule.view`; a viewer denied it
+  sees the band as today."
+- **R2. Several salaried people at one store.** "If any allocated salaried
+  person has no Square shift anywhere that week, the day behaves as today;
+  otherwise the band spans the earliest to the latest scheduled time of those
+  present that day, and draws nothing if none is."
+- **R3. Beyond the sync window.** "A day after the store's last sync window end
+  behaves as today."
+- **R4. Split shift and hour grain.** "Several shifts at one store on one day
+  draw one band from first start to last end; the start rounds down and the end
+  up to whole hours."
+- **R5. Row status.** "L-4 goes `staging` → `in_progress` at the L-4d work
+  commit and back to `staging` at its PRE-PUSH-CHECK."
+
+**Claude** (implementation choices, not rulings): a closed day stays as today
+(the engine draws no band there either); an unassigned Square shift (null team
+member) belongs to nobody; an unknown `lastWindowEnd` is treated as "past the
+window" (as today); the window end is inclusive, matching the sync's `endDate`.
+
+## 2026-10-30 — L-4-1: Square is the schedule (Gary)
+
+**RATIFIED BY GARY, 2026-10-30, in chat.** The ten drafts below are Claude's
+wording from the L-4-1 session (`docs/prompts/L-4-1_square_schedule_rescope.md`,
+Phase B), each put to him as "Ratify as written, or give me your wording."
+Where a draft offered a choice, the ruling records the lean Claude printed. His
+reply, recorded exactly: *"Ratify all as written"*.
+
+The position it ratifies is Gary's own, stated in chat the same day: every
+Keva store's managers already schedule everyone in Square, salaried managers
+included, with job titles and time off, and a second scheduler in Froot would
+mean entering every shift twice.
+
+1. **Schedule source.** "For an org that schedules in Square, Square is the
+   source of truth for who works where and when. Froot reads it and never keeps
+   a second, competing schedule for that org."
+2. **Froot-native scheduler.** "Deferred until a real customer that doesn't
+   schedule in Square needs it. When built, the schedule source is a per-org
+   setting, Square or Froot, never both. `LaborAssignment` stays in place, empty
+   and unread, as its future storage. Nothing is dropped."
+3. **L-4b.** "Paused: not cancelled, not built. It resumes only under ruling
+   2." The unrun L-4b prompt is left untracked, per the L-4-1 prompt.
+4. **Cost vs presence.** "A salaried allocation decides cost only: which
+   store's budget carries the salary. Where a person is on a given day comes
+   from the schedule, never from the allocation." Until L-5, the floor credit
+   still derives from the allocation.
+5. **L-4d redefined.** "At a store on a day, the manager band draws only when
+   the Square schedule has that salaried person at that store that day. A
+   matching shift is one that isn't deleted, matched on `squareTeamMemberId`. If
+   she has no Square shift anywhere that week, or the org's Square labor
+   integration is off, the band behaves as today. Display-only: `gmHoursByDay`,
+   the floor credit and the GM cap are untouched."
+   - **5a.** The shift is the EFFECTIVE one (published if present, else draft),
+     as the overlay reads it.
+   - **5b.** The band's hours are her actual Square shift times, clipped to the
+     open window. Still display-only.
+   - **5c.** An unhealthy or stale schedule sync at that store also means "as
+     today".
+6. **L-5 revised.** Rescope from "assignments feed core" to "Square schedule
+   presence feeds the floor credit and GM cap". It stays `planned` and BEHIND
+   L-4. It needs an L-2 seam (b) amendment before it can be built. It also
+   absorbs the forecast-less 40-hour ceiling (finding F1).
+7. **What L-4-1 supersedes from L-4-0.** Ruling 6a: the StaffMember step is
+   replaced by a direct `squareTeamMemberId` join. Ruling 6b: superseded by 5b.
+   Ruling 6c: days off now come from Square — no shift means not there. Ruling
+   5 (named-schedule visibility): moot for L-4, since no named surface is
+   built; the band stays unnamed on STORE-visible surfaces. Ruling 4 (breaks):
+   paused with L-4c. Ruling 2 stays true for `LaborAssignment` only.
+8. **L-4c (breaks).** "Paused with L-4b." Square scheduled shifts carry no
+   break fields (`labor-schedule.ts:79-88`), and L-4c's breaks annotate
+   `LaborAssignment` rows that won't exist.
+9. **The A1 over-credit.** About 4 hours a week spread across days she may not
+   work. Not material, and nothing jumps the queue; L-5 fixes it.
+10. **"Cafe De Cafe" as a cost sink.** No ruling now. Once L-4d is in, the 80%
+    is no longer needed for presence; whether a salary share needs a non-store
+    target is a separate business question. A ROW is filed once a Neon-console
+    read on staging/production confirms the store's facts.
+
+Also ratified with the same reply: the L-4 row's `size` drops from L to S (only
+L-4d is left).
+
+**WHAT THIS SUPERSEDES, BY NAME.** From "2026-10-30 — L-4-0: labor assignment
+layer scoping (Gary)" below: rulings **4, 5, 6a, 6b and 6c**, as item 7 states,
+and ruling **3** in its premise — it kept *Froot assignments* beside core, and
+there are now no Froot assignments; its rule (presence decides only the band in
+L-4; feeding core is L-5) is carried forward unchanged by item 5. Rulings **1**
+(no Square push) and **2** (an assignment keys on `StaffMember`, true of the
+dormant table) stand. The L-4-0 and L-4a entries below are not edited.
+(Claude — the reading of ruling 3 is Claude's; Gary ratified item 7's list.)
+
+**THE BOUNDARY, as measured for item 5.** The L-2 ruling (below, "Square labor
+integration is STRICTLY OPTIONAL", 2026-08-05) and the seam (b) amendment
+("Absent means zero, and L-2 seam (b) is amended", 2026-08-22) leave this half
+in force: "No SQUARE-SOURCED value may reach a core engine." A band decided on
+the schedule side of the import wall and applied only to rendering does not
+cross it, and dropping the Square tables reproduces today byte-for-byte because
+"no data" means "as today". Moving the floor credit would cross it, which is
+why that is L-5 and needs its own amendment. (Claude)
+
+The L-4-1 prompt cited the boundary text at DECISIONS.md:4264-4272; those lines
+are the R7-C build rulings. The file won. (Claude)
+
+Design and A1 findings: `docs/LABOR.md` § "L-4 · Assignment layer". Rows:
+`L-4` and `L-5` in `docs/ROADMAP.yaml`.
+
+## 2026-10-30 — L-4a: labor assignment data model (Gary)
+
+**RATIFIED BY GARY, 2026-10-30, in chat.** The drafts below are Claude's
+wording from the L-4a session (`docs/prompts/L-4a_assignment_data_model.md`,
+Phase B), each put to him as "Ratify as written, or give me your wording." His
+reply, recorded exactly: *"Ratify all as written"*.
+
+1. **Several shifts per person per day.** A person may hold more than one
+   assignment on a day, at the same or different stores. The database does not
+   refuse overlapping times; L-4b's write routes do.
+2. **No overnight.** No assignment crosses midnight in L-4. The database
+   enforces 0 ≤ startMinutes < endMinutes ≤ 1440 with a hand-written CHECK,
+   listed in MIGRATIONS.md § Protected indexes.
+3. **Deletes.** Deleting a store deletes its assignments. Deleting a staff
+   member who has any assignment is refused — terminate them instead — and L-4b
+   adds the count to the staff DELETE route. createdByUserId is a plain id with
+   no foreign key, so deleting a user never blocks and the id is kept.
+4. **Integrity in code.** That the store and person belong to the assignment's
+   org, and that the person is ACTIVE and assigned to that store, is enforced by
+   L-4b's routes, not the database.
+5. **Second index.** Add @@index([staffMemberId, date]) beside the approved
+   (organizationId, storeId, date).
+
+**F1 (an out-of-scope finding, same reply).** § Protected indexes in
+`docs/MIGRATIONS.md` omitted NOTIFY-12's
+`NotificationRecipientPick_one_target_check` and counted "two" CHECKs where
+there were three. Claude's lean, ratified: fix it in the L-4a migration-log pass,
+since that pass edits the same table and count line.
+
+Built as work commit `9fc21d6`; fixture
+`scripts/verify-l4a-labor-assignment.ts`, 24/24 on dev `br-broad-wave-a6vpjdw0`.
+Row: `L-4` in `docs/ROADMAP.yaml`.
+
+## 2026-10-30 — L-4-0: labor assignment layer scoping (Gary)
+
+**RATIFIED BY GARY, 2026-10-30, in chat, as written.** The eight drafts below
+are Claude's wording from the L-4-0 session
+(`docs/prompts/L-4-0_assignment_layer_scoping.md`, Phase B). Each was put to him
+as "Ratify as written, or give me your wording." His reply, recorded exactly:
+*"Ratify all nine as written. One addition: file a planned ROW (next free ID,
+read from the file) for "assignments feed core — GM days off move the floor
+split and GM cap," citing ruling 3 and the three code comments at
+labor-daily.ts:48-50, labor-plan.ts:431, labor-coverage.ts:108 that say L-4
+does this. No row for the Nevada break check. Then proceed to Phase C."* The
+addition is filed as `L-5` in `docs/ROADMAP.yaml`.
+
+1. **Square push.** L-4's Square push is struck; any future schedule write to
+   Square needs a new ruling, its own consent event and its own row.
+2. **Who the person is.** An assignment keys on `StaffMember`, so staff without
+   a Froot login or a Square id can be scheduled.
+3. **Beside core, not in it.** In L-4, assignments sit beside the core engines
+   like labor-actuals; they decide only whether the manager band draws, never
+   `gmHoursByDay`, the floor credit or the GM cap; feeding core is its own row.
+4. **Breaks.** L-4c breaks are planned annotations only; any Nevada rest/meal
+   check is its own row and is not encoded from memory.
+5. **Visibility.** Named schedules are visible to ADMIN and MANAGER
+   (store-scoped) under a new deniable capability; STORE sees counts only via
+   `labor.schedule.view`, and no STORE-role user sees named shifts in L-4.
+6. **(a) Salaried person to staff member.** L-4d resolves a salaried person to
+   a StaffMember by (organizationId, squareTeamMemberId); if there is no active
+   match, the band behaves as today.
+7. **(b) Band hours.** The band's hours stay the store's `gmOnFloor` setting;
+   an assignment decides only whether it draws that day.
+8. **(c) Days off.** A salaried person with any assignment in a week is off on
+   their unassigned days that week; with none that week, the band behaves as
+   today. No separate days-off table.
+
+**"ALL NINE" WAS CLAUDE'S MISCOUNT, NOT A NINTH RULING.** Phase B printed EIGHT
+draft wordings (items 1–5 and 6a–6c, numbered 1–8 above) but its summary said
+"nine", and Gary's reply used that number. Every draft he was shown is recorded
+above; nothing was added to make the count match. (Claude)
+
+**Per Gary's reply, no row is filed for the Nevada break check.** Ruling 4
+still says such a check would be its own row; it is simply not filed now.
+Design and Phase A findings: `docs/LABOR.md` § "L-4 · Assignment layer".
+
 ## 2026-10-28 — DOC-7: annual re-sign, signatures that expire every N months (Gary)
 
 **RATIFIED BY GARY, 2026-10-28, at the DOC-7 PRE-PUSH-CHECK, as written.** The
