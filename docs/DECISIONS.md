@@ -5,6 +5,37 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-10-30 — L-4d: the manager band reads the Square schedule (Gary)
+
+**RATIFIED BY GARY, 2026-10-30, in chat.** The five drafts below are Claude's
+wording from the L-4d session (`docs/prompts/L-4d_band_reads_square_schedule.md`,
+Phase B5), each put to him as "Ratify as written, or give me your wording."
+His reply, recorded exactly: *"Ratify all as written"*.
+
+They sit under L-4-1 ruling 5/5a/5b/5c (below), which already settled band
+times (her shift times, clipped to the open window) and draft shifts (they
+count, as the effective shift). These five fill the gaps those left.
+
+- **R1. Viewer denied `labor.schedule.view`.** "The schedule-derived band
+  applies only for a viewer who holds `labor.schedule.view`; a viewer denied it
+  sees the band as today."
+- **R2. Several salaried people at one store.** "If any allocated salaried
+  person has no Square shift anywhere that week, the day behaves as today;
+  otherwise the band spans the earliest to the latest scheduled time of those
+  present that day, and draws nothing if none is."
+- **R3. Beyond the sync window.** "A day after the store's last sync window end
+  behaves as today."
+- **R4. Split shift and hour grain.** "Several shifts at one store on one day
+  draw one band from first start to last end; the start rounds down and the end
+  up to whole hours."
+- **R5. Row status.** "L-4 goes `staging` → `in_progress` at the L-4d work
+  commit and back to `staging` at its PRE-PUSH-CHECK."
+
+**Claude** (implementation choices, not rulings): a closed day stays as today
+(the engine draws no band there either); an unassigned Square shift (null team
+member) belongs to nobody; an unknown `lastWindowEnd` is treated as "past the
+window" (as today); the window end is inclusive, matching the sync's `endDate`.
+
 ## 2026-10-30 — L-4-1: Square is the schedule (Gary)
 
 **RATIFIED BY GARY, 2026-10-30, in chat.** The ten drafts below are Claude's

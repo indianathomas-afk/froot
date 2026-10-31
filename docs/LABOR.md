@@ -362,6 +362,56 @@ Square schedule has that salaried person there that day:
   `TIMECARDS_READ`. Its Phase A confirms via the Neon console that Kristie's
   staging shifts carry her team member id.
 
+**L-4d, as built (2026-10-30, work commit `4dad553`, committed NOT pushed).**
+Rulings: DECISIONS "2026-10-30 — L-4d: the manager band reads the Square
+schedule (Gary)", R1-R5, on top of L-4-1 ruling 5/5a/5b/5c. How the band
+decides:
+
+- **Where it runs.** `src/lib/labor-schedule.ts:1346` onward, on the schedule
+  side of the wall. Nothing in `labor-plan.ts` / `labor-coverage.ts` changed;
+  `gmWindow` is still decided by `hasGm` (`labor-plan.ts:262,295-303`) and the
+  routes REPLACE the band after the engine has returned.
+- **Read** — `getManagerBandDecisions` (`labor-schedule.ts:1531`). Gates first,
+  no query when off: `laborOverlayOn(org)` and the viewer's
+  `labor.schedule.view` (R1). Then three reads: the store's sync summary + its
+  `lastWindowEnd`; the allocated people (the same set `hasGm` counts —
+  `allocationBps > 0`, `weeklyHours > 0`, exempt null OR false) → their
+  `squareTeamMemberId`s; and, only if the sync is healthy, their live shifts
+  org-wide that store-local week, selecting `storeId`, team member, start, end,
+  deleted only — no notes, job or wage.
+- **Decide** — pure `decideManagerBands` (`labor-schedule.ts:1404`), per date:
+  - `as-today` for every day if: overlay off; viewer denied (R1); sync health
+    not `fresh` / `synced-empty` (5c); nobody allocated; or ANY allocated person
+    has no live shift at any store that week (R2, `:1444`).
+  - `as-today` for one day if it's after `lastWindowEnd` (inclusive; R3), the
+    window end is unknown, or the store is closed.
+  - otherwise the union of the allocated people's shifts AT THIS STORE that
+    overlap the day, first start to last end, start floored and end ceiled to
+    whole hours (R4, `:1469`), clipped to the open window (5b) → `present`;
+    nothing left → `absent`.
+- **Apply.** `/api/labor/coverage` (`route.ts:68-77`) runs `applyManagerBand`
+  (`labor-schedule.ts:1506`) on the engine's coverage: it replaces `gmWindow`
+  and `points[].gm` only, and `as-today` returns the same object. Both charts
+  (`labor-coverage-card.tsx:193-200,450`, `weekly-plan-client.tsx:635-636,717`)
+  read that payload, so neither client file changed. `/api/labor/weekly-plan`
+  (`route.ts:92,129`) writes the same decision into `days[].gmWindow` via
+  `bandWindowFor` (`labor-schedule.ts:1494`). Its `covByDay` (status,
+  comparison) is the engine's own and is untouched.
+- **Display only, proven.** `scripts/verify-l4d-band.ts` (pure, no DB): PASS,
+  73 checks. That covers scheduled-days-only, no-data / toggle-off / viewer-denied
+  / never-stale-error → as-today, every B3 edge case and R2-R4, and the boundary
+  test: floor credit, `gmHoursByDay`, budget, coverage minus the band, headcount
+  and Suggested are byte-identical with and without Square rows. No Square data
+  gives coverage byte-identical including the band. A static check confirms none
+  of the six engines imports `labor-schedule`.
+- **Known, not fixed** (L-4d B6): the overlay (`coverage/route.ts`) and the
+  comparison (`weekly-plan/route.ts`) themselves still never check
+  `laborOverlayOn`. The band does. The "(incl. manager)" heading
+  (`labor-coverage-card.tsx:286`) is stale copy: headcount has excluded her since
+  2026-08-23. `lastWindowEnd` is written when a sync STARTS, so for the seconds a
+  sync is in flight, days newly inside the window can read `absent` before their
+  rows land. Staging syncs only on dashboard load (the cron is production-only).
+
 **Feeding core is `L-5`, rescoped** to "Square schedule presence feeds the floor
 credit and GM cap". It needs its own L-2 seam (b) amendment first, because a
 `SquareScheduledShift` value would then reach `labor-plan.ts`.

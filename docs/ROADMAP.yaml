@@ -13253,7 +13253,11 @@ phases:
     # SHA cannot be written inside itself). DECISIONS 2026-10-30 L-4-1
     # ratified by Gary at this check: "Ratify as written". DEPLOY_LOG
     # UNPROMOTED entry written. NOT pushed when the check ran — Gary runs it.
-    status: staging
+    # L-4d (build) 2026-10-30: status staging -> in_progress, per L-4d ruling
+    # R5 (ratified by Gary: "Ratify all as written"). Work commit 4dad553 is
+    # committed and NOT pushed — Gary runs the push. Back to `staging` at the
+    # L-4d PRE-PUSH-CHECK.
+    status: in_progress
     title: "Manager band follows the Square schedule — Square is the schedule source (Froot-native scheduler deferred)"
     commits:
       - "b4cb5e7"
@@ -13266,7 +13270,44 @@ phases:
       #   next PRE-PUSH-CHECK (a commit cannot name itself).
       - "f10688b"
       # + the commit immediately after f10688b: docs(L-4-1 PRE-PUSH-CHECK)
+      - "4dad553"
+      # + the commit immediately after 4dad553: docs(L-4d)
     notes: >
+      ── L-4d BUILT 2026-10-30 (TIER 3; prepended, nothing below is edited). ──
+      Work commit 4dad553, committed and NOT pushed — Gary runs the push.
+      Prompt docs/prompts/L-4d_band_reads_square_schedule.md; rulings
+      docs/DECISIONS.md "2026-10-30 — L-4d: the manager band reads the Square
+      schedule (Gary)", R1-R5, Gary's reply recorded exactly: "Ratify all as
+      written". Built on L-4-1 ruling 5/5a/5b/5c. WHAT SHIPPED: the manager
+      band on the coverage card and on the Weekly Plan day detail now draws
+      only on the days Square's schedule has an allocated salaried person at
+      THAT store, at her scheduled hours (start floored, end ceiled, clipped to
+      the open window). Effective shift, so drafts count. Any unknown falls back
+      to the band as today: overlay off (laborOverlayOn), viewer without
+      labor.schedule.view (R1), sync not fresh or synced-empty (5c), any
+      allocated person with no shift anywhere that week (R2), a day past the
+      last sync window end (R3), a closed day. The decision is pure
+      (decideManagerBands, labor-schedule.ts) and is applied in
+      /api/labor/coverage and /api/labor/weekly-plan AFTER the engines return.
+      It replaces gmWindow and points[].gm only. The label is unchanged — DO
+      NOT SOLVE IT BY WIDENING THE LABEL still holds, and it was not widened.
+      DISPLAY ONLY: gmHoursByDay, floor credit, GM cap, headcount, Suggested
+      and the budget never see Square data. Feeding them is L-5. No schema, no
+      migration, no new Square call or scope, no LaborAssignment read or write.
+      Boundary greps: SquareScheduledShift hits in the six core engines are 0
+      before and after; LaborAssignment in src is 0 code hits (1 in the
+      generated ROADMAP text, before and after). FIXTURE:
+      scripts/verify-l4d-band.ts — PASS, 73 checks (pure, no DB; includes the
+      byte-identical boundary test). How it decides, with file:line:
+      docs/LABOR.md § L-4, "L-4d, as built". Closes the R7-C residue on staging
+      — once Gary pushes 4dad553 and its docs commit; until then it is local
+      only. L-4 IS STILL NOT SHIPPED UNTIL L-4d SHIPS: that guard below stands.
+      L-4 becomes shippable when L-4d reaches production. OWED BY GARY before
+      the staging check: the Neon-console read that Kristie's staging shifts
+      carry her team member id (LABOR.md L-4d definition). B6 findings left
+      open: the overlay and the comparison themselves never check
+      laborOverlayOn (a ROW candidate, not filed here); the "(incl. manager)"
+      heading is stale copy (COMMENT, LABOR.md).
       ── L-4-1 RESCOPED 2026-10-30 (TIER 3, docs only; prepended, nothing below
       is edited). ── Prompt docs/prompts/L-4-1_square_schedule_rescope.md;
       rulings docs/DECISIONS.md "2026-10-30 — L-4-1: Square is the schedule
