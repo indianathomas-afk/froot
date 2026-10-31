@@ -386,7 +386,7 @@ function clockedInCases() {
     now: new Date("2026-08-18T23:00:00-07:00"),
   })
   check("a clock-skewed row is dropped", skewed.timecardCount, 0)
-  check("paidMinutesOf agrees it contributes nothing", paidMinutesOf(card({ endAt: new Date("2026-08-18T09:00:00-07:00") }), Date.now()), null)
+  check("paidMinutesOf agrees it contributes nothing", paidMinutesOf(card({ endAt: new Date("2026-08-18T09:00:00-07:00") }), Date.now(), Date.now()), null)
 
   // BREAKS ARE IGNORED BY RULING. An unpaid break shortens PAID minutes but not
   // the hours a person was on the premises — this curve counts heads, not cost.
@@ -397,13 +397,13 @@ function clockedInCases() {
     now: new Date("2026-08-18T23:00:00-07:00"),
   })
   check("an unpaid break does not remove an hour from the curve", withBreak.points[12].clockedIn, 1)
-  check("though it does remove it from paid minutes", paidMinutesOf(card({ breakUnpaidMinutes: 60 }), Date.now()), 270)
+  check("though it does remove it from paid minutes", paidMinutesOf(card({ breakUnpaidMinutes: 60 }), Date.now(), Date.now()), 270)
 
   // The open-card rule lives in ONE place — this is the assertion that would fail
   // if it were ever re-derived in the overlay instead of imported.
   const ceiling = new Date("2026-08-18T14:00:00-07:00").getTime()
-  check("clockedEndMs ceilings an open card", clockedEndMs({ endAt: null }, ceiling), ceiling)
-  check("and leaves a closed one alone", clockedEndMs({ endAt: new Date("2026-08-18T16:00:00-07:00") }, ceiling), new Date("2026-08-18T16:00:00-07:00").getTime())
+  check("clockedEndMs ceilings an open card", clockedEndMs({ startAt: new Date("2026-08-18T09:00:00-07:00"), endAt: null }, ceiling, ceiling), ceiling)
+  check("and leaves a closed one alone", clockedEndMs({ startAt: new Date("2026-08-18T09:00:00-07:00"), endAt: new Date("2026-08-18T16:00:00-07:00") }, ceiling, ceiling), new Date("2026-08-18T16:00:00-07:00").getTime())
 
   // A timecard with no job still counts — the person was there. It lands under
   // the sentinel rather than being dropped or crashing the colour map.

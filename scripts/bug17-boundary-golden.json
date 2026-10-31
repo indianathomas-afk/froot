@@ -1,0 +1,673 @@
+{
+  "laborToday": {
+    "laborPct": 17.204510108864696,
+    "laborCost": 212.4,
+    "laborHours": 15.05,
+    "sales": 1234.56,
+    "daysCovered": 1,
+    "daysInWindow": 1,
+    "health": "fresh",
+    "timecardCount": 5,
+    "openTimecardCount": 1,
+    "wageMissingCount": 1,
+    "costComplete": false,
+    "otApplied": false,
+    "lastSyncOkAt": "2026-08-18T19:50:00.000Z"
+  },
+  "laborTwoDays": {
+    "laborPct": 11.518273716951787,
+    "laborCost": 284.4,
+    "laborHours": 19.05,
+    "sales": 2469.12,
+    "daysCovered": 2,
+    "daysInWindow": 2,
+    "health": "fresh",
+    "timecardCount": 6,
+    "openTimecardCount": 1,
+    "wageMissingCount": 1,
+    "costComplete": false,
+    "otApplied": false,
+    "lastSyncOkAt": "2026-08-18T19:50:00.000Z"
+  },
+  "laborPriorDay": {
+    "laborPct": 9,
+    "laborCost": 72,
+    "laborHours": 4,
+    "sales": 800,
+    "daysCovered": 1,
+    "daysInWindow": 1,
+    "health": "never",
+    "timecardCount": 1,
+    "openTimecardCount": 0,
+    "wageMissingCount": 0,
+    "costComplete": true,
+    "otApplied": false,
+    "lastSyncOkAt": null
+  },
+  "tips": {
+    "avgHourlyTips": 6.1161825726141075,
+    "tipsTotal": 73.7,
+    "posTips": 61.2,
+    "declaredCashTips": 12.5,
+    "eligibleHours": 12.05,
+    "unknownEligibilityHours": 3.5833333333333335,
+    "daysCovered": 1,
+    "daysInWindow": 1
+  },
+  "inspector": {
+    "date": "2026-08-18",
+    "hourTicks": [
+      {
+        "pct": 0,
+        "label": "12a"
+      },
+      {
+        "pct": 4.166666666666666,
+        "label": "1a"
+      },
+      {
+        "pct": 8.333333333333332,
+        "label": "2a"
+      },
+      {
+        "pct": 12.5,
+        "label": "3a"
+      },
+      {
+        "pct": 16.666666666666664,
+        "label": "4a"
+      },
+      {
+        "pct": 20.833333333333336,
+        "label": "5a"
+      },
+      {
+        "pct": 25,
+        "label": "6a"
+      },
+      {
+        "pct": 29.166666666666668,
+        "label": "7a"
+      },
+      {
+        "pct": 33.33333333333333,
+        "label": "8a"
+      },
+      {
+        "pct": 37.5,
+        "label": "9a"
+      },
+      {
+        "pct": 41.66666666666667,
+        "label": "10a"
+      },
+      {
+        "pct": 45.83333333333333,
+        "label": "11a"
+      },
+      {
+        "pct": 50,
+        "label": "12p"
+      },
+      {
+        "pct": 54.166666666666664,
+        "label": "1p"
+      },
+      {
+        "pct": 58.333333333333336,
+        "label": "2p"
+      },
+      {
+        "pct": 62.5,
+        "label": "3p"
+      },
+      {
+        "pct": 66.66666666666666,
+        "label": "4p"
+      },
+      {
+        "pct": 70.83333333333334,
+        "label": "5p"
+      },
+      {
+        "pct": 75,
+        "label": "6p"
+      },
+      {
+        "pct": 79.16666666666666,
+        "label": "7p"
+      },
+      {
+        "pct": 83.33333333333334,
+        "label": "8p"
+      },
+      {
+        "pct": 87.5,
+        "label": "9p"
+      },
+      {
+        "pct": 91.66666666666666,
+        "label": "10p"
+      },
+      {
+        "pct": 95.83333333333334,
+        "label": "11p"
+      }
+    ],
+    "people": [
+      {
+        "key": "p0",
+        "name": "Avery",
+        "unmapped": false,
+        "flags": [],
+        "paidLabel": "4.0h paid",
+        "bars": [
+          {
+            "startPct": 33.47222222222222,
+            "endPct": 52.083333333333336,
+            "continuesBefore": false,
+            "continuesAfter": false,
+            "startLabel": "8:02a",
+            "endLabel": "12:30p",
+            "open": false,
+            "jobId": "job-a",
+            "title": "Crew",
+            "startedOn": null,
+            "flags": [],
+            "detail": "8:02a → 12:30p · 4.0h paid · 30m unpaid break",
+            "key": "p0b0"
+          }
+        ],
+        "ghosts": [
+          {
+            "startPct": 33.33333333333333,
+            "endPct": 52.083333333333336,
+            "continuesBefore": false,
+            "continuesAfter": false,
+            "startLabel": "8:00a",
+            "endLabel": "12:30p",
+            "open": false,
+            "jobId": "job-a",
+            "title": null,
+            "startedOn": null,
+            "flags": [],
+            "detail": "scheduled 8:00a → 12:30p",
+            "key": "p0g0"
+          }
+        ]
+      },
+      {
+        "key": "p1",
+        "name": "Blake",
+        "unmapped": false,
+        "flags": [],
+        "paidLabel": "3.6h paid",
+        "bars": [
+          {
+            "startPct": 38.19444444444444,
+            "endPct": 53.125,
+            "continuesBefore": false,
+            "continuesAfter": false,
+            "startLabel": "9:10a",
+            "endLabel": "12:45p",
+            "open": false,
+            "jobId": "job-a",
+            "title": "Crew",
+            "startedOn": null,
+            "flags": [],
+            "detail": "9:10a → 12:45p · 3.6h paid",
+            "key": "p1b0"
+          }
+        ],
+        "ghosts": [
+          {
+            "startPct": 37.5,
+            "endPct": 54.166666666666664,
+            "continuesBefore": false,
+            "continuesAfter": false,
+            "startLabel": "9:00a",
+            "endLabel": "1:00p",
+            "open": false,
+            "jobId": "job-a",
+            "title": null,
+            "startedOn": null,
+            "flags": [],
+            "detail": "scheduled 9:00a → 1:00p",
+            "key": "p1g0"
+          }
+        ]
+      },
+      {
+        "key": "p2",
+        "name": "Casey",
+        "unmapped": false,
+        "flags": [],
+        "paidLabel": "3.0h paid",
+        "bars": [
+          {
+            "startPct": 41.66666666666667,
+            "endPct": 54.166666666666664,
+            "continuesBefore": false,
+            "continuesAfter": false,
+            "startLabel": "10:00a",
+            "endLabel": null,
+            "open": true,
+            "jobId": "job-a",
+            "title": "Crew",
+            "startedOn": null,
+            "flags": [],
+            "detail": "10:00a → open · 3.0h paid · 10m paid break",
+            "key": "p2b0"
+          }
+        ],
+        "ghosts": [
+          {
+            "startPct": 41.66666666666667,
+            "endPct": 75,
+            "continuesBefore": false,
+            "continuesAfter": false,
+            "startLabel": "10:00a",
+            "endLabel": "6:00p",
+            "open": false,
+            "jobId": "job-a",
+            "title": null,
+            "startedOn": null,
+            "flags": [],
+            "detail": "scheduled 10:00a → 6:00p",
+            "key": "p2g0"
+          }
+        ]
+      },
+      {
+        "key": "p3",
+        "name": "Devon",
+        "unmapped": false,
+        "flags": [
+          "DOUBLE",
+          "UNSCHEDULED"
+        ],
+        "paidLabel": "4.5h paid",
+        "bars": [
+          {
+            "startPct": 29.166666666666668,
+            "endPct": 41.66666666666667,
+            "continuesBefore": false,
+            "continuesAfter": false,
+            "startLabel": "7:00a",
+            "endLabel": "10:00a",
+            "open": false,
+            "jobId": "job-a",
+            "title": "Crew",
+            "startedOn": null,
+            "flags": [
+              "DOUBLE",
+              "UNSCHEDULED"
+            ],
+            "detail": "7:00a → 10:00a · 3.0h paid",
+            "key": "p3b0"
+          },
+          {
+            "startPct": 39.58333333333333,
+            "endPct": 45.83333333333333,
+            "continuesBefore": false,
+            "continuesAfter": false,
+            "startLabel": "9:30a",
+            "endLabel": "11:00a",
+            "open": false,
+            "jobId": "job-b",
+            "title": "Lead",
+            "startedOn": null,
+            "flags": [
+              "DOUBLE",
+              "UNSCHEDULED"
+            ],
+            "detail": "9:30a → 11:00a · 1.5h paid",
+            "key": "p3b1"
+          }
+        ],
+        "ghosts": []
+      },
+      {
+        "key": "p4",
+        "name": "Emery",
+        "unmapped": false,
+        "flags": [
+          "NO-SHOW"
+        ],
+        "paidLabel": null,
+        "bars": [],
+        "ghosts": [
+          {
+            "startPct": 33.33333333333333,
+            "endPct": 50,
+            "continuesBefore": false,
+            "continuesAfter": false,
+            "startLabel": "8:00a",
+            "endLabel": "12:00p",
+            "open": false,
+            "jobId": "job-a",
+            "title": null,
+            "startedOn": null,
+            "flags": [
+              "NO-SHOW"
+            ],
+            "detail": "scheduled 8:00a → 12:00p",
+            "key": "p4g0"
+          }
+        ]
+      },
+      {
+        "key": "p5",
+        "name": "Unnamed",
+        "unmapped": true,
+        "flags": [
+          "UNMAPPED"
+        ],
+        "paidLabel": "4.0h paid",
+        "bars": [
+          {
+            "startPct": 0,
+            "endPct": 8.333333333333332,
+            "continuesBefore": true,
+            "continuesAfter": false,
+            "startLabel": "10:00p",
+            "endLabel": "2:00a",
+            "open": false,
+            "jobId": "job-a",
+            "title": "Crew",
+            "startedOn": "Aug 17",
+            "flags": [
+              "UNMAPPED"
+            ],
+            "detail": "10:00p → 2:00a · 4.0h paid",
+            "key": "p5b0"
+          }
+        ],
+        "ghosts": [
+          {
+            "startPct": 0,
+            "endPct": 8.333333333333332,
+            "continuesBefore": true,
+            "continuesAfter": false,
+            "startLabel": "10:00p",
+            "endLabel": "2:00a",
+            "open": false,
+            "jobId": "job-a",
+            "title": null,
+            "startedOn": "Aug 17",
+            "flags": [],
+            "detail": "scheduled 10:00p → 2:00a",
+            "key": "p5g0"
+          }
+        ]
+      },
+      {
+        "key": "open-shifts",
+        "name": "Unassigned shifts",
+        "unmapped": false,
+        "flags": [],
+        "paidLabel": null,
+        "bars": [],
+        "ghosts": [
+          {
+            "startPct": 62.5,
+            "endPct": 79.16666666666666,
+            "continuesBefore": false,
+            "continuesAfter": false,
+            "startLabel": "3:00p",
+            "endLabel": "7:00p",
+            "open": false,
+            "jobId": "job-a",
+            "title": null,
+            "startedOn": null,
+            "flags": [],
+            "detail": "scheduled 3:00p → 7:00p",
+            "key": "og0"
+          }
+        ]
+      }
+    ],
+    "counts": {
+      "OPEN-STALE": 0,
+      "OPEN-LONG": 0,
+      "DOUBLE": 1,
+      "UNMAPPED": 1,
+      "NO-SHOW": 1,
+      "UNSCHEDULED": 1
+    },
+    "cardsOnFloor": 6,
+    "jobIds": [
+      "job-a",
+      "job-b"
+    ],
+    "scheduleSuppressed": false,
+    "noShowPendingCount": 0,
+    "unassignedShiftCount": 1,
+    "notices": [
+      {
+        "code": "unassigned-shifts",
+        "text": "1 scheduled shift has nobody assigned in Square, so no-show cannot apply to it — there is no one to fail to show. It is drawn as a plain scheduled shift and counted nowhere."
+      }
+    ],
+    "noShowHorizonLabel": "12:50p Aug 18",
+    "durationSuppressed": false
+  },
+  "onTime": {
+    "m1": {
+      "status": "green",
+      "reason": null,
+      "onTime": 1,
+      "total": 1,
+      "percent": 100,
+      "displayPercent": 100,
+      "range": {
+        "from": "2026-08-01",
+        "to": "2026-08-18"
+      }
+    },
+    "m2": {
+      "status": "red",
+      "reason": null,
+      "onTime": 0,
+      "total": 1,
+      "percent": 0,
+      "displayPercent": 0,
+      "range": {
+        "from": "2026-08-01",
+        "to": "2026-08-18"
+      }
+    },
+    "m3": {
+      "status": "green",
+      "reason": null,
+      "onTime": 1,
+      "total": 1,
+      "percent": 100,
+      "displayPercent": 100,
+      "range": {
+        "from": "2026-08-01",
+        "to": "2026-08-18"
+      }
+    },
+    "m5": {
+      "status": "red",
+      "reason": null,
+      "onTime": 0,
+      "total": 1,
+      "percent": 0,
+      "displayPercent": 0,
+      "range": {
+        "from": "2026-08-01",
+        "to": "2026-08-18"
+      }
+    },
+    "m6": {
+      "status": "green",
+      "reason": null,
+      "onTime": 1,
+      "total": 1,
+      "percent": 100,
+      "displayPercent": 100,
+      "range": {
+        "from": "2026-08-01",
+        "to": "2026-08-18"
+      }
+    }
+  },
+  "coverage": {
+    "date": "2026-08-18",
+    "points": [
+      {
+        "hour": 0,
+        "clockedIn": 1,
+        "byJobId": {
+          "job-a": 1
+        }
+      },
+      {
+        "hour": 1,
+        "clockedIn": 1,
+        "byJobId": {
+          "job-a": 1
+        }
+      },
+      {
+        "hour": 2,
+        "clockedIn": 0,
+        "byJobId": {}
+      },
+      {
+        "hour": 3,
+        "clockedIn": 0,
+        "byJobId": {}
+      },
+      {
+        "hour": 4,
+        "clockedIn": 0,
+        "byJobId": {}
+      },
+      {
+        "hour": 5,
+        "clockedIn": 0,
+        "byJobId": {}
+      },
+      {
+        "hour": 6,
+        "clockedIn": 0,
+        "byJobId": {}
+      },
+      {
+        "hour": 7,
+        "clockedIn": 1,
+        "byJobId": {
+          "job-a": 1
+        }
+      },
+      {
+        "hour": 8,
+        "clockedIn": 2,
+        "byJobId": {
+          "job-a": 2
+        }
+      },
+      {
+        "hour": 9,
+        "clockedIn": 4,
+        "byJobId": {
+          "job-a": 3,
+          "job-b": 1
+        }
+      },
+      {
+        "hour": 10,
+        "clockedIn": 4,
+        "byJobId": {
+          "job-a": 3,
+          "job-b": 1
+        }
+      },
+      {
+        "hour": 11,
+        "clockedIn": 3,
+        "byJobId": {
+          "job-a": 3
+        }
+      },
+      {
+        "hour": 12,
+        "clockedIn": 3,
+        "byJobId": {
+          "job-a": 3
+        }
+      },
+      {
+        "hour": 13,
+        "clockedIn": 0,
+        "byJobId": {}
+      },
+      {
+        "hour": 14,
+        "clockedIn": 0,
+        "byJobId": {}
+      },
+      {
+        "hour": 15,
+        "clockedIn": 0,
+        "byJobId": {}
+      },
+      {
+        "hour": 16,
+        "clockedIn": 0,
+        "byJobId": {}
+      },
+      {
+        "hour": 17,
+        "clockedIn": 0,
+        "byJobId": {}
+      },
+      {
+        "hour": 18,
+        "clockedIn": 0,
+        "byJobId": {}
+      },
+      {
+        "hour": 19,
+        "clockedIn": 0,
+        "byJobId": {}
+      },
+      {
+        "hour": 20,
+        "clockedIn": 0,
+        "byJobId": {}
+      },
+      {
+        "hour": 21,
+        "clockedIn": 0,
+        "byJobId": {}
+      },
+      {
+        "hour": 22,
+        "clockedIn": 0,
+        "byJobId": {}
+      },
+      {
+        "hour": 23,
+        "clockedIn": 0,
+        "byJobId": {}
+      }
+    ],
+    "jobIds": [
+      "job-a",
+      "job-b"
+    ],
+    "timecardCount": 6,
+    "openCount": 1
+  },
+  "roster": [
+    {
+      "name": "Casey",
+      "title": "Crew",
+      "clockInAt": "10:00a"
+    }
+  ]
+}

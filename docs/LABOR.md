@@ -545,3 +545,47 @@ Fixture: `scripts/verify-l4a-labor-assignment.ts` (dev only, refuses any other
 branch, leaves no rows) — 24/24 on `br-broad-wave-a6vpjdw0`. Migration:
 `20261030200242_l4a_labor_assignment` (`docs/MIGRATIONS.md`). Nothing in the core
 engines reads the table (ruling 3 of L-4-0).
+
+## BUG-17 · stale open timecards — heal and 24h guard (built 2026-10-31, work commit `52f12a6`)
+
+Square timecards are re-fetched only by **start day**, so a card Froot stored
+while it was open stayed open once its day left every sync window (staging held
+155 such cards on 2026-10-31, `br-square-feather-a63z92vz`; production 0,
+`br-sparkling-block-a620qvg4`). Two fixes ship together (R2). Rulings:
+`docs/DECISIONS.md` "2026-10-31 — BUG-17" and "2026-10-31 — TIMECARD-HEAL-0".
+
+**The heal** — `healStaleOpenTimecards`, `src/lib/labor-actuals.ts:834`, called
+at the end of `syncTimecardsForStore` (`:787`), so it rides the cron, the
+dashboard trigger and the manual route. It selects cards Froot holds as open from
+before the sync window, least recently checked first, at most `HEAL_CAP = 25` per
+store per run (`:802`), and asks Square for each by id
+(`GET /v2/labor/timecards/{id}`, `TIMECARDS_READ`, read-only), 5 at a time, 10 s
+per fetch, 20 s per store. Answers go through `writeTimecards`, the same
+version-guarded upsert, so a healed card looks like any synced one. A 404 is
+logged and only `syncedAt` moves (raw SQL, so `@updatedAt` doesn't); the card
+stays open and the guard keeps it out of every number, until the deletion
+ruling. Any other error stops the heal, never the sync. One log line per store:
+`heal: N checked, C closed, F 404, D deferred`.
+
+**The guard** — `isStaleOpen` / `STALE_OPEN_HOURS = 24` (`:252-254`): an open
+card older than 24 hours **by now** is unknown. `clockedEndMs` (`:231`) and
+`paidMinutesOf` (`:279`) take a **required** `nowMs` and return `null` for it,
+so every reader agrees without each re-checking: labor % / cost / hours and the
+covered-days pair, tips, the clocked-in curve and roster, raise-eligibility
+hours, and the attendance pairing (`pairsAsAttendance`). On-time leaves out a
+shift whose only possible clock-in is a stuck card — `claimsShiftAsUnknown`,
+`src/lib/labor-inspector.ts:772`, used by the Inspector's No-show and by
+`src/lib/attendance.ts:200`. `staleOpenCount` rides `LaborActualsResult` and
+`LaborBlock` only when it is above 0, and drives the dashboard warning
+(`src/lib/labor-judgment.ts:282`).
+
+**Day Inspector** — a stuck card keeps its "Open, stale" bar but adds no paid
+hours ("X.Xh paid · N unknown") and no Double, Unscheduled or No-show; one
+notice names them (`labor-inspector.ts:693`). Open cards' paid hours count only
+the viewed day (`inspectorPaidMinutes`, `:794`); closed midnight-crossing cards
+are unchanged (BUG-18).
+
+Fixture: `scripts/verify-bug17-heal.ts` — 58/58 on `br-broad-wave-a6vpjdw0`,
+mocked Square, no rows left. Its boundary check compares every number against
+`scripts/bug17-boundary-golden.json`, written at `84e7f6c` before any BUG-17
+code: with no stuck card, nothing moves.

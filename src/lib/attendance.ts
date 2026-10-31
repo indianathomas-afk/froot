@@ -43,7 +43,13 @@ import {
   settingsProblem,
   type MilestoneSettingsValues,
 } from "@/lib/attendance-settings"
-import { NO_SHOW_GRACE_MINUTES, SHOWED_UP_MIN_OVERLAP_MINUTES, noShowEligible, pairsAsAttendance } from "@/lib/labor-inspector"
+import {
+  NO_SHOW_GRACE_MINUTES,
+  SHOWED_UP_MIN_OVERLAP_MINUTES,
+  claimsShiftAsUnknown,
+  noShowEligible,
+  pairsAsAttendance,
+} from "@/lib/labor-inspector"
 
 // ─── SETTINGS ────────────────────────────────────────────────────────────────
 //
@@ -179,18 +185,27 @@ export function assembleOnTime(args: {
 
   const ceilingMs = args.now.getTime()
   let onTime = 0
+  let total = 0
   for (const s of counted) {
     // Same store, same member — the inspector's per-store read, restated as a
     // filter because this read spans stores.
-    const paired = args.memberCards
-      .filter((c) => c.storeId === s.storeId && c.squareTeamMemberId === args.squareTeamMemberId)
-      .filter((c) => pairsAsAttendance(c, s, ceilingMs, SHOWED_UP_MIN_OVERLAP_MINUTES))
-    if (paired.length === 0) continue // no-show: counted, not on time
+    const mine = args.memberCards.filter(
+      (c) => c.storeId === s.storeId && c.squareTeamMemberId === args.squareTeamMemberId
+    )
+    const paired = mine.filter((c) => pairsAsAttendance(c, s, ceilingMs, SHOWED_UP_MIN_OVERLAP_MINUTES, ceilingMs))
+    if (paired.length === 0) {
+      // BUG-17 R3: the only possible clock-in is a card open over 24h, so this
+      // shift is unknown — left out of the count, neither on time nor a no-show.
+      // claimsShiftAsUnknown is the Inspector's, so NO-SHOW skips the same shifts.
+      if (mine.some((c) => claimsShiftAsUnknown(c, s, ceilingMs))) continue
+      total++
+      continue // no-show: counted, not on time
+    }
+    total++
     const earliest = paired.reduce((a, b) => (b.startAt < a.startAt ? b : a))
     if (isOnTime(earliest.startAt, s.effectiveStartAt, settings.onTimeGraceMinutes)) onTime++
   }
 
-  const total = counted.length
   if (total === 0) {
     const schedules =
       args.assignedStoreIds.some((id) => args.storesWithSchedule.has(id)) ||
