@@ -17192,7 +17192,12 @@ phases:
     # own SHA cannot be written inside itself). NOT pushed when the check ran —
     # Gary runs the push. DECISIONS 2026-11-01 BEV-1 ratified by Gary at this
     # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written.
-    status: staging
+    # `staging` -> `shipped` 2026-11-01, stamped post-merge 2026-11-01 by
+    # PROMO-STAMP_39b7ad2 (on `staging`): merge 39b7ad2 (DEPLOY_LOG entries
+    # `39b7ad2 — 2026-11-01 — BEV-1` and the BEV-1 pause). Any "not pushed" /
+    # "staging" / "status stays `planned`" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-11-01
     title: "BevSpot recipe import (Nutrition series, session 1)"
     commits:
       - "eb01bf5"
@@ -17203,15 +17208,29 @@ phases:
       - "9a06f92"
       # docs(BEV-1): row in_progress, DECISIONS draft, N series, DEBT-124
       # + the commit immediately after 9a06f92: docs(BEV-1 PRE-PUSH-CHECK)
+      - "bbc87c8"
+      - "39b7ad2"
     blockers:
-      - >
-        PRODUCTION ONLY, 2026-11-01. Gary: "Production has not been imported
-        yet." BEV-1 must not be run on production until Keva's ingredients are
-        imported there (existing CSV importer, as on staging). Every recipe
-        would otherwise skip as MISSING_INGREDIENT. That is safe, but useless.
-        CLEARS WHEN: production's Keva org holds the ingredient library.
-      - narrowed: true
+      - resolved: true
         text: >
+          RESOLVED 2026-11-01 (PROMO-STAMP_39b7ad2): production's Keva org
+          (`Organization` cf888f2d-f234-48c7-8097-fd5b44b5b3dd, Neon
+          br-sparkling-block) holds 225 active ingredients from the CSV
+          import, and BEV-1 has been applied there — see the notes rider.
+          Original text follows, as written.
+          PRODUCTION ONLY, 2026-11-01. Gary: "Production has not been imported
+          yet." BEV-1 must not be run on production until Keva's ingredients are
+          imported there (existing CSV importer, as on staging). Every recipe
+          would otherwise skip as MISSING_INGREDIENT. That is safe, but useless.
+          CLEARS WHEN: production's Keva org holds the ingredient library.
+      - resolved: true
+        text: >
+          RESOLVED 2026-11-01 (BEV-1b docs commit, on Gary's direction in chat):
+          production's Keva org (`Organization`
+          cf888f2d-f234-48c7-8097-fd5b44b5b3dd) has 225 ingredients, and BEV-1
+          has been applied there: 424 recipes. Gary's figures, not measured by
+          the BEV-1b session. The flag moved from `narrowed` to `resolved`.
+          Original text follows, as written.
           WAITING ON BEV-0 INGREDIENT IMPORT — 2026-10-31. Set by Gary at the
           Phase 1 STOP: production has no real Keva ingredients ("8 fixture
           rows, 0 recipes"), so every recipe would skip as MISSING_INGREDIENT.
@@ -17220,6 +17239,21 @@ phases:
           and N-3 use. CLEARS WHEN: BEV-0 has imported Keva's ingredients on the
           branch BEV-1 will run against.
     notes: >
+      ── RIDER 2026-11-01, PROMO-STAMP_39b7ad2 (prepended; nothing below is
+      edited). ── PROMOTED in merge 39b7ad2 (--no-ff, main 0ff5628..39b7ad2,
+      staging fast-forwarded). No migration. STAGING, before promotion
+      (Gary): the F8 rider passed — forecasting import preview from an .xlsx
+      worked. The count weigh dialog was NOT exercised (no storage areas
+      assigned on staging); Gary waived it, since no live store counts real
+      ingredients yet. PRODUCTION, after deploy (Gary, Neon
+      br-sparkling-block, `Organization`
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd, Keva Juice): ingredients 225
+      active (CSV import: Meadowood library 212 + 13 Las Brisas items), 8
+      fixture ingredients archived; BEV-1 applied — menu_recipes 424,
+      prep_recipes 14 (9 imported + 5 built by hand), sales_mapped 424. The
+      production blocker is closed (marked resolved, kept). The "NOT PUSHED",
+      "THE REAL TEST IS GARY'S" and "OWED AFTER DEPLOY" lines below are spent,
+      kept.
       PHASE 2 BUILT 2026-11-01, work commit 95c336b (NOT PUSHED at the time of
       writing). Gary ruled F1–F14 in chat on resuming. His words are in
       docs/DECISIONS.md (2026-11-01, BEV-1, DRAFT until PRE-PUSH-CHECK), along
@@ -17268,6 +17302,65 @@ phases:
       folder and was left as written. The rest of the series (BEV-2, N-1
       rescope, N-2, N-3, N-4, and the MenuItem* stub DEBT row) is NOT filed
       here — that was Phase 3 of the prompt, which has not run.
+
+  - id: BEV-1b
+    track: migration
+    size: S
+    # → in_progress 2026-11-01 at the work commit d876146 (NOT pushed). The
+    # docs SHA is the commit immediately after d876146 (its own SHA cannot be
+    # written inside itself).
+    # BEV-1b PRE-PUSH-CHECK 2026-11-01: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after 376440a (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-01 BEV-1b ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written. The
+    # "(NOT pushed)" and "is the commit immediately after d876146" lines above
+    # are spent, kept: the docs SHA is 376440a.
+    status: staging
+    title: "BevSpot import: prep rows other recipes use always import as sub-recipes"
+    commits:
+      - "d876146"
+      # feat(BEV-1b): planner rule + fixture section 6, 2026-11-01
+      # + the commit immediately after d876146: docs(BEV-1b) — prompt,
+      # DECISIONS draft, this row, BEV-1 blocker resolved
+      - "376440a"
+      # docs(BEV-1b): the docs commit named on the line above; recorded by the
+      # BEV-1b PRE-PUSH-CHECK
+      # + the commit immediately after 376440a: docs(BEV-1b PRE-PUSH-CHECK) —
+      # DECISIONS ratified, this row to staging, DEPLOY_LOG entry
+    notes: >
+      BUILT 2026-11-01, TIER 2. Prompt of record: docs/prompts/BEV-1b.md.
+      Gary's ruling is in docs/DECISIONS.md (2026-11-01, BEV-1b, DRAFT until
+      PRE-PUSH-CHECK). WHY: on production (`Organization`
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd) F3 dropped the only definition of
+      `Cup Kit - 20oz` (Unassigned), and F7 skipped `Juice - Carrot 1 oz`,
+      `Pressed Lemon`, `1oz Wheatgrass` and `1oz Ginger` for Square ids that
+      are not Froot sales items. Every recipe using them as prep skipped too
+      (Gary's counts: 21 / 7 / 2 / 1 still blocked, and 108 behind the Cup Kit
+      until he built it by hand). WHAT CHANGED, one file
+      (src/lib/bevspot/plan-import.ts): prep definitions now come from all
+      parsed rows, Archived and Unassigned included. An existing Froot
+      sub-recipe with the exact name wins and is never overwritten (F6), so no
+      duplicate is created. Otherwise the export's row is used, outside
+      Archived/Unassigned first, and two different definitions left after that
+      skip as AMBIGUOUS_NAME. A referenced row whose Square id IS a Froot sales
+      item keeps the F10 wrapper behaviour unchanged. No schema, route,
+      permission or UI change. FIXTURE: scripts/verify-bev1-import.ts section
+      6, cases (a)–(e), on a second synthetic workbook. 74/74 PASS (62 existing
+      unchanged); 6 of the 12 new checks fail against the pre-change planner.
+      OFFLINE RUN (throwaway, read-only, no DB) over
+      Keva_Las_Brisas_#14_sales_items_2026-10-31.xlsx with the 225 ingredients
+      from the two FROOT_IMPORT CSVs. Synthetic probe sales items were the
+      only sales items, so every real Square id counted as non-Froot. Of 109
+      export-defined, non-ingredient names that recipe lines reference, 9
+      resolved before and 98 after (+89, 0 lost). 4 of the gain are rows only
+      in Archived/Unassigned. The other 85 have a Square id: offline, that is
+      an upper bound, since on production any whose id IS a sales item stays a
+      wrapper. All five hand-built names resolve to the existing prep when
+      treated as existing Froot preps; under the old planner four of them
+      still skipped NOT_IN_SQUARE. THE REAL TEST IS GARY'S: re-run the
+      production preview after the push. The 31 recipes behind the four juice
+      preps should import, reusing his hand-built preps.
 
   - id: N-1
     track: nutrition
@@ -22917,7 +23010,12 @@ phases:
     # inside itself). NOT pushed when the check ran — Gary runs the push. No
     # DECISIONS entry; the phase made no ruling. The "NOT pushed" line in the
     # notes holds until the push.
-    status: staging
+    # `staging` -> `shipped` 2026-11-01, stamped post-merge 2026-11-01 by
+    # PROMO-STAMP_39b7ad2 (on `staging`): merge 39b7ad2 (DEPLOY_LOG entry
+    # `39b7ad2 — 2026-11-01 — ING-UI-1`). The "NOT pushed" lines above and in
+    # the notes are spent, kept.
+    status: shipped
+    shipped: 2026-11-01
     title: "Ingredients table — split Category / GL Code, de-duplicate Pack"
     commits:
       - "8d440c3"
@@ -22925,6 +23023,8 @@ phases:
       - "4fdc65e"
       - "a8dcf6b"
       # + the commit immediately after a8dcf6b: docs(ING-UI-1 PRE-PUSH-CHECK)
+      - "c5c25dc"
+      - "39b7ad2"
     notes: >
       ── RIDER 2026-11-01, ING-UI-1 PRE-PUSH-CHECK (prepended; nothing below is
       edited). ── The deleted-ingredients ROW CANDIDATE below is FIXED in
