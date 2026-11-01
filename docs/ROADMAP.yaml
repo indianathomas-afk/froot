@@ -22776,6 +22776,30 @@ phases:
       The digest builder (src/lib/hr-doc-digest.ts) skips training by its
       `kind` test today; the rollup already carries the items.
 
+  - id: ING-UI-1
+    track: inventory
+    size: S
+    status: in_progress
+    title: "Ingredients table — split Category / GL Code, de-duplicate Pack"
+    commits: ["8d440c3"]
+    notes: >
+      BUILT 2026-11-01 on staging, NOT pushed. Prompt of record:
+      docs/prompts/ING-UI-1.md. Found by Gary on staging after the Meadowood
+      212-ingredient import. Declared TIER 1; RE-DECLARED TIER 2 by the session
+      because the Pack fix adds a conditional deciding what renders (CLAUDE.md
+      TIER 1 guardrail). Display only — one file,
+      src/app/(app)/inventory/ingredients/ingredients-client.tsx; no schema, API
+      or write. Category cell now shows the name only (the table never showed
+      subcategory). New GL Code column reads the existing effectiveGlCode()
+      helper (src/lib/ingredient-dto.ts — override, else category GL, else —)
+      with a muted "override" label. Pack renders packDescription alone when it
+      already starts with purchaseUnitLabel (trimmed, case-insensitive). Not
+      browser-checked; build is the gate. ROW CANDIDATES, not changed: the
+      deleted-ingredients list (ingredients/deleted/deleted-client.tsx:69)
+      repeats the old doubled Pack rendering. No other merged Category/GL
+      rendering exists — the PO detail "· GL" (po-detail-client.tsx:474) is an
+      invoice adjustment's own GL, not an ingredient category.
+
 
 bugs:
   - id: BUG-1
