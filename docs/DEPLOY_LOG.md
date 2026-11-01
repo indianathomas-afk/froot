@@ -2,7 +2,39 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-01 — BEV-1: import recipes from BevSpot's sales-items export
+## 39b7ad2 — 2026-11-01 — BEV-1: import recipes from BevSpot's sales-items export
+
+**PROMOTED 2026-11-01 in merge `39b7ad2`** (`39b7ad210e20a7e93fdfc1c7ab2116f234ad7492`,
+"Merge branch 'staging'", 2026-11-01 08:34:12 -0800 (Pacific) = 2026-11-01
+16:34:12 UTC), `--no-ff`. First parent `0ff5628` (prior tip of `main`), second
+parent `bbc87c8` (staging tip). **10 commits** in `39b7ad2^1..39b7ad2^2` —
+`6089816` and `4dcbe71` (BUG-17 stamp docs), `eb01bf5` (BEV-1 pause),
+`8d440c3`, `4fdc65e`, `a8dcf6b` and `c5c25dc` (ING-UI-1), `95c336b`, `9a06f92`
+and `bbc87c8` (BEV-1) — and **28 files**, read out of `git log` and
+`git diff --shortstat` at this stamp. The merge carried three entries: this
+one, ING-UI-1 and the BEV-1 pause below. `main` moved `0ff5628..39b7ad2`;
+`staging` fast-forwarded to it. **No migration** (nothing under `prisma/`).
+Stamped post-merge by PROMO-STAMP_39b7ad2 (2026-11-01), on `staging`; the
+heading previously read "UNPROMOTED — 2026-11-01 — BEV-1: import recipes from
+BevSpot's sales-items export". The "staging only", "NEITHER WAS PUSHED",
+"Nothing has been observed on staging" and "Production: blocked" lines below
+are spent, kept.
+
+**Observed, staging (Gary, before the merge):** the F8 rider passed — the
+forecasting import preview from an .xlsx worked on xlsx 0.20.3. The count
+weigh dialog was NOT exercised (no storage areas assigned on staging); Gary
+waived it, since no live store counts real ingredients yet.
+
+**Observed, production (Gary, Neon `br-sparkling-block`, `Organization`
+`cf888f2d-f234-48c7-8097-fd5b44b5b3dd` (Keva Juice), after the deploy):**
+ingredients 225 active (CSV import: Meadowood library 212 + 13 Las Brisas
+items), 8 fixture ingredients archived; BEV-1 applied — `menu_recipes` 424,
+`prep_recipes` 14 (9 imported + 5 built by hand), `sales_mapped` 424. The
+row's production blocker (ingredients not yet imported) is cleared.
+
+**Rollback:** `git revert -m 1 39b7ad2` takes the whole promotion out; or
+revert `95c336b` alone per the rollback paragraph below. No schema to unwind.
+Recipes already applied on production stay (see below).
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
@@ -55,7 +87,14 @@ the Las Brisas #14 export (writes nothing; expect many NOT_IN_SQUARE skips —
 (F14), are Gary's call after reading the preview. **Production: blocked** until
 Keva's ingredients are imported there (row blocker).
 
-## UNPROMOTED — 2026-11-01 — ING-UI-1: ingredients table splits Category / GL Code, Pack stops doubling (display only)
+## 39b7ad2 — 2026-11-01 — ING-UI-1: ingredients table splits Category / GL Code, Pack stops doubling (display only)
+
+**PROMOTED 2026-11-01 in merge `39b7ad2`** — merge details and production
+evidence are in the BEV-1 entry above. Stamped post-merge by
+PROMO-STAMP_39b7ad2 (2026-11-01), on `staging`; the heading previously read
+"UNPROMOTED — 2026-11-01 — ING-UI-1: ingredients table splits Category / GL
+Code, Pack stops doubling (display only)". The "staging only" and "NONE WAS
+PUSHED" lines below are spent, kept.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
@@ -94,7 +133,13 @@ staging-SHA precondition (deployed SHA = local `HEAD`), then `/inventory/ingredi
 and `/inventory/ingredients/deleted` under a named org id — GL Code column
 present, Pack cells on imported rows read once.
 
-## UNPROMOTED — 2026-10-31 — BEV-1: paused after the Phase 1 audit; BEV-0 ingredient import filed (docs only)
+## 39b7ad2 — 2026-11-01 — BEV-1: paused after the Phase 1 audit; BEV-0 ingredient import filed (docs only)
+
+**PROMOTED 2026-11-01 in merge `39b7ad2`** — merge details are in the BEV-1
+entry above. Stamped post-merge by PROMO-STAMP_39b7ad2 (2026-11-01), on
+`staging`; the heading previously read "UNPROMOTED — 2026-10-31 — BEV-1: paused
+after the Phase 1 audit; BEV-0 ingredient import filed (docs only)". The
+"Staging only" line and the `planned` status below are spent, kept.
 
 **Staging only, not yet promoted.** Docs only: no code, no migration, no env
 change, nothing a user can see. Blast radius is the docs build alone —
