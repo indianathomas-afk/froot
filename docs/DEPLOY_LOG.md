@@ -2,6 +2,57 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-01 — BEV-1b: prep rows other recipes use always import as sub-recipes
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two BEV-1b commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `d876146`, `376440a`, on top of
+`origin/staging`. **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `d876146` | BEV-1b work: `src/lib/bevspot/plan-import.ts` (prep definitions drawn from all parsed rows, Archived/Unassigned included), fixture `scripts/verify-bev1-import.ts` section 6 |
+| `376440a` | `docs(BEV-1b)`: prompt of record `docs/prompts/BEV-1b.md`, DECISIONS draft, row `in_progress`, BEV-1 production blocker resolved |
+| the commit immediately after `376440a` | `docs(BEV-1b PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`; DECISIONS ratified by Gary at this check ("Ratify as written") |
+
+**Blast radius: ONE PURE PLANNER FILE BEHIND THE EXISTING ADMIN-ONLY BEVSPOT
+IMPORT. NO SCHEMA, NO MIGRATION, NO ROUTE, NO PERMISSION, NO UI, NO ENV VAR,
+NO CRON, NO SQUARE CALL.**
+
+- **What changes:** a BevSpot row that another importable recipe references
+  as a sub-recipe now imports as a prep recipe (no sales item) even when it
+  sits in Archived/Unassigned or its Square id is not a Froot sales item. F3/F7
+  still decide its sales-item attachment and still report it (DROPPED_GROUP /
+  NOT_IN_SQUARE). Two different definitions of one prep name, left after
+  preferring rows outside Archived/Unassigned, skip as AMBIGUOUS_NAME (F11).
+- **Where it can write:** only through the existing `/apply` route (IV-3,
+  `requireModule("inventory")` + `requireAdmin()`), which re-plans on the
+  server. An apply can now create MORE prep recipes than before. `/preview`
+  still writes nothing.
+- **What does not change:** an existing Froot sub-recipe with the exact name
+  is reused and never overwritten (F6), so no duplicate is created — this is
+  what protects Gary's five hand-built production preps. A referenced row whose
+  Square id IS a Froot sales item keeps the F10 wrapper behaviour. Nothing
+  writes to Square.
+
+**Rollback:** revert `d876146`. No schema change; the planner returns to the
+BEV-1 rule on the next deploy. Prep recipes an apply has already created STAY —
+they are ordinary recipes; find them by the `AuditLog` row's `metadata`
+(created recipe ids, action `bevspot.recipes.applied`) and delete them in the
+app if wanted. The docs commits can stay or go with it.
+
+**Evidence so far: fixture and build only.** `scripts/verify-bev1-import.ts`
+74/74 PASS per the build session (62 existing unchanged; 6 of the 12 new checks
+fail against the pre-change planner). Pure, synthetic workbook, no database.
+**Nothing has been observed on staging or production.** After the push: the
+staging-SHA precondition (deployed SHA = local `HEAD`); then, after promotion,
+Gary re-runs the BevSpot PREVIEW on production (`Organization`
+cf888f2d-f234-48c7-8097-fd5b44b5b3dd, Keva Juice). Expected per the row: the 31
+recipes behind the four juice preps import, reusing his hand-built preps.
+
 ## 39b7ad2 — 2026-11-01 — BEV-1: import recipes from BevSpot's sales-items export
 
 **PROMOTED 2026-11-01 in merge `39b7ad2`** (`39b7ad210e20a7e93fdfc1c7ab2116f234ad7492`,

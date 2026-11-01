@@ -17309,13 +17309,25 @@ phases:
     # → in_progress 2026-11-01 at the work commit d876146 (NOT pushed). The
     # docs SHA is the commit immediately after d876146 (its own SHA cannot be
     # written inside itself).
-    status: in_progress
+    # BEV-1b PRE-PUSH-CHECK 2026-11-01: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after 376440a (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-01 BEV-1b ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written. The
+    # "(NOT pushed)" and "is the commit immediately after d876146" lines above
+    # are spent, kept: the docs SHA is 376440a.
+    status: staging
     title: "BevSpot import: prep rows other recipes use always import as sub-recipes"
     commits:
       - "d876146"
       # feat(BEV-1b): planner rule + fixture section 6, 2026-11-01
       # + the commit immediately after d876146: docs(BEV-1b) — prompt,
       # DECISIONS draft, this row, BEV-1 blocker resolved
+      - "376440a"
+      # docs(BEV-1b): the docs commit named on the line above; recorded by the
+      # BEV-1b PRE-PUSH-CHECK
+      # + the commit immediately after 376440a: docs(BEV-1b PRE-PUSH-CHECK) —
+      # DECISIONS ratified, this row to staging, DEPLOY_LOG entry
     notes: >
       BUILT 2026-11-01, TIER 2. Prompt of record: docs/prompts/BEV-1b.md.
       Gary's ruling is in docs/DECISIONS.md (2026-11-01, BEV-1b, DRAFT until

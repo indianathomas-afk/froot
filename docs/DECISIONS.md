@@ -5,7 +5,15 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-01 — BEV-1b: prep rows other recipes use always import as sub-recipes (Gary) — DRAFT
+## 2026-11-01 — BEV-1b: prep rows other recipes use always import as sub-recipes (Gary)
+
+**RATIFIED BY GARY, 2026-11-01, at the BEV-1b PRE-PUSH-CHECK, as written.** The
+whole entry, unchanged, was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify as
+written"* It covers everything in this entry as written: the quoted rule and the
+context paragraph. The "Claude, implementation choices" list stays Claude's and
+is not made a ruling by this. Nothing in the entry was reworded. The heading
+read "— DRAFT" until this check; the DRAFT paragraph below is spent, kept.
 
 **DRAFT — ruled by Gary in chat 2026-11-01, after running BEV-1 on production
 (`Organization` cf888f2d-f234-48c7-8097-fd5b44b5b3dd, Keva Juice); ratified at
