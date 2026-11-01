@@ -17316,7 +17316,12 @@ phases:
     # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written. The
     # "(NOT pushed)" and "is the commit immediately after d876146" lines above
     # are spent, kept: the docs SHA is 376440a.
-    status: staging
+    # `staging` -> `shipped` 2026-11-01, stamped post-merge 2026-11-01 by
+    # STAMP-62b9d86 (on `staging`): merge 62b9d86 (DEPLOY_LOG entry
+    # `62b9d86 — 2026-11-01 — BEV-1b`). Any "NOT pushed" / "staging" comment
+    # above is spent, kept.
+    status: shipped
+    shipped: 2026-11-01
     title: "BevSpot import: prep rows other recipes use always import as sub-recipes"
     commits:
       - "d876146"
@@ -17328,6 +17333,9 @@ phases:
       # BEV-1b PRE-PUSH-CHECK
       # + the commit immediately after 376440a: docs(BEV-1b PRE-PUSH-CHECK) —
       # DECISIONS ratified, this row to staging, DEPLOY_LOG entry
+      - "a82bf18"
+      - "62b9d86"
+      # promotion merge 2026-11-01 (main 39b7ad2..62b9d86, no migration)
     notes: >
       BUILT 2026-11-01, TIER 2. Prompt of record: docs/prompts/BEV-1b.md.
       Gary's ruling is in docs/DECISIONS.md (2026-11-01, BEV-1b, DRAFT until
@@ -17362,12 +17370,71 @@ phases:
       production preview after the push. The 31 recipes behind the four juice
       preps should import, reusing his hand-built preps.
 
+      PROMOTED 2026-11-01 in merge 62b9d86 (rider, STAMP-62b9d86). Production
+      evidence (Gary, Neon br-sparkling-block, `Organization`
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd): the Las Brisas preview showed 30
+      recipes ready and no new prep recipes; Gary applied them (424 → 454 menu
+      recipes expected). Remaining skips are hand fixes (27 BevSpot duplicates,
+      15 whole-package, 3 missing ingredients, 2 All That Razz) and 491 Square
+      modifiers (N-5).
+
   - id: N-1
     track: nutrition
     size: M
-    status: planned
+    # → in_progress 2026-11-01 at the work commit 70baf2f (NOT pushed). The
+    # docs SHA is the commit immediately after 70baf2f (its own SHA cannot be
+    # written inside itself).
+    # N-1 PRE-PUSH-CHECK 2026-11-01: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after 2c2c0fa (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-01 N-1 ratified by Gary at this
+    # check: "Ratify as written." DEPLOY_LOG UNPROMOTED entry written.
+    # MIGRATIONS.md entry for 20261101210000_n1_ingredient_nutrition added by
+    # this check (drift found at Step 2: the docs commit had none; Gary:
+    # "Add the MIGRATIONS.md entry in this check's single docs commit").
+    # The "(NOT pushed)" and "is the commit immediately after 70baf2f" lines
+    # above are spent, kept: the docs SHA is 2c2c0fa.
+    status: staging
     title: "Nutrition — schema & menu item manager"
+    commits:
+      - "70baf2f"
+      # feat(N-1): schema + migration, engine, routes, pages, fixture, 2026-11-01
+      # + the commit immediately after 70baf2f: docs(N-1) — prompt, audit,
+      # DECISIONS draft, this row
+      - "2c2c0fa"
+      # docs(N-1): the docs commit named on the line above; recorded by the
+      # N-1 PRE-PUSH-CHECK
+      # + the commit immediately after 2c2c0fa: docs(N-1 PRE-PUSH-CHECK) —
+      # DECISIONS ratified, this row to staging, MIGRATIONS entry, DEPLOY_LOG
+      # entry
     notes: >
+      BUILT 2026-11-01, TIER 3 (prepended; nothing below is edited). Prompt of
+      record: docs/prompts/N-1.md; audit: docs/prompts/N-1_AUDIT.md. Gary's
+      rulings N1-F1–F6 and R-1–R-4 are in docs/DECISIONS.md (2026-11-01, N-1,
+      DRAFT until PRE-PUSH-CHECK). MIGRATION
+      20261101210000_n1_ingredient_nutrition (additive: enum Allergen,
+      Ingredient.allergens + nutritionExempt, IngredientNutrition) — applied
+      to dev by Gary 2026-11-01; staging and production apply it via migrate
+      deploy in the Vercel build. WHAT SHIPPED: nutrition per ingredient
+      (IngredientNutrition, per a basis amount in the ingredient's own
+      dimension), FDA major-nine allergens and a not-food flag on Ingredient;
+      the engine src/lib/recipe-nutrition.ts (mirrors recipe-cost.ts,
+      per-nutrient completeness, a conversion failure or loop marks every
+      nutrient incomplete); a nutrition CSV import (/nutrition/import, ADMIN,
+      BEV-1 F5 matching, never creates ingredients); /nutrition/menu (computed
+      list, incomplete filter, ranked "To fix", per-item breakdown); a
+      nutrition & allergens section in the ingredient dialog and bulk not-food
+      buttons; tbsp/tsp/mL as conversions outside the reporting-unit picker.
+      Capabilities nutrition.view (ADMIN/MANAGER/STORE) and nutrition.manage
+      (ADMIN); every surface needs inventory AND nutrition in activeModules.
+      Fixture scripts/verify-n1-nutrition.ts: pure, 39 checks, ALL PASS.
+      DARK UNTIL ENABLED: no org has "nutrition" in activeModules and the app
+      cannot add it — Gary enables it per environment in the Neon console with
+      a statement from planning chat (R-2). STAGING TEST (R-3): staging's Keva
+      org has the 225 ingredients but no recipes; Gary builds two recipes by
+      hand on real staging sales items and enters their ingredients'
+      nutrition. Nothing is promoted until Gary confirms it on staging.
+
       RESCOPED 2026-11-01 (BEV-1 docs commit, Gary's F1: "Nutrition is computed
       from ingredients through recipes. The MenuItem* stub stays untouched;
       file a DEBT row to retire it after N-3."). N-1 is now: nutrition facts and
@@ -17381,6 +17448,61 @@ phases:
       yet. The original note follows, as written.
 
       MenuItem/MenuItemNutrition/MenuItemAllergen models and module flag scaffolded; no UI or routes.
+
+  - id: N-1a
+    track: nutrition
+    size: S
+    # → in_progress 2026-11-01 at the work commit b0bc473 (NOT pushed). The
+    # docs SHA is the commit immediately after b0bc473 (its own SHA cannot be
+    # written inside itself).
+    # N-1a PRE-PUSH-CHECK 2026-11-01: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after bc3d621 (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-01 N-1a ratified by Gary at this
+    # check: "Ratify as written." DEPLOY_LOG UNPROMOTED entry written. No
+    # migration. The "(NOT pushed)" and "is the commit immediately after
+    # b0bc473" lines above are spent, kept: the docs SHA is bc3d621.
+    status: staging
+    title: "Nutrition — Download template (round-trip CSV)"
+    commits:
+      - "b0bc473"
+      # feat(N-1a): template route, import planner A + B, button, fixture,
+      # NU-4, 2026-11-01
+      # + the commit immediately after b0bc473: docs(N-1a) — prompt, step 6
+      # findings, DECISIONS draft, this row
+      - "bc3d621"
+      # docs(N-1a): the docs commit named on the line above; recorded by the
+      # N-1a PRE-PUSH-CHECK
+      # + the commit immediately after bc3d621: docs(N-1a PRE-PUSH-CHECK) —
+      # DECISIONS ratified, this row to staging, DEPLOY_LOG entry
+    notes: >
+      BUILT 2026-11-01, TIER 2. Prompt of record: docs/prompts/N-1a.md. Ships
+      with N-1 in the same promotion. The session stopped at the prompt's step
+      6 (RULING NOW, docs/prompts/N-1a_FINDINGS.md): as N-1 built the import,
+      an unedited template row for an ingredient with no nutrition planned as
+      NEW and created an empty record, which flips it from "No nutrition" to
+      "Some values missing" on /nutrition/menu. Identical rows planned as
+      UPDATE. Gary ruled A + B (docs/DECISIONS.md 2026-11-01 N-1a, DRAFT until
+      PRE-PUSH-CHECK): "An unedited template must import as zero changes, and
+      the fixture must prove it." WHAT SHIPPED: GET /api/nutrition/template
+      (ADMIN, nutrition.manage; NU-4) returns every active, non-archived,
+      non-PREPARED ingredient as an import file. The columns are the import's
+      own, in order, plus the helper columns category, reporting_unit and
+      has_nutrition. Values are pre-filled from what is stored; blank stays
+      blank; not-food rows have the basis and nutrients blank. A "Download
+      template" button sits on /nutrition/import. The import planner now
+      writes each part (nutrition, allergens, flag) only where it differs,
+      with new statuses UNCHANGED (not written) and DETAILS_ONLY (allergens or
+      flag only). No empty nutrition record is ever created, and a not-food
+      row never touches the nutrition record. No schema change. Fixture
+      scripts/verify-n1a-template.ts: pure, 25 checks, ALL PASS; the unedited
+      template plans 6/6 UNCHANGED, each row resolved to its own ingredient
+      id, zero writes. verify-n1-nutrition.ts is still 39/39. NOT VERIFIED ON
+      STAGING: the download, the ADMIN gate, and a real Keva template
+      imported back as zero changes are Gary's staging pass. A row whose
+      name+brand also matches an inactive or archived ingredient comes back
+      AMBIGUOUS, because the matcher sees every non-deleted ingredient (N-1
+      behaviour, unchanged).
 
   - id: N-2
     track: nutrition

@@ -15,10 +15,11 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { ALL_UNITS } from "@/lib/units"
+import { REPORTING_UNITS } from "@/lib/units"
 import { isCloseNameMatch } from "@/lib/duplicate-match"
 import { CategoryManagerDialog } from "./category-manager-dialog"
 import { CsvImportButton } from "./csv-import-button"
+import { NutritionSection } from "./nutrition-section"
 import Link from "next/link"
 
 type Category = { id: string; name: string; glCode: string | null }
@@ -128,6 +129,9 @@ export function IngredientsClient({
   stores,
   canManage,
   isAdmin,
+  nutritionEnabled,
+  canManageNutrition,
+  nutritionExemptIds,
 }: {
   ingredients: Ingredient[]
   categories: Category[]
@@ -136,6 +140,10 @@ export function IngredientsClient({
   stores: StoreOption[]
   canManage: boolean
   isAdmin: boolean
+  // N-1: inventory + nutrition modules both on (R-4); ADMIN for edits (F3).
+  nutritionEnabled: boolean
+  canManageNutrition: boolean
+  nutritionExemptIds: string[]
 }) {
   const router = useRouter()
   const [search, setSearch] = useState("")
@@ -148,6 +156,23 @@ export function IngredientsClient({
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [parsStoreId, setParsStoreId] = useState(stores[0]?.id ?? "")
   const [parsData, setParsData] = useState<ParsData | null>(null)
+  const exemptSet = useMemo(() => new Set(nutritionExemptIds), [nutritionExemptIds])
+  const [exemptBusy, setExemptBusy] = useState(false)
+
+  async function setExempt(exempt: boolean) {
+    setExemptBusy(true)
+    try {
+      await fetch("/api/nutrition/ingredients/bulk-exempt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [...selectedIds], exempt }),
+      })
+      setSelectedIds(new Set())
+      router.refresh()
+    } finally {
+      setExemptBusy(false)
+    }
+  }
 
   useEffect(() => {
     fetch("/api/inventory/vendors")
@@ -384,6 +409,18 @@ export function IngredientsClient({
         />
       )}
 
+      {canManageNutrition && selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-4 text-sm">
+          <span className="text-[var(--color-muted-foreground)]">Nutrition:</span>
+          <Button variant="outline" size="sm" disabled={exemptBusy} onClick={() => setExempt(true)}>
+            Mark {selectedIds.size} as not food
+          </Button>
+          <Button variant="outline" size="sm" disabled={exemptBusy} onClick={() => setExempt(false)}>
+            Mark {selectedIds.size} as food
+          </Button>
+        </div>
+      )}
+
       {parsStoreId && parsLoaded && (
         <p className="text-xs text-[var(--color-muted-foreground)] mb-3">
           {parsData?.usageBasis === "periods"
@@ -467,6 +504,7 @@ export function IngredientsClient({
                             </div>
                             <div className="flex items-center gap-1 mt-1">
                               {ing.isArchived && <Badge variant="secondary">Archived</Badge>}
+                              {nutritionEnabled && exemptSet.has(ing.id) && <Badge variant="outline">Not food</Badge>}
                               {ing.sku && <span className="text-xs text-[var(--color-muted-foreground)]">SKU {ing.sku}</span>}
                             </div>
                           </td>
@@ -586,7 +624,10 @@ export function IngredientsClient({
           ...ingredients.filter((i) => i.isArchived).map((i) => ({ id: i.id, brand: i.brand, name: i.name })),
           ...deletedIngredientNames,
         ]}
+        nutritionEnabled={nutritionEnabled}
+        canManageNutrition={canManageNutrition}
         onClose={() => setDialogIngredient(undefined)}
+        onNutritionSaved={() => router.refresh()}
         onSaved={() => {
           setDialogIngredient(undefined)
           router.refresh()
@@ -986,13 +1027,19 @@ function IngredientDialog({
   ingredient,
   categories,
   archivedAndDeletedNames,
+  nutritionEnabled,
+  canManageNutrition,
   onClose,
+  onNutritionSaved,
   onSaved,
 }: {
   ingredient: Ingredient | null | undefined
   categories: Category[]
   archivedAndDeletedNames: { id: string; brand: string | null; name: string }[]
+  nutritionEnabled: boolean
+  canManageNutrition: boolean
   onClose: () => void
+  onNutritionSaved: () => void
   onSaved: () => void
 }) {
   const isOpen = ingredient !== undefined
@@ -1143,7 +1190,7 @@ function IngredientDialog({
               <Select value={form.reportingUnit || undefined} onValueChange={(v) => setForm((f) => ({ ...f, reportingUnit: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select unit" /></SelectTrigger>
                 <SelectContent>
-                  {ALL_UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                  {REPORTING_UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -1166,6 +1213,16 @@ function IngredientDialog({
             <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
           </div>
           {error && <p className="text-xs text-[var(--color-destructive)]">{error}</p>}
+          {nutritionEnabled && (
+            <div className="border border-[var(--color-border)] rounded-lg p-3">
+              <h3 className="text-sm font-semibold text-[var(--color-foreground)] mb-2">Nutrition &amp; allergens</h3>
+              {ingredient ? (
+                <NutritionSection key={ingredient.id} ingredientId={ingredient.id} canEdit={canManageNutrition} onSaved={onNutritionSaved} />
+              ) : (
+                <p className="text-xs text-[var(--color-muted-foreground)]">Save the ingredient first, then add its nutrition.</p>
+              )}
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>

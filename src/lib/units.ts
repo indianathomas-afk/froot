@@ -13,11 +13,21 @@ const UNIT_INFO: Record<string, { dimension: Dimension; toBase: number }> = {
   "qt": { dimension: "volume", toBase: 32 },
   "pt": { dimension: "volume", toBase: 16 },
   "cup": { dimension: "volume", toBase: 8 },
+  // N-1 R-1: label units. Usable in recipe lines and as a nutrition basis, but
+  // never as an ingredient's reporting unit — see REPORTING_UNITS.
+  "tbsp": { dimension: "volume", toBase: 0.5 },
+  "tsp": { dimension: "volume", toBase: 1 / 6 },
+  "mL": { dimension: "volume", toBase: 0.033814 },
   "each": { dimension: "count", toBase: 1 },
   "serving": { dimension: "count", toBase: 1 },
 }
 
 export const ALL_UNITS = Object.keys(UNIT_INFO)
+
+// What an ingredient may be counted in (the ingredient dialog's picker). The
+// label-only units above are deliberately absent (N-1 R-1).
+const LABEL_ONLY_UNITS = new Set(["tbsp", "tsp", "mL"])
+export const REPORTING_UNITS = ALL_UNITS.filter((u) => !LABEL_ONLY_UNITS.has(u))
 
 export function unitDimension(unit: string): Dimension | null {
   return UNIT_INFO[unit]?.dimension ?? null

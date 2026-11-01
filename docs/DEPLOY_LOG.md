@@ -2,7 +2,153 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-01 — BEV-1b: prep rows other recipes use always import as sub-recipes
+## UNPROMOTED — 2026-11-01 — N-1a: nutrition "Download template" that imports back as zero changes
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+Ships with N-1 (entry below) in the same promotion.
+
+**Payload: two N-1a commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `b0bc473`, `bc3d621`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `b0bc473` | N-1a work: `GET /api/nutrition/template`; import planner changes in `src/lib/nutrition-import.ts` (+ `src/lib/nutrition.ts`, `/api/nutrition/import/apply`); "Download template" button on `/nutrition/import`; fixture `scripts/verify-n1a-template.ts`; `verify-n1-nutrition.ts` refs updated; `docs/PERMISSIONS_INVENTORY.md` NU-4 |
+| `bc3d621` | `docs(N-1a)`: prompt of record `docs/prompts/N-1a.md`, findings `docs/prompts/N-1a_FINDINGS.md`, DECISIONS draft, row `in_progress` |
+| the commit immediately after `bc3d621` | `docs(N-1a PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`; DECISIONS ratified by Gary at this check ("Ratify as written.") |
+
+**Blast radius: ONE NEW READ-ONLY ADMIN ROUTE AND A CHANGE TO WHAT THE
+NUTRITION IMPORT WRITES — ALL DARK BEHIND `activeModules` "nutrition", LIKE
+N-1. NO MIGRATION, NO ENV VAR, NO CRON, NO SQUARE CALL.**
+
+- **New route `GET /api/nutrition/template`** (ADMIN, `nutrition.manage`,
+  both modules; NU-4). Read only. Returns every active, non-archived,
+  non-PREPARED ingredient as a CSV in the import's own columns, plus helper
+  columns `category`, `reporting_unit`, `has_nutrition`, pre-filled from what
+  is stored.
+- **Import planner change (`/import/apply`), per Gary's ruling A + B:** a row
+  with every nutrient blank, for an ingredient with no record, writes nothing
+  (no empty record is ever created); a row identical to what is stored is
+  UNCHANGED and not written; otherwise each part (nutrition, allergens,
+  not-food flag) is written only where it differs, and an allergens-or-flag
+  only row is DETAILS_ONLY. A not-food row never touches the nutrition record.
+  Before this, an unedited row could create an empty record or re-write an
+  identical one.
+- **What does not change:** no schema; no stored value is rewritten by the
+  deploy itself; nothing writes to Square.
+
+**Rollback:** revert `b0bc473`. No migration, so nothing to keep. Records the
+new planner chose not to write are simply absent; rows it did write are
+ordinary `IngredientNutrition` / `Ingredient` values the N-1 code reads as
+before. If "nutrition" is on anywhere, switching it off hides the surface
+without a deploy. The docs commits can stay or go with it.
+
+**Evidence so far: fixture and build only.** `scripts/verify-n1a-template.ts`
+25/25 PASS and `verify-n1-nutrition.ts` 39/39 PASS per the build session (both
+pure, no database). **Nothing has been observed on staging or production.**
+After the push: the staging-SHA precondition (deployed SHA = local `HEAD`);
+then Gary's staging pass — the download, the ADMIN gate, and a real Keva
+template imported back as zero changes. Nothing is promoted until Gary
+confirms it on staging.
+
+## UNPROMOTED — 2026-11-01 — N-1: ingredient nutrition & allergens, computed through recipes
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two N-1 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `70baf2f`, `2c2c0fa`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `70baf2f` | N-1 work: schema + migration `20261101210000_n1_ingredient_nutrition`; engine `src/lib/recipe-nutrition.ts`; `src/lib/nutrition.ts`, `nutrition-import.ts`, `nutrition-access.ts`; pages `/nutrition` (redirect), `/nutrition/menu`, `/nutrition/import`; routes `/api/nutrition/ingredients/[id]`, `/ingredients/bulk-exempt`, `/recipes/[id]`, `/import/preview`, `/import/apply`; nutrition section in the ingredient dialog; Nutrition sidebar section; capabilities `nutrition.view` / `nutrition.manage`; tbsp/tsp/mL in `src/lib/units.ts`; `docs/PERMISSIONS_INVENTORY.md`; fixture `scripts/verify-n1-nutrition.ts` |
+| `2c2c0fa` | `docs(N-1)`: prompt of record `docs/prompts/N-1.md`, audit `docs/prompts/N-1_AUDIT.md`, DECISIONS draft, row `in_progress` |
+| the commit immediately after `2c2c0fa` | `docs(N-1 PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`, MIGRATIONS.md entry (missing from `2c2c0fa`, added on Gary's instruction); DECISIONS ratified by Gary at this check ("Ratify as written.") |
+
+**Blast radius: A MIGRATION (ADDITIVE), NEW ADMIN-ONLY WRITE ROUTES, TWO NEW
+CAPABILITIES — ALL DARK BEHIND `activeModules` "nutrition", WHICH NO ORG HAS
+AND THE APP CANNOT ADD — PLUS ONE UNGATED KNOCK-ON IN THE UNIT LIST. NO ENV
+VAR, NO CRON, NO SQUARE CALL.**
+
+- **Migration `20261101210000_n1_ingredient_nutrition`** — runs in the Vercel
+  build on push (staging) and at promotion (production). Additive only: enum
+  `Allergen`, `Ingredient.allergens` (array, default empty) and
+  `Ingredient.nutritionExempt` (default false), new table
+  `IngredientNutrition` (1:1, `ON DELETE CASCADE` from `Ingredient`). Existing
+  rows take the defaults; no backfill, no existing column changed. Detail:
+  `docs/MIGRATIONS.md`.
+- **Dark until enabled (R-2):** every page and `/api/nutrition/*` route needs
+  `inventory` AND `nutrition` in `activeModules` (R-4), checked server-side in
+  `src/lib/nutrition-access.ts`; the sidebar section hides on the same test.
+  No org has "nutrition" and nothing in the app can add it — Gary enables it
+  per environment in the Neon console with a statement from planning chat.
+  No env availability gate.
+- **When enabled — new write paths, ADMIN only (`nutrition.manage`, F3):**
+  per-ingredient nutrition, allergens and not-food flag
+  (`/api/nutrition/ingredients/[id]`), bulk not-food
+  (`/ingredients/bulk-exempt`), and the nutrition CSV import (`/import/apply`;
+  matches existing ingredients, never creates one; an UPDATE replaces an
+  ingredient's whole nutrition record). `/import/preview` writes nothing.
+  ADMIN, MANAGER and STORE view (`nutrition.view`); STAFF cannot.
+- **Ungated knock-on (R-1): tbsp, tsp and mL are now volume conversions in
+  `src/lib/units.ts` for EVERY org with inventory, nutrition on or not.** The
+  recipe editor's unit dropdown offers them for volume ingredients, and cost,
+  adjustments and the weigh dialog convert them. They are kept out of the
+  ingredient reporting-unit picker (`REPORTING_UNITS`). The BevSpot import's
+  unit map produces none of them, so its results do not change.
+- **What does not change:** no existing ingredient, recipe, count or cost
+  value is rewritten; the `MenuItem*` stub is untouched (DEBT-124); nothing
+  writes to Square.
+
+**Rollback:** while "nutrition" is off everywhere there is nothing live to roll
+back except the unit list. To take N-1 out: revert `70baf2f` but KEEP the
+migration folder `prisma/migrations/20261101210000_n1_ingredient_nutrition/`
+(restore it after the revert) — the database keeps the enum, the two
+`Ingredient` columns and the table (additive-only: no column drops, ever), and
+since both new columns have defaults the reverted code writes `Ingredient`
+rows without them. Removing the folder would leave every branch's
+`_prisma_migrations` naming a migration the repo no longer holds. Nutrition
+rows already entered stay in `IngredientNutrition`, unread. If the module was
+switched on, switching it off (removing "nutrition" from `activeModules`, in
+the Neon console) hides every surface without a deploy. The docs commits can
+stay or go with it.
+
+**Evidence so far: fixture and build only.** `scripts/verify-n1-nutrition.ts`
+39/39 PASS per the build session (pure, no database). Migration applied to dev
+by Gary 2026-11-01. **Nothing has been observed on staging or production.**
+After the push, in order: the staging-SHA precondition (deployed SHA = local
+`HEAD`); confirm the staging build log shows the migration applied; Gary
+enables "nutrition" for staging's Keva org (`Organization` id
+`cmr54z65v000105jxczpt72w1`) with planning chat's statement (R-2); then R-3 —
+Gary builds two recipes by hand on real staging sales items, enters their
+ingredients' nutrition, and reads `/nutrition/menu`. Nothing is promoted until
+Gary confirms it on staging.
+
+## 62b9d86 — 2026-11-01 — BEV-1b: prep rows other recipes use always import as sub-recipes
+
+**PROMOTED 2026-11-01 in merge `62b9d86`** (`62b9d866150935bc3cce9212bb099777661ec4b6`,
+"Merge branch 'staging'", 2026-11-01 12:45:54 -0800 (Pacific) = 2026-11-01
+20:45:54 UTC), `--no-ff`. First parent `39b7ad2` (prior tip of `main`), second
+parent `a82bf18` (staging tip). **4 commits** in `62b9d86^1..62b9d86^2` —
+`690c994` (39b7ad2 stamp), `d876146` and `376440a` (BEV-1b), `a82bf18` (BEV-1b
+PRE-PUSH-CHECK) — and **7 files**, read out of `git log` and
+`git diff --shortstat` at this stamp. `main` moved `39b7ad2..62b9d86`;
+`staging` fast-forwarded to it. **No migration.** Stamped post-merge by
+STAMP-62b9d86 (2026-11-01), on `staging`; the heading previously read
+"UNPROMOTED — 2026-11-01 — BEV-1b: prep rows other recipes use always import as
+sub-recipes". The "staging only", "NEITHER WAS PUSHED" and "Nothing has been
+observed" lines below are spent, kept.
+
+**Observed, production (Gary, Neon `br-sparkling-block`, `Organization`
+`cf888f2d-f234-48c7-8097-fd5b44b5b3dd`, after the deploy):** the Las Brisas
+preview showed 30 recipes ready and no new prep recipes; Gary applied them
+(424 → 454 menu recipes expected). Remaining skips are hand fixes (27 BevSpot
+duplicates, 15 whole-package, 3 missing ingredients, 2 All That Razz) and 491
+Square modifiers (the N-5 row).
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next

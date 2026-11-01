@@ -5,6 +5,127 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-01 — N-1a: the nutrition template round-trips as zero changes (Gary)
+
+**RATIFIED BY GARY, 2026-11-01, at the N-1a PRE-PUSH-CHECK, as written.** The
+whole entry, unchanged, was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify as
+written."* It covers his quoted ruling as written: A, B, not-food rows, helper
+columns, and zero changes proven by the fixture. The "Claude, implementation
+choices" list stays Claude's and is not made a ruling by this. That includes
+the third bullet, where a not-food row still writes allergens; the check
+raised it explicitly and Gary ratified without changing it. Nothing in the
+entry was reworded. The heading read "— DRAFT" until this check; the DRAFT
+paragraph below is spent, kept.
+
+**DRAFT — ruled by Gary in chat 2026-11-01 at the N-1a step 6 STOP; to be
+ratified at PRE-PUSH-CHECK.** The finding he ruled on is
+`docs/prompts/N-1a_FINDINGS.md`: as built in N-1, an unedited template row
+for an ingredient with no nutrition planned as NEW and created an empty
+record, which flips the ingredient from "No nutrition" to "Some values missing"
+on `/nutrition/menu`. Rows identical to the stored values planned as UPDATE.
+His words, recorded exactly:
+
+> "Approve A and B as recommended:
+> A: A row with every nutrient blank, for an ingredient with no nutrition
+> record, does nothing. No empty record is ever created.
+> B: A row identical to the stored nutrition, allergens and not-food flag shows
+> as unchanged and is not written.
+> Not-food rows: the template exports them with the basis and nutrients blank.
+> Importing a not-food row only sets the flag; it never deletes an existing
+> nutrition record.
+> Helper columns (category, reporting unit, has nutrition): include them.
+> An unedited template must import as zero changes, and the fixture must prove
+> it."
+
+**Claude, implementation choices (work commit `b0bc473`), not rulings:**
+
+- A row writes only the parts that differ from what is stored: nutrition,
+  allergens, or the not-food flag, each on its own. A row whose only change is
+  allergens or the flag gets a new status, "Allergens or not-food flag only".
+  It is not shown as replacing nutrition, so the confirm dialog's "existing
+  nutrition will be replaced" count stays true.
+- Under A, a row with no nutrient values for an ingredient with no record skips
+  the basis check too, since nothing about the basis is written. Before this,
+  a blank basis on such a row was INVALID.
+- "Only sets the flag" is read as "never touches the nutrition record". A
+  not-food row still writes allergens when the allergens column is present and
+  differs (N-1 behaviour, kept), so an allergen an admin recorded on a not-food
+  item is still importable. Raise it at ratification if the words were meant
+  literally.
+- The template is the import's columns in the import's order, then the three
+  helper columns at the end. Allergens are written as their lower-case labels
+  joined by "; ". Numbers are written with JavaScript's `String()`, which
+  round-trips a stored double exactly. The file starts with a UTF-8 BOM so
+  Excel reads apostrophes in names; the parser already strips it.
+
+## 2026-11-01 — N-1: ingredient nutrition & allergens, forks N1-F1–F6 and R-1–R-4 (Gary)
+
+**RATIFIED BY GARY, 2026-11-01, at the N-1 PRE-PUSH-CHECK, as written.** The
+whole entry, unchanged, was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify as
+written."* It covers everything in this entry as written: the quoted forks
+F1–F6 and R-1–R-4. The "Claude, implementation choices" list stays Claude's and
+is not made a ruling by this. Nothing in the entry was reworded. The heading
+read "— DRAFT" until this check; the DRAFT paragraph below is spent, kept.
+
+**DRAFT — ruled by Gary in chat 2026-11-01 at the N-1 Phase 1 STOP; to be
+ratified at PRE-PUSH-CHECK.** The forks and RULING NOW items are set out in
+`docs/prompts/N-1_AUDIT.md` (§ Forks, § RULING NOW). His words, recorded
+exactly:
+
+> "Accept N1-F1 through F6 with the audit's refinements, and R-1 through R-4
+> as recommended:"
+
+- **F1:** "Nutrition is entered per an amount in the ingredient's own
+  dimension. No weight/volume conversion. For count ingredients the basis unit
+  must equal the reporting unit."
+- **F2:** "A nutritionExempt boolean on Ingredient, with its own ADMIN bulk
+  route."
+- **F3:** "Only ADMIN edits nutrition, allergens, the not-food flag, and runs
+  the import. ADMIN, MANAGER and STORE can view; STAFF cannot."
+- **F4:** "One IngredientNutrition row per ingredient. Allergens as a Postgres
+  enum list on Ingredient. Calories stored as a decimal."
+- **F5:** "Track completeness per nutrient. A unit-conversion failure or loop
+  marks every nutrient incomplete."
+- **F6:** "A Nutrition nav section after Inventory, gated on the nutrition
+  module. Per-ingredient editing is a section of the existing ingredient
+  dialog."
+- **R-1:** "Option (a). Add tbsp, tsp and mL as conversions, kept out of the
+  reporting-unit picker with a separate REPORTING_UNITS list."
+- **R-2:** "Option (a). I'll switch on the nutrition module for Keva in the
+  Neon console myself, on staging and production, using a statement planning
+  chat gives me. No toggle route."
+- **R-3:** "Staging has Keva's 225 ingredients but no recipes; its Square
+  catalog doesn't match BevSpot. The staging test plan is that I build two
+  recipes by hand on staging, attached to real staging sales items, and enter
+  nutrition for their ingredients."
+- **R-4:** "Yes. Nutrition pages require both the inventory and nutrition
+  modules."
+
+**Claude, implementation choices (work commit `70baf2f`), not rulings:**
+
+- The import's CSV may carry an optional `not_food` column (yes/no); a
+  not-food row writes only the flag and must carry no nutrition. Added so
+  planning chat's file can set F2's flag in the same pass.
+- An import UPDATE replaces an ingredient's whole nutrition record — a blank
+  cell becomes unknown. Allergens and the not-food flag change only when the
+  file has those columns / that cell filled. The preview shows UPDATE rows
+  separately and the confirm dialog says how many records are replaced.
+- Allergens are unioned even from not-food lines (an allergen an admin
+  recorded is never dropped). A PREPARED ingredient takes nutrition and
+  allergens through its source recipe, as cost does; the dialog and import
+  refuse a nutrition record for one.
+- The dialog's nutrition section has its own Save, writing through
+  `/api/nutrition/ingredients/[id]`, never the inventory PATCH that MANAGER
+  may call. Clearing every field and saving removes the record.
+- The menu page lives at `/nutrition/menu` (with `/nutrition` redirecting) so
+  the sidebar's prefix match never highlights both Nutrition items.
+- No env availability gate: `activeModules` alone keeps N-1 dark, since
+  nothing in the app can add "nutrition" (R-2).
+- The "To fix" ranking counts only sales items with recipes, not prep
+  recipes nobody sells.
+
 ## 2026-11-01 — BEV-1b: prep rows other recipes use always import as sub-recipes (Gary)
 
 **RATIFIED BY GARY, 2026-11-01, at the BEV-1b PRE-PUSH-CHECK, as written.** The
