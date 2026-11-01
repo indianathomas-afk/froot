@@ -17316,7 +17316,12 @@ phases:
     # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written. The
     # "(NOT pushed)" and "is the commit immediately after d876146" lines above
     # are spent, kept: the docs SHA is 376440a.
-    status: staging
+    # `staging` -> `shipped` 2026-11-01, stamped post-merge 2026-11-01 by
+    # STAMP-62b9d86 (on `staging`): merge 62b9d86 (DEPLOY_LOG entry
+    # `62b9d86 — 2026-11-01 — BEV-1b`). Any "NOT pushed" / "staging" comment
+    # above is spent, kept.
+    status: shipped
+    shipped: 2026-11-01
     title: "BevSpot import: prep rows other recipes use always import as sub-recipes"
     commits:
       - "d876146"
@@ -17328,6 +17333,9 @@ phases:
       # BEV-1b PRE-PUSH-CHECK
       # + the commit immediately after 376440a: docs(BEV-1b PRE-PUSH-CHECK) —
       # DECISIONS ratified, this row to staging, DEPLOY_LOG entry
+      - "a82bf18"
+      - "62b9d86"
+      # promotion merge 2026-11-01 (main 39b7ad2..62b9d86, no migration)
     notes: >
       BUILT 2026-11-01, TIER 2. Prompt of record: docs/prompts/BEV-1b.md.
       Gary's ruling is in docs/DECISIONS.md (2026-11-01, BEV-1b, DRAFT until
@@ -17361,6 +17369,14 @@ phases:
       still skipped NOT_IN_SQUARE. THE REAL TEST IS GARY'S: re-run the
       production preview after the push. The 31 recipes behind the four juice
       preps should import, reusing his hand-built preps.
+
+      PROMOTED 2026-11-01 in merge 62b9d86 (rider, STAMP-62b9d86). Production
+      evidence (Gary, Neon br-sparkling-block, `Organization`
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd): the Las Brisas preview showed 30
+      recipes ready and no new prep recipes; Gary applied them (424 → 454 menu
+      recipes expected). Remaining skips are hand fixes (27 BevSpot duplicates,
+      15 whole-package, 3 missing ingredients, 2 All That Razz) and 491 Square
+      modifiers (N-5).
 
   - id: N-1
     track: nutrition

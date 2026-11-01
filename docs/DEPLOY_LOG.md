@@ -2,7 +2,27 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-01 — BEV-1b: prep rows other recipes use always import as sub-recipes
+## 62b9d86 — 2026-11-01 — BEV-1b: prep rows other recipes use always import as sub-recipes
+
+**PROMOTED 2026-11-01 in merge `62b9d86`** (`62b9d866150935bc3cce9212bb099777661ec4b6`,
+"Merge branch 'staging'", 2026-11-01 12:45:54 -0800 (Pacific) = 2026-11-01
+20:45:54 UTC), `--no-ff`. First parent `39b7ad2` (prior tip of `main`), second
+parent `a82bf18` (staging tip). **4 commits** in `62b9d86^1..62b9d86^2` —
+`690c994` (39b7ad2 stamp), `d876146` and `376440a` (BEV-1b), `a82bf18` (BEV-1b
+PRE-PUSH-CHECK) — and **7 files**, read out of `git log` and
+`git diff --shortstat` at this stamp. `main` moved `39b7ad2..62b9d86`;
+`staging` fast-forwarded to it. **No migration.** Stamped post-merge by
+STAMP-62b9d86 (2026-11-01), on `staging`; the heading previously read
+"UNPROMOTED — 2026-11-01 — BEV-1b: prep rows other recipes use always import as
+sub-recipes". The "staging only", "NEITHER WAS PUSHED" and "Nothing has been
+observed" lines below are spent, kept.
+
+**Observed, production (Gary, Neon `br-sparkling-block`, `Organization`
+`cf888f2d-f234-48c7-8097-fd5b44b5b3dd`, after the deploy):** the Las Brisas
+preview showed 30 recipes ready and no new prep recipes; Gary applied them
+(424 → 454 menu recipes expected). Remaining skips are hand fixes (27 BevSpot
+duplicates, 15 whole-package, 3 missing ingredients, 2 All That Razz) and 491
+Square modifiers (the N-5 row).
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
