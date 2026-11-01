@@ -5,6 +5,65 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-01 — N-1: ingredient nutrition & allergens, forks N1-F1–F6 and R-1–R-4 (Gary) — DRAFT
+
+**DRAFT — ruled by Gary in chat 2026-11-01 at the N-1 Phase 1 STOP; to be
+ratified at PRE-PUSH-CHECK.** The forks and RULING NOW items are set out in
+`docs/prompts/N-1_AUDIT.md` (§ Forks, § RULING NOW). His words, recorded
+exactly:
+
+> "Accept N1-F1 through F6 with the audit's refinements, and R-1 through R-4
+> as recommended:"
+
+- **F1:** "Nutrition is entered per an amount in the ingredient's own
+  dimension. No weight/volume conversion. For count ingredients the basis unit
+  must equal the reporting unit."
+- **F2:** "A nutritionExempt boolean on Ingredient, with its own ADMIN bulk
+  route."
+- **F3:** "Only ADMIN edits nutrition, allergens, the not-food flag, and runs
+  the import. ADMIN, MANAGER and STORE can view; STAFF cannot."
+- **F4:** "One IngredientNutrition row per ingredient. Allergens as a Postgres
+  enum list on Ingredient. Calories stored as a decimal."
+- **F5:** "Track completeness per nutrient. A unit-conversion failure or loop
+  marks every nutrient incomplete."
+- **F6:** "A Nutrition nav section after Inventory, gated on the nutrition
+  module. Per-ingredient editing is a section of the existing ingredient
+  dialog."
+- **R-1:** "Option (a). Add tbsp, tsp and mL as conversions, kept out of the
+  reporting-unit picker with a separate REPORTING_UNITS list."
+- **R-2:** "Option (a). I'll switch on the nutrition module for Keva in the
+  Neon console myself, on staging and production, using a statement planning
+  chat gives me. No toggle route."
+- **R-3:** "Staging has Keva's 225 ingredients but no recipes; its Square
+  catalog doesn't match BevSpot. The staging test plan is that I build two
+  recipes by hand on staging, attached to real staging sales items, and enter
+  nutrition for their ingredients."
+- **R-4:** "Yes. Nutrition pages require both the inventory and nutrition
+  modules."
+
+**Claude, implementation choices (work commit `70baf2f`), not rulings:**
+
+- The import's CSV may carry an optional `not_food` column (yes/no); a
+  not-food row writes only the flag and must carry no nutrition. Added so
+  planning chat's file can set F2's flag in the same pass.
+- An import UPDATE replaces an ingredient's whole nutrition record — a blank
+  cell becomes unknown. Allergens and the not-food flag change only when the
+  file has those columns / that cell filled. The preview shows UPDATE rows
+  separately and the confirm dialog says how many records are replaced.
+- Allergens are unioned even from not-food lines (an allergen an admin
+  recorded is never dropped). A PREPARED ingredient takes nutrition and
+  allergens through its source recipe, as cost does; the dialog and import
+  refuse a nutrition record for one.
+- The dialog's nutrition section has its own Save, writing through
+  `/api/nutrition/ingredients/[id]`, never the inventory PATCH that MANAGER
+  may call. Clearing every field and saving removes the record.
+- The menu page lives at `/nutrition/menu` (with `/nutrition` redirecting) so
+  the sidebar's prefix match never highlights both Nutrition items.
+- No env availability gate: `activeModules` alone keeps N-1 dark, since
+  nothing in the app can add "nutrition" (R-2).
+- The "To fix" ranking counts only sales items with recipes, not prep
+  recipes nobody sells.
+
 ## 2026-11-01 — BEV-1b: prep rows other recipes use always import as sub-recipes (Gary)
 
 **RATIFIED BY GARY, 2026-11-01, at the BEV-1b PRE-PUSH-CHECK, as written.** The

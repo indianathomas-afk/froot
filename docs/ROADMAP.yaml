@@ -17381,9 +17381,44 @@ phases:
   - id: N-1
     track: nutrition
     size: M
-    status: planned
+    # → in_progress 2026-11-01 at the work commit 70baf2f (NOT pushed). The
+    # docs SHA is the commit immediately after 70baf2f (its own SHA cannot be
+    # written inside itself).
+    status: in_progress
     title: "Nutrition — schema & menu item manager"
+    commits:
+      - "70baf2f"
+      # feat(N-1): schema + migration, engine, routes, pages, fixture, 2026-11-01
+      # + the commit immediately after 70baf2f: docs(N-1) — prompt, audit,
+      # DECISIONS draft, this row
     notes: >
+      BUILT 2026-11-01, TIER 3 (prepended; nothing below is edited). Prompt of
+      record: docs/prompts/N-1.md; audit: docs/prompts/N-1_AUDIT.md. Gary's
+      rulings N1-F1–F6 and R-1–R-4 are in docs/DECISIONS.md (2026-11-01, N-1,
+      DRAFT until PRE-PUSH-CHECK). MIGRATION
+      20261101210000_n1_ingredient_nutrition (additive: enum Allergen,
+      Ingredient.allergens + nutritionExempt, IngredientNutrition) — applied
+      to dev by Gary 2026-11-01; staging and production apply it via migrate
+      deploy in the Vercel build. WHAT SHIPPED: nutrition per ingredient
+      (IngredientNutrition, per a basis amount in the ingredient's own
+      dimension), FDA major-nine allergens and a not-food flag on Ingredient;
+      the engine src/lib/recipe-nutrition.ts (mirrors recipe-cost.ts,
+      per-nutrient completeness, a conversion failure or loop marks every
+      nutrient incomplete); a nutrition CSV import (/nutrition/import, ADMIN,
+      BEV-1 F5 matching, never creates ingredients); /nutrition/menu (computed
+      list, incomplete filter, ranked "To fix", per-item breakdown); a
+      nutrition & allergens section in the ingredient dialog and bulk not-food
+      buttons; tbsp/tsp/mL as conversions outside the reporting-unit picker.
+      Capabilities nutrition.view (ADMIN/MANAGER/STORE) and nutrition.manage
+      (ADMIN); every surface needs inventory AND nutrition in activeModules.
+      Fixture scripts/verify-n1-nutrition.ts: pure, 39 checks, ALL PASS.
+      DARK UNTIL ENABLED: no org has "nutrition" in activeModules and the app
+      cannot add it — Gary enables it per environment in the Neon console with
+      a statement from planning chat (R-2). STAGING TEST (R-3): staging's Keva
+      org has the 225 ingredients but no recipes; Gary builds two recipes by
+      hand on real staging sales items and enters their ingredients'
+      nutrition. Nothing is promoted until Gary confirms it on staging.
+
       RESCOPED 2026-11-01 (BEV-1 docs commit, Gary's F1: "Nutrition is computed
       from ingredients through recipes. The MenuItem* stub stays untouched;
       file a DEBT row to retire it after N-3."). N-1 is now: nutrition facts and
