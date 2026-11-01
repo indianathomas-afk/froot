@@ -353,6 +353,7 @@ whole answer today.
 | NU-1 | `nutrition/ingredients/[id]` GET, `nutrition/recipes/[id]` GET | One ingredient's nutrition/allergens/flag; one recipe's computed breakdown | ADMIN, MANAGER, STORE (`nutrition.view`); org-scoped | handler + data-scope (org) |
 | NU-2 | `nutrition/ingredients/[id]` PUT, `nutrition/ingredients/bulk-exempt` POST | Edit nutrition, allergens and the not-food flag | ADMIN (`nutrition.manage`); org-scoped (other orgs' ids never match) | handler + data-scope (org) |
 | NU-3 | `nutrition/import/preview` + `nutrition/import/apply` POST | Nutrition CSV import (never creates ingredients; apply re-plans server-side and writes an `AuditLog` row in its transaction) | ADMIN (`nutrition.manage`) | handler |
+| NU-4 | `nutrition/template` GET (N-1a, 2026-11-01) | Download the org's ingredients as a pre-filled import file (reads only; an unedited file imports as zero changes) | ADMIN (`nutrition.manage` — the same gate as NU-3); org-scoped | handler + data-scope (org) |
 
 The ingredient dialog's nutrition section (`inventory/ingredients/nutrition-section.tsx`)
 is editable only when the page passes `canManageNutrition` (ADMIN + both
@@ -503,7 +504,7 @@ Deny-by-default: unknown capability → `false`.
 | `inventory.analytics.view` | ADMIN, MANAGER (reports, expected, alerts, finalized-count summary) | NV-15/17, PG-22, IV-10, IV-5 summary |
 | `inventory.costs.view` | ADMIN, MANAGER (vendor prices + adjustments, recipe costs, order guide) | IV-1 pricing rows, IV-10 order-guide |
 | `nutrition.view` | ADMIN, MANAGER, STORE (N-1 F3; STAFF excluded) | NV-18, PG-36, NU-1 |
-| `nutrition.manage` | ADMIN (N-1 F3: edits nutrition, allergens, the not-food flag; runs the import) | NV-18, PG-37, NU-2, NU-3 |
+| `nutrition.manage` | ADMIN (N-1 F3: edits nutrition, allergens, the not-food flag; runs the import) | NV-18, PG-37, NU-2, NU-3, NU-4 |
 | `labor.view` | all roles (read-only viewer; nav now matches the guard) | NV-13, PG-17, LB-1 |
 | `labor.manage` | ADMIN, MANAGER (scoped) | NV-14, PG-16, LB-2/3 |
 | `labor.toggle` | ADMIN | LB-4 |

@@ -4,8 +4,8 @@ import { prisma } from "@/lib/prisma"
 import type { Allergen } from "@prisma/client"
 import { normName } from "@/lib/bevspot/plan-import"
 import {
-  NUTRIENTS, NUTRIENT_KEYS, emptyNutrients, ingredientDisplayName, nutritionInputError, sortAllergens,
-  type NutritionInput,
+  IMPORT_COLUMNS, NUTRIENTS, NUTRIENT_KEYS, allergenLabel, emptyNutrients, ingredientDisplayName, nutritionInputError, sortAllergens,
+  type NutrientKey, type NutrientValues, type NutritionInput,
 } from "@/lib/nutrition"
 
 // ─── CSV import (N-1 deliverable 4) ───────────────────────────────────────────
@@ -77,10 +77,18 @@ export type PlanIngredientRef = {
   brand: string | null
   reportingUnit: string
   kind: string
-  hasNutrition: boolean
+  /** what is stored now — B compares the row against it */
+  nutrition: NutritionInput | null
+  allergens: Allergen[]
+  nutritionExempt: boolean
 }
 
-export type NutritionRowStatus = "NEW" | "UPDATE" | "NOT_FOOD" | "UNMATCHED" | "AMBIGUOUS" | "DUPLICATE" | "INVALID"
+// N-1a (Gary, 2026-11-01): A — every nutrient blank on an ingredient with no
+// record does nothing; B — a row identical to what is stored is UNCHANGED and
+// not written. DETAILS_ONLY = allergens and/or the not-food flag change while
+// the nutrition record does not.
+export type NutritionRowStatus =
+  | "NEW" | "UPDATE" | "DETAILS_ONLY" | "NOT_FOOD" | "UNCHANGED" | "UNMATCHED" | "AMBIGUOUS" | "DUPLICATE" | "INVALID"
 
 export type NutritionRowPlan = {
   rowNumber: number
@@ -89,15 +97,30 @@ export type NutritionRowPlan = {
   detail: string | null
   ingredientId: string | null
   ingredientName: string | null
-  /** set when status is NEW / UPDATE / NOT_FOOD */
+  /** set when status is applyable. Each part is null when it is left as is —
+   *  absent from the file, or identical to what is stored (N-1a). */
   write: {
-    nutrition: NutritionInput | null // null on NOT_FOOD rows
-    allergens: Allergen[] | null // null = the file has no allergens column; leave as is
-    nutritionExempt: boolean | null // null = the file left it blank; leave as is
+    nutrition: NutritionInput | null // never set on NOT_FOOD / DETAILS_ONLY rows
+    allergens: Allergen[] | null
+    nutritionExempt: boolean | null
   } | null
 }
 
-export const APPLYABLE: ReadonlySet<NutritionRowStatus> = new Set(["NEW", "UPDATE", "NOT_FOOD"])
+export const APPLYABLE: ReadonlySet<NutritionRowStatus> = new Set(["NEW", "UPDATE", "DETAILS_ONLY", "NOT_FOOD"])
+
+function sameNutrition(a: NutritionInput, b: NutritionInput): boolean {
+  return (
+    a.basisAmount === b.basisAmount &&
+    a.basisUnit === b.basisUnit &&
+    (a.sourceNote || null) === (b.sourceNote || null) &&
+    NUTRIENT_KEYS.every((k) => a.values[k] === b.values[k])
+  )
+}
+
+function sameAllergens(a: Allergen[], b: Allergen[]): boolean {
+  const x = sortAllergens(a), y = sortAllergens(b)
+  return x.length === y.length && x.every((v, i) => v === y[i])
+}
 
 export function planNutritionImport(csv: NutritionCsv, ingredients: PlanIngredientRef[]): NutritionRowPlan[] {
   const byKey = new Map<string, Map<string, PlanIngredientRef>>()
@@ -167,32 +190,51 @@ export function planNutritionImport(csv: NutritionCsv, ingredients: PlanIngredie
     if (bad) { plans.push(invalid(bad, ing)); continue }
     const anyValue = NUTRIENT_KEYS.some((k) => values[k] !== null)
     const basisGiven = (c.basis_amount ?? "") !== "" || (c.basis_unit ?? "") !== ""
+    const matched = { ...base, ingredientId: ing.id, ingredientName: ingredientDisplayName(ing) }
+    // B: allergens and the flag are written only where the file differs from what is stored.
+    const allergensWrite = allergens !== null && !sameAllergens(allergens, ing.allergens) ? allergens : null
+    const flagWrite = notFood !== null && notFood !== ing.nutritionExempt ? notFood : null
 
     if (notFood === true) {
+      // Sets the flag (and allergens); never touches the nutrition record.
       if (anyValue || basisGiven) { plans.push(invalid("Not-food rows carry no nutrition — clear the values or not_food", ing)); continue }
-      plans.push({
-        ...base, status: "NOT_FOOD", detail: null, ingredientId: ing.id, ingredientName: ingredientDisplayName(ing),
-        write: { nutrition: null, allergens, nutritionExempt: true },
-      })
+      if (allergensWrite === null && flagWrite === null) {
+        plans.push({ ...matched, status: "UNCHANGED", detail: null, write: null })
+        continue
+      }
+      plans.push({ ...matched, status: "NOT_FOOD", detail: null, write: { nutrition: null, allergens: allergensWrite, nutritionExempt: flagWrite } })
       continue
     }
 
-    const nutrition: NutritionInput = {
-      basisAmount: Number((c.basis_amount ?? "").replace(/,/g, "")),
-      basisUnit: c.basis_unit ?? "",
-      values,
-      sourceNote: (c.source ?? "") || null,
+    let nutritionWrite: NutritionInput | null = null
+    if (anyValue || ing.nutrition) {
+      const nutrition: NutritionInput = {
+        basisAmount: Number((c.basis_amount ?? "").replace(/,/g, "")),
+        basisUnit: c.basis_unit ?? "",
+        values,
+        sourceNote: (c.source ?? "") || null,
+      }
+      if (!basisGiven) { plans.push(invalid("basis_amount and basis_unit are required", ing)); continue }
+      const err = nutritionInputError(nutrition, ing.reportingUnit)
+      if (err) { plans.push(invalid(err, ing)); continue }
+      if (!ing.nutrition || !sameNutrition(nutrition, ing.nutrition)) nutritionWrite = nutrition
     }
-    if (!basisGiven) { plans.push(invalid("basis_amount and basis_unit are required", ing)); continue }
-    const err = nutritionInputError(nutrition, ing.reportingUnit)
-    if (err) { plans.push(invalid(err, ing)); continue }
+    // A: no values and no record → nothing to write for nutrition; no empty record.
+
+    if (nutritionWrite === null && allergensWrite === null && flagWrite === null) {
+      plans.push({ ...matched, status: "UNCHANGED", detail: anyValue || ing.nutrition ? null : "No nutrient values — nothing to import", write: null })
+      continue
+    }
+    const write = { nutrition: nutritionWrite, allergens: allergensWrite, nutritionExempt: flagWrite }
+    if (nutritionWrite === null) {
+      plans.push({ ...matched, status: "DETAILS_ONLY", detail: null, write })
+      continue
+    }
     plans.push({
-      ...base,
-      status: ing.hasNutrition ? "UPDATE" : "NEW",
-      detail: anyValue ? null : "No nutrient values — every nutrient stays unknown",
-      ingredientId: ing.id,
-      ingredientName: ingredientDisplayName(ing),
-      write: { nutrition, allergens, nutritionExempt: notFood === false ? false : null },
+      ...matched,
+      status: ing.nutrition ? "UPDATE" : "NEW",
+      detail: anyValue ? null : "No nutrient values — every nutrient becomes unknown",
+      write,
     })
   }
   return plans
@@ -209,19 +251,98 @@ export const NutritionUploadSchema = z.object({
   fileName: z.string().max(255).optional(),
 })
 
+type StoredNutritionRow = Record<NutrientKey, number | null> & {
+  basisAmount: number
+  basisUnit: string
+  sourceNote: string | null
+}
+
+export function storedNutritionInput(n: StoredNutritionRow | null): NutritionInput | null {
+  if (!n) return null
+  return {
+    basisAmount: n.basisAmount,
+    basisUnit: n.basisUnit,
+    values: Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, n[k]])) as NutrientValues,
+    sourceNote: n.sourceNote,
+  }
+}
+
 export async function planNutritionForOrg(organizationId: string, csv: NutritionCsv): Promise<NutritionRowPlan[]> {
   const ingredients = await prisma.ingredient.findMany({
     where: { organizationId, deletedAt: null },
-    select: { id: true, name: true, brand: true, reportingUnit: true, kind: true, nutrition: { select: { id: true } } },
+    select: {
+      id: true, name: true, brand: true, reportingUnit: true, kind: true, allergens: true, nutritionExempt: true, nutrition: true,
+    },
   })
   return planNutritionImport(
     csv,
-    ingredients.map((i) => ({ ...i, hasNutrition: i.nutrition !== null }))
+    ingredients.map((i) => ({ ...i, nutrition: storedNutritionInput(i.nutrition) }))
   )
 }
 
 export function summarizeNutritionPlan(plan: NutritionRowPlan[]): Record<NutritionRowStatus, number> {
-  const out = { NEW: 0, UPDATE: 0, NOT_FOOD: 0, UNMATCHED: 0, AMBIGUOUS: 0, DUPLICATE: 0, INVALID: 0 }
+  const out = { NEW: 0, UPDATE: 0, DETAILS_ONLY: 0, NOT_FOOD: 0, UNCHANGED: 0, UNMATCHED: 0, AMBIGUOUS: 0, DUPLICATE: 0, INVALID: 0 }
   for (const p of plan) out[p.status]++
   return out
+}
+
+// ─── Template export (N-1a) ──────────────────────────────────────────────────
+// The org's ingredients as an import file: the import's columns in the
+// import's order, pre-filled with what is stored, so an unedited file imports
+// as zero changes (Gary, 2026-11-01). Three helper columns go at the end; the
+// parser keeps unknown columns and nothing reads them.
+
+export const TEMPLATE_HELPER_COLUMNS = ["category", "reporting_unit", "has_nutrition"] as const
+
+export type TemplateIngredient = {
+  id: string
+  name: string
+  brand: string | null
+  reportingUnit: string
+  kind: string
+  isActive: boolean
+  isArchived: boolean
+  category: string | null
+  allergens: Allergen[]
+  nutritionExempt: boolean
+  nutrition: NutritionInput | null
+}
+
+/** Active, non-archived, non-PREPARED (those take nutrition from their recipe),
+ *  sorted by category (uncategorized last), then display name. */
+export function templateIngredients(all: TemplateIngredient[]): TemplateIngredient[] {
+  const cmp = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" })
+  return all
+    .filter((i) => i.isActive && !i.isArchived && i.kind !== "PREPARED")
+    .sort((a, b) =>
+      a.category === b.category ? cmp(ingredientDisplayName(a), ingredientDisplayName(b))
+        : a.category === null ? 1 : b.category === null ? -1 : cmp(a.category, b.category)
+    )
+}
+
+// String() round-trips a stored double exactly; blank stays blank, never 0.
+const num = (v: number | null) => (v === null ? "" : String(v))
+
+export function templateRow(i: TemplateIngredient): Record<string, string> {
+  const n = i.nutritionExempt ? null : i.nutrition // not-food: basis and nutrients blank (Gary)
+  const row: Record<string, string> = {
+    name: i.name,
+    brand: i.brand ?? "",
+    basis_amount: i.nutritionExempt ? "" : n ? num(n.basisAmount) : "1",
+    basis_unit: i.nutritionExempt ? "" : n ? n.basisUnit : i.reportingUnit,
+    allergens: sortAllergens(i.allergens).map((a) => allergenLabel(a).toLowerCase()).join("; "),
+    not_food: i.nutritionExempt ? "yes" : "",
+    source: n?.sourceNote ?? "",
+    category: i.category ?? "",
+    reporting_unit: i.reportingUnit,
+    has_nutrition: i.nutrition ? "yes" : "no",
+  }
+  for (const nt of NUTRIENTS) row[nt.csv] = n ? num(n.values[nt.key]) : ""
+  return row
+}
+
+export function buildNutritionTemplate(all: TemplateIngredient[]): string {
+  const fields = [...IMPORT_COLUMNS, ...TEMPLATE_HELPER_COLUMNS]
+  const rows = templateIngredients(all).map(templateRow)
+  return "﻿" + Papa.unparse({ fields, data: rows.map((r) => fields.map((f) => r[f])) })
 }

@@ -165,14 +165,17 @@ check(
 )
 
 // ─── 7. CSV matcher (deliverable 4) ──────────────────────────────────────────
+// N-1a: refs carry what is stored, so B can compare. Juice holds a record that
+// differs from row 3 (100 kcal stored, 120 in the file) so row 3 stays an UPDATE.
+const none = { nutrition: null, allergens: [] as Allergen[], nutritionExempt: false }
 const refs: PlanIngredientRef[] = [
-  { id: "almond", name: "Almond Butter", brand: "Justin's", reportingUnit: "oz (dry)", kind: "PURCHASED", hasNutrition: false },
-  { id: "juice", name: "Raspberry Juice Blend", brand: null, reportingUnit: "fl. oz", kind: "PURCHASED", hasNutrition: true },
-  { id: "syrup1", name: "Simple Syrup", brand: null, reportingUnit: "fl. oz", kind: "PURCHASED", hasNutrition: false },
-  { id: "syrup2", name: "simple  syrup", brand: null, reportingUnit: "fl. oz", kind: "PURCHASED", hasNutrition: false },
-  { id: "cup", name: "Cup Kit - 32oz", brand: null, reportingUnit: "each", kind: "PURCHASED", hasNutrition: false },
-  { id: "whey", name: "Whey Scoop", brand: null, reportingUnit: "each", kind: "PURCHASED", hasNutrition: false },
-  { id: "prep", name: "Strawberry Puree", brand: null, reportingUnit: "fl. oz", kind: "PREPARED", hasNutrition: false },
+  { id: "almond", name: "Almond Butter", brand: "Justin's", reportingUnit: "oz (dry)", kind: "PURCHASED", ...none },
+  { id: "juice", name: "Raspberry Juice Blend", brand: null, reportingUnit: "fl. oz", kind: "PURCHASED", ...none, nutrition: { basisAmount: 8, basisUnit: "fl. oz", values: { ...vals({}), calories: 100 }, sourceNote: null } },
+  { id: "syrup1", name: "Simple Syrup", brand: null, reportingUnit: "fl. oz", kind: "PURCHASED", ...none },
+  { id: "syrup2", name: "simple  syrup", brand: null, reportingUnit: "fl. oz", kind: "PURCHASED", ...none },
+  { id: "cup", name: "Cup Kit - 32oz", brand: null, reportingUnit: "each", kind: "PURCHASED", ...none },
+  { id: "whey", name: "Whey Scoop", brand: null, reportingUnit: "each", kind: "PURCHASED", ...none },
+  { id: "prep", name: "Strawberry Puree", brand: null, reportingUnit: "fl. oz", kind: "PREPARED", ...none },
 ]
 const header = ["Name", "Brand", "Basis Amount", "Basis Unit", ...NUTRIENTS.map((n) => n.csv), "Allergens", "Not Food", "Source"]
 const csvRow = (o: Record<string, string>) =>
@@ -213,7 +216,7 @@ check(
 const r1 = plan[0].write?.nutrition
 check("7c. row 1 values: given numbers kept, blank cells stay UNKNOWN (null, never 0)", [r1?.values.calories, r1?.values.totalFatG, r1?.values.proteinG, r1?.sourceNote], [190, 16, null, "label"])
 check("7d. row 1 allergens parsed", plan[0].write?.allergens, ["TREE_NUTS"])
-check("7e. not-food row writes the flag and no nutrition", plan[5].write, { nutrition: null, allergens: [], nutritionExempt: true })
+check("7e. not-food row writes the flag and no nutrition (allergens [] = stored [], left as is — N-1a)", plan[5].write, { nutrition: null, allergens: null, nutritionExempt: true })
 check("7f. the count-unit refusal says why", plan[6].detail, "This ingredient is counted in each, so nutrition must be per each")
 const badAllergen = planNutritionImport(parseNutritionCsv([header.join(","), csvRow({ name: "Whey Scoop", basis_amount: "1", basis_unit: "each", allergens: "gluten" })].join("\n")), refs)
 check("7g. an unknown allergen is INVALID, not dropped", [badAllergen[0].status, badAllergen[0].detail], ["INVALID", 'Unknown allergen "gluten"'])

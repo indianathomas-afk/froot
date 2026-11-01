@@ -26,6 +26,11 @@ export const NUTRIENTS = [
   { key: "potassiumMg", label: "Potassium", unit: "mg", csv: "potassium_mg" },
 ] as const
 
+// The CSV import's columns, in order — also the template's (N-1a).
+export const IMPORT_COLUMNS: string[] = [
+  "name", "brand", "basis_amount", "basis_unit", ...NUTRIENTS.map((n) => n.csv), "allergens", "not_food", "source",
+]
+
 export type NutrientKey = (typeof NUTRIENTS)[number]["key"]
 export const NUTRIENT_KEYS: NutrientKey[] = NUTRIENTS.map((n) => n.key)
 

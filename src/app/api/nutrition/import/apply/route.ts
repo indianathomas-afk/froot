@@ -7,10 +7,11 @@ import {
 
 // POST /api/nutrition/import/apply — { csv, fileName }. RE-PLANS from the
 // uploaded text (never trusts a client-sent plan) and writes the NEW / UPDATE /
-// NOT_FOOD rows in one transaction; every other row is reported, not written.
-// Never creates ingredients. An UPDATE replaces the whole record: a blank
-// nutrient cell becomes unknown. Allergens and the not-food flag change only
-// where the file speaks to them. The audit row is written inside the same
+// DETAILS_ONLY / NOT_FOOD rows in one transaction; every other row is reported,
+// not written. Never creates ingredients. An UPDATE replaces the whole record: a
+// blank nutrient cell becomes unknown. Each part (nutrition, allergens, the
+// not-food flag) is written only where the file differs from what is stored;
+// an unedited template writes nothing and logs no audit row (N-1a). The audit row is written inside the same
 // transaction (the BEV-1 F9 shape). ADMIN (nutrition.manage, N1-F3). N-1.
 
 export const maxDuration = 60
