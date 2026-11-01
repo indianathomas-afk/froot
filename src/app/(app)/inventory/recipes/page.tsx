@@ -39,6 +39,8 @@ export default async function RecipesPage() {
     ? await prisma.user.findUnique({ where: { clerkUserId: userId }, include: { storeAssignments: true } })
     : null
   const isManager = dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER"
+  // UI only — the BevSpot import page and APIs re-check ADMIN themselves.
+  const isAdmin = dbUser?.role === "ADMIN" && dbUser.organizationId === org.id
 
   const [salesItems, graph, stores] = await Promise.all([
     prisma.salesItem.findMany({
@@ -94,5 +96,5 @@ export default async function RecipesPage() {
     })
     .sort((a, b) => a.name.localeCompare(b.name))
 
-  return <RecipesClient items={items} prepRecipes={prepRecipes} stores={stores} isManager={isManager} />
+  return <RecipesClient items={items} prepRecipes={prepRecipes} stores={stores} isManager={isManager} isAdmin={isAdmin} />
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { convert, unitDimension } from "@/lib/units"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -28,7 +29,7 @@ function toOz(amount: number, unit: string) {
 }
 
 function isWeightReportingUnit(unit: string) {
-  return unit === "lbs" || unit === "oz (dry)"
+  return unitDimension(unit) === "weight"
 }
 
 // Count-by-weighing: enter the gross scale weight and get a quantity in the
@@ -63,7 +64,7 @@ export function WeighDialog({
     const grossOz = toOz(grossNum, grossUnit)
     if (weightType) {
       const netOz = Math.max(0, grossOz - line.tareWeightOz)
-      computed = line.reportingUnit === "lbs" ? netOz / 16 : netOz
+      computed = convert(netOz, "oz (dry)", line.reportingUnit)
     } else if (line.fullWeightOz !== null) {
       const fraction = Math.min(1, Math.max(0, (grossOz - line.tareWeightOz) / (line.fullWeightOz - line.tareWeightOz)))
       computed = fraction * line.unitsPerPurchase

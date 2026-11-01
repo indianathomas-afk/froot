@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, ChefHat, CookingPot } from "lucide-react"
+import { AlertTriangle, ChefHat, CookingPot, Upload } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -53,11 +53,13 @@ export function RecipesClient({
   prepRecipes,
   stores,
   isManager,
+  isAdmin,
 }: {
   items: Item[]
   prepRecipes: PrepRecipe[]
   stores: { id: string; name: string }[]
   isManager: boolean
+  isAdmin: boolean
 }) {
   const router = useRouter()
   const [search, setSearch] = useState("")
@@ -148,12 +150,20 @@ export function RecipesClient({
             Map each sellable item to its ingredients for theoretical cost. Square data stays read-only.
           </p>
         </div>
-        {isManager && (
-          <Button onClick={() => router.push("/inventory/recipes/new")}>
-            <ChefHat className="h-4 w-4 mr-2" />
-            New Prep Recipe
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {isAdmin && (
+            <Button variant="outline" onClick={() => router.push("/inventory/recipes/import/bevspot")}>
+              <Upload className="h-4 w-4 mr-2" />
+              Import from BevSpot
+            </Button>
+          )}
+          {isManager && (
+            <Button onClick={() => router.push("/inventory/recipes/new")}>
+              <ChefHat className="h-4 w-4 mr-2" />
+              New Prep Recipe
+            </Button>
+          )}
+        </div>
       </div>
 
       {notice && (
