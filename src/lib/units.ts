@@ -6,6 +6,7 @@ type Dimension = "weight" | "volume" | "count"
 const UNIT_INFO: Record<string, { dimension: Dimension; toBase: number }> = {
   "oz (dry)": { dimension: "weight", toBase: 1 },
   "lbs": { dimension: "weight", toBase: 16 },
+  "g": { dimension: "weight", toBase: 0.035274 }, // BEV-1 F13
   "fl. oz": { dimension: "volume", toBase: 1 },
   "gal": { dimension: "volume", toBase: 128 },
   "L": { dimension: "volume", toBase: 33.814 },

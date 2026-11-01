@@ -308,6 +308,9 @@ nothing in `docs/prompts/` is ever edited: a saved prompt is a claim *wholesale*
 — the whole document is the instruction of record — so even a broken path inside
 one stays broken. Editing it would rewrite what was instructed to match what is
 now true, which is the opposite of why the library exists.
+Exception: `docs/prompts/PRE-PUSH-CHECK.md` is a living template, not a session
+record — it is edited deliberately (in its own docs commit) when the check
+itself needs to change.
 
 `DEBT-1_AUDIT.md` and `DEBT-2_AUDIT.md` moved here 2026-08-01, making the rule
 consistent with `verification-smoke-pass.md` and `BUILD-2_default_store.md`,

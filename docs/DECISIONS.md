@@ -5,6 +5,75 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-01 — BEV-1: BevSpot recipe import, forks F1–F14 (Gary)
+
+**RATIFIED BY GARY, 2026-11-01, at the BEV-1 PRE-PUSH-CHECK, as written.** The
+whole entry, unchanged, was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify as
+written"* It covers everything in this entry as written: F1–F14, the context
+paragraph, and the follow-up on the F12 boundary, F13 "other (1 unit)" and UUID
+recipe ids. Nothing in the entry was reworded. The heading read "— DRAFT" until
+this check; the DRAFT paragraph below is spent, kept.
+
+**DRAFT — ruled by Gary in chat 2026-11-01 at the resume of BEV-1 (after the
+Phase 1 STOP); ratified at PRE-PUSH-CHECK.** The forks are set out in
+`docs/prompts/BEV-1_AUDIT.md` § D (F1–F13). F14 is new in Gary's reply. His
+words, recorded exactly:
+
+- **F1:** "Nutrition is computed from ingredients through recipes. The
+  MenuItem* stub stays untouched; file a DEBT row to retire it after N-3."
+- **F2:** "Las Brisas #14 is the master recipe export. Recipes are org-level
+  and apply to every store."
+- **F3:** "Accept the audit's rule. Drop Archived/Unassigned rows first, take
+  the expanded recipe over a wrapper, and skip true conflicts so I can decide
+  them."
+- **F4:** "Never create an empty sub-recipe."
+- **F5:** "Exact match after whitespace/case folding, or skip the recipe.
+  Match against brand + " " + name as well as name alone: Froot stores brand
+  separately, and BevSpot recipes use the joined form (e.g. "Alternative
+  Baking ABC Colossal Chocolate Chip Cookie", "Monin Guava Syrup")."
+- **F6:** "Never overwrite. Re-runs pick up only what's still unmapped;
+  sub-recipes created on a re-run are matched by exact name."
+- **F7:** "Decide "modifier" by whether the Square id exists as a sales item,
+  not by menu group. Negative quantities still skip."
+- **F8:** "Do not hand-write a spreadsheet reader. Upgrade xlsx to the patched
+  0.20.3 build from cdn.sheetjs.com, pinned exactly. The forecasting import
+  shares the package, so this phase includes a re-test of the forecasting
+  import on staging after deploy. That is the one rider I'm allowing."
+- **F9:** "No schema change. Write the audit row with tx.auditLog.create
+  inside the apply transaction."
+- **F10:** "Option A. Prep/kit rows become sub-recipes; a wrapper line points
+  at the target sales item's recipe. If the target is skipped, the wrapper
+  skips too."
+- **F11:** "Ingredient wins on a name collision; two disagreeing definitions
+  means skip."
+- **F12:** "Skip and list whole-package quantities like Honey (1 package
+  (5lbs))."
+- **F13:** "Add g. Map "unit" to "each" when the ingredient is counted each.
+  Do not skip those lines."
+- **F14 (new):** "Meadowood's sales-items export is a second recipe source,
+  for coffee and anything else Las Brisas doesn't have. No extra code: I run
+  the Las Brisas file first, then Meadowood, and F6 never-overwrite means
+  Meadowood only fills gaps."
+
+Context Gary gave with the rulings (his statements, not measured by this
+session): BEV-0 is not needed as a code phase — staging's Keva Juice (staging)
+org `cmr54z65v000105jxczpt72w1` holds 225 ingredients imported with the
+existing CSV importer (Meadowood's library plus 13 Las Brisas-only items);
+production has not been imported yet. Staging has 370 sales items, production
+1,179. The Phase 2 dev dry-run is replaced by the pure fixture test; the real
+test is Gary running the preview on staging after the push.
+
+**Follow-up, ruled by Gary in chat 2026-11-01 at the Phase 2 plan STOP.** The
+plan asked two questions where F12 and F13 left a gap and named one
+implementation choice (UUID recipe ids). His reply, recorded exactly:
+
+- **F12 boundary:** "confirmed. Skip whole package/bag/tub/case/container
+  amounts as SUSPECT_QTY; single-serve can and bottle amounts import
+  normally."
+- **F13:** "confirmed. Treat "other (1 unit)" the same as "unit"."
+- **UUIDs:** "UUIDs for new recipe ids: fine."
+
 ## 2026-10-31 — BUG-17: heal stale open timecards, 24h guard (Gary)
 
 **RULED BY GARY, 2026-10-31, in chat.** Rulings 1–4 are Claude's drafts from

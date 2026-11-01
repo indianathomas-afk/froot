@@ -2,7 +2,158 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-10-31 — BUG-17: heal stale open timecards by id; 24h guard on paid time and attendance
+## UNPROMOTED — 2026-11-01 — BEV-1: import recipes from BevSpot's sales-items export
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two BEV-1 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `95c336b`, `9a06f92`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `95c336b` | BEV-1 work: `src/lib/bevspot/` (parser, unit map, planner, import-server), page `/inventory/recipes/import/bevspot` + Recipes header button, routes `POST /api/inventory/import/bevspot/preview` and `/apply`, `g` in `src/lib/units.ts`, `weigh-dialog.tsx` weight units via `unitDimension()`, xlsx pinned to the 0.20.3 tarball, fixture `scripts/verify-bev1-import.ts` |
+| `9a06f92` | `docs(BEV-1)`: DECISIONS draft F1–F14, row `in_progress`, BEV-0 withdrawn, N-1 rescoped, N-2/N-3 riders, N-4/N-5 and DEBT-124 filed, PERMISSIONS_INVENTORY (IV-3, PG-21b) |
+| the commit immediately after `9a06f92` | `docs(BEV-1 PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`; DECISIONS ratified by Gary at this check ("Ratify as written") |
+
+**Blast radius: NEW ADMIN-ONLY IMPORT THAT WRITES RECIPES, ORG-WIDE WHERE
+INVENTORY IS ON; A SHARED DEPENDENCY UPGRADE (xlsx); ONE NEW UNIT. NO SCHEMA,
+NO MIGRATION, NO ENV VAR, NO CRON, NO SQUARE CALL, NO NEW PERMISSION ROLE.**
+
+- **New write path:** `/apply` (`requireModule("inventory")` + `requireAdmin()`,
+  IV-3) re-plans the upload on the server and, in one transaction, creates
+  recipes (UUID ids), their lines, sets sales items MAPPED, and writes one
+  `AuditLog` row (`bevspot.recipes.applied`). It never overwrites an existing
+  recipe (F6). `/preview` writes nothing. The uploaded file is parsed in memory
+  and never stored.
+- **xlsx 0.18.5 → 0.20.3 (cdn.sheetjs.com tarball, pinned).** The forecasting
+  import shares the package — that is the F8 rider: Gary re-tests the
+  forecasting import on staging after deploy.
+- **`g` added to `src/lib/units.ts`** (weight). Knock-on: the count weigh
+  dialog now treats any weight reporting unit as weight (was a hard-coded
+  `lbs` / `oz (dry)` pair) and converts through `convert()`. For `lbs` and
+  `oz (dry)` the result is unchanged.
+- **What does not change:** no existing recipe, ingredient or count is
+  touched; nothing writes to Square.
+
+**Rollback:** revert `95c336b`. No schema change, so the page and routes
+disappear on the next deploy and xlsx returns to 0.18.5. Recipes an apply has
+already created STAY — they are ordinary recipes; find them by the `AuditLog`
+row's `metadata` (created recipe ids) and delete them in the app if wanted.
+The docs commits can stay or go with it.
+
+**Evidence so far: fixture and build only.** `scripts/verify-bev1-import.ts`
+62/62 PASS per the build session (pure, synthetic workbook, no database).
+**Nothing has been observed on staging.** After the push, in order: the
+staging-SHA precondition (deployed SHA = local `HEAD`); the F8 rider —
+re-test the forecasting import on staging; then, under a named org id
+(staging Keva Juice, `Organization` id `cmr54z65v000105jxczpt72w1`), run the BevSpot PREVIEW with
+the Las Brisas #14 export (writes nothing; expect many NOT_IN_SQUARE skips —
+370 sales items on staging vs 1,179 on production). Apply, then Meadowood
+(F14), are Gary's call after reading the preview. **Production: blocked** until
+Keva's ingredients are imported there (row blocker).
+
+## UNPROMOTED — 2026-11-01 — ING-UI-1: ingredients table splits Category / GL Code, Pack stops doubling (display only)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: four commits plus this check's own.** Verified by `git log @{u}..`
+at this check: exactly `eb01bf5`, `8d440c3`, `4fdc65e`, `a8dcf6b`, on top of
+`origin/staging`. **NONE WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+`eb01bf5` is BEV-1's, logged in its own entry below.
+
+| Commit | What it is |
+|---|---|
+| `8d440c3` | ING-UI-1 work: `src/app/(app)/inventory/ingredients/ingredients-client.tsx` — Category cell shows the name only, new GL Code column, `packLabel` |
+| `4fdc65e` | `docs(ING-UI-1)`: ROADMAP row (`in_progress`), `docs/prompts/ING-UI-1.md` |
+| `a8dcf6b` | `fix(ING-UI-1)`: exports `packLabel` and reuses it in `ingredients/deleted/deleted-client.tsx`. No docs on purpose; recorded by this check's row rider |
+| the commit immediately after `a8dcf6b` | `docs(ING-UI-1 PRE-PUSH-CHECK)`: this entry and BEV-1's, row SHAs, ING-UI-1 row to `staging` |
+
+**Blast radius: TWO CLIENT COMPONENTS UNDER `/inventory/ingredients`, DISPLAY
+ONLY. NO SCHEMA, NO MIGRATION, NO API ROUTE, NO ENV VAR, NO CRON, NO SQUARE
+CALL, NO PERMISSION CHANGE, NOTHING WRITTEN.**
+
+- **What changes:** the ingredients table's Category cell shows the category
+  name only; a new GL Code column shows `effectiveGlCode` (override, else
+  category GL, else —) with a muted "override" label. The Pack cell, on the
+  ingredients table and the deleted-ingredients list, shows `packDescription`
+  alone when it already begins with the purchase unit (trimmed,
+  case-insensitive), so imported rows stop reading "package (package (200 ea))".
+- **What does not:** every value shown already existed in the DTO; no query,
+  gate or sort changed.
+
+**Rollback:** revert `a8dcf6b` then `8d440c3`. Nothing written, so the old
+rendering returns on the next load. The docs commits can stay or go with it.
+
+**Evidence so far: build only.** Not browser-checked. After the push: the
+staging-SHA precondition (deployed SHA = local `HEAD`), then `/inventory/ingredients`
+and `/inventory/ingredients/deleted` under a named org id — GL Code column
+present, Pack cells on imported rows read once.
+
+## UNPROMOTED — 2026-10-31 — BEV-1: paused after the Phase 1 audit; BEV-0 ingredient import filed (docs only)
+
+**Staging only, not yet promoted.** Docs only: no code, no migration, no env
+change, nothing a user can see. Blast radius is the docs build alone —
+`docs/ROADMAP.yaml` is typechecked at prebuild, so a bad row fails the deploy.
+
+- **Commits:** `eb01bf5` (BEV-0 and BEV-1 rows, `docs/prompts/BEV-1.md`,
+  `docs/prompts/BEV-1_AUDIT.md`) + the ING-UI-1 PRE-PUSH-CHECK commit
+  immediately after `a8dcf6b` (row SHAs, this entry).
+- **Rulings:** none. Forks F1–F13 are open; `docs/DECISIONS.md` untouched.
+- **Status:** BEV-0 and BEV-1 stay `planned`; BEV-1 carries the "WAITING ON
+  BEV-0 INGREDIENT IMPORT" blocker. Neither has code.
+- **Verify after deploy:** the build is green. Nothing else to look at.
+- **Rollback:** not needed for behaviour; revert `eb01bf5` if the rows
+  themselves are wrong.
+
+## 0ff5628 — 2026-10-31 — BUG-17: heal stale open timecards by id; 24h guard on paid time and attendance
+
+**PROMOTED 2026-10-31 in merge `0ff5628`** (`0ff56287a5bd63592fd74c3115774a4e20a31f2d`,
+"Merge branch 'staging'", 2026-10-31 12:54:46 -0700 (Pacific) = 2026-10-31
+19:54:46 UTC), made by `git merge staging --no-ff --no-edit`. First parent
+`a4a33b9` (prior tip of `main`), second parent `b2fd9e3` (staging tip). **6
+commits** in `0ff5628^1..0ff5628^2` — `dbf0121` (L-4 stamp), `eeb94ae` and
+`84e7f6c` (TIMECARD-HEAL-0), `52f12a6`, `09961fc` and `b2fd9e3` (BUG-17) — and
+**21 files**, read out of `git log` and `git diff --shortstat` at this stamp.
+The merge carried two entries: this one and TIMECARD-HEAL-0 below. Pushed to
+`main`; `staging` brought level with `main`. **No migration.** Stamped
+post-merge by BUG-17 PROMOTION STAMP (2026-10-31), on `staging`; the heading
+previously read "UNPROMOTED — 2026-10-31 — BUG-17: heal stale open timecards by
+id; 24h guard on paid time and attendance". The "staging only", "NEITHER WAS
+PUSHED" and "Nothing has been observed on staging" lines below are spent, kept.
+
+**Observed, staging (Gary, 2026-10-31), before the merge:**
+- **Las Brisas dashboard on staging (footer `b2fd9e3~staging`):** the October
+  stuck-card note read 16 at 12:06 PDT and 8 at 12:25 PDT, and was gone at
+  12:48 PDT (19:06 / 19:25 / 19:48 UTC).
+- **Neon, staging `br-square-feather-a63z92vz`:** open-older-than-24h went from
+  **155 to 68**. Las Brisas 58 → 0 and Carson 29 → 0. The rest are unchanged
+  only because their dashboards hadn't synced yet: South Reno 44, Meadowood
+  Mall 9, UNR 7, Southgate 5, Spanish Springs 2, University Village 1 — total 68
+  confirmed by a one-row count.
+
+**Observed, production (Gary, after the merge, recorded verbatim):**
+
+> Vercel production build for 0ff5628 (branch main), Ready:
+> 12:57:11.089 Datasource "db": PostgreSQL database "neondb", schema "public" at "ep-green-smoke-a6xthq4r.us-west-2.aws.neon.tech"
+> 12:57:12.669 No pending migrations to apply.
+> 12:58:37.807 Deployment completed
+> usefroot.com/dashboard, South Reno, signed in as gary@kevajuice.com in the Keva Juice org, Clerk Production instance. Footer shows 0ff5628~main. No "open more than 24 hours" note appeared. Production Neon count (br-sparkling-block-a620qvg4): 0 open over 24h.
+
+Build times are PDT (19:57:11 / 19:58:37 UTC). `ep-green-smoke-a6xthq4r` is
+production `br-sparkling-block-a620qvg4` (endpoint mapping in the L-4a entry
+below). The org was named, not given by id. The stamp prompt asked for Las
+Brisas; Gary checked South Reno — recorded as given. Production held 0 stuck
+cards before and after, so no production number was expected to move and the
+absent note is the expected behaviour.
+
+**Rollback after promotion:** `git revert -m 1 0ff5628` on `main` (the whole
+merge; recipe in `docs/WORKFLOW.md` § Rolling a promotion back; keep this log),
+or revert the work commit `52f12a6` as below. There is no schema to unwind.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
@@ -63,7 +214,14 @@ totals should be gone or carry the notice. Gary's Neon-console re-count of
 open-older-than-24h cards on `br-square-feather-a63z92vz` should fall from 155
 over repeated loads.
 
-## UNPROMOTED — 2026-10-31 — TIMECARD-HEAL-0: stuck open timecards investigation (docs only)
+## 0ff5628 — 2026-10-31 — TIMECARD-HEAL-0: stuck open timecards investigation (docs only)
+
+**PROMOTED 2026-10-31 in merge `0ff5628`** — merge details, production
+evidence and rollback are in the BUG-17 entry above. Stamped post-merge by
+BUG-17 PROMOTION STAMP (2026-10-31), on `staging`; the heading previously read
+"UNPROMOTED — 2026-10-31 — TIMECARD-HEAL-0: stuck open timecards investigation
+(docs only)". The "Staging only" line and the "BUG-17 is filed `planned`"
+status below are spent, kept.
 
 **Staging only, not yet promoted.** Docs only: no code, no migration, no env
 change, nothing a user can see. Blast radius is the docs build alone —
