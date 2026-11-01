@@ -5,6 +5,41 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-01 — BEV-1b: prep rows other recipes use always import as sub-recipes (Gary) — DRAFT
+
+**DRAFT — ruled by Gary in chat 2026-11-01, after running BEV-1 on production
+(`Organization` cf888f2d-f234-48c7-8097-fd5b44b5b3dd, Keva Juice); ratified at
+PRE-PUSH-CHECK.** Given in `docs/prompts/BEV-1b.md` § The rule. His words,
+recorded exactly:
+
+> "BEV-1b: A BevSpot row that another importable recipe references as a
+> sub-recipe is imported as a prep recipe (no sales item) even if it is in the
+> Archived or Unassigned group, or its own Square ID isn't one of my sales
+> items. F3 and F7 still decide whether that row's recipe attaches to a Square
+> item; they no longer stop it being used as prep. If two rows define the same
+> prep name differently, prefer the one outside Archived/Unassigned; if that
+> still leaves two different definitions, skip as ambiguous (F11)."
+
+Context: F3 and F7 (BEV-1, below) were written about which row's recipe
+attaches to a Square item. On production they also discarded the only
+definitions of `Cup Kit - 20oz` (Unassigned), `Juice - Carrot 1 oz`,
+`Pressed Lemon`, `1oz Wheatgrass` and `1oz Ginger` (Square ids that are not
+Froot sales items), which blocked the recipes using them.
+
+**Claude, implementation choices (work commit `d876146`), not rulings:**
+
+- A referenced row whose Square id IS a Froot sales item keeps the F10 wrapper
+  behaviour exactly as before (the line points at that item's recipe, and
+  skips with it). The rule changes only rows F3/F7 used to discard.
+- An existing Froot sub-recipe with the exact name (the line's name or the
+  defining row's) wins over any export definition and is never overwritten
+  (F6), so a second recipe is never created for a name Froot already has. The
+  match does not filter on `isActive`, as BEV-1's did not: an inactive
+  same-named prep is still matched, so it is not duplicated.
+- A row used as prep still appears in the skipped list under its attachment
+  reason (DROPPED_GROUP, NOT_IN_SQUARE), carrying no names, so it does not
+  show on the "To fix" list.
+
 ## 2026-11-01 — BEV-1: BevSpot recipe import, forks F1–F14 (Gary)
 
 **RATIFIED BY GARY, 2026-11-01, at the BEV-1 PRE-PUSH-CHECK, as written.** The

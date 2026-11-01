@@ -17223,8 +17223,14 @@ phases:
           imported there (existing CSV importer, as on staging). Every recipe
           would otherwise skip as MISSING_INGREDIENT. That is safe, but useless.
           CLEARS WHEN: production's Keva org holds the ingredient library.
-      - narrowed: true
+      - resolved: true
         text: >
+          RESOLVED 2026-11-01 (BEV-1b docs commit, on Gary's direction in chat):
+          production's Keva org (`Organization`
+          cf888f2d-f234-48c7-8097-fd5b44b5b3dd) has 225 ingredients, and BEV-1
+          has been applied there: 424 recipes. Gary's figures, not measured by
+          the BEV-1b session. The flag moved from `narrowed` to `resolved`.
+          Original text follows, as written.
           WAITING ON BEV-0 INGREDIENT IMPORT — 2026-10-31. Set by Gary at the
           Phase 1 STOP: production has no real Keva ingredients ("8 fixture
           rows, 0 recipes"), so every recipe would skip as MISSING_INGREDIENT.
@@ -17296,6 +17302,53 @@ phases:
       folder and was left as written. The rest of the series (BEV-2, N-1
       rescope, N-2, N-3, N-4, and the MenuItem* stub DEBT row) is NOT filed
       here — that was Phase 3 of the prompt, which has not run.
+
+  - id: BEV-1b
+    track: migration
+    size: S
+    # → in_progress 2026-11-01 at the work commit d876146 (NOT pushed). The
+    # docs SHA is the commit immediately after d876146 (its own SHA cannot be
+    # written inside itself).
+    status: in_progress
+    title: "BevSpot import: prep rows other recipes use always import as sub-recipes"
+    commits:
+      - "d876146"
+      # feat(BEV-1b): planner rule + fixture section 6, 2026-11-01
+      # + the commit immediately after d876146: docs(BEV-1b) — prompt,
+      # DECISIONS draft, this row, BEV-1 blocker resolved
+    notes: >
+      BUILT 2026-11-01, TIER 2. Prompt of record: docs/prompts/BEV-1b.md.
+      Gary's ruling is in docs/DECISIONS.md (2026-11-01, BEV-1b, DRAFT until
+      PRE-PUSH-CHECK). WHY: on production (`Organization`
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd) F3 dropped the only definition of
+      `Cup Kit - 20oz` (Unassigned), and F7 skipped `Juice - Carrot 1 oz`,
+      `Pressed Lemon`, `1oz Wheatgrass` and `1oz Ginger` for Square ids that
+      are not Froot sales items. Every recipe using them as prep skipped too
+      (Gary's counts: 21 / 7 / 2 / 1 still blocked, and 108 behind the Cup Kit
+      until he built it by hand). WHAT CHANGED, one file
+      (src/lib/bevspot/plan-import.ts): prep definitions now come from all
+      parsed rows, Archived and Unassigned included. An existing Froot
+      sub-recipe with the exact name wins and is never overwritten (F6), so no
+      duplicate is created. Otherwise the export's row is used, outside
+      Archived/Unassigned first, and two different definitions left after that
+      skip as AMBIGUOUS_NAME. A referenced row whose Square id IS a Froot sales
+      item keeps the F10 wrapper behaviour unchanged. No schema, route,
+      permission or UI change. FIXTURE: scripts/verify-bev1-import.ts section
+      6, cases (a)–(e), on a second synthetic workbook. 74/74 PASS (62 existing
+      unchanged); 6 of the 12 new checks fail against the pre-change planner.
+      OFFLINE RUN (throwaway, read-only, no DB) over
+      Keva_Las_Brisas_#14_sales_items_2026-10-31.xlsx with the 225 ingredients
+      from the two FROOT_IMPORT CSVs. Synthetic probe sales items were the
+      only sales items, so every real Square id counted as non-Froot. Of 109
+      export-defined, non-ingredient names that recipe lines reference, 9
+      resolved before and 98 after (+89, 0 lost). 4 of the gain are rows only
+      in Archived/Unassigned. The other 85 have a Square id: offline, that is
+      an upper bound, since on production any whose id IS a sales item stays a
+      wrapper. All five hand-built names resolve to the existing prep when
+      treated as existing Froot preps; under the old planner four of them
+      still skipped NOT_IN_SQUARE. THE REAL TEST IS GARY'S: re-run the
+      production preview after the push. The 31 recipes behind the four juice
+      preps should import, reusing his hand-built preps.
 
   - id: N-1
     track: nutrition
