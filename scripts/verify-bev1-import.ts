@@ -268,5 +268,49 @@ check("5a2. K2 names Kale as the missing ingredient", plan1.skipped.find((s) => 
 check("5b. run 2 reuses run 1's Cup Kit by exact name (F6), no new sub-recipe", plan2.toCreate[0]?.lines.map((l) => l.subRecipeId ?? l.ingredientId), ["i-mango", "i-ginger", cupKits[0]?.id])
 check("5c. everything run 1 created is ALREADY_HAS_RECIPE", plan1.toCreate.filter((r) => r.kind === "sales").every((r) => outcome(plan2, r.salesItemId!.slice(3)).split("+").includes("ALREADY_HAS_RECIPE")), true)
 
+// ─── 6. BEV-1b — prep rows that other recipes use always import as prep ──────
+// A second workbook, so the counts in sections 2 and 4 stay pinned.
+aoa.length = 0
+block("Smoothies", [
+  ["Carrot Cooler", sq("E1"), "Juice - Carrot 1 oz (1 serving), Mango Puree (2 fl. oz)"],
+  ["Big Cup Smoothie", sq("A1"), "Cup Kit - 20oz (1 serving), Frozen Berries (4 oz (dry))"],
+  ["Lemon Splash", sq("B1"), "Pressed Lemon (2 servings)"],
+  ["Ginger Zing", sq("C1"), "Ginger Shot Prep (1 serving)"],
+  ["Wheat Wonder", sq("D1"), "Wheat Prep (1 serving)"],
+])
+block("Juice Fresh", [["Juice - Carrot 1 oz", sq("CA"), "Mango Puree (1 fl. oz)"]])
+block("Custom Juice Recipe", [["Pressed Lemon", sq("PL"), "Mango Puree (1 fl. oz)"]])
+block("Recipe Kits", [
+  ["Ginger Shot Prep", null, "Mango Puree (1 fl. oz)"],
+  ["Wheat Prep", null, "Mango Puree (1 fl. oz)"],
+  ["Wheat Prep", null, "Mango Puree (2 fl. oz)"],
+])
+block("Archived", [["Ginger Shot Prep", null, "Mango Puree (9 fl. oz)"]])
+block("Unassigned", [["Cup Kit - 20oz", sq("CK"), "Cup 24oz (1 EA), Lid 24oz (1 EA)"]])
+const wb6 = XLSX.utils.book_new()
+XLSX.utils.book_append_sheet(wb6, XLSX.utils.aoa_to_sheet(aoa), "Sales Items")
+const rows6 = parseSalesItemsWorkbook(new Uint8Array(XLSX.write(wb6, { type: "array", bookType: "xlsx" }) as ArrayBuffer))
+// CA, PL and CK are deliberately NOT Froot sales items.
+const salesItems6 = ["E1", "A1", "B1", "C1", "D1"].map((t) => sales(t))
+const carrot = graphRecipe("r-carrot", "Juice - Carrot 1 oz", null)
+const plan6 = planBevSpotImport({ rows: rows6, ingredients, salesItems: salesItems6, graph: graphFor([carrot]), newId })
+const item6 = (tag: string) => plan6.toCreate.find((r) => r.salesItemId === `si-${tag}`)
+const subs6 = plan6.toCreate.filter((r) => r.kind === "sub")
+const sub6 = (name: string) => subs6.find((r) => r.name === name)
+const reasons6 = (tag: string) => plan6.skipped.filter((s) => s.squareId === sq(tag)).map((s) => s.reason)
+
+check("6e. existing Froot prep beats the export's non-Froot-Square row: dependent imports", outcome(plan6, "E1"), "CREATE")
+check("6e2. … pointing at the existing prep", item6("E1")?.lines[0].subRecipeId, "r-carrot")
+check("6e3. … and no second Juice - Carrot 1 oz is created", sub6("Juice - Carrot 1 oz"), undefined)
+check("6a. prep only in Unassigned, used by a sales item → imports", outcome(plan6, "A1"), "CREATE")
+check("6a2. … as a sub-recipe from its Unassigned row", [item6("A1")?.lines[0].subRecipeId, sub6("Cup Kit - 20oz")?.lines.map((l) => l.ingredientId)], [sub6("Cup Kit - 20oz")?.id, ["i-cup", "i-lid"]])
+check("6a3. … with no sales item, and its own row still DROPPED_GROUP for attachment", [sub6("Cup Kit - 20oz")?.salesItemId, reasons6("CK")], [null, ["DROPPED_GROUP"]])
+check("6b. prep with a non-Froot Square id, used by a sales item → imports", outcome(plan6, "B1"), "CREATE")
+check("6b2. … as prep (no sales item) that B1 uses", [sub6("Pressed Lemon")?.salesItemId, item6("B1")?.lines[0].subRecipeId], [null, sub6("Pressed Lemon")?.id])
+check("6b3. … and its own row still reports NOT_IN_SQUARE for attachment", reasons6("PL"), ["NOT_IN_SQUARE"])
+check("6c. same prep name in Archived and an active group, different lines → active wins", [outcome(plan6, "C1"), sub6("Ginger Shot Prep")?.lines[0].amount], ["CREATE", 1])
+check("6d. two active rows define one prep name differently → ambiguous", outcome(plan6, "D1"), "AMBIGUOUS_NAME")
+check("6f. exactly the three new preps are created, never a sales-item recipe change", [subs6.map((r) => r.name).sort(), plan6.toCreate.filter((r) => r.kind === "sales").map((r) => r.salesItemId).sort()], [["Cup Kit - 20oz", "Ginger Shot Prep", "Pressed Lemon"], ["si-A1", "si-B1", "si-C1", "si-E1"]])
+
 console.log(failures === 0 ? "\n✓ ALL PASS\n" : `\n✗ ${failures} CHECK(S) FAILED\n`)
 process.exit(failures === 0 ? 0 : 1)

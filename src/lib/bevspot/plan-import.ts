@@ -24,6 +24,10 @@ import { UNIT_MARKER, mapBevSpotQty } from "./units"
 // F11 Ingredient wins on a name collision; disagreeing definitions skip.
 // F12 Whole package/bag/tub/case/container amounts skip as SUSPECT_QTY.
 // F13 `unit` / `other (1 unit)` become `each` for ingredients counted each.
+// BEV-1b A row another recipe uses as a sub-recipe imports as prep even if it
+//     is Archived/Unassigned or its Square id isn't a sales item; F3/F7 only
+//     decide its sales-item attachment. Outside Archived/Unassigned wins;
+//     two definitions left after that skip (F11).
 //
 // A recipe is all or nothing: one unresolved line skips it, and a skipped
 // sub-recipe skips everything that uses it, carrying the root cause.
@@ -175,6 +179,14 @@ export function planBevSpotImport(input: PlanInput): ImportPlan {
     const k = normName(row.name)
     defsByName.set(k, [...(defsByName.get(k) ?? []), row])
   }
+  // BEV-1b: prep definitions come from ALL rows, Archived and Unassigned
+  // included. F3/F7 decide a row's sales-item attachment, not its use as prep.
+  const allDefsByName = new Map<string, BevRow[]>()
+  for (const row of input.rows) {
+    if (row.lines === null) continue
+    const k = normName(row.name)
+    allDefsByName.set(k, [...(allDefsByName.get(k) ?? []), row])
+  }
 
   // ── Sales-item nodes, one per Square id (F3 conflicts, F6, F7) ────────────
   const nodes = new Map<string, Node>()
@@ -319,25 +331,19 @@ export function planBevSpotImport(input: PlanInput): ImportPlan {
     }
 
     const defs = defsByName.get(key) ?? []
-    if (defs.length === 0) {
-      // F4/F6: not defined in the export: an existing Froot sub-recipe by
-      // exact name, or nothing. Never an empty one.
-      const existing = existingSubsByName.get(name) ?? []
-      if (existing.length > 1) return fail("AMBIGUOUS_NAME", `${existing.length} Froot recipes are named "${name}"`)
-      if (existing.length === 1) return toRecipe(existing[0].yieldUnit, existing[0].id, null)
-      return fail("MISSING_INGREDIENT", `No ingredient or recipe named "${name}"`)
-    }
+    const isFrootSalesRow = (d: BevRow) => !!d.squareId && salesBySquareId.has(d.squareId)
 
-    // F11: two disagreeing definitions → ambiguous. Rows that all belong to
-    // ONE Square item are not: that item's own F3 resolution decides it.
-    const recipes = new Set(defs.map((d) => recipeKey(d.lines!)))
-    const squareIds = new Set(defs.map((d) => d.squareId).filter((s): s is string => !!s))
-    const oneSalesItem = squareIds.size === 1 && defs.every((d) => d.squareId)
-    if (squareIds.size > 1 || (recipes.size > 1 && !oneSalesItem)) {
-      return fail("AMBIGUOUS_NAME", `BevSpot defines "${name}" more than one way`)
-    }
+    if (defs.some(isFrootSalesRow)) {
+      // F11: two disagreeing definitions → ambiguous. Rows that all belong to
+      // ONE Square item are not: that item's own F3 resolution decides it.
+      const recipes = new Set(defs.map((d) => recipeKey(d.lines!)))
+      const squareIds = new Set(defs.map((d) => d.squareId).filter((s): s is string => !!s))
+      const oneSalesItem = squareIds.size === 1 && defs.every((d) => d.squareId)
+      if (squareIds.size > 1 || (recipes.size > 1 && !oneSalesItem)) {
+        return fail("AMBIGUOUS_NAME", `BevSpot defines "${name}" more than one way`)
+      }
 
-    if (squareIds.size === 1) {
+
       // F10: a wrapper points at the target sales item's recipe; if the
       // target skips, so does the wrapper.
       const sq = [...squareIds][0]
@@ -352,12 +358,25 @@ export function planBevSpotImport(input: PlanInput): ImportPlan {
       return toRecipe("serving", null, target.key)
     }
 
-    // F10 + F6: a prep/kit row. Reuse a Froot sub-recipe by exact name, else
-    // create it from the export.
-    const exact = existingSubsByName.get(defs[0].name.trim()) ?? []
-    if (exact.length > 1) return fail("AMBIGUOUS_NAME", `${exact.length} Froot recipes are named "${defs[0].name.trim()}"`)
+    // F10 + F6 + BEV-1b: a prep/kit row, wherever it sits in the export and
+    // whatever its own Square id. A Froot sub-recipe by exact name is reused
+    // and never overwritten, so no second one is ever created for that name.
+    const prepDefs = allDefsByName.get(key) ?? []
+    const exactNames = [...new Set([name, ...prepDefs.map((d) => d.name.trim())])]
+    const exact = [...new Map(exactNames.flatMap((n) => existingSubsByName.get(n) ?? []).map((r) => [r.id, r])).values()]
+    if (exact.length > 1) return fail("AMBIGUOUS_NAME", `${exact.length} Froot recipes are named "${name}"`)
     if (exact.length === 1) return toRecipe(exact[0].yieldUnit, exact[0].id, null)
-    return toRecipe("serving", null, subNodeFor(defs).key)
+    // F4: not defined in the export and not in Froot → nothing, never an
+    // empty sub-recipe.
+    if (prepDefs.length === 0) return fail("MISSING_INGREDIENT", `No ingredient or recipe named "${name}"`)
+    // Rows outside Archived/Unassigned beat rows inside; two different
+    // definitions left after that are ambiguous (F11).
+    const active = prepDefs.filter((d) => !DROPPED_GROUPS.includes(d.group))
+    const pool = active.length ? active : prepDefs
+    if (new Set(pool.map((d) => recipeKey(d.lines!))).size > 1) {
+      return fail("AMBIGUOUS_NAME", `BevSpot defines "${name}" more than one way`)
+    }
+    return toRecipe("serving", null, subNodeFor(pool).key)
   }
 
   function resolveNode(node: Node): void {
