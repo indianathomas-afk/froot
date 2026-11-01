@@ -160,6 +160,7 @@ referenced by the capability registry in §5.
 | PG-19 | `(app)/items/page.tsx` | Menu Items (Square catalog metadata) | Any member (page not in nav at all); sync button ADMIN | client-render only |
 | PG-20 | `(app)/inventory/ingredients`, `sales-items`, `counts`, `counts/[id]`, `adjustments`, `purchase-orders`, `purchase-orders/[id]` pages | Inventory operational surfaces | Any member (module-gated), scoped; manage affordances via `canManage`/`isAdmin` props | data-scope + client-render |
 | PG-21 | `(app)/inventory/recipes`, `recipes/[id]`, `storage-areas`, `vendors` pages | Inventory asset surfaces | **Any member** (nav says ADMIN/MANAGER; no server role check); manage UI `canManage` | data-scope + client-render (role restriction nav-only) |
+| PG-21b | `(app)/inventory/recipes/import/bevspot` page (BEV-1, 2026-11-01) | BevSpot recipe import | ADMIN only: the page redirects anyone else via `getCurrentUser()`; its APIs re-check (IV-3). Entry button on `/inventory/recipes` shown to ADMIN only | handler (page) + client-render |
 | PG-22 | `(app)/inventory/expected`, `alerts`, `reports`, `orders/new`, `purchase-orders/new`, `ingredients/deleted`, `ingredients/duplicates` pages | Inventory manager surfaces | ADMIN+MANAGER (redirect) | route-guard |
 | PG-23 | `(app)/hr/page.tsx` | HR hub | HR gates; any member; cards conditional (compliance ADMIN/MANAGER; documents/forms/training links ADMIN) | route-guard (gates) + client-render |
 | PG-24 | `(app)/hr/documents/page.tsx` | Document library | HR gates; audience-scoped per DOC-1 (ADMIN unnarrowed); **archived rows listed for ADMIN only** (DOC-1 B); manage buttons ADMIN | route-guard + data-scope + client-render |
@@ -239,7 +240,7 @@ requested from a merchant. Found by LABOR-0B (`dd7b860`,
 |---|---|---|---|---|
 | IV-1 | `ingredients` GET, `[id]` GET, `vendor-prices` GET, `duplicates` GET, `ingredient-categories` GET, `loss-reasons` GET, `recipes` GET, `recipes/[id]` GET, `vendors` GET, `vendors/[id]` GET + `[id]/adjustments` GET, `sales-items` (via pages), `[id]/weights` | Inventory reads (asset data) | Any member (org-scoped; not store-scoped — assets are org-level) | handler (module) |
 | IV-2 | `ingredients` POST/PATCH/DELETE, `restore`, `bulk`, `merge`, `duplicates/dismiss`, `ingredient-categories` writes, `loss-reasons` POST, `sales-items/[id]` + `bulk`, `recipes` writes + `duplicate`, `vendors` writes + `adjustments` POST, `variance-adjustments` POST, `items/[id]/metadata` | Inventory asset writes | ADMIN/MANAGER | handler |
-| IV-3 | `ingredients/import` (CSV), `storage-areas/copy` | Bulk import / cross-store copy | ADMIN | handler |
+| IV-3 | `ingredients/import` (CSV), `storage-areas/copy`, `import/bevspot/preview` + `import/bevspot/apply` (BEV-1, 2026-11-01) | Bulk import / cross-store copy | ADMIN | handler |
 | IV-4 | `storage-areas` GET/POST, `[id]` writes, `assign`, `reorder`, `[id]/ingredients` | Storage areas | Reads any member store-scoped; writes ADMIN/MANAGER + store scope | handler + data-scope |
 | IV-5 | `counts` GET/POST, `counts/[id]` GET/PATCH, `lines`, `summary`, `resort-area` | Count execution | Any member, store-scoped (STORE role counts by design) | handler + data-scope |
 | IV-6 | `counts/[id]/finalize`, `corrections` | Count finalize/corrections | ADMIN/MANAGER (+ store scope via `requireCount`) | handler + data-scope |

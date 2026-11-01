@@ -17139,13 +17139,30 @@ phases:
     # Docs SHA recorded 2026-11-01 by the ING-UI-1 PRE-PUSH-CHECK, which
     # covered eb01bf5 in the same push. Docs only, so status stays `planned`
     # (PRE-PUSH-CHECK, docs-only phases).
-    status: planned
+    # Closed 2026-11-01 by the BEV-1 docs commit, on Gary's direction ("mark
+    # the BEV-0 row closed with a dated rider"). `withdrawn` is the only
+    # status that means "not done, not outstanding" — the vocabulary has no
+    # `closed` (src/lib/roadmap.ts). The eb01bf5 commit below FILED this row;
+    # it is kept as the record, not as work done.
+    status: withdrawn
     title: "BevSpot ingredient import (Keva's product catalog into org-level Ingredients)"
     commits:
       - "eb01bf5"
       # filed by docs(BEV-1) eb01bf5; recorded in the ING-UI-1 PRE-PUSH-CHECK
       # commit (the commit immediately after a8dcf6b)
     notes: >
+      CLOSED 2026-11-01 — NOT NEEDED AS A CODE PHASE (Gary, in chat, resuming
+      BEV-1): "BEV-0 is not needed as a code phase. Staging's Keva Juice
+      (staging) org (cmr54z65v000105jxczpt72w1) now has 225 ingredients,
+      imported with the existing CSV importer: Meadowood's library plus 13 Las
+      Brisas-only items." "Production has not been imported yet." Gary's
+      statements, not measured by the BEV-1 session (it does not connect to
+      staging or production). The ingredients were imported through the
+      existing IV-3 CSV importer (ingredients/import), so no BevSpot .xls
+      reader was built. Production's import is Gary's, with the same CSV
+      importer, before BEV-1 is run there. The text below is the row as filed
+      and is left as written.
+
       FILED 2026-10-31 by the BEV-1 docs commit, on Gary's direction at the
       BEV-1 Phase 1 STOP. NOT SCOPED YET — no prompt exists. What is known:
       BEV-1 (recipe import) matches every recipe line to a Froot Ingredient by
@@ -17169,22 +17186,62 @@ phases:
     # Docs SHA recorded 2026-11-01 by the ING-UI-1 PRE-PUSH-CHECK, which
     # covered eb01bf5 in the same push. Docs only (Phase 1 audit, paused), so
     # status stays `planned` (PRE-PUSH-CHECK, docs-only phases).
-    status: planned
+    # → in_progress 2026-11-01 at the Phase 2 work commit 95c336b (not pushed).
+    status: in_progress
     title: "BevSpot recipe import (Nutrition series, session 1)"
     commits:
       - "eb01bf5"
       # docs(BEV-1): prompt, Phase 1 audit, this row; recorded in the ING-UI-1
       # PRE-PUSH-CHECK commit (the commit immediately after a8dcf6b)
+      - "95c336b"
+      # feat(BEV-1): Phase 2 work commit, 2026-11-01
     blockers:
       - >
-        WAITING ON BEV-0 INGREDIENT IMPORT — 2026-10-31. Set by Gary at the
-        Phase 1 STOP: production has no real Keva ingredients ("8 fixture
-        rows, 0 recipes"), so every recipe would skip as MISSING_INGREDIENT.
-        Recorded as `planned` + this blocker because the ROADMAP status
-        vocabulary has no `blocked` value; this is the same convention N-2
-        and N-3 use. CLEARS WHEN: BEV-0 has imported Keva's ingredients on the
-        branch BEV-1 will run against.
+        PRODUCTION ONLY, 2026-11-01. Gary: "Production has not been imported
+        yet." BEV-1 must not be run on production until Keva's ingredients are
+        imported there (existing CSV importer, as on staging). Every recipe
+        would otherwise skip as MISSING_INGREDIENT. That is safe, but useless.
+        CLEARS WHEN: production's Keva org holds the ingredient library.
+      - narrowed: true
+        text: >
+          WAITING ON BEV-0 INGREDIENT IMPORT — 2026-10-31. Set by Gary at the
+          Phase 1 STOP: production has no real Keva ingredients ("8 fixture
+          rows, 0 recipes"), so every recipe would skip as MISSING_INGREDIENT.
+          Recorded as `planned` + this blocker because the ROADMAP status
+          vocabulary has no `blocked` value; this is the same convention N-2
+          and N-3 use. CLEARS WHEN: BEV-0 has imported Keva's ingredients on the
+          branch BEV-1 will run against.
     notes: >
+      PHASE 2 BUILT 2026-11-01, work commit 95c336b (NOT PUSHED at the time of
+      writing). Gary ruled F1–F14 in chat on resuming. His words are in
+      docs/DECISIONS.md (2026-11-01, BEV-1, DRAFT until PRE-PUSH-CHECK), along
+      with his follow-up on the F12 boundary, F13 "other (1 unit)" and UUID
+      recipe ids. What shipped: an ADMIN-only page at
+      /inventory/recipes/import/bevspot (button on the Recipes header), and
+      the IV-3 routes POST /api/inventory/import/bevspot/preview (writes
+      nothing) and /apply. Apply re-plans on the server and writes recipes,
+      lines, MAPPED status and one AuditLog row (action
+      bevspot.recipes.applied, entityType Import, created recipe ids in
+      metadata) in one transaction. Pure parser, unit map and planner live in
+      src/lib/bevspot/. `g` was added to src/lib/units.ts. xlsx is pinned to
+      the patched 0.20.3 tarball from cdn.sheetjs.com, which closes audit T1.
+      No schema change, no prisma command beyond the build's own
+      `prisma generate`. FIXTURE: scripts/verify-bev1-import.ts, pure, using a
+      synthetic workbook, 62/62 PASS. Per Gary, the Phase 2 dev dry-run was
+      replaced by the fixture (dev has 8 fixture ingredients). THE REAL TEST
+      IS GARY'S: run the preview on staging after the push (it writes
+      nothing). Staging is expected to skip many recipes as NOT_IN_SQUARE (370
+      sales items there vs 1,179 on production). OWED AFTER DEPLOY: the F8
+      rider — re-test the forecasting import (it shares the xlsx package) on
+      staging. THEN F14: run the Las Brisas file, then Meadowood's
+      sales-items export; never-overwrite means Meadowood only fills gaps.
+      The Meadowood file was not in ~/Downloads at this session's Phase 0
+      (only its inventory template and the ingredients CSV were). BEV-2 IS
+      NOT FILED: the prompt planned it "if F4 needs it", and F10 option A
+      imports the export's own prep/kit rows as sub-recipes. Undefined preps
+      are listed as missing ingredients. The text below is the row as it
+      stood before Phase 2 and is left as written.
+
       PAUSED AFTER PHASE 1 (audit) on 2026-10-31. Prompt of record:
       docs/prompts/BEV-1.md. Audit: docs/prompts/BEV-1_AUDIT.md. NO CODE
       WRITTEN, no schema change, no prisma command run. FORKS F1–F13 ARE
@@ -17209,13 +17266,34 @@ phases:
     size: M
     status: planned
     title: "Nutrition — schema & menu item manager"
-    notes: MenuItem/MenuItemNutrition/MenuItemAllergen models and module flag scaffolded; no UI or routes.
+    notes: >
+      RESCOPED 2026-11-01 (BEV-1 docs commit, Gary's F1: "Nutrition is computed
+      from ingredients through recipes. The MenuItem* stub stays untouched;
+      file a DEBT row to retire it after N-3."). N-1 is now: nutrition facts and
+      allergens per INGREDIENT, a computed-nutrition engine that walks recipes
+      the way src/lib/recipe-cost.ts walks cost, and a menu manager page
+      showing each Square sales item's computed nutrition and its completeness
+      ("11 of 12 ingredients have nutrition"). It does NOT build on the
+      MenuItem / MenuItemNutrition / MenuItemAllergen stub, which stays
+      untouched until DEBT-124 retires it. Depends on BEV-1 (recipes must
+      exist first). Scope from docs/prompts/BEV-1.md; NOT SCOPED as a prompt
+      yet. The original note follows, as written.
+
+      MenuItem/MenuItemNutrition/MenuItemAllergen models and module flag scaffolded; no UI or routes.
 
   - id: N-2
     track: nutrition
     size: M
     status: planned
     title: "Nutrition — facts editor + label preview"
+    notes: >
+      RESCOPED 2026-11-01 (BEV-1 docs commit, after Gary's F1). Now: an
+      FDA-style Nutrition Facts label preview per item and size, built from
+      N-1's COMPUTED nutrition, with an optional per-item override and a
+      publish toggle. The blocker below names the MenuItem* models as the
+      thing to edit. Under F1 those stay untouched (DEBT-124), so read
+      "N-1 ships its routes and UI" as the rescoped N-1. Blocker left as
+      written.
     blockers:
       - >
         BEHIND N-1 — promoted to a blocker entry 2026-08-06 so the board can
@@ -17238,6 +17316,39 @@ phases:
         public menu page renders the nutrition data those routes would serve.
         CLEARS WHEN: N-1 ships. In practice this row wants N-2 as well, since a
         public page with no editor behind it has nothing to publish.
+    notes: >
+      RIDER 2026-11-01 (BEV-1 docs commit, after Gary's F1). Now: the public
+      menu page (no login) shows N-1's computed nutrition and allergens (and
+      N-2's published labels), not MenuItem* rows. Once this ships, DEBT-124
+      retires the stub. The blocker above is left as written.
+
+  - id: N-4
+    track: nutrition
+    size: S
+    status: planned
+    title: "Nutrition — static HTML export of the public menu"
+    notes: >
+      FILED 2026-11-01 by the BEV-1 docs commit (series planned in
+      docs/prompts/BEV-1.md). A static HTML export of N-3's public menu, for
+      sites that can't embed an iframe. Behind N-3. NOT SCOPED as a prompt yet.
+
+  - id: N-5
+    track: nutrition
+    size: M
+    status: planned
+    title: "Nutrition — Square modifiers (add-ons)"
+    notes: >
+      FILED 2026-11-01 by the BEV-1 docs commit, as the BEV-1 prompt directed
+      ("a ROW for Square modifier nutrition (add-ons) if Phase 1 A5 confirms
+      modifiers aren't synced"). A5 confirmed it:
+      src/app/api/square/sales-items/sync/route.ts reads ITEM and CATEGORY and
+      upserts one SalesItem per variation. No MODIFIER / MODIFIER_LIST object
+      is stored (docs/prompts/BEV-1_AUDIT.md § A5). So add-ons ("ADD RED BULL",
+      milk swaps) have no Froot row for a recipe or for nutrition to attach to.
+      BEV-1 skips their BevSpot rows as NOT_IN_SQUARE (F7). Some Keva add-ons
+      ARE sellable variations and do import. Needs a read-only modifier sync
+      (ITEMS_READ is already held, so no new OAuth scope) and a place for
+      modifier recipes. Behind N-1. NOT SCOPED.
 
   # ---- Square integration ----
 
@@ -34626,6 +34737,26 @@ debt:
       laborOverlayOn(ctx.org) as well as canSeeSchedule, so the key is absent
       when the toggle is off. No schema, no new Square call or scope.
       RELATED: L-4, L-4d.
+
+  - id: DEBT-124
+    title: >
+      Retire the MenuItem / MenuItemNutrition / MenuItemAllergen stub after
+      N-3 ships
+    notes: >
+      FILED 2026-11-01 by the BEV-1 docs commit, on Gary's ruling F1: "The
+      MenuItem* stub stays untouched; file a DEBT row to retire it after N-3."
+      THE ID was confirmed free: DEBT-123 was the highest, and DEBT-124 appears
+      nowhere in docs/ or CLAUDE.md. The three models come from the init
+      migration and hold hand-typed nutrition per menu item, with no link to
+      SalesItem or Recipe. Under F1, nutrition is computed from ingredients
+      through recipes instead (N-1). Measured 0 / 0 / 0 rows for Keva's org on
+      dev (br-broad-wave-a6vpjdw0, org cf888f2d-f234-48c7-8097-fd5b44b5b3dd,
+      BEV-1 audit § B4). Staging and production are NOT measured; audit § C
+      query 2 has the SQL. FIX SHAPE, after N-3: confirm zero rows on every
+      branch, then remove the code paths. Per CLAUDE.md, schema is
+      additive-only and no column or table is ever dropped. So retiring means
+      the code stops reading and writing the models, and dropping the tables
+      is its own ruling. RELATED: N-1, N-3, BEV-1.
 
 rulings:
   - id: R1
