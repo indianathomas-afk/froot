@@ -2,6 +2,61 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-01 — ING-UI-1: ingredients table splits Category / GL Code, Pack stops doubling (display only)
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: four commits plus this check's own.** Verified by `git log @{u}..`
+at this check: exactly `eb01bf5`, `8d440c3`, `4fdc65e`, `a8dcf6b`, on top of
+`origin/staging`. **NONE WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+`eb01bf5` is BEV-1's, logged in its own entry below.
+
+| Commit | What it is |
+|---|---|
+| `8d440c3` | ING-UI-1 work: `src/app/(app)/inventory/ingredients/ingredients-client.tsx` — Category cell shows the name only, new GL Code column, `packLabel` |
+| `4fdc65e` | `docs(ING-UI-1)`: ROADMAP row (`in_progress`), `docs/prompts/ING-UI-1.md` |
+| `a8dcf6b` | `fix(ING-UI-1)`: exports `packLabel` and reuses it in `ingredients/deleted/deleted-client.tsx`. No docs on purpose; recorded by this check's row rider |
+| the commit immediately after `a8dcf6b` | `docs(ING-UI-1 PRE-PUSH-CHECK)`: this entry and BEV-1's, row SHAs, ING-UI-1 row to `staging` |
+
+**Blast radius: TWO CLIENT COMPONENTS UNDER `/inventory/ingredients`, DISPLAY
+ONLY. NO SCHEMA, NO MIGRATION, NO API ROUTE, NO ENV VAR, NO CRON, NO SQUARE
+CALL, NO PERMISSION CHANGE, NOTHING WRITTEN.**
+
+- **What changes:** the ingredients table's Category cell shows the category
+  name only; a new GL Code column shows `effectiveGlCode` (override, else
+  category GL, else —) with a muted "override" label. The Pack cell, on the
+  ingredients table and the deleted-ingredients list, shows `packDescription`
+  alone when it already begins with the purchase unit (trimmed,
+  case-insensitive), so imported rows stop reading "package (package (200 ea))".
+- **What does not:** every value shown already existed in the DTO; no query,
+  gate or sort changed.
+
+**Rollback:** revert `a8dcf6b` then `8d440c3`. Nothing written, so the old
+rendering returns on the next load. The docs commits can stay or go with it.
+
+**Evidence so far: build only.** Not browser-checked. After the push: the
+staging-SHA precondition (deployed SHA = local `HEAD`), then `/inventory/ingredients`
+and `/inventory/ingredients/deleted` under a named org id — GL Code column
+present, Pack cells on imported rows read once.
+
+## UNPROMOTED — 2026-10-31 — BEV-1: paused after the Phase 1 audit; BEV-0 ingredient import filed (docs only)
+
+**Staging only, not yet promoted.** Docs only: no code, no migration, no env
+change, nothing a user can see. Blast radius is the docs build alone —
+`docs/ROADMAP.yaml` is typechecked at prebuild, so a bad row fails the deploy.
+
+- **Commits:** `eb01bf5` (BEV-0 and BEV-1 rows, `docs/prompts/BEV-1.md`,
+  `docs/prompts/BEV-1_AUDIT.md`) + the ING-UI-1 PRE-PUSH-CHECK commit
+  immediately after `a8dcf6b` (row SHAs, this entry).
+- **Rulings:** none. Forks F1–F13 are open; `docs/DECISIONS.md` untouched.
+- **Status:** BEV-0 and BEV-1 stay `planned`; BEV-1 carries the "WAITING ON
+  BEV-0 INGREDIENT IMPORT" blocker. Neither has code.
+- **Verify after deploy:** the build is green. Nothing else to look at.
+- **Rollback:** not needed for behaviour; revert `eb01bf5` if the rows
+  themselves are wrong.
+
 ## 0ff5628 — 2026-10-31 — BUG-17: heal stale open timecards by id; 24h guard on paid time and attendance
 
 **PROMOTED 2026-10-31 in merge `0ff5628`** (`0ff56287a5bd63592fd74c3115774a4e20a31f2d`,

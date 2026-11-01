@@ -17136,8 +17136,15 @@ phases:
   - id: BEV-0
     track: migration
     size: M
+    # Docs SHA recorded 2026-11-01 by the ING-UI-1 PRE-PUSH-CHECK, which
+    # covered eb01bf5 in the same push. Docs only, so status stays `planned`
+    # (PRE-PUSH-CHECK, docs-only phases).
     status: planned
     title: "BevSpot ingredient import (Keva's product catalog into org-level Ingredients)"
+    commits:
+      - "eb01bf5"
+      # filed by docs(BEV-1) eb01bf5; recorded in the ING-UI-1 PRE-PUSH-CHECK
+      # commit (the commit immediately after a8dcf6b)
     notes: >
       FILED 2026-10-31 by the BEV-1 docs commit, on Gary's direction at the
       BEV-1 Phase 1 STOP. NOT SCOPED YET — no prompt exists. What is known:
@@ -17159,8 +17166,15 @@ phases:
   - id: BEV-1
     track: migration
     size: L
+    # Docs SHA recorded 2026-11-01 by the ING-UI-1 PRE-PUSH-CHECK, which
+    # covered eb01bf5 in the same push. Docs only (Phase 1 audit, paused), so
+    # status stays `planned` (PRE-PUSH-CHECK, docs-only phases).
     status: planned
     title: "BevSpot recipe import (Nutrition series, session 1)"
+    commits:
+      - "eb01bf5"
+      # docs(BEV-1): prompt, Phase 1 audit, this row; recorded in the ING-UI-1
+      # PRE-PUSH-CHECK commit (the commit immediately after a8dcf6b)
     blockers:
       - >
         WAITING ON BEV-0 INGREDIENT IMPORT — 2026-10-31. Set by Gary at the
@@ -22779,10 +22793,27 @@ phases:
   - id: ING-UI-1
     track: inventory
     size: S
-    status: in_progress
+    # `in_progress` -> `staging` 2026-11-01 by the ING-UI-1 PRE-PUSH-CHECK, in
+    # the commit immediately after a8dcf6b (its own SHA cannot be written
+    # inside itself). NOT pushed when the check ran — Gary runs the push. No
+    # DECISIONS entry; the phase made no ruling. The "NOT pushed" line in the
+    # notes holds until the push.
+    status: staging
     title: "Ingredients table — split Category / GL Code, de-duplicate Pack"
-    commits: ["8d440c3"]
+    commits:
+      - "8d440c3"
+      # + the docs commit 4fdc65e: ING-UI-1 row + prompt of record
+      - "4fdc65e"
+      - "a8dcf6b"
+      # + the commit immediately after a8dcf6b: docs(ING-UI-1 PRE-PUSH-CHECK)
     notes: >
+      ── RIDER 2026-11-01, ING-UI-1 PRE-PUSH-CHECK (prepended; nothing below is
+      edited). ── The deleted-ingredients ROW CANDIDATE below is FIXED in
+      a8dcf6b: packLabel is exported from ingredients-client.tsx and reused in
+      ingredients/deleted/deleted-client.tsx, so the deleted list no longer
+      doubles the purchase unit. Display only, no new row filed. a8dcf6b
+      carried no docs on purpose (Gary); this rider is its record. The phase
+      now spans two files, not the one named below.
       BUILT 2026-11-01 on staging, NOT pushed. Prompt of record:
       docs/prompts/ING-UI-1.md. Found by Gary on staging after the Meadowood
       212-ingredient import. Declared TIER 1; RE-DECLARED TIER 2 by the session
