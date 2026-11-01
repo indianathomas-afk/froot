@@ -111,6 +111,15 @@ function formatDate(iso: string) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
 }
 
+// Imported pack descriptions often already lead with the purchase unit
+// ("package (200 ea)"), so prefixing the unit again would read twice.
+function packLabel(purchaseUnitLabel: string, packDescription: string | null) {
+  if (!packDescription) return purchaseUnitLabel
+  const unit = purchaseUnitLabel.trim().toLowerCase()
+  if (unit && packDescription.trim().toLowerCase().startsWith(unit)) return packDescription
+  return `${purchaseUnitLabel} (${packDescription})`
+}
+
 export function IngredientsClient({
   ingredients,
   categories,
@@ -429,6 +438,7 @@ export function IngredientsClient({
                         {[
                           "Ingredient",
                           "Category",
+                          "GL Code",
                           "Pack",
                           "Vendor Price",
                           "Cost / Unit",
@@ -462,15 +472,15 @@ export function IngredientsClient({
                           </td>
                           <td className="px-4 py-3 text-sm text-[var(--color-muted-foreground)]">
                             {ing.categoryName ?? "—"}
-                            {ing.effectiveGlCode && (
-                              <span className="ml-1.5 text-xs">
-                                · GL {ing.effectiveGlCode}
-                                {ing.glCodeOverride && <span className="text-[var(--color-warning-text)]"> (override)</span>}
-                              </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-[var(--color-muted-foreground)] whitespace-nowrap">
+                            {ing.effectiveGlCode ?? "—"}
+                            {ing.effectiveGlCode && ing.glCodeOverride && (
+                              <span className="ml-1.5 text-xs text-[var(--color-muted-foreground)]">override</span>
                             )}
                           </td>
                           <td className="px-4 py-3 text-sm text-[var(--color-muted-foreground)]">
-                            {ing.purchaseUnitLabel}{ing.packDescription ? ` (${ing.packDescription})` : ""}
+                            {packLabel(ing.purchaseUnitLabel, ing.packDescription)}
                           </td>
                           <td className="px-4 py-3 text-sm text-[var(--color-muted-foreground)]">
                             {ing.vendorCount === 0
