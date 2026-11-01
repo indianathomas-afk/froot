@@ -2,6 +2,59 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-01 — BEV-1: import recipes from BevSpot's sales-items export
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two BEV-1 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `95c336b`, `9a06f92`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `95c336b` | BEV-1 work: `src/lib/bevspot/` (parser, unit map, planner, import-server), page `/inventory/recipes/import/bevspot` + Recipes header button, routes `POST /api/inventory/import/bevspot/preview` and `/apply`, `g` in `src/lib/units.ts`, `weigh-dialog.tsx` weight units via `unitDimension()`, xlsx pinned to the 0.20.3 tarball, fixture `scripts/verify-bev1-import.ts` |
+| `9a06f92` | `docs(BEV-1)`: DECISIONS draft F1–F14, row `in_progress`, BEV-0 withdrawn, N-1 rescoped, N-2/N-3 riders, N-4/N-5 and DEBT-124 filed, PERMISSIONS_INVENTORY (IV-3, PG-21b) |
+| the commit immediately after `9a06f92` | `docs(BEV-1 PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`; DECISIONS ratified by Gary at this check ("Ratify as written") |
+
+**Blast radius: NEW ADMIN-ONLY IMPORT THAT WRITES RECIPES, ORG-WIDE WHERE
+INVENTORY IS ON; A SHARED DEPENDENCY UPGRADE (xlsx); ONE NEW UNIT. NO SCHEMA,
+NO MIGRATION, NO ENV VAR, NO CRON, NO SQUARE CALL, NO NEW PERMISSION ROLE.**
+
+- **New write path:** `/apply` (`requireModule("inventory")` + `requireAdmin()`,
+  IV-3) re-plans the upload on the server and, in one transaction, creates
+  recipes (UUID ids), their lines, sets sales items MAPPED, and writes one
+  `AuditLog` row (`bevspot.recipes.applied`). It never overwrites an existing
+  recipe (F6). `/preview` writes nothing. The uploaded file is parsed in memory
+  and never stored.
+- **xlsx 0.18.5 → 0.20.3 (cdn.sheetjs.com tarball, pinned).** The forecasting
+  import shares the package — that is the F8 rider: Gary re-tests the
+  forecasting import on staging after deploy.
+- **`g` added to `src/lib/units.ts`** (weight). Knock-on: the count weigh
+  dialog now treats any weight reporting unit as weight (was a hard-coded
+  `lbs` / `oz (dry)` pair) and converts through `convert()`. For `lbs` and
+  `oz (dry)` the result is unchanged.
+- **What does not change:** no existing recipe, ingredient or count is
+  touched; nothing writes to Square.
+
+**Rollback:** revert `95c336b`. No schema change, so the page and routes
+disappear on the next deploy and xlsx returns to 0.18.5. Recipes an apply has
+already created STAY — they are ordinary recipes; find them by the `AuditLog`
+row's `metadata` (created recipe ids) and delete them in the app if wanted.
+The docs commits can stay or go with it.
+
+**Evidence so far: fixture and build only.** `scripts/verify-bev1-import.ts`
+62/62 PASS per the build session (pure, synthetic workbook, no database).
+**Nothing has been observed on staging.** After the push, in order: the
+staging-SHA precondition (deployed SHA = local `HEAD`); the F8 rider —
+re-test the forecasting import on staging; then, under a named org id
+(staging Keva Juice, `Organization` id `cmr54z65v000105jxczpt72w1`), run the BevSpot PREVIEW with
+the Las Brisas #14 export (writes nothing; expect many NOT_IN_SQUARE skips —
+370 sales items on staging vs 1,179 on production). Apply, then Meadowood
+(F14), are Gary's call after reading the preview. **Production: blocked** until
+Keva's ingredients are imported there (row blocker).
+
 ## UNPROMOTED — 2026-11-01 — ING-UI-1: ingredients table splits Category / GL Code, Pack stops doubling (display only)
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at

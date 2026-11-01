@@ -5,7 +5,15 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-01 — BEV-1: BevSpot recipe import, forks F1–F14 (Gary) — DRAFT
+## 2026-11-01 — BEV-1: BevSpot recipe import, forks F1–F14 (Gary)
+
+**RATIFIED BY GARY, 2026-11-01, at the BEV-1 PRE-PUSH-CHECK, as written.** The
+whole entry, unchanged, was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify as
+written"* It covers everything in this entry as written: F1–F14, the context
+paragraph, and the follow-up on the F12 boundary, F13 "other (1 unit)" and UUID
+recipe ids. Nothing in the entry was reworded. The heading read "— DRAFT" until
+this check; the DRAFT paragraph below is spent, kept.
 
 **DRAFT — ruled by Gary in chat 2026-11-01 at the resume of BEV-1 (after the
 Phase 1 STOP); ratified at PRE-PUSH-CHECK.** The forks are set out in

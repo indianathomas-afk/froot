@@ -17187,7 +17187,12 @@ phases:
     # covered eb01bf5 in the same push. Docs only (Phase 1 audit, paused), so
     # status stays `planned` (PRE-PUSH-CHECK, docs-only phases).
     # → in_progress 2026-11-01 at the Phase 2 work commit 95c336b (not pushed).
-    status: in_progress
+    # BEV-1 PRE-PUSH-CHECK 2026-11-01: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after 9a06f92 (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-01 BEV-1 ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written.
+    status: staging
     title: "BevSpot recipe import (Nutrition series, session 1)"
     commits:
       - "eb01bf5"
@@ -17195,6 +17200,9 @@ phases:
       # PRE-PUSH-CHECK commit (the commit immediately after a8dcf6b)
       - "95c336b"
       # feat(BEV-1): Phase 2 work commit, 2026-11-01
+      - "9a06f92"
+      # docs(BEV-1): row in_progress, DECISIONS draft, N series, DEBT-124
+      # + the commit immediately after 9a06f92: docs(BEV-1 PRE-PUSH-CHECK)
     blockers:
       - >
         PRODUCTION ONLY, 2026-11-01. Gary: "Production has not been imported
