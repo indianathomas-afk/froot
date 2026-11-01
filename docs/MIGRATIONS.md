@@ -1934,3 +1934,48 @@ L-4a: labor assignment data model (Gary)".
 **Fixture:** `scripts/verify-l4a-labor-assignment.ts`, 24/24 on dev
 (`neon.branch_id` = `br-broad-wave-a6vpjdw0`), run after the apply and before
 the work commit (`9fc21d6`). It refuses any other branch and leaves no rows.
+
+## 2026-11-01 — `20261101210000_n1_ingredient_nutrition` (N-1)
+
+**APPLIED TO DEV ONLY, by Gary.** Written by the N-1 PRE-PUSH-CHECK, not by
+the N-1 docs commit (`2c2c0fa`), which carried no entry here — found as drift
+at the check's Step 2 and added on Gary's instruction: *"Add the MIGRATIONS.md
+entry in this check's single docs commit, as proposed."* The work commit
+(`70baf2f`) records the dev apply as "applied to dev by Gary"; no apply output
+and no `_prisma_migrations.finished_at` reached the check, and the check reads
+no database, so no dev time is written. Staging and production get it through
+`prisma migrate deploy` in the Vercel build, on Gary's push and at promotion.
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | applied by Gary 2026-11-01 — finished_at not read at this check | Gary |
+| staging `br-square-feather-a63z92vz` | not yet | Vercel build, on Gary's push |
+| production `br-sparkling-block-a620qvg4` | not yet | Vercel build, at promotion |
+
+Timestamp note: the folder name is the UTC instant of generation.
+
+| Statement | Kind |
+|---|---|
+| `CREATE TYPE "Allergen" AS ENUM (…)` (FDA major nine) | additive, new enum |
+| `ALTER TABLE "Ingredient" ADD COLUMN "allergens" "Allergen"[] DEFAULT ARRAY[]` | additive, nullable with default |
+| `ALTER TABLE "Ingredient" ADD COLUMN "nutritionExempt" BOOLEAN NOT NULL DEFAULT false` | additive, default fills existing rows |
+| `CREATE TABLE "IngredientNutrition"` (23 columns, `IngredientNutrition_pkey`) | additive, new table |
+| `CREATE UNIQUE INDEX "IngredientNutrition_ingredientId_key"` | additive, new table (1:1, ruling F4) |
+| `ADD CONSTRAINT "IngredientNutrition_ingredientId_fkey"` `ON DELETE CASCADE` | on the new table |
+
+**ADDITIVE ONLY: no DROP, no ALTER COLUMN, no RENAME** (checked against the
+file at this check). The two `Ingredient` columns are the only change to an
+existing table, and both carry defaults. The `ON DELETE CASCADE` is stated in
+the schema (`onDelete: Cascade` on `IngredientNutrition.ingredient`), so
+§ Hand-authored FK `ON DELETE` has nothing to mirror, and nothing here belongs
+in § Protected indexes. Calories are `DOUBLE PRECISION` (`Float?`) — F4's
+"stored as a decimal" means non-integer, per `docs/prompts/N-1_AUDIT.md`
+(`Float?`, not the stub's `Int?`). Rulings: `docs/DECISIONS.md` "2026-11-01 —
+N-1: ingredient nutrition & allergens, forks N1-F1–F6 and R-1–R-4 (Gary)".
+
+**Fixture:** `scripts/verify-n1-nutrition.ts`, pure (no database), 39 checks,
+all pass, per the work commit. Not re-run by this check.
+
+Prisma commands for this migration: not recorded. The work commit message,
+the row and `docs/prompts/N-1_AUDIT.md` list none (the file itself implies a
+`migrate diff`); this check ran none.

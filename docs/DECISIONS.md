@@ -5,7 +5,15 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-01 — N-1: ingredient nutrition & allergens, forks N1-F1–F6 and R-1–R-4 (Gary) — DRAFT
+## 2026-11-01 — N-1: ingredient nutrition & allergens, forks N1-F1–F6 and R-1–R-4 (Gary)
+
+**RATIFIED BY GARY, 2026-11-01, at the N-1 PRE-PUSH-CHECK, as written.** The
+whole entry, unchanged, was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify as
+written."* It covers everything in this entry as written: the quoted forks
+F1–F6 and R-1–R-4. The "Claude, implementation choices" list stays Claude's and
+is not made a ruling by this. Nothing in the entry was reworded. The heading
+read "— DRAFT" until this check; the DRAFT paragraph below is spent, kept.
 
 **DRAFT — ruled by Gary in chat 2026-11-01 at the N-1 Phase 1 STOP; to be
 ratified at PRE-PUSH-CHECK.** The forks and RULING NOW items are set out in

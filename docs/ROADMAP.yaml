@@ -17384,13 +17384,29 @@ phases:
     # → in_progress 2026-11-01 at the work commit 70baf2f (NOT pushed). The
     # docs SHA is the commit immediately after 70baf2f (its own SHA cannot be
     # written inside itself).
-    status: in_progress
+    # N-1 PRE-PUSH-CHECK 2026-11-01: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after 2c2c0fa (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-01 N-1 ratified by Gary at this
+    # check: "Ratify as written." DEPLOY_LOG UNPROMOTED entry written.
+    # MIGRATIONS.md entry for 20261101210000_n1_ingredient_nutrition added by
+    # this check (drift found at Step 2: the docs commit had none; Gary:
+    # "Add the MIGRATIONS.md entry in this check's single docs commit").
+    # The "(NOT pushed)" and "is the commit immediately after 70baf2f" lines
+    # above are spent, kept: the docs SHA is 2c2c0fa.
+    status: staging
     title: "Nutrition — schema & menu item manager"
     commits:
       - "70baf2f"
       # feat(N-1): schema + migration, engine, routes, pages, fixture, 2026-11-01
       # + the commit immediately after 70baf2f: docs(N-1) — prompt, audit,
       # DECISIONS draft, this row
+      - "2c2c0fa"
+      # docs(N-1): the docs commit named on the line above; recorded by the
+      # N-1 PRE-PUSH-CHECK
+      # + the commit immediately after 2c2c0fa: docs(N-1 PRE-PUSH-CHECK) —
+      # DECISIONS ratified, this row to staging, MIGRATIONS entry, DEPLOY_LOG
+      # entry
     notes: >
       BUILT 2026-11-01, TIER 3 (prepended; nothing below is edited). Prompt of
       record: docs/prompts/N-1.md; audit: docs/prompts/N-1_AUDIT.md. Gary's
