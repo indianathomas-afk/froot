@@ -17133,6 +17133,63 @@ phases:
       Unblocked since I-6. scripts/import-keva-templates.ts migrates checklist
       templates only — not inventory, recipe, or vendor data.
 
+  - id: BEV-0
+    track: migration
+    size: M
+    status: planned
+    title: "BevSpot ingredient import (Keva's product catalog into org-level Ingredients)"
+    notes: >
+      FILED 2026-10-31 by the BEV-1 docs commit, on Gary's direction at the
+      BEV-1 Phase 1 STOP. NOT SCOPED YET — no prompt exists. What is known:
+      BEV-1 (recipe import) matches every recipe line to a Froot Ingredient by
+      exact name (fork F5, still open), and Gary reported in chat on
+      2026-10-31 that production holds no real Keva ingredients — "8 fixture
+      rows, 0 recipes". Dev (br-broad-wave-a6vpjdw0, org
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd) measured the same shape: 8
+      ingredients, all the razz fixture, 0 recipes. So no BEV-1 recipe can
+      import until the ingredients exist. The BEV-1 audit found 151 product
+      names referenced by recipe lines that must exist as Ingredients
+      (docs/prompts/BEV-1_AUDIT.md § B3). The likely source is BevSpot's
+      inventory export (Keva_Las_Brisas_#14_inventory_2026_10_26.xls, true
+      BIFF .xls). The existing ingredient import (IV-3,
+      ingredients/import) takes Froot-shaped CSV rows, not a BevSpot file
+      (audit § A3). The parser question (audit F8, and T1 on the existing
+      xlsx@0.18.5 dependency) applies here too, and .xls is harder than .xlsx.
+
+  - id: BEV-1
+    track: migration
+    size: L
+    status: planned
+    title: "BevSpot recipe import (Nutrition series, session 1)"
+    blockers:
+      - >
+        WAITING ON BEV-0 INGREDIENT IMPORT — 2026-10-31. Set by Gary at the
+        Phase 1 STOP: production has no real Keva ingredients ("8 fixture
+        rows, 0 recipes"), so every recipe would skip as MISSING_INGREDIENT.
+        Recorded as `planned` + this blocker because the ROADMAP status
+        vocabulary has no `blocked` value; this is the same convention N-2
+        and N-3 use. CLEARS WHEN: BEV-0 has imported Keva's ingredients on the
+        branch BEV-1 will run against.
+    notes: >
+      PAUSED AFTER PHASE 1 (audit) on 2026-10-31. Prompt of record:
+      docs/prompts/BEV-1.md. Audit: docs/prompts/BEV-1_AUDIT.md. NO CODE
+      WRITTEN, no schema change, no prisma command run. FORKS F1–F13 ARE
+      ALL OPEN — Gary recorded no rulings; the leans in the prompt and the
+      audit are chat's and Claude's recommendations, not decisions. Nothing
+      goes into docs/DECISIONS.md until he rules. The audit's four new forks:
+      F10 (the export DEFINES the Cup Kits and juice portions in "Recipe Kits"
+      / "Juice Fresh", and uses sales items as sub-recipes via 227 one-line
+      wrappers), F11 (17 names are both a product and a sales item), F12 (38
+      rows use whole packages, e.g. Honey 1 package (5lbs)), F13 (`g` is not
+      in src/lib/units.ts; 65 lines). Open SQL for staging and production is
+      in audit § C (queries 1–4); NOT RUN as of this row. One correction made
+      to the prompt before its first commit, by Gary's direction in chat: the
+      two export paths now point at ~/Downloads (the files were never in
+      bevspot-exports/). The prompt's Phase 0 `ls` line still names the old
+      folder and was left as written. The rest of the series (BEV-2, N-1
+      rescope, N-2, N-3, N-4, and the MenuItem* stub DEBT row) is NOT filed
+      here — that was Phase 3 of the prompt, which has not run.
+
   - id: N-1
     track: nutrition
     size: M
