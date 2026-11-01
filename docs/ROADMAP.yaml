@@ -17449,6 +17449,49 @@ phases:
 
       MenuItem/MenuItemNutrition/MenuItemAllergen models and module flag scaffolded; no UI or routes.
 
+  - id: N-1a
+    track: nutrition
+    size: S
+    # → in_progress 2026-11-01 at the work commit b0bc473 (NOT pushed). The
+    # docs SHA is the commit immediately after b0bc473 (its own SHA cannot be
+    # written inside itself).
+    status: in_progress
+    title: "Nutrition — Download template (round-trip CSV)"
+    commits:
+      - "b0bc473"
+      # feat(N-1a): template route, import planner A + B, button, fixture,
+      # NU-4, 2026-11-01
+      # + the commit immediately after b0bc473: docs(N-1a) — prompt, step 6
+      # findings, DECISIONS draft, this row
+    notes: >
+      BUILT 2026-11-01, TIER 2. Prompt of record: docs/prompts/N-1a.md. Ships
+      with N-1 in the same promotion. The session stopped at the prompt's step
+      6 (RULING NOW, docs/prompts/N-1a_FINDINGS.md): as N-1 built the import,
+      an unedited template row for an ingredient with no nutrition planned as
+      NEW and created an empty record, which flips it from "No nutrition" to
+      "Some values missing" on /nutrition/menu. Identical rows planned as
+      UPDATE. Gary ruled A + B (docs/DECISIONS.md 2026-11-01 N-1a, DRAFT until
+      PRE-PUSH-CHECK): "An unedited template must import as zero changes, and
+      the fixture must prove it." WHAT SHIPPED: GET /api/nutrition/template
+      (ADMIN, nutrition.manage; NU-4) returns every active, non-archived,
+      non-PREPARED ingredient as an import file. The columns are the import's
+      own, in order, plus the helper columns category, reporting_unit and
+      has_nutrition. Values are pre-filled from what is stored; blank stays
+      blank; not-food rows have the basis and nutrients blank. A "Download
+      template" button sits on /nutrition/import. The import planner now
+      writes each part (nutrition, allergens, flag) only where it differs,
+      with new statuses UNCHANGED (not written) and DETAILS_ONLY (allergens or
+      flag only). No empty nutrition record is ever created, and a not-food
+      row never touches the nutrition record. No schema change. Fixture
+      scripts/verify-n1a-template.ts: pure, 25 checks, ALL PASS; the unedited
+      template plans 6/6 UNCHANGED, each row resolved to its own ingredient
+      id, zero writes. verify-n1-nutrition.ts is still 39/39. NOT VERIFIED ON
+      STAGING: the download, the ADMIN gate, and a real Keva template
+      imported back as zero changes are Gary's staging pass. A row whose
+      name+brand also matches an inactive or archived ingredient comes back
+      AMBIGUOUS, because the matcher sees every non-deleted ingredient (N-1
+      behaviour, unchanged).
+
   - id: N-2
     track: nutrition
     size: M

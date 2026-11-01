@@ -5,6 +5,49 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-01 — N-1a: the nutrition template round-trips as zero changes (Gary — DRAFT)
+
+**DRAFT — ruled by Gary in chat 2026-11-01 at the N-1a step 6 STOP; to be
+ratified at PRE-PUSH-CHECK.** The finding he ruled on is
+`docs/prompts/N-1a_FINDINGS.md`: as built in N-1, an unedited template row
+for an ingredient with no nutrition planned as NEW and created an empty
+record, which flips the ingredient from "No nutrition" to "Some values missing"
+on `/nutrition/menu`. Rows identical to the stored values planned as UPDATE.
+His words, recorded exactly:
+
+> "Approve A and B as recommended:
+> A: A row with every nutrient blank, for an ingredient with no nutrition
+> record, does nothing. No empty record is ever created.
+> B: A row identical to the stored nutrition, allergens and not-food flag shows
+> as unchanged and is not written.
+> Not-food rows: the template exports them with the basis and nutrients blank.
+> Importing a not-food row only sets the flag; it never deletes an existing
+> nutrition record.
+> Helper columns (category, reporting unit, has nutrition): include them.
+> An unedited template must import as zero changes, and the fixture must prove
+> it."
+
+**Claude, implementation choices (work commit `b0bc473`), not rulings:**
+
+- A row writes only the parts that differ from what is stored: nutrition,
+  allergens, or the not-food flag, each on its own. A row whose only change is
+  allergens or the flag gets a new status, "Allergens or not-food flag only".
+  It is not shown as replacing nutrition, so the confirm dialog's "existing
+  nutrition will be replaced" count stays true.
+- Under A, a row with no nutrient values for an ingredient with no record skips
+  the basis check too, since nothing about the basis is written. Before this,
+  a blank basis on such a row was INVALID.
+- "Only sets the flag" is read as "never touches the nutrition record". A
+  not-food row still writes allergens when the allergens column is present and
+  differs (N-1 behaviour, kept), so an allergen an admin recorded on a not-food
+  item is still importable. Raise it at ratification if the words were meant
+  literally.
+- The template is the import's columns in the import's order, then the three
+  helper columns at the end. Allergens are written as their lower-case labels
+  joined by "; ". Numbers are written with JavaScript's `String()`, which
+  round-trips a stored double exactly. The file starts with a UTF-8 BOM so
+  Excel reads apostrophes in names; the parser already strips it.
+
 ## 2026-11-01 — N-1: ingredient nutrition & allergens, forks N1-F1–F6 and R-1–R-4 (Gary)
 
 **RATIFIED BY GARY, 2026-11-01, at the N-1 PRE-PUSH-CHECK, as written.** The
