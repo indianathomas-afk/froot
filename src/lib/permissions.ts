@@ -124,6 +124,8 @@ export type Capability =
   | "inventory.po.manage"
   | "inventory.adjustments.record"
   | "inventory.analytics.view"
+  | "nutrition.view"
+  | "nutrition.manage"
   | "labor.view"
   | "labor.access"
   | "labor.actuals.view"
@@ -363,6 +365,14 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // reviewers are the ADMIN/MANAGER who finalize. Was served to any member —
   // §2 gap #8, closed by PERM-2.
   "inventory.analytics.view": MANAGE,
+  // N-1 (Gary, 2026-11-01, N1-F3): "Only ADMIN edits nutrition, allergens, the
+  // not-food flag, and runs the import. ADMIN, MANAGER and STORE can view;
+  // STAFF cannot." Both sit behind the inventory AND nutrition modules (R-4) —
+  // see src/lib/nutrition-access.ts. Neither is in ENFORCED_CAPABILITIES nor
+  // GRANTABLE_CAPABILITIES: per-user denial or elevation would be its own
+  // ruling, and N-1 does not make one.
+  "nutrition.view": OPERATIONAL,
+  "nutrition.manage": ADMIN_ONLY,
   // PERM-2 §3 #8 (Gary, 2026-07-26): was MANAGE (nav tier) while
   // requireLaborView and the /labor page have always served any member
   // read-only — the read-only viewer design simply never got an entry point.

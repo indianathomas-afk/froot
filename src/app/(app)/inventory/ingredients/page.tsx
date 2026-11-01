@@ -5,6 +5,7 @@ import { Carrot } from "lucide-react"
 import Link from "next/link"
 import { getUserStoreScope } from "@/lib/auth"
 import { serializeIngredient } from "@/lib/ingredient-dto"
+import { nutritionActive } from "@/lib/nutrition-access"
 import { IngredientsClient } from "./ingredients-client"
 
 export default async function IngredientsPage() {
@@ -85,6 +86,11 @@ export default async function IngredientsPage() {
       stores={stores}
       canManage={canManage}
       isAdmin={isAdmin}
+      // N-1. UI only: /api/nutrition/* re-checks both modules and ADMIN
+      // through getCurrentUser(), independently of this page's lookup above.
+      nutritionEnabled={nutritionActive(org)}
+      canManageNutrition={nutritionActive(org) && isAdmin}
+      nutritionExemptIds={nutritionActive(org) ? ingredients.filter((i) => i.nutritionExempt).map((i) => i.id) : []}
     />
   )
 }

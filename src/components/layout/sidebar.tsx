@@ -26,6 +26,8 @@ import {
   Clock,
   CalendarRange,
   CalendarDays,
+  Apple,
+  Upload,
 } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import { cn } from "@/lib/utils"
@@ -78,7 +80,9 @@ type NavGroup = {
   // INVENTORY keeps "froot-inventory-nav-open" verbatim — renaming it would
   // silently reset the stored preference of every user who has one.
   storageKey: string
-  requiresModule?: string
+  // Every listed module must be active. N-1 (R-4): Nutrition needs inventory
+  // as well as nutrition, since its recipes and ingredients live there.
+  requiresModule?: string | readonly string[]
   items: NavItem[]
 }
 
@@ -229,6 +233,20 @@ const navStructure: NavEntry[] = [
     requiresModule: "inventory",
     items: inventoryNavItems,
   },
+  // N-1 (F6): "A Nutrition nav section after Inventory, gated on the nutrition
+  // module." The page guards and /api/nutrition/* re-check both modules and
+  // the capability — this list is not the enforcement.
+  {
+    key: "nutrition",
+    label: "Nutrition",
+    icon: Apple,
+    storageKey: "froot-nutrition-nav-open",
+    requiresModule: ["inventory", "nutrition"],
+    items: [
+      { href: "/nutrition/menu", label: "Menu Nutrition", icon: Apple, capability: "nutrition.view" },
+      { href: "/nutrition/import", label: "Import Nutrition", icon: Upload, capability: "nutrition.manage" },
+    ],
+  },
 ]
 
 const navGroups = navStructure.filter(isGroup)
@@ -324,7 +342,8 @@ export function Sidebar({
   const visibleStructure = navStructure
     .map((entry): NavEntry | null => {
       if (!isGroup(entry)) return isVisible(entry) ? relabel(entry) : null
-      if (entry.requiresModule && !activeModules.includes(entry.requiresModule)) return null
+      const required = typeof entry.requiresModule === "string" ? [entry.requiresModule] : entry.requiresModule ?? []
+      if (!required.every((m) => activeModules.includes(m))) return null
       const items = entry.items.filter(isVisible)
       // A group header hides itself when every child is filtered out — no
       // empty accordions, and no header that expands into nothing.

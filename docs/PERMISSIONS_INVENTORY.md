@@ -134,6 +134,7 @@ referenced by the capability registry in §5.
 | NV-15 | Inventory section (11 items) | Ingredients/Sales Items/Counts/Adjustments/Purchase Orders: ADMIN, MANAGER, STORE · Recipes/Storage Areas/Vendors/Expected Stock/Alerts/Reports: ADMIN, MANAGER | `activeModules` includes inventory |
 | NV-16 | Settings link | ADMIN (`canSeeSettings`) | — |
 | NV-17 | Alerts badge fetch | ADMIN, MANAGER (`showAlertBadge`) | inventory active |
+| NV-18 | Nutrition section: Menu Nutrition (/nutrition/menu) · Import Nutrition (/nutrition/import) (N-1, 2026-11-01) | Menu Nutrition: ADMIN, MANAGER, STORE (`nutrition.view`) · Import: ADMIN (`nutrition.manage`) | `activeModules` includes inventory AND nutrition (R-4) |
 
 ### 1c. Pages & layouts (server route guards)
 
@@ -175,6 +176,8 @@ referenced by the capability registry in §5.
 | PG-33 | `(my)/my/*` pages (home, documents, records, training, messages, instagram) | Staff portal | Linked ACTIVE staff member only (`getActiveStaffSelf`); everything self-scoped | route-guard + data-scope |
 | PG-34 | `src/app/print/template/[id]`, `print/checklist/[id]` | Print views | Any member (org-scoped only) | data-scope (org only) |
 | PG-35 | `src/app/page.tsx`, `(auth)/*` | Landing/sign-in/up | Public | — |
+| PG-36 | `(app)/nutrition/menu/page.tsx` (+ `nutrition/page.tsx` → redirect) | Menu Nutrition (N-1) | `nutrition.view`: ADMIN, MANAGER, STORE; upgrade card when inventory or nutrition is off | route-guard |
+| PG-37 | `(app)/nutrition/import/page.tsx` | Nutrition CSV import (N-1) | `nutrition.manage`: ADMIN; others redirect to /nutrition/menu | route-guard |
 
 ### 1d. Platform APIs
 
@@ -338,6 +341,25 @@ display restriction, not a confidentiality one".
 | `settings/*-actions.tsx` | Admin-only settings cards (page itself ADMIN) |
 | `sidebar.tsx` | The whole §1b table |
 
+### 1l. Nutrition APIs (N-1, 2026-11-01 — all behind `requireNutrition()`: inventory AND nutrition modules → 403 `MODULE_NOT_ACTIVE`, then the capability → 403)
+
+`src/lib/nutrition-access.ts`. Rulings: `docs/DECISIONS.md` 2026-11-01 N-1
+(F3 who edits, R-4 both modules). Neither capability is in
+`ENFORCED_CAPABILITIES` or `GRANTABLE_CAPABILITIES`, so the role grant is the
+whole answer today.
+
+| ID | Route(s) | What it guards | Roles allowed today | Enforcement type |
+|---|---|---|---|---|
+| NU-1 | `nutrition/ingredients/[id]` GET, `nutrition/recipes/[id]` GET | One ingredient's nutrition/allergens/flag; one recipe's computed breakdown | ADMIN, MANAGER, STORE (`nutrition.view`); org-scoped | handler + data-scope (org) |
+| NU-2 | `nutrition/ingredients/[id]` PUT, `nutrition/ingredients/bulk-exempt` POST | Edit nutrition, allergens and the not-food flag | ADMIN (`nutrition.manage`); org-scoped (other orgs' ids never match) | handler + data-scope (org) |
+| NU-3 | `nutrition/import/preview` + `nutrition/import/apply` POST | Nutrition CSV import (never creates ingredients; apply re-plans server-side and writes an `AuditLog` row in its transaction) | ADMIN (`nutrition.manage`) | handler |
+
+The ingredient dialog's nutrition section (`inventory/ingredients/nutrition-section.tsx`)
+is editable only when the page passes `canManageNutrition` (ADMIN + both
+modules) and read-only otherwise; that is a UI affordance — NU-2 is the
+enforcement. The inventory ingredient PATCH and `bulk` (IV-2, ADMIN/MANAGER)
+do NOT write nutrition fields.
+
 ---
 
 ## 2. Security-gap list — reachable with no (or insufficient) server-side enforcement
@@ -480,6 +502,8 @@ Deny-by-default: unknown capability → `false`.
 | `inventory.adjustments.record` | all roles (scoped) | IV-9 |
 | `inventory.analytics.view` | ADMIN, MANAGER (reports, expected, alerts, finalized-count summary) | NV-15/17, PG-22, IV-10, IV-5 summary |
 | `inventory.costs.view` | ADMIN, MANAGER (vendor prices + adjustments, recipe costs, order guide) | IV-1 pricing rows, IV-10 order-guide |
+| `nutrition.view` | ADMIN, MANAGER, STORE (N-1 F3; STAFF excluded) | NV-18, PG-36, NU-1 |
+| `nutrition.manage` | ADMIN (N-1 F3: edits nutrition, allergens, the not-food flag; runs the import) | NV-18, PG-37, NU-2, NU-3 |
 | `labor.view` | all roles (read-only viewer; nav now matches the guard) | NV-13, PG-17, LB-1 |
 | `labor.manage` | ADMIN, MANAGER (scoped) | NV-14, PG-16, LB-2/3 |
 | `labor.toggle` | ADMIN | LB-4 |
