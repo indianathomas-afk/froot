@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, ArchiveRestore } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { packLabel } from "../ingredients-client"
 
 type DeletedIngredient = {
   id: string
@@ -66,7 +67,7 @@ export function DeletedIngredientsClient({ ingredients }: { ingredients: Deleted
                     </td>
                     <td className="px-4 py-3 text-sm text-[var(--color-muted-foreground)]">{ing.categoryName ?? "—"}</td>
                     <td className="px-4 py-3 text-sm text-[var(--color-muted-foreground)]">
-                      {ing.purchaseUnitLabel}{ing.packDescription ? ` (${ing.packDescription})` : ""}
+                      {packLabel(ing.purchaseUnitLabel, ing.packDescription)}
                     </td>
                     <td className="px-4 py-3 text-sm text-[var(--color-muted-foreground)]">
                       {new Date(ing.deletedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}

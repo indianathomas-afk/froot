@@ -113,7 +113,7 @@ function formatDate(iso: string) {
 
 // Imported pack descriptions often already lead with the purchase unit
 // ("package (200 ea)"), so prefixing the unit again would read twice.
-function packLabel(purchaseUnitLabel: string, packDescription: string | null) {
+export function packLabel(purchaseUnitLabel: string, packDescription: string | null) {
   if (!packDescription) return purchaseUnitLabel
   const unit = purchaseUnitLabel.trim().toLowerCase()
   if (unit && packDescription.trim().toLowerCase().startsWith(unit)) return packDescription
