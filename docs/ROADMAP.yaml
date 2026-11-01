@@ -17455,7 +17455,14 @@ phases:
     # → in_progress 2026-11-01 at the work commit b0bc473 (NOT pushed). The
     # docs SHA is the commit immediately after b0bc473 (its own SHA cannot be
     # written inside itself).
-    status: in_progress
+    # N-1a PRE-PUSH-CHECK 2026-11-01: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after bc3d621 (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-01 N-1a ratified by Gary at this
+    # check: "Ratify as written." DEPLOY_LOG UNPROMOTED entry written. No
+    # migration. The "(NOT pushed)" and "is the commit immediately after
+    # b0bc473" lines above are spent, kept: the docs SHA is bc3d621.
+    status: staging
     title: "Nutrition — Download template (round-trip CSV)"
     commits:
       - "b0bc473"
@@ -17463,6 +17470,11 @@ phases:
       # NU-4, 2026-11-01
       # + the commit immediately after b0bc473: docs(N-1a) — prompt, step 6
       # findings, DECISIONS draft, this row
+      - "bc3d621"
+      # docs(N-1a): the docs commit named on the line above; recorded by the
+      # N-1a PRE-PUSH-CHECK
+      # + the commit immediately after bc3d621: docs(N-1a PRE-PUSH-CHECK) —
+      # DECISIONS ratified, this row to staging, DEPLOY_LOG entry
     notes: >
       BUILT 2026-11-01, TIER 2. Prompt of record: docs/prompts/N-1a.md. Ships
       with N-1 in the same promotion. The session stopped at the prompt's step

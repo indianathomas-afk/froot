@@ -2,6 +2,57 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-01 — N-1a: nutrition "Download template" that imports back as zero changes
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+Ships with N-1 (entry below) in the same promotion.
+
+**Payload: two N-1a commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `b0bc473`, `bc3d621`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `b0bc473` | N-1a work: `GET /api/nutrition/template`; import planner changes in `src/lib/nutrition-import.ts` (+ `src/lib/nutrition.ts`, `/api/nutrition/import/apply`); "Download template" button on `/nutrition/import`; fixture `scripts/verify-n1a-template.ts`; `verify-n1-nutrition.ts` refs updated; `docs/PERMISSIONS_INVENTORY.md` NU-4 |
+| `bc3d621` | `docs(N-1a)`: prompt of record `docs/prompts/N-1a.md`, findings `docs/prompts/N-1a_FINDINGS.md`, DECISIONS draft, row `in_progress` |
+| the commit immediately after `bc3d621` | `docs(N-1a PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`; DECISIONS ratified by Gary at this check ("Ratify as written.") |
+
+**Blast radius: ONE NEW READ-ONLY ADMIN ROUTE AND A CHANGE TO WHAT THE
+NUTRITION IMPORT WRITES — ALL DARK BEHIND `activeModules` "nutrition", LIKE
+N-1. NO MIGRATION, NO ENV VAR, NO CRON, NO SQUARE CALL.**
+
+- **New route `GET /api/nutrition/template`** (ADMIN, `nutrition.manage`,
+  both modules; NU-4). Read only. Returns every active, non-archived,
+  non-PREPARED ingredient as a CSV in the import's own columns, plus helper
+  columns `category`, `reporting_unit`, `has_nutrition`, pre-filled from what
+  is stored.
+- **Import planner change (`/import/apply`), per Gary's ruling A + B:** a row
+  with every nutrient blank, for an ingredient with no record, writes nothing
+  (no empty record is ever created); a row identical to what is stored is
+  UNCHANGED and not written; otherwise each part (nutrition, allergens,
+  not-food flag) is written only where it differs, and an allergens-or-flag
+  only row is DETAILS_ONLY. A not-food row never touches the nutrition record.
+  Before this, an unedited row could create an empty record or re-write an
+  identical one.
+- **What does not change:** no schema; no stored value is rewritten by the
+  deploy itself; nothing writes to Square.
+
+**Rollback:** revert `b0bc473`. No migration, so nothing to keep. Records the
+new planner chose not to write are simply absent; rows it did write are
+ordinary `IngredientNutrition` / `Ingredient` values the N-1 code reads as
+before. If "nutrition" is on anywhere, switching it off hides the surface
+without a deploy. The docs commits can stay or go with it.
+
+**Evidence so far: fixture and build only.** `scripts/verify-n1a-template.ts`
+25/25 PASS and `verify-n1-nutrition.ts` 39/39 PASS per the build session (both
+pure, no database). **Nothing has been observed on staging or production.**
+After the push: the staging-SHA precondition (deployed SHA = local `HEAD`);
+then Gary's staging pass — the download, the ADMIN gate, and a real Keva
+template imported back as zero changes. Nothing is promoted until Gary
+confirms it on staging.
+
 ## UNPROMOTED — 2026-11-01 — N-1: ingredient nutrition & allergens, computed through recipes
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at

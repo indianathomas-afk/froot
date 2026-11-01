@@ -5,7 +5,18 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-01 — N-1a: the nutrition template round-trips as zero changes (Gary — DRAFT)
+## 2026-11-01 — N-1a: the nutrition template round-trips as zero changes (Gary)
+
+**RATIFIED BY GARY, 2026-11-01, at the N-1a PRE-PUSH-CHECK, as written.** The
+whole entry, unchanged, was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify as
+written."* It covers his quoted ruling as written: A, B, not-food rows, helper
+columns, and zero changes proven by the fixture. The "Claude, implementation
+choices" list stays Claude's and is not made a ruling by this. That includes
+the third bullet, where a not-food row still writes allergens; the check
+raised it explicitly and Gary ratified without changing it. Nothing in the
+entry was reworded. The heading read "— DRAFT" until this check; the DRAFT
+paragraph below is spent, kept.
 
 **DRAFT — ruled by Gary in chat 2026-11-01 at the N-1a step 6 STOP; to be
 ratified at PRE-PUSH-CHECK.** The finding he ruled on is
