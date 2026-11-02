@@ -2147,7 +2147,7 @@ returned `-- This is an empty migration.`, and a read-only SELECT on
 |---|---|---|
 | dev `br-broad-wave-a6vpjdw0` | **2026-11-02 21:55:42 UTC** (13:55:42 PST) | Gary |
 | staging `br-square-feather-a63z92vz` | applied on Gary's push (staging label checks passed before promotion, per the N-3 prompt) — finished_at not read | Vercel build |
-| production `br-sparkling-block-a620qvg4` | rides promotion `8c94126` (2026-11-02 22:43:33 UTC merge); applied there by the Vercel build, NOT yet observed — **finished_at OWED**: Gary reads it in the Neon console at the next PRE-PUSH-CHECK (stamped by N-3) | Vercel build |
+| production `br-sparkling-block-a620qvg4` | **2026-11-02 22:44:23.510952 UTC** (14:44:23 PST) — 50 s after the promotion `8c94126` merge (22:43:33 UTC). Read by Gary in the Neon console, branch id from the server, at the N-3 PRE-PUSH-CHECK. (Was: "rides promotion `8c94126` … NOT yet observed — **finished_at OWED**: Gary reads it in the Neon console at the next PRE-PUSH-CHECK (stamped by N-3)" — spent.) | Vercel build |
 
 **GENERATED AGAINST THE LIVE DEV DATABASE, after a clean baseline.** Before
 `prisma/schema.prisma` was edited, the diff with no `-o` returned `-- This is

@@ -17951,7 +17951,17 @@ phases:
     # → in_progress 2026-11-02 at the work commit 68571da (NOT pushed). The
     # docs SHA is the commit immediately after 68571da (its own SHA cannot be
     # written inside itself).
-    status: in_progress
+    # N-3 PRE-PUSH-CHECK 2026-11-02: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after e73a60c (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-02 N-3 ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written. N-2's
+    # production finished_at recorded (MIGRATIONS, 8c94126 entry). Migration
+    # 20261103000000_n3_public_menu (additive, no backfill) and the app-wide
+    # framing headers ride this push. The "(NOT pushed)" and "is the commit
+    # immediately after 68571da" lines above are spent, kept: the docs SHA is
+    # e73a60c.
+    status: staging
     commits:
       - "68571da"
       # feat(N-3): public nutrition menu — /menu/[slug] link + embed, Verified
@@ -17960,6 +17970,12 @@ phases:
       # verify-n3-public.ts, 2026-11-02
       # + the commit immediately after 68571da: docs(N-3) — prompt, audit,
       # DECISIONS draft, MIGRATIONS entry, this row, the 8c94126 stamp
+      - "e73a60c"
+      # docs(N-3): the docs commit named on the line above; recorded by the
+      # N-3 PRE-PUSH-CHECK
+      # + the commit immediately after e73a60c: docs(N-3 PRE-PUSH-CHECK) —
+      # DECISIONS ratified, N-2 production finished_at, this row to staging,
+      # DEPLOY_LOG entry
     title: "Nutrition — public menu page (/menu/[orgSlug], SSR, iframe-embeddable)"
     notes: >
       BUILT 2026-11-02 (work 68571da, NOT pushed), on Gary's ruling "Accept all
