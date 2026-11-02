@@ -357,6 +357,13 @@ whole answer today.
 | NU-5 | `nutrition/ingredients/[id]/label` GET (N-1b, 2026-11-01) | View an ingredient's label document: resolves the record inside the caller's org, then 307 to a 5-minute signed URL on the PRIVATE `froot-nutrition` store. Unknown, cross-org and "no document" all 404 | ADMIN, MANAGER, STORE (`nutrition.view`); org-scoped | handler + data-scope (org) + private store (bare blob URL not fetchable) |
 | NU-6 | `nutrition/ingredients/[id]/label/upload-url` POST, `nutrition/ingredients/[id]/label` POST + DELETE (N-1b) | Upload / replace / remove the label document. upload-url presigns a PUT with the type allow-list and 10 MB cap in the signature, under `nutrition/{org}/ingredients/{id}/`; register pins that folder, re-reads the stored bytes (type, size, sha256, first-bytes check) and writes an `AuditLog` row; refused with no nutrition record (F6) | ADMIN (`nutrition.manage`); org-scoped | handler + data-scope (org) + namespace pin |
 | NU-7 | `nutrition/ingredients/[id]/verify` POST (N-1b) | Mark VERIFIED (requires a label document or a source link — F2) or back to ESTIMATED; the only writer of VERIFIED. `AuditLog` row in the transaction | ADMIN (`nutrition.manage`); org-scoped | handler + data-scope (org) |
+| NU-8 | `nutrition/ingredients/[id]/label/read` POST (N-1c, 2026-11-02) | "Read label": sends the ingredient's stored label document to the Anthropic API (base64 from the PRIVATE store, never a URL) and returns the transcribed panel for the dialog's review. Writes NO nutrition. Refused with no record (F6), no document, or a HEIC file (415). 503 when `ANTHROPIC_API_KEY` is unset. Per-org limit 30/hour and 300/day counted from `AuditLog` (429); a successful read of the same file hash within 24 h is reused, not re-sent (`{ fresh: true }` forces a new call). One `AuditLog` row per outcome (`nutrition.label.read` / `.read.failed` / `.read.reused`) — file name, hash, model, success/failure, and the transcribed values on success; never the file | ADMIN (`nutrition.manage`); org-scoped | handler + data-scope (org) + rate limit |
+
+N-1c also widened NU-2's PUT: an optional `appliedFromRead` (the read's audit
+id, apply intent, edited fields) must name a read of the same ingredient in the
+same org, and writes a `nutrition.label.applied` row in the save's transaction.
+Apply is that PUT — there is no second write path — and "Apply & mark
+verified" is that PUT followed by NU-7.
 
 N-1b also widened NU-2's PUT (source link; 409 `CONFIRM_STILL_VERIFIED` /
 `CONFIRM_CLEAR_PROOF` answered by the dialog) and NU-3's apply (writes
@@ -512,7 +519,7 @@ Deny-by-default: unknown capability → `false`.
 | `inventory.analytics.view` | ADMIN, MANAGER (reports, expected, alerts, finalized-count summary) | NV-15/17, PG-22, IV-10, IV-5 summary |
 | `inventory.costs.view` | ADMIN, MANAGER (vendor prices + adjustments, recipe costs, order guide) | IV-1 pricing rows, IV-10 order-guide |
 | `nutrition.view` | ADMIN, MANAGER, STORE (N-1 F3; STAFF excluded) | NV-18, PG-36, NU-1 |
-| `nutrition.manage` | ADMIN (N-1 F3: edits nutrition, allergens, the not-food flag; runs the import) | NV-18, PG-37, NU-2, NU-3, NU-4 |
+| `nutrition.manage` | ADMIN (N-1 F3: edits nutrition, allergens, the not-food flag; runs the import) | NV-18, PG-37, NU-2, NU-3, NU-4, NU-6, NU-7, NU-8 |
 | `labor.view` | all roles (read-only viewer; nav now matches the guard) | NV-13, PG-17, LB-1 |
 | `labor.manage` | ADMIN, MANAGER (scoped) | NV-14, PG-16, LB-2/3 |
 | `labor.toggle` | ADMIN | LB-4 |

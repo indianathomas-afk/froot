@@ -39,6 +39,17 @@ const PutSchema = z.object({
   // N-1b answers to the dialog's questions; absent = not asked yet.
   keepVerified: z.boolean().optional(),
   confirmClearProof: z.boolean().optional(),
+  // N-1c: this save is the Apply of a label read. Changes nothing about the
+  // save; adds the one audit row per apply (deliverable 5). `edited` = the
+  // fields the ADMIN changed away from what the label read proposed.
+  appliedFromRead: z
+    .object({
+      readId: z.string().min(1),
+      intent: z.enum(["apply-and-verify", "apply-only"]),
+      edited: z.array(z.string().max(40)).max(40),
+      nameWarningAcknowledged: z.boolean(),
+    })
+    .optional(),
 })
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -77,6 +88,25 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   const allergens = sortAllergens(data.allergens as (typeof ALLERGENS)[number]["value"][])
   const existing = ing.nutrition
+
+  // N-1c: an Apply must name a read of THIS ingredient in THIS org, and only
+  // ever fills numbers — it never clears a record.
+  let appliedRead: { id: string; fileHash: unknown } | null = null
+  if (data.appliedFromRead) {
+    if (!data.nutrition) return NextResponse.json({ error: "Apply always saves nutrition" }, { status: 400 })
+    const read = await prisma.auditLog.findFirst({
+      where: {
+        id: data.appliedFromRead.readId,
+        organizationId: ctx.org.id,
+        entityType: "Ingredient",
+        entityId: ing.id,
+        action: { in: ["nutrition.label.read", "nutrition.label.read.reused"] },
+      },
+      select: { id: true, metadata: true },
+    })
+    if (!read) return NextResponse.json({ error: "That label read wasn't found for this ingredient" }, { status: 400 })
+    appliedRead = { id: read.id, fileHash: (read.metadata as { fileHash?: unknown } | null)?.fileHash ?? null }
+  }
 
   // F7: clearing the numbers on a record that holds proof asks first.
   if (!data.nutrition && existing && hasProof(existing) && data.confirmClearProof !== true) {
@@ -129,6 +159,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       await tx.ingredientNutrition.upsert({ where: { ingredientId: ing.id }, create: { ingredientId: ing.id, ...row }, update: row })
       if (reset) {
         await nutritionAudit(tx, ctx, "nutrition.status.reset", ing.id, { via: "dialog", reason: reset })
+      }
+      if (appliedRead && data.appliedFromRead) {
+        await nutritionAudit(tx, ctx, "nutrition.label.applied", ing.id, {
+          readId: appliedRead.id,
+          fileHash: appliedRead.fileHash as string | null,
+          intent: data.appliedFromRead.intent,
+          edited: data.appliedFromRead.edited,
+          nameWarningAcknowledged: data.appliedFromRead.nameWarningAcknowledged,
+        })
       }
     } else {
       await tx.ingredientNutrition.deleteMany({ where: { ingredientId: ing.id } })
