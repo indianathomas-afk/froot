@@ -2,7 +2,7 @@ import type { Allergen } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { convert } from "@/lib/units"
 import { loadCostGraph, loopErrorMessage, type GraphIngredient, type GraphRecipe, type Loop } from "@/lib/recipe-cost"
-import { NUTRIENT_KEYS, emptyNutrients, sortAllergens, type NutrientKey, type NutrientValues } from "@/lib/nutrition"
+import { NUTRIENT_KEYS, emptyNutrients, hasNutrition, sortAllergens, type NutrientKey, type NutrientValues } from "@/lib/nutrition"
 import { proofState, type ProofState } from "@/lib/nutrition-proof"
 
 // ─── Recipe nutrition engine (N-1) ───────────────────────────────────────────
@@ -49,6 +49,20 @@ export type NutritionGraph = {
   ingredients: Map<string, NutritionIngredient>
 }
 
+// N1D-F1: a proof-only record (no basis) is "no nutrition" — the line takes
+// the missing path in computeRecipeNutrition, never a partial or zero one.
+// Pure, so scripts/verify-n1d.ts pins the mapping the loader uses.
+export function nutritionRecordOf(
+  n: ({ basisAmount: number | null; basisUnit: string | null } & Record<NutrientKey, number | null>) | null
+): NutritionRecord | null {
+  if (!hasNutrition(n)) return null
+  return {
+    basisAmount: n.basisAmount,
+    basisUnit: n.basisUnit,
+    values: Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, n[k]])) as NutrientValues,
+  }
+}
+
 export async function loadNutritionGraph(organizationId: string, now = new Date()): Promise<NutritionGraph> {
   const [cost, extras] = await Promise.all([
     loadCostGraph(organizationId),
@@ -67,13 +81,7 @@ export async function loadNutritionGraph(organizationId: string, now = new Date(
       brand: e?.brand ?? null,
       nutritionExempt: e?.nutritionExempt ?? false,
       allergens: e?.allergens ?? [],
-      nutrition: n
-        ? {
-            basisAmount: n.basisAmount,
-            basisUnit: n.basisUnit,
-            values: Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, n[k]])) as NutrientValues,
-          }
-        : null,
+      nutrition: nutritionRecordOf(n),
       proof: proofState(n, now),
     })
   }

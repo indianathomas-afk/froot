@@ -5,6 +5,76 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-02 — N-1d: proof without numbers, Verified needs a document, printed bounds, Ingredients table (Gary)
+
+**RATIFIED BY GARY, 2026-11-02, at the N-1d PRE-PUSH-CHECK, as written:**
+"Ratify as written". The "DRAFT" paragraph below is spent, kept; the heading's
+"— DRAFT" suffix was removed at this check.
+
+**DRAFT — ruled by Gary in chat 2026-11-02 at the N-1d Phase 1 STOP; to be
+ratified at PRE-PUSH-CHECK.** The audit he ruled on is
+`docs/prompts/N-1d_AUDIT.md` (forks N1D-F1–F4 from the prompt; F1a–c, F2a–b,
+F3a, F4a and the template trap "E" raised by the audit). His words, recorded
+exactly:
+
+> "Rulings:
+> F1: Accept the unlock as in item 1.
+> F1a (changed): Clearing the numbers no longer deletes the record. It keeps
+> the label document and link as a proof-only record (counts as "No
+> nutrition"). Deleting the label file is only done with the Remove button.
+> F1b: Yes, a source link can be saved with no numbers.
+> F1c: Yes, add the database check that basis amount and unit are empty
+> together.
+> E: Accept the fix: the template exports the source link for proof-only
+> records, so filling the numbers later never erases the link.
+> F2: Verified requires an uploaded label document; the link is reference
+> only. Removing the last document resets to Estimated without asking.
+> Backfill any Verified record without a document to Estimated.
+> F2a: Yes, editing the link no longer asks "Still verified?" and no longer
+> resets on import.
+> F2b: Yes, no audit row for the backfill; record the counts in MIGRATIONS
+> and DEPLOY_LOG.
+> F3: Cholesterol "<5 mg" pre-fills as 2; "<1 g" pre-fills as 0.5 for total
+> carbohydrate, dietary fiber, total sugars, added sugars and protein, all
+> flagged.
+> F3a (strictly by the FDA source): a fat value printed as "<1 g" (total,
+> saturated or trans) is left blank and flagged as not a standard FDA fat
+> declaration, to be entered from the label. Change the current code that
+> fills fats with 0.5.
+> F4: Accept item 4.
+> F4a: A single-entry list of wide routes in app-shell.tsx, matched exactly,
+> max-w-screen-2xl, plus the sticky actions column."
+
+The message's closing instructions (record a DRAFT, proceed to Phase 2, stop
+after the migration file exists) are left out above. They are session
+instructions, not rulings.
+
+**Two rulings differ from the audit's lean.** F1a: the audit leaned "keep N-1b
+F7 as it is". F3a: the audit leaned "keep fats at 0.5 with fat-specific flag
+text". F4a adds "plus the sticky actions column" outright, where item 4 said
+"only if still needed".
+
+**What these supersede, named so a reader of the older entries finds the
+change:**
+- N-1b F2 ("Verified needs a label document or a source link") → N-1d F2.
+- N-1b F6 ("Proof controls stay disabled until nutrition exists"), and N-1c
+  F6 ("Read label requires saved nutrition first, for N-1c; revisit in
+  N-1d") → N-1d F1.
+- N-1b F7 (a confirmed clear removes the record, its proof and the file
+  together) → N-1d F1a.
+- N-1b F3, for the source link only ("A change means … the proof") → N-1d
+  F2a. The link is no longer proof, so editing it is not a change to the
+  proof.
+- N-1c F7 ("'<1 g' pre-fills as 0.5"), as it applied to fats → N-1d F3a.
+
+**Source for F3 / F3a:** 21 CFR 101.9(c)(2), (c)(3), (c)(6), (c)(6)(i)–(iii)
+and (c)(7), read 2026-11-02 at law.cornell.edu/cfr/text/21/101.9. eCFR
+redirected to a different host, so it was not read. Quoted ranges are in
+`docs/prompts/N-1d_AUDIT.md` § C.2. This also closes the N-1c note above that
+"0.5 to under 1 g" was "NOT checked against 21 CFR 101.9(c)". For carbohydrate,
+fiber, sugars, added sugars and protein the regulation supports it; for fats it
+does not.
+
 ## 2026-11-02 — N-1c: "Read label", forks N1C-F1–F7, API key and limits (Gary)
 
 **RATIFIED BY GARY, 2026-11-02, at the N-1c PRE-PUSH-CHECK, as written:**

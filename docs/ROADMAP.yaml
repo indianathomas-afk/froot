@@ -17633,7 +17633,12 @@ phases:
     # migration. Env var ANTHROPIC_API_KEY (Preview + Production) rides this
     # push. The "(NOT pushed)" and "is the commit immediately after b396623"
     # lines above are spent, kept: the docs SHA is fc4133f.
-    status: staging
+    # `staging` -> `shipped` 2026-11-02, stamped post-merge 2026-11-02 by the
+    # N-1d docs commit (on `staging`): merge 560f350 (DEPLOY_LOG entry
+    # `560f350 — 2026-11-02 — N-1c`). Any "NOT pushed" / "staging" comment
+    # above is spent, kept.
+    status: shipped
+    shipped: 2026-11-02
     commits:
       - "b396623"
       # feat(N-1c): read route, label-review/label-read libs, review UI,
@@ -17685,17 +17690,90 @@ phases:
       route's gates, rate limit and reuse, the dialog flow end to end. All of
       it is Gary's staging pass; the series rule holds — nothing promotes until
       Gary confirms it on staging.
+
+      PROMOTED 2026-11-02 in merge 560f350 (rider, N-1d docs commit). No
+      migration. Staging (Gary): Read label on the Almond Breeze Original PDF
+      matched the label exactly (8 fl. oz basis, 60 kcal … tree nuts; fiber
+      "<1 g" flagged as 0.5). Production: ANTHROPIC_API_KEY set; the first
+      production read (Thirster Coconut Milk, a US Foods label screenshot) was
+      applied and verified. The "NOT SET ANYWHERE YET" and "NOT VERIFIED"
+      lines above are spent, kept.
     deferred:
-      - "Reading a label before any nutrition is saved (N-1b F6 still applies; revisit in N-1d)"
-      - "Values printed as an upper limit other than \"<1 g\" (e.g. cholesterol \"<5 mg\") are left blank and flagged, not guessed — not covered by the N1C-F7 ruling"
+      - "Reading a label before any nutrition is saved (N-1b F6 still applies; revisit in N-1d) — RESOLVED 2026-11-02 by N-1d (N1D-F1), text above kept"
+      - "Values printed as an upper limit other than \"<1 g\" (e.g. cholesterol \"<5 mg\") are left blank and flagged, not guessed — not covered by the N1C-F7 ruling — RESOLVED 2026-11-02 by N-1d (N1D-F3: cholesterol \"<5 mg\" -> 2; other bounds stay blank and flagged), text above kept"
       - "Large photos are refused, not resized (no sharp, by ruling)"
 
   - id: N-1d
     track: nutrition
     size: M
-    status: planned
-    title: "Nutrition — read a label from a pasted link, and batch-read many labels with a review queue"
+    # → in_progress 2026-11-02 at the work commit 8e3d887 (NOT pushed). The
+    # docs SHA is the commit immediately after 8e3d887 (its own SHA cannot be
+    # written inside itself).
+    # N-1d PRE-PUSH-CHECK 2026-11-02: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after d8b6c39 (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-02 N-1d ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written.
+    # Migration 20261102220000_n1d_proof_only_nutrition rides this push;
+    # backfill counts measured by Gary in the Neon console 2026-11-02, before
+    # apply: staging br-square-feather-a63z92vz to_reset 0 (verified_total 1),
+    # production br-sparkling-block-a620qvg4 to_reset 0 (verified_total 2) —
+    # recorded in MIGRATIONS.md and DEPLOY_LOG.md (F2b). The "(NOT pushed)" and
+    # "is the commit immediately after 8e3d887" lines above are spent, kept:
+    # the docs SHA is d8b6c39.
+    status: staging
+    commits:
+      - "8e3d887"
+      # feat(N-1d): proof-only records, Verified needs a document, FDA printed
+      # bounds, Ingredients table layout; migration
+      # 20261102220000_n1d_proof_only_nutrition; fixture verify-n1d.ts,
+      # 2026-11-02
+      # + the commit immediately after 8e3d887: docs(N-1d) — prompt, audit,
+      # DECISIONS draft, MIGRATIONS entry, this row, N-1e filed, the 560f350
+      # stamp
+      - "d8b6c39"
+      # docs(N-1d): the docs commit named on the line above; recorded by the
+      # N-1d PRE-PUSH-CHECK
+      # + the commit immediately after d8b6c39: docs(N-1d PRE-PUSH-CHECK) —
+      # DECISIONS ratified, MIGRATIONS backfill counts, this row to staging,
+      # DEPLOY_LOG entry
+    title: "Nutrition — label workflow fixes (proof without numbers, Verified needs a document, printed bounds) + Ingredients table layout"
     notes: >
+      RESCOPED 2026-11-02 by the N-1d docs commit (preserve-and-mark). The
+      FILED paragraph below described this row's ORIGINAL scope — reading from
+      a pasted link and batch reading — which moved, unchanged, to N-1e; the
+      old title was "Nutrition — read a label from a pasted link, and
+      batch-read many labels with a review queue". Kept as written below.
+
+      BUILT 2026-11-02, TIER 3. Prompt of record: docs/prompts/N-1d.md (items
+      1–3 from Gary's first day on N-1b/N-1c in production; item 4 and the
+      560f350 stamp are riders he asked for). Audit docs/prompts/N-1d_AUDIT.md.
+      Rulings: docs/DECISIONS.md 2026-11-02 N-1d, DRAFT until PRE-PUSH-CHECK.
+      WHAT WAS BUILT: (1) a label document, a source link and Read label work
+      on any non-PREPARED food ingredient; a record with no basis is
+      PROOF-ONLY and counts as "No nutrition" everywhere (hasNutrition) —
+      engine, completeness, "To fix", template (empty row, link exported), the
+      import (a row filling it is NEW). Clearing the numbers keeps the
+      document and link (F1a); a link saves with no numbers (F1b). (2)
+      VERIFIED requires an uploaded label document; the link is reference only
+      and editing it never asks or resets (F2, F2a); removing the document
+      resets to Estimated, unasked. (3) Printed bounds per 21 CFR 101.9(c):
+      cholesterol "<5 mg" -> 2; "<1 g" -> 0.5 for carbohydrate, fiber,
+      sugars, added sugars, protein; a fat "<1 g" is blank and flagged as not
+      an FDA fat declaration (F3a — this changes N-1c's behaviour for fats).
+      (4) /inventory/ingredients: actions before Last Edited, sticky actions
+      column, max-w-screen-2xl via a one-entry exact-match list in
+      app-shell.tsx. Migration 20261102220000_n1d_proof_only_nutrition (basis
+      nullable, CHECK IngredientNutrition_basis_together, backfill VERIFIED
+      without a document -> ESTIMATED, no AuditLog row per F2b) — applied to
+      dev by Gary; staging/production via the Vercel build. Fixture
+      scripts/verify-n1d.ts 42/42 (dev br-broad-wave-a6vpjdw0, rolled back);
+      N-1 40/40, N-1a 26/26, N-1b 48/48, N-1c 59/59 (pins updated: n1b 1a,
+      1b, 1c–1f, 2c, 4e, 4f; n1c 3f). NOT VERIFIED: the routes' HTTP shapes,
+      the dialog, the table at laptop width, the backfill counts on staging
+      and production — Gary's staging pass. Series rule: nothing promotes
+      until Gary confirms it on staging.
+
       FILED 2026-11-02 by the N-1c docs commit (out of scope in
       docs/prompts/N-1c.md: "reading from a pasted link (needs SSRF-safe
       fetching), and batch reading many labels at once with a review queue").
@@ -17705,6 +17783,25 @@ phases:
       record yet" will be the common case (audit § E, option c: read an
       uploaded-but-unregistered file, then save and register in order). Behind
       N-1c. NOT SCOPED as a prompt yet.
+    deferred:
+      - "The backfill (VERIFIED without a document -> ESTIMATED) writes no AuditLog row, by ruling F2b; the per-branch counts live in MIGRATIONS.md and DEPLOY_LOG.md"
+      - "A label document removed while a read's review is open is caught only by the verify leg of Apply & mark verified (the dialog then says to use Mark verified)"
+
+  - id: N-1e
+    track: nutrition
+    size: M
+    status: planned
+    title: "Nutrition — read a label from a pasted link, and batch-read many labels with a review queue"
+    notes: >
+      FILED 2026-11-02 by the N-1d docs commit: the ORIGINAL scope of the
+      N-1d row, moved here unchanged when N-1d was rescoped to the label
+      workflow fixes (docs/prompts/N-1d.md: "Batch reading and reading from a
+      link are not in N-1d — they move to N-1e"). Reading from a pasted link
+      needs SSRF-safe fetching; batch reading needs a review queue. Builds on
+      N-1c's read route, review builder and audit-row rate limit. The N-1d
+      row's note about N1C-F6 ("no record yet" being the common case in a
+      batch flow) is now moot: N1D-F1 lets proof and Read label exist before
+      any numbers. Behind N-1d. NOT SCOPED as a prompt yet.
 
   - id: N-2
     track: nutrition

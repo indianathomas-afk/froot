@@ -28,6 +28,12 @@
  *   - Stale at 12 months counts as not verified (F4).
  *   - The first-bytes file-type check (Gary, N-1b).
  *
+ * N-1d (2026-11-02) UPDATED the checks that pinned N-1b F2 and F3-for-the-link,
+ * which Gary superseded (docs/DECISIONS.md, N-1d — N1D-F2: "Verified requires an
+ * uploaded label document; the link is reference only"; F2a: "editing the link
+ * no longer asks … and no longer resets on import"): 1a, 1b, 1c–1f (now carry a
+ * basis), 2c (ditto), 4e, 4f. N-1d's own pins are scripts/verify-n1d.ts.
+ *
  * WHAT IT CANNOT DETECT: the routes' ADMIN gate, the private store (there is
  * no Development connection, so no blob is written here), the dialog's
  * "Still verified?" question, or Menu Nutrition's rendering. Those are Gary's
@@ -64,24 +70,25 @@ const URL_A = "https://example.com/almond-breeze-original"
 const URL_B = "https://example.com/spec-sheet.pdf"
 const now = new Date("2026-11-01T18:00:00Z")
 
-// ─── 1. VERIFIED refused without a document or a source link (F2) ───────────
-check("1a. no proof → refused", verifyRefusal({ kind: "PURCHASED", nutritionExempt: false }, { sourceUrl: null, labelFileUrl: null }),
-  "Add a label document or a source link before marking this verified")
-check("1b. a source link alone is enough", verifyRefusal({ kind: "PURCHASED", nutritionExempt: false }, { sourceUrl: URL_A, labelFileUrl: null }), null)
-check("1c. a document alone is enough", verifyRefusal({ kind: "PURCHASED", nutritionExempt: false }, { sourceUrl: null, labelFileUrl: "https://blob/x.pdf" }), null)
-check("1d. no record → refused (F6: proof needs nutrition)", verifyRefusal({ kind: "PURCHASED", nutritionExempt: false }, null), "Save nutrition before verifying it")
-check("1e. not-food → refused", verifyRefusal({ kind: "PURCHASED", nutritionExempt: true }, { sourceUrl: URL_A, labelFileUrl: null }), "Not-food items carry no nutrition to verify")
-check("1f. prepared → refused", verifyRefusal({ kind: "PREPARED", nutritionExempt: false }, { sourceUrl: URL_A, labelFileUrl: null }) !== null, true)
+// ─── 1. VERIFIED refused without a document (F2 → N1D-F2) ───────────────────
+const B = { basisAmount: 1, basisUnit: "fl. oz" }
+check("1a. no document → refused", verifyRefusal({ kind: "PURCHASED", nutritionExempt: false }, { ...B, labelFileUrl: null }),
+  "Upload the label document before marking this verified")
+check("1b. N1D-F2: a source link alone is NOT enough (verifyRefusal never reads it)", verifyRefusal({ kind: "PURCHASED", nutritionExempt: false }, { ...B, labelFileUrl: null }) !== null, true)
+check("1c. a document alone is enough", verifyRefusal({ kind: "PURCHASED", nutritionExempt: false }, { ...B, labelFileUrl: "https://blob/x.pdf" }), null)
+check("1d. no record → refused", verifyRefusal({ kind: "PURCHASED", nutritionExempt: false }, null), "Save nutrition before verifying it")
+check("1e. not-food → refused", verifyRefusal({ kind: "PURCHASED", nutritionExempt: true }, { ...B, labelFileUrl: "https://blob/x.pdf" }), "Not-food items carry no nutrition to verify")
+check("1f. prepared → refused", verifyRefusal({ kind: "PREPARED", nutritionExempt: false }, { ...B, labelFileUrl: "https://blob/x.pdf" }) !== null, true)
 check("1g. hasProof is link OR document", [hasProof({ sourceUrl: null, labelFileUrl: null }), hasProof({ sourceUrl: URL_A, labelFileUrl: null })], [false, true])
 
 // ─── 2. Stale at 12 months (F4) ──────────────────────────────────────────────
 const verifiedOn = new Date("2025-11-01T18:00:00Z")
 check("2a. one second short of 12 months → not stale", isStale(verifiedOn, new Date("2026-11-01T17:59:59Z")), false)
 check("2b. exactly 12 months → stale", isStale(verifiedOn, now), true)
-const ver = (verifiedAt: Date | null) => ({ status: "VERIFIED" as const, verifiedAt, sourceUrl: URL_A, labelFileUrl: null })
+const ver = (verifiedAt: Date | null) => ({ ...B, status: "VERIFIED" as const, verifiedAt, sourceUrl: URL_A, labelFileUrl: null })
 check("2c. proof states", [
   proofState(null, now),
-  proofState({ status: "ESTIMATED", verifiedAt: null, sourceUrl: URL_A, labelFileUrl: null }, now),
+  proofState({ ...B, status: "ESTIMATED", verifiedAt: null, sourceUrl: URL_A, labelFileUrl: null }, now),
   proofState(ver(new Date("2026-06-01T00:00:00Z")), now),
   proofState(ver(verifiedOn), now),
   proofState(ver(null), now),
@@ -115,9 +122,9 @@ check("4c. a source-note-only change is written but resets nothing", [p2[0].stat
 const p3 = plan([`Almond Milk,1,fl. oz,7.5,0.9,0.13,tree nuts; soy,,label,${URL_A}`], [verifiedMilk()])
 check("4d. an allergen change → DETAILS_ONLY with resetStatus (B3: status lives on the record)", [p3[0].status, p3[0].write?.resetStatus], ["DETAILS_ONLY", true])
 const p4 = plan([`${same},${URL_B}`], [verifiedMilk()])
-check("4e. a new source link → DETAILS_ONLY, link written, resetStatus", [p4[0].status, p4[0].write?.sourceUrl, p4[0].write?.resetStatus], ["DETAILS_ONLY", { url: URL_B }, true])
+check("4e. a new source link → DETAILS_ONLY, link written, NO reset (N1D-F2a)", [p4[0].status, p4[0].write?.sourceUrl, p4[0].write?.resetStatus ?? false], ["DETAILS_ONLY", { url: URL_B }, false])
 const p5 = plan([`${same},`], [verifiedMilk()])
-check("4f. a blank source_url clears the link and resets", [p5[0].write?.sourceUrl, p5[0].write?.resetStatus], [{ url: null }, true])
+check("4f. a blank source_url clears the link, NO reset (N1D-F2a)", [p5[0].write?.sourceUrl, p5[0].write?.resetStatus ?? false], [{ url: null }, false])
 const p6 = plan([`Almond Milk,,,,,,tree nuts,yes,,`], [verifiedMilk()])
 check("4g. the not-food flag alone does not reset", [p6[0].status, p6[0].write?.resetStatus ?? false], ["NOT_FOOD", false])
 const p7 = plan([`Almond Milk,1,fl. oz,8,0.9,0.13,tree nuts,,label,${URL_A}`], [verifiedMilk({ status: "ESTIMATED" })])

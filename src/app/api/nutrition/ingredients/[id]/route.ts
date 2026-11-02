@@ -2,24 +2,33 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { requireNutrition } from "@/lib/nutrition-access"
-import { ALLERGENS, NUTRIENT_KEYS, nutritionInputError, sortAllergens, type NutrientValues } from "@/lib/nutrition"
+import { ALLERGENS, NUTRIENT_KEYS, PROOF_ONLY_NUMBERS, nutritionInputError, sortAllergens, type NutrientValues } from "@/lib/nutrition"
 import { storedNutritionInput } from "@/lib/nutrition-import"
-import { RESET_TO_ESTIMATED, allergensChanged, hasProof, numbersChanged, parseSourceUrl } from "@/lib/nutrition-proof"
-import { deleteLabelBlob } from "@/lib/nutrition-files"
+import { RESET_TO_ESTIMATED, afterNumbersCleared, allergensChanged, hasProof, numbersChanged, parseSourceUrl } from "@/lib/nutrition-proof"
 import { findOrgIngredient, nutritionAudit, serializeIngredient } from "@/lib/nutrition-record"
 
 // GET /api/nutrition/ingredients/[id] — one ingredient's nutrition record,
 // allergens and not-food flag (nutrition.view). PUT replaces all three
-// (nutrition.manage — ADMIN, N1-F3). `nutrition: null` removes the record.
-// Writes never touch the Ingredient's other fields, so this route is separate
-// from the inventory PATCH, which MANAGER may call. N-1.
+// (nutrition.manage — ADMIN, N1-F3). Writes never touch the Ingredient's other
+// fields, so this route is separate from the inventory PATCH, which MANAGER may
+// call. N-1.
 //
 // N-1b: the record also carries its proof (source link, label document) and
 // its status. The SERVER decides whether a save changes anything that matters
 // to a VERIFIED record, and answers 409 with a code the dialog turns into a
-// question — Gary, F3: "dialog changes ask "Still verified?"", F7: "Clearing
-// the numbers when a document exists asks first; a confirmed clear removes the
-// record, its proof and the file together."
+// question — Gary, F3: "dialog changes ask "Still verified?"".
+//
+// N-1d (Gary, 2026-11-02, DRAFT). `nutrition: null` means NO NUMBERS, not "no
+// record":
+//   F1a "Clearing the numbers no longer deletes the record. It keeps the label
+//       document and link as a proof-only record (counts as "No nutrition").
+//       Deleting the label file is only done with the Remove button."
+//   F1b "a source link can be saved with no numbers."
+// So the record is deleted only when nothing is left to keep — no numbers, no
+// document, no link — and this route never deletes a label file. N-1b F7's
+// "Clear and remove the proof?" question is gone with it. F2a: the link is
+// reference only, so editing it never asks "Still verified?". The link moved
+// to the top level of the body, since it no longer needs numbers to live on.
 
 const nutrientSchema = z.number().nonnegative().nullable()
 
@@ -30,15 +39,14 @@ const PutSchema = z.object({
       basisUnit: z.string().min(1),
       values: z.object(Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, nutrientSchema])) as Record<keyof NutrientValues, typeof nutrientSchema>),
       sourceNote: z.string().max(500).nullable(),
-      // N-1b. Absent = leave the stored link as is.
-      sourceUrl: z.string().max(2100).nullable().optional(),
     })
     .nullable(),
+  // N-1b / N1D-F1b. Absent = leave the stored link as is; null clears it.
+  sourceUrl: z.string().max(2100).nullable().optional(),
   allergens: z.array(z.enum(ALLERGENS.map((a) => a.value) as [string, ...string[]])),
   nutritionExempt: z.boolean(),
-  // N-1b answers to the dialog's questions; absent = not asked yet.
+  // N-1b answer to the dialog's "Still verified?"; absent = not asked yet.
   keepVerified: z.boolean().optional(),
-  confirmClearProof: z.boolean().optional(),
   // N-1c: this save is the Apply of a label read. Changes nothing about the
   // save; adds the one audit row per apply (deliverable 5). `edited` = the
   // fields the ADMIN changed away from what the label read proposed.
@@ -80,14 +88,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (err) return NextResponse.json({ error: err }, { status: 400 })
   }
   let sourceUrl: string | null | undefined = undefined
-  if (data.nutrition && data.nutrition.sourceUrl !== undefined) {
-    const u = parseSourceUrl(data.nutrition.sourceUrl)
+  if (data.sourceUrl !== undefined) {
+    const u = parseSourceUrl(data.sourceUrl)
     if ("error" in u) return NextResponse.json({ error: u.error }, { status: 400 })
     sourceUrl = u.url
+  }
+  if (ing.kind === "PREPARED" && sourceUrl) {
+    return NextResponse.json({ error: "A prepared ingredient's nutrition is computed from its recipe" }, { status: 400 })
   }
 
   const allergens = sortAllergens(data.allergens as (typeof ALLERGENS)[number]["value"][])
   const existing = ing.nutrition
+  const nextUrl = sourceUrl === undefined ? existing?.sourceUrl ?? null : sourceUrl
 
   // N-1c: an Apply must name a read of THIS ingredient in THIS org, and only
   // ever fills numbers — it never clears a record.
@@ -108,28 +120,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     appliedRead = { id: read.id, fileHash: (read.metadata as { fileHash?: unknown } | null)?.fileHash ?? null }
   }
 
-  // F7: clearing the numbers on a record that holds proof asks first.
-  if (!data.nutrition && existing && hasProof(existing) && data.confirmClearProof !== true) {
-    return NextResponse.json(
-      {
-        error: "Clearing the nutrition also removes its source link and label document",
-        code: "CONFIRM_CLEAR_PROOF",
-        hasDocument: Boolean(existing.labelFileUrl),
-      },
-      { status: 409 }
-    )
-  }
-
-  // F2 / F3 on a VERIFIED record.
-  let reset: "proof-removed" | "changed" | null = null
-  if (data.nutrition && existing?.status === "VERIFIED") {
-    const nextUrl = sourceUrl === undefined ? existing.sourceUrl : sourceUrl
-    const stored = storedNutritionInput(existing)!
-    const changed =
-      numbersChanged(stored, data.nutrition) || allergensChanged(ing.allergens, allergens) || nextUrl !== existing.sourceUrl
-    if (!hasProof({ sourceUrl: nextUrl, labelFileUrl: existing.labelFileUrl })) {
-      reset = "proof-removed" // F2: "Removing the last proof resets to Estimated." Never asked.
-    } else if (changed) {
+  // F2 / F3 on a VERIFIED record. Numbers cleared → reset, never asked: a
+  // proof-only record cannot be verified (N1D-F1). Basis, numbers or allergens
+  // changed → ask. The link never counts (N1D-F2a).
+  let reset: "numbers-cleared" | "changed" | null = null
+  if (existing?.status === "VERIFIED") {
+    const stored = storedNutritionInput(existing)
+    if (!data.nutrition) {
+      reset = "numbers-cleared"
+    } else if (!stored || numbersChanged(stored, data.nutrition) || allergensChanged(ing.allergens, allergens)) {
       if (data.keepVerified === undefined) {
         return NextResponse.json(
           { error: "This nutrition is verified. Is it still verified after this change?", code: "CONFIRM_STILL_VERIFIED" },
@@ -140,18 +139,25 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
   }
 
-  const removedLabelUrl = !data.nutrition && existing ? existing.labelFileUrl : null
+  // No numbers: keep a proof-only record while a document or link remains
+  // (F1a, F1b); otherwise there is nothing left and the record goes.
+  const keepProofOnly = !data.nutrition && afterNumbersCleared(existing, nextUrl) === "keep-proof-only"
   await prisma.$transaction(async (tx) => {
     await tx.ingredient.update({
       where: { id: ing.id },
       data: { allergens, nutritionExempt: data.nutritionExempt },
     })
-    if (data.nutrition) {
+    if (data.nutrition || keepProofOnly) {
+      const numbers = data.nutrition
+        ? {
+            basisAmount: data.nutrition.basisAmount,
+            basisUnit: data.nutrition.basisUnit,
+            ...data.nutrition.values,
+            sourceNote: data.nutrition.sourceNote?.trim() || null,
+          }
+        : PROOF_ONLY_NUMBERS
       const row = {
-        basisAmount: data.nutrition.basisAmount,
-        basisUnit: data.nutrition.basisUnit,
-        ...data.nutrition.values,
-        sourceNote: data.nutrition.sourceNote?.trim() || null,
+        ...numbers,
         ...(sourceUrl !== undefined && { sourceUrl }),
         ...(reset && RESET_TO_ESTIMATED),
         updatedByUserId: ctx.dbUser?.id ?? null,
@@ -169,27 +175,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           nameWarningAcknowledged: data.appliedFromRead.nameWarningAcknowledged,
         })
       }
-    } else {
+    } else if (existing) {
+      // Nothing to keep: no numbers, no document, and the link cleared here.
       await tx.ingredientNutrition.deleteMany({ where: { ingredientId: ing.id } })
-      if (existing && hasProof(existing)) {
+      if (hasProof(existing)) {
         await nutritionAudit(tx, ctx, "nutrition.record.cleared", ing.id, {
           status: existing.status,
           sourceUrl: existing.sourceUrl,
           labelFileName: existing.labelFileName,
           labelFileHash: existing.labelFileHash,
         })
-        if (existing.labelFileUrl) {
-          await nutritionAudit(tx, ctx, "nutrition.label.removed", ing.id, {
-            via: "record cleared",
-            fileName: existing.labelFileName,
-            fileHash: existing.labelFileHash,
-          })
-        }
       }
     }
   })
-  // After the commit, so a failed transaction never loses a file still referenced.
-  await deleteLabelBlob(removedLabelUrl)
 
   const updated = await findOrgIngredient(ctx.org.id, ing.id)
   return NextResponse.json(await serializeIngredient(updated!, ctx.org.id))
