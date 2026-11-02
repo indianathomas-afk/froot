@@ -354,6 +354,14 @@ whole answer today.
 | NU-2 | `nutrition/ingredients/[id]` PUT, `nutrition/ingredients/bulk-exempt` POST | Edit nutrition, allergens and the not-food flag | ADMIN (`nutrition.manage`); org-scoped (other orgs' ids never match) | handler + data-scope (org) |
 | NU-3 | `nutrition/import/preview` + `nutrition/import/apply` POST | Nutrition CSV import (never creates ingredients; apply re-plans server-side and writes an `AuditLog` row in its transaction) | ADMIN (`nutrition.manage`) | handler |
 | NU-4 | `nutrition/template` GET (N-1a, 2026-11-01) | Download the org's ingredients as a pre-filled import file (reads only; an unedited file imports as zero changes) | ADMIN (`nutrition.manage` — the same gate as NU-3); org-scoped | handler + data-scope (org) |
+| NU-5 | `nutrition/ingredients/[id]/label` GET (N-1b, 2026-11-01) | View an ingredient's label document: resolves the record inside the caller's org, then 307 to a 5-minute signed URL on the PRIVATE `froot-nutrition` store. Unknown, cross-org and "no document" all 404 | ADMIN, MANAGER, STORE (`nutrition.view`); org-scoped | handler + data-scope (org) + private store (bare blob URL not fetchable) |
+| NU-6 | `nutrition/ingredients/[id]/label/upload-url` POST, `nutrition/ingredients/[id]/label` POST + DELETE (N-1b) | Upload / replace / remove the label document. upload-url presigns a PUT with the type allow-list and 10 MB cap in the signature, under `nutrition/{org}/ingredients/{id}/`; register pins that folder, re-reads the stored bytes (type, size, sha256, first-bytes check) and writes an `AuditLog` row; refused with no nutrition record (F6) | ADMIN (`nutrition.manage`); org-scoped | handler + data-scope (org) + namespace pin |
+| NU-7 | `nutrition/ingredients/[id]/verify` POST (N-1b) | Mark VERIFIED (requires a label document or a source link — F2) or back to ESTIMATED; the only writer of VERIFIED. `AuditLog` row in the transaction | ADMIN (`nutrition.manage`); org-scoped | handler + data-scope (org) |
+
+N-1b also widened NU-2's PUT (source link; 409 `CONFIRM_STILL_VERIFIED` /
+`CONFIRM_CLEAR_PROOF` answered by the dialog) and NU-3's apply (writes
+`source_url`, resets VERIFIED → ESTIMATED, never sets VERIFIED). Neither
+changes who may call them.
 
 The ingredient dialog's nutrition section (`inventory/ingredients/nutrition-section.tsx`)
 is editable only when the page passes `canManageNutrition` (ADMIN + both

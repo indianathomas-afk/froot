@@ -5,6 +5,49 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-01 — N-1b: nutrition proof, Estimated/Verified, forks N1B-F1–F8 and storage (Gary)
+
+**RATIFIED BY GARY, 2026-11-01, at the N-1b PRE-PUSH-CHECK, as written.** The
+whole entry, unchanged, was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify as
+written"*. It covers his quoted ruling as written: storage option (i) and
+forks F1–F4 and F6–F8, plus the "Also accept" line. The closing paragraph's
+list (10 MB cap, presigned-PUT upload, 307 to a 5-minute signed URL, verify as
+its own route) stays Claude's recommendation and is not made a ruling by this.
+Nothing in the entry was reworded. The heading read "— DRAFT" until this
+check; the DRAFT paragraph below is spent, kept.
+
+**DRAFT — ruled by Gary in chat 2026-11-01 at the N-1b Phase 1 STOP; to be
+ratified at PRE-PUSH-CHECK.** The audit he ruled on is
+`docs/prompts/N-1b_AUDIT.md` (A3 storage options, forks N1B-F1–F8, upload
+safety E1–E9). His words, recorded exactly:
+
+> "Storage: option (i), a new private froot-nutrition Blob store, same pattern
+> as froot-hr.
+>
+> Forks, accept as refined in the audit:
+> F1: Status lives on the nutrition record.
+> F2: Verified needs a label document or a source link, set by ADMIN only.
+> Removing the last proof resets to Estimated.
+> F3: Import changes reset to Estimated; dialog changes ask "Still verified?".
+> A change means the basis, any number, the allergens, or the proof; not the
+> source note or the not-food flag.
+> F4: Stale after 12 months from the verified date; "Re-check label" shows in
+> the dialog too.
+> F6: Proof controls stay disabled until nutrition exists; an import row with a
+> link but no values is rejected.
+> F7: Clearing the numbers when a document exists asks first; a confirmed clear
+> removes the record, its proof and the file together.
+> F8: Items with no food ingredients are not counted as verified and are left
+> out of "N of M items verified".
+> Also accept: file-type check by first bytes, an audit-log entry for every
+> upload/replace/remove/verify, HEIC accepted and offered as a download."
+
+F5 (storage) is the "Storage: option (i)" line. The rest of the audit is
+Claude's recommendation, not a ruling, wherever Gary's words above do not
+cover it. That includes the 10 MB cap, the presigned-PUT upload, the 307 to a
+5-minute signed URL, and verify as its own route.
+
 ## 2026-11-01 — N-1a: the nutrition template round-trips as zero changes (Gary)
 
 **RATIFIED BY GARY, 2026-11-01, at the N-1a PRE-PUSH-CHECK, as written.** The

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { requireNutrition } from "@/lib/nutrition-access"
 import { computeRecipeNutrition, loadNutritionGraph } from "@/lib/recipe-nutrition"
 import { ingredientDisplayName } from "@/lib/nutrition"
+import { itemVerification } from "@/lib/nutrition-proof"
 
 // GET /api/nutrition/recipes/[id] — one recipe's full computed breakdown for
 // the Menu Nutrition detail view: totals, allergens, completeness and each
@@ -18,6 +19,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   if (!recipe) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   const n = computeRecipeNutrition(graph, id)
+  const proofOf = (ingredientId: string) => graph.ingredients.get(ingredientId)?.proof ?? "NONE"
   const nameOf = (ingredientId: string) => {
     const ing = graph.ingredients.get(ingredientId)
     return ing ? ingredientDisplayName(ing) : "Unknown ingredient"
@@ -33,6 +35,12 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     foodIngredientCount: n.foodIngredientIds.size,
     missingIngredients: [...n.missingIngredientIds].map(nameOf).sort(),
     partialIngredients: [...n.partialIngredients].map(([ingId, keys]) => ({ name: nameOf(ingId), missing: keys })),
+    // N-1b: Verified only when every food ingredient is (F8: none = NO_FOOD).
+    verification: itemVerification(n, proofOf),
+    unverifiedIngredients: [...n.foodIngredientIds]
+      .filter((ingId) => !n.missingIngredientIds.has(ingId) && proofOf(ingId) !== "VERIFIED")
+      .map((ingId) => ({ name: nameOf(ingId), stale: proofOf(ingId) === "STALE" }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
     lines: recipe.lines.map((line, i) => {
       const r = n.lines[i]
       const sub = line.subRecipeId ? graph.recipes.get(line.subRecipeId) : null

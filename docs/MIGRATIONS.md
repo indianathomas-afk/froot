@@ -1979,3 +1979,51 @@ all pass, per the work commit. Not re-run by this check.
 Prisma commands for this migration: not recorded. The work commit message,
 the row and `docs/prompts/N-1_AUDIT.md` list none (the file itself implies a
 `migrate diff`); this check ran none.
+
+## 2026-11-01 — `20261101230000_n1b_nutrition_proof` (N-1b)
+
+**APPLIED TO DEV ONLY, by Gary**, after the N-1b Phase 2 STOP and before the
+work commit `0962d72` (§ A migration STOPS the session). The session read no
+`_prisma_migrations.finished_at`, so no dev time is written; the evidence that
+dev has it is a read-only `migrate diff` against dev returning `-- This is an
+empty migration.` at the start of Phase 3, and the N-1b fixture's database part
+writing the new columns on `neon.branch_id = br-broad-wave-a6vpjdw0`.
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | applied by Gary 2026-11-01 — finished_at not read | Gary |
+| staging `br-square-feather-a63z92vz` | not yet | Vercel build, on Gary's push |
+| production `br-sparkling-block-a620qvg4` | not yet | Vercel build, at promotion |
+
+**GENERATED AGAINST THE LIVE DEV DATABASE, after a clean baseline.** Before
+`prisma/schema.prisma` was edited, the diff with no `-o` returned `-- This is
+an empty migration.` against `ep-late-water-a6k53nv2` (dev) — so the file holds
+only N-1b (the F-5b lesson above). Timestamp note: the folder name was chosen
+for the session, not the UTC instant of generation.
+
+| Statement | Kind |
+|---|---|
+| `CREATE TYPE "NutritionStatus" AS ENUM ('ESTIMATED', 'VERIFIED')` | additive, new enum |
+| `ALTER TABLE "IngredientNutrition" ADD COLUMN "status" "NutritionStatus" NOT NULL DEFAULT 'ESTIMATED'` | additive; the default IS the backfill — every existing row becomes ESTIMATED as the column is added |
+| `ADD COLUMN` × 11 nullable: `verifiedByUserId`, `verifiedAt`, `sourceUrl`, `labelFileUrl`, `labelFilePathname`, `labelFileName`, `labelContentType`, `labelSizeBytes` (INTEGER), `labelFileHash`, `labelUploadedByUserId`, `labelUploadedAt` | additive, nullable |
+
+**ADDITIVE ONLY: no DROP, no ALTER COLUMN, no RENAME, no index, no foreign
+key.** `verifiedByUserId` and `labelUploadedByUserId` are plain ids like the
+existing `updatedByUserId`, not relations, so § Hand-authored FK `ON DELETE`
+has nothing to mirror and § Protected indexes has nothing to add. Rulings:
+`docs/DECISIONS.md` "2026-11-01 — N-1b: nutrition proof, Estimated/Verified,
+forks N1B-F1–F8 and storage (Gary)" (heading read "— DRAFT" until the
+N-1b PRE-PUSH-CHECK ratified it; pointer repaired there).
+
+**Fixture:** `scripts/verify-n1b-proof.ts`, 47 checks, all pass, run against
+the applied schema (its part 7 writes and reads the new columns on dev inside a
+transaction that is always rolled back, and asserts nothing was left behind).
+
+**Prisma commands for this migration, verbatim:**
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`
+(baseline, empty; then the preview of this file) ·
+`npx prisma format` · `npx prisma validate` ·
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/20261101230000_n1b_nutrition_proof/migration.sql` ·
+after Gary's apply: the same diff with no `-o` (empty) and `npx prisma generate`.
+`npm run build` also runs `prisma generate`. No `migrate deploy`, `db execute`,
+`migrate dev`, `migrate reset` or `migrate resolve` was run by the session.

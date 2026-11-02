@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireNutrition } from "@/lib/nutrition-access"
 import { buildNutritionTemplate, storedNutritionInput } from "@/lib/nutrition-import"
+import { proofState } from "@/lib/nutrition-proof"
 
 // GET /api/nutrition/template — the org's ingredients as a nutrition import
 // file, pre-filled with what is stored, so an unedited file imports back as
@@ -19,8 +20,16 @@ export async function GET() {
       allergens: true, nutritionExempt: true, nutrition: true, category: { select: { name: true } },
     },
   })
+  const now = new Date()
   const csv = buildNutritionTemplate(
-    ingredients.map((i) => ({ ...i, category: i.category?.name ?? null, nutrition: storedNutritionInput(i.nutrition) }))
+    ingredients.map((i) => ({
+      ...i,
+      category: i.category?.name ?? null,
+      nutrition: storedNutritionInput(i.nutrition),
+      // N-1b: source_url is writable, status is information only.
+      sourceUrl: i.nutrition?.sourceUrl ?? null,
+      proof: proofState(i.nutrition, now),
+    }))
   )
 
   // en-CA formats as YYYY-MM-DD; the org's own calendar day.
