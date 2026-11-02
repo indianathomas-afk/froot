@@ -2,7 +2,27 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-02 — N-1c: "Read label" — the model reads an attached label, an ADMIN reviews and applies
+## 560f350 — 2026-11-02 — N-1c: "Read label" — the model reads an attached label, an ADMIN reviews and applies
+
+**PROMOTED 2026-11-02 in merge `560f350`** (`560f3507cda41299bba9c5dc18070c5eee5f91af`,
+"Merge branch 'staging'", 2026-11-02 10:02:53 -0800 (Pacific) = 2026-11-02
+18:02:53 UTC), `--no-ff`. First parent `317ce2c` (prior tip of `main`), second
+parent `d8e8aaf` (staging tip). **6 commits** in `560f350^1..560f350^2` —
+`bdd7c36`, `f5001d2`, `3698898` (STAMP-bdbeb47-317ce2c, entry below) and
+`b396623`, `fc4133f`, `d8e8aaf` (N-1c) — and **21 files**, read out of
+`git log` and `git diff --shortstat` at this stamp. `main` moved
+`317ce2c..560f350`; `staging` fast-forwarded to it. No migration. Stamped
+post-merge by N-1d (2026-11-02), on `staging`; the heading previously read
+"UNPROMOTED — 2026-11-02 — N-1c: "Read label" — the model reads an attached
+label, an ADMIN reviews and applies". The "staging only", "NEITHER WAS PUSHED"
+and "Nothing has been observed on staging or production" lines below are
+spent, kept.
+
+**Observed, staging (Gary, as relayed in the N-1d prompt):** Read label on the
+Almond Breeze Original PDF matched the label exactly (8 fl. oz basis, 60 kcal …
+tree nuts; fiber "<1 g" flagged as 0.5). **Production:** `ANTHROPIC_API_KEY`
+set; the first production read (Thirster Coconut Milk, a US Foods label
+screenshot) was applied and verified.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
@@ -67,7 +87,14 @@ staging pass — Read label on a PDF/JPG, the review, Apply only, Apply & mark
 verified, the HEIC refusal, and the name-mismatch tickbox. Nothing is promoted
 until Gary confirms it on staging.
 
-## UNPROMOTED — 2026-11-01 — STAMP-bdbeb47-317ce2c: count-sheet banner reads "ingredients can't" (display only); N-1/N-1a/N-1b stamps
+## 560f350 — 2026-11-01 — STAMP-bdbeb47-317ce2c: count-sheet banner reads "ingredients can't" (display only); N-1/N-1a/N-1b stamps
+
+**PROMOTED 2026-11-02 in merge `560f350`**, together with N-1c (entry above,
+which carries the merge's SHA, parents and counts). Stamped post-merge by N-1d
+(2026-11-02), on `staging`; the heading previously read "UNPROMOTED —
+2026-11-01 — STAMP-bdbeb47-317ce2c: count-sheet banner reads "ingredients
+can't" (display only); N-1/N-1a/N-1b stamps". The "staging only" and "NEITHER
+WAS PUSHED" lines below are spent, kept.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next

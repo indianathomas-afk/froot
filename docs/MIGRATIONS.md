@@ -159,7 +159,7 @@ Rules:
 
 ## Protected indexes — expressible only in migration SQL, not in the schema
 
-Three unique indexes and **four** CHECK constraints exist in every database but
+Three unique indexes and **five** CHECK constraints exist in every database but
 **cannot be written in `prisma/schema.prisma`** — Prisma has no `WHERE` clause
 on `@@unique` and no CHECK support at all:
 
@@ -167,6 +167,8 @@ on `@@unique` and no CHECK support at all:
 CHECKs, but NOTIFY-12's `NotificationRecipientPick_one_target_check`
 (2026-10-23) had already made three and was missing from the table below; L-4a
 adds the fourth. Both rows are appended at the bottom.)
+(Count "four" → "five" 2026-11-02 by N-1d, which appends
+`IngredientNutrition_basis_together` at the bottom.)
 
 | Object | Table | Predicate | Origin |
 |---|---|---|---|
@@ -177,6 +179,7 @@ adds the fourth. Both rows are appended at the bottom.)
 | `hrdoc_link_shape` (**CHECK**, not an index) | `HrDocument` | `("kind" = 'Link') = ("externalUrl" IS NOT NULL)` — only a Link carries a URL, and every Link carries one | `20260824193000_doc3_document_links_and_instructions` |
 | `NotificationRecipientPick_one_target_check` (**CHECK**, not an index) | `NotificationRecipientPick` | `("userId" IS NULL) <> ("contactId" IS NULL)` — exactly one target per pick | `20261023200000_notify12_recipients` |
 | `LaborAssignment_minutes_check` (**CHECK**, not an index) | `LaborAssignment` | `"startMinutes" >= 0 AND "startMinutes" < "endMinutes" AND "endMinutes" <= 1440` — no overnight, no zero-length, inside one day | `20261030200242_l4a_labor_assignment` |
+| `IngredientNutrition_basis_together` (**CHECK**, not an index) | `IngredientNutrition` | `("basisAmount" IS NULL) = ("basisUnit" IS NULL)` — a proof-only record has neither, a numbered one has both | `20261102220000_n1d_proof_only_nutrition` |
 
 **The DOC-3 row's table needs no `@@map` warning and that is worth stating,
 because the two rows above it do.** `hrdoc_link_shape` sits on `HrDocument`,
@@ -217,9 +220,9 @@ CHECK.
 
 §2 rebuilds `0_init` with `migrate diff --from-empty --to-schema-datamodel`,
 which generates **from the schema**. The schema cannot express any of them, so
-the regenerated baseline will **omit all five**. Any database later built from
+the regenerated baseline will **omit all eight**. Any database later built from
 `0_init` — a fresh environment, a rebuilt Neon branch — comes up with **no
-constraint and nothing failing loudly**. Re-append **all five** by hand after
+constraint and nothing failing loudly**. Re-append **all eight** by hand after
 regenerating, and diff the result against this table.
 
 **"Both" became "all five" as the table grew, and the wording is worth watching.**
@@ -230,6 +233,14 @@ smaller than the table is the one kind of staleness this section cannot survive:
 it reads as complete, and what it silently omits is exactly what Hazard 1 drops.
 Corrected 2026-08-24 by DOC-3, which added the fifth. **If you add a sixth,
 this sentence is part of the edit.**
+
+**It happened anyway, twice: corrected "five" → "eight" 2026-11-02 by N-1d.**
+NOTIFY-12 (2026-10-23) added the sixth row and L-4a (2026-10-30) the seventh,
+and neither updated the count above. N-1d adds the eighth,
+`IngredientNutrition_basis_together`. Counted from the table at this edit:
+three indexes and five CHECKs. A rule that tells the next editor to update a
+number does not make them do it. **Count the table's rows; don't trust this
+number.**
 
 ### Hazard 2 — the schema misinforms a reader
 
@@ -2033,3 +2044,75 @@ transaction that is always rolled back, and asserts nothing was left behind).
 after Gary's apply: the same diff with no `-o` (empty) and `npx prisma generate`.
 `npm run build` also runs `prisma generate`. No `migrate deploy`, `db execute`,
 `migrate dev`, `migrate reset` or `migrate resolve` was run by the session.
+
+## 2026-11-02 — `20261102220000_n1d_proof_only_nutrition` (N-1d)
+
+**APPLIED TO DEV ONLY, by Gary**, after the N-1d Phase 2 STOP and before the
+work commit `8e3d887` (§ A migration STOPS the session). Staging and production
+get it from the Vercel build on Gary's push and at promotion.
+
+**The first "applied" did not reach dev, and the check that caught it is worth
+keeping.** Gary's first "Applied to dev" message arrived, and the N-1d fixture's
+database part then failed with a null-constraint violation. A read-only
+`migrate diff` against dev still generated both `DROP NOT NULL`s, and a
+read-only SELECT on `neon.branch_id = br-broad-wave-a6vpjdw0` showed
+`_prisma_migrations` with N-1 and N-1b but no N-1d row, both basis columns
+`is_nullable = NO`, and no `IngredientNutrition_basis_together`. The session
+committed nothing and stopped. After Gary's second "Applied to dev", the same
+diff returned `-- This is an empty migration.` and the fixture passed 42/42 on
+the same branch. Where the first deploy actually went was not established by
+this session. The file was not edited between Phase 2 and the apply, so any
+branch that holds it holds exactly this content. **Do not trust an "applied"
+on its word: diff dev before the fixture, every time.**
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | applied by Gary 2026-11-02 — finished_at not read | Gary |
+| staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
+| production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
+
+**Backfill counts (N1D-F2b: "no audit row for the backfill; record the counts
+in MIGRATIONS and DEPLOY_LOG").** The migration does not report a row count,
+and the session queried no deployed branch. **Dev: unknown** — it was applied
+before anyone counted. **Staging and production: to be counted by Gary in the
+Neon console BEFORE the push**, with the query in
+`docs/prompts/N-1d_AUDIT.md` § B.3, and written here and in the DEPLOY_LOG
+entry at the PRE-PUSH-CHECK. Expected on production: 0 (Almond Milk and Coconut
+Milk both carry documents, per the prompt).
+
+| Branch | VERIFIED without a document (`to_reset`) | VERIFIED total |
+|---|---|---|
+| dev | unknown (applied before counting) | — |
+| staging | owed — Gary, before the push | owed |
+| production | owed — Gary, before promotion | owed |
+
+**GENERATED AGAINST THE LIVE DEV DATABASE, after a clean baseline.** Before
+`prisma/schema.prisma` was edited, the diff with no `-o` returned `-- This is
+an empty migration.` against `ep-late-water-a6k53nv2` (dev). The generated part
+is two statements. Parts 2 and 3 are hand-authored and appended below it.
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "IngredientNutrition" ALTER COLUMN "basisAmount" DROP NOT NULL, ALTER COLUMN "basisUnit" DROP NOT NULL` | generated; relaxes NOT NULL — nothing dropped |
+| `ADD CONSTRAINT "IngredientNutrition_basis_together" CHECK (("basisAmount" IS NULL) = ("basisUnit" IS NULL))` | **hand-authored** (N1D-F1c); holds on every existing row, since all had both |
+| `UPDATE "IngredientNutrition" SET "status" = 'ESTIMATED', "verifiedAt" = NULL, "verifiedByUserId" = NULL WHERE "status" = 'VERIFIED' AND "labelFileUrl" IS NULL` | **hand-authored** data backfill (N1D-F2); no AuditLog row (F2b) |
+
+**The CHECK is invisible to Prisma, so it is added to § Protected indexes** —
+Hazard 1 applies: a baseline squash would silently drop it. A proof-only row
+also keeps all 15 nutrients null; that stronger rule is enforced in code
+(`PROOF_ONLY_NUMBERS`, `src/lib/nutrition.ts`), not by the CHECK.
+
+**Fixture:** `scripts/verify-n1d.ts`, 42 checks, all pass, against the applied
+schema on dev. Its part 7 stores a proof-only row, asserts the CHECK refuses
+half a basis (`23514`), and runs the backfill statement copied verbatim from
+this file. Check 6c asserts the copy matches. The run is scoped to the
+fixture's own rows, inside a transaction that is always rolled back.
+
+**Prisma commands for this migration, verbatim:**
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`
+(baseline, empty) · `npx prisma validate` ·
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/20261102220000_n1d_proof_only_nutrition/migration.sql` ·
+`npx prisma generate` · the same diff with no `-o` twice more (non-empty after
+the first "applied"; empty after the second). `npm run build` also runs
+`prisma generate`. No `migrate deploy`, `db execute`, `migrate dev`, `migrate
+reset` or `migrate resolve` was run by the session.
