@@ -17625,7 +17625,15 @@ phases:
     # → in_progress 2026-11-02 at the work commit b396623 (NOT pushed). The
     # docs SHA is the commit immediately after b396623 (its own SHA cannot be
     # written inside itself).
-    status: in_progress
+    # N-1c PRE-PUSH-CHECK 2026-11-02: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after fc4133f (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-02 N-1c ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written. No
+    # migration. Env var ANTHROPIC_API_KEY (Preview + Production) rides this
+    # push. The "(NOT pushed)" and "is the commit immediately after b396623"
+    # lines above are spent, kept: the docs SHA is fc4133f.
+    status: staging
     commits:
       - "b396623"
       # feat(N-1c): read route, label-review/label-read libs, review UI,
@@ -17633,6 +17641,11 @@ phases:
       # 2026-11-02
       # + the commit immediately after b396623: docs(N-1c) — prompt, audit,
       # DECISIONS draft, this row, N-1d filed
+      - "fc4133f"
+      # docs(N-1c): the docs commit named on the line above; recorded by the
+      # N-1c PRE-PUSH-CHECK
+      # + the commit immediately after fc4133f: docs(N-1c PRE-PUSH-CHECK) —
+      # DECISIONS ratified, this row to staging, DEPLOY_LOG entry
     title: "Nutrition — AI \"read the label\" from an uploaded document or link, human confirms"
     notes: >
       FILED 2026-11-01 by the N-1b docs commit (series in docs/prompts/N-1b.md:

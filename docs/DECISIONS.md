@@ -5,7 +5,11 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-02 — N-1c: "Read label", forks N1C-F1–F7, API key and limits (Gary) — DRAFT
+## 2026-11-02 — N-1c: "Read label", forks N1C-F1–F7, API key and limits (Gary)
+
+**RATIFIED BY GARY, 2026-11-02, at the N-1c PRE-PUSH-CHECK, as written:**
+"Ratify as written". The "DRAFT" paragraph below is spent, kept; the heading's
+"— DRAFT" suffix was removed at this check.
 
 **DRAFT — ruled by Gary in chat 2026-11-02 at the N-1c Phase 1 STOP; to be
 ratified at PRE-PUSH-CHECK.** The audit he ruled on is

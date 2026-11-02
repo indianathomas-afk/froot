@@ -2,6 +2,71 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-02 — N-1c: "Read label" — the model reads an attached label, an ADMIN reviews and applies
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two N-1c commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `b396623`, `fc4133f`, on top of `origin/staging`
+(`3698898`). **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `b396623` | N-1c work: `src/lib/label-review.ts` (pure: output schema + Zod parse, serving matcher, F7 value parsing with FDA Daily Values, allergen mapping, name check, review builder); `src/lib/label-read.ts` (the one Anthropic API call, `fetch`, base64, model `LABEL_READ_MODEL` = claude-sonnet-5-5); new route `POST /api/nutrition/ingredients/[id]/label/read` (NU-8); NU-2 PUT takes optional `appliedFromRead`; `nutrition-section.tsx` + new `label-read-review.tsx`; `nutrition-files.ts` `readLabelBytes`; four audit actions in `nutrition-record.ts`; fixture `scripts/verify-n1c-label.ts`; `docs/PERMISSIONS_INVENTORY.md` NU-8; CLAUDE.md env line `ANTHROPIC_API_KEY` |
+| `fc4133f` | `docs(N-1c)`: prompt of record `docs/prompts/N-1c.md`, audit `docs/prompts/N-1c_AUDIT.md`, DECISIONS draft, row `in_progress`, N-1d filed `planned` |
+| the commit immediately after `fc4133f` | `docs(N-1c PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`; DECISIONS ratified by Gary at this check ("Ratify as written") |
+
+**Blast radius: A NEW ENV VAR, ONE NEW ADMIN-ONLY ROUTE THAT CALLS AN EXTERNAL
+API (ANTHROPIC) AND WRITES ONLY `AuditLog`, AND AN OPTIONAL FIELD ON AN EXISTING
+WRITE — ALL DARK BEHIND `activeModules` "nutrition", LIKE N-1/N-1b. NO SCHEMA,
+NO MIGRATION, NO CRON, NO SQUARE CALL.**
+
+- **New env var `ANTHROPIC_API_KEY`** — Preview AND Production, a SEPARATE key
+  per environment, both Sensitive, with a monthly spend limit on the Anthropic
+  side (Gary, 2026-11-02). Unset = NU-8 answers 503 "Label reading isn't set up
+  in this environment"; nothing else changes. Not needed locally (label
+  documents cannot be stored in Development). A deployment carries the env
+  values that existed when it was BUILT: set the key, then redeploy, before
+  expecting anything but a 503.
+- **When enabled — label documents leave Froot.** NU-8 sends the stored label
+  file (base64 from the PRIVATE `froot-nutrition` store, never a URL) to the
+  Anthropic API; accepted by Gary in the ruling. ADMIN only
+  (`nutrition.manage`); refused with no saved nutrition (F6), no document, or a
+  HEIC file (415). Per-org limit 30/hour and 300/day counted from `AuditLog`
+  (429); a successful read of the same file hash within 24 h is reused, not
+  re-sent. One `AuditLog` row per outcome, never the file content. The route
+  WRITES NO NUTRITION.
+- **What changes in existing writes:** NU-2's PUT accepts an optional
+  `appliedFromRead`, which adds one `nutrition.label.applied` `AuditLog` row in
+  the save's transaction. "Apply & mark verified" is that PUT then the existing
+  NU-7 verify route — no new write path to nutrition or VERIFIED.
+- **What does not change:** no schema, no existing value rewritten, nothing
+  saves until Apply, nothing writes to Square.
+
+**Rollback:** revert `b396623`. No migration, so nothing to keep. `AuditLog`
+rows already written (`nutrition.label.read*`, `.applied`) stay and are
+harmless; nutrition values applied from a read are ordinary saved values and
+stay. Unsetting `ANTHROPIC_API_KEY` (and redeploying) turns the read off
+without a code revert. If "nutrition" is on anywhere, switching it off (Neon
+console) hides every surface without a deploy. The docs commits can stay or go
+with it.
+
+**Evidence so far: fixtures and build only.** `scripts/verify-n1c-label.ts`
+59/59 PASS per the build session (pure, no API calls); `verify-n1-nutrition.ts`
+39/39, `verify-n1a-template.ts` 25/25, `verify-n1b-proof.ts` 47/47 (dev
+`br-broad-wave-a6vpjdw0`, rolled back). Review screen render-checked locally on
+a temp `/menu` page with a canned read (page deleted). **`ANTHROPIC_API_KEY` is
+not set anywhere yet, so no live read has run anywhere.** Not observed: the
+route's gates, rate limit, reuse, or the dialog flow end to end. **Nothing has
+been observed on staging or production.** After the push, in order: Gary sets
+the Preview key and redeploys staging; the staging-SHA precondition (deployed
+SHA = local `HEAD`, deployment created after the key was saved); then Gary's
+staging pass — Read label on a PDF/JPG, the review, Apply only, Apply & mark
+verified, the HEIC refusal, and the name-mismatch tickbox. Nothing is promoted
+until Gary confirms it on staging.
+
 ## UNPROMOTED — 2026-11-01 — STAMP-bdbeb47-317ce2c: count-sheet banner reads "ingredients can't" (display only); N-1/N-1a/N-1b stamps
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
