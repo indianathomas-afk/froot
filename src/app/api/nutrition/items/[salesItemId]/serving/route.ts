@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { requireNutrition, type NutritionContext } from "@/lib/nutrition-access"
 import { flOzError } from "@/lib/nutrition-label"
+import { invalidatePublicMenu } from "@/lib/public-menu-data"
 
 // PUT / DELETE /api/nutrition/items/[salesItemId]/serving — one item's label
 // override (N-2, F3: "a per-item override that can set a volume, a serving
@@ -71,6 +72,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ salesIte
     })
     await audit(tx, ctx, item.id, { from: item.nutritionServing, to: { perItem: d.perItem, volumeFlOz: d.volumeFlOz, servingFlOz: d.servingFlOz } })
   })
+  invalidatePublicMenu(ctx.org.id) // N-3: the public menu shows this; stale-while-revalidate (R-3)
   return NextResponse.json({ success: true })
 }
 
@@ -87,5 +89,6 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ salesIt
       await audit(tx, ctx, item.id, { from: item.nutritionServing, to: null })
     })
   }
+  invalidatePublicMenu(ctx.org.id) // N-3: the public menu shows this; stale-while-revalidate (R-3)
   return NextResponse.json({ success: true })
 }

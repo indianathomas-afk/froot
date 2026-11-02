@@ -23,7 +23,11 @@ function Dv({ v }: { v: LabelValue }) {
   return <span className="font-bold">{v.dv}%</span>
 }
 
-export function NutritionFactsLabel({ label }: { label: NutritionLabel }) {
+// Typed to the fields it reads, so the public menu (N-3) can pass its reduced
+// panel (PublicLabel, src/lib/public-menu.ts) without the app-side fields.
+export type LabelPanel = Pick<NutritionLabel, "servingSize" | "servingsPerContainer" | "dual" | "columns" | "contains">
+
+export function NutritionFactsLabel({ label }: { label: LabelPanel }) {
   const cols = label.columns
   const dual = label.dual
   return (

@@ -13,6 +13,34 @@ const nextConfig: NextConfig = {
   // things worse, not better. Its replacement (sanitize-html) needs no DOM and
   // must stay bundled — do not add it here.
   serverExternalPackages: ["unpdf"],
+
+  // N-3 (Gary, "Accept all leans" — R-1(b) and N3-F5). Before N-3 NO route
+  // sent framing headers, so any site could iframe any page (measured on
+  // production 2026-11-02, docs/prompts/N-3_AUDIT.md § B). Now:
+  //   - the public nutrition menu, /menu/*, may be framed by ANY site (that is
+  //     the embed), and sends no X-Frame-Options — it has no allow-all value,
+  //     and a browser honouring it would ignore the CSP;
+  //   - EVERY OTHER path refuses all framing.
+  // The negative lookahead keeps the two rules disjoint, so neither overrides
+  // the other. A CSP of only frame-ancestors restricts nothing else. The app's
+  // own iframes (YouTube embeds) are outbound and unaffected.
+  async headers() {
+    return [
+      {
+        source: "/:path((?!menu/).*)",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+        ],
+      },
+      {
+        // `+`, not `*`: `*` also matches bare /menu, which the rule above
+        // already covers — measured on a dev server, /menu got both headers.
+        source: "/menu/:path+",
+        headers: [{ key: "Content-Security-Policy", value: "frame-ancestors *" }],
+      },
+    ]
+  },
 };
 
 export default nextConfig;

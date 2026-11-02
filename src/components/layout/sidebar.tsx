@@ -29,6 +29,7 @@ import {
   Apple,
   Upload,
   CupSoda,
+  Globe,
 } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import { cn } from "@/lib/utils"
@@ -248,6 +249,8 @@ const navStructure: NavEntry[] = [
       { href: "/nutrition/import", label: "Import Nutrition", icon: Upload, capability: "nutrition.manage" },
       // N-2: the org's serving size and size table for Nutrition Facts labels.
       { href: "/nutrition/settings", label: "Serving Settings", icon: CupSoda, capability: "nutrition.manage" },
+      // N-3: the public nutrition menu (link + embed) — off until an ADMIN turns it on.
+      { href: "/nutrition/publish", label: "Public Menu", icon: Globe, capability: "nutrition.manage" },
     ],
   },
 ]

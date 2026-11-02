@@ -60,7 +60,7 @@ Recorded from DEBT-6, which is closed in favour of this note.
 
 | Helper | File | What it enforces |
 |---|---|---|
-| `clerkMiddleware` + `isPublicRoute` | `src/proxy.ts` | Session required everywhere except `/`, sign-in/up, `/accept-invite`, `/api/webhooks/*`, `/api/cron/*`, `/menu` |
+| `clerkMiddleware` + `isPublicRoute` | `src/proxy.ts` | Session required everywhere except `/`, sign-in/up, `/accept-invite`, `/api/webhooks/*`, `/api/cron/*`, `/menu/*` (N-3, 2026-11-02: tightened from `/menu(.*)`, which also matched `/menus` etc.; the public nutrition menu, PG-41) |
 | `getOrgId` / `getOrganization` | `src/lib/auth.ts` | Org session + org row exist (throws) |
 | `requireModule(m)` | `src/lib/auth.ts` | `activeModules` per-org toggle |
 | `hrModuleAvailable` / `laborModuleAvailable` | `src/lib/auth.ts` | Env availability gates (+ internal-org dogfood lists) |
@@ -112,6 +112,7 @@ referenced by the capability registry in §5.
 | SH-2 | `src/app/(app)/layout.tsx` | Admin shell — STAFF with linked staff profile + HR gates on → `redirect("/my")` | ADMIN/MANAGER/STORE + unlinked/HR-off STAFF | route-guard (UI lock only; STAFF API surface unchanged — HR-9 planned) |
 | SH-3 | `src/app/(app)/layout.tsx` | `staffHasChecklists` store-proxy (STAFF checklists nav signal) | STAFF w/ open checklist at assigned store | data-scope (feeds nav-only filter) |
 | SH-4 | `src/app/(my)/layout.tsx` | Nothing — presentation only; every `/my` page self-guards | — | none |
+| SH-5 | `next.config.ts` `headers()` (N-3, 2026-11-02, R-1(b)) | Framing. Every path except `/menu/<…>` sends `X-Frame-Options: DENY` + `Content-Security-Policy: frame-ancestors 'none'`; `/menu/<…>` sends `frame-ancestors *` only (the embed, N3-F5). Before N-3 NO route sent either header (production, 2026-11-02, `docs/prompts/N-3_AUDIT.md` § B) | — (header, not a role) | response header |
 
 ### 1b. Sidebar nav (`src/components/layout/sidebar.tsx`) — nav-only
 
@@ -134,7 +135,7 @@ referenced by the capability registry in §5.
 | NV-15 | Inventory section (11 items) | Ingredients/Sales Items/Counts/Adjustments/Purchase Orders: ADMIN, MANAGER, STORE · Recipes/Storage Areas/Vendors/Expected Stock/Alerts/Reports: ADMIN, MANAGER | `activeModules` includes inventory |
 | NV-16 | Settings link | ADMIN (`canSeeSettings`) | — |
 | NV-17 | Alerts badge fetch | ADMIN, MANAGER (`showAlertBadge`) | inventory active |
-| NV-18 | Nutrition section: Menu Nutrition (/nutrition/menu) · Import Nutrition (/nutrition/import) (N-1, 2026-11-01) · Serving Settings (/nutrition/settings) (N-2, 2026-11-02) | Menu Nutrition: ADMIN, MANAGER, STORE (`nutrition.view`) · Import and Serving Settings: ADMIN (`nutrition.manage`) | `activeModules` includes inventory AND nutrition (R-4) |
+| NV-18 | Nutrition section: Menu Nutrition (/nutrition/menu) · Import Nutrition (/nutrition/import) (N-1, 2026-11-01) · Serving Settings (/nutrition/settings) (N-2, 2026-11-02) · Public Menu (/nutrition/publish) (N-3, 2026-11-02) | Menu Nutrition: ADMIN, MANAGER, STORE (`nutrition.view`) · Import, Serving Settings and Public Menu: ADMIN (`nutrition.manage`) | `activeModules` includes inventory AND nutrition (R-4) |
 
 ### 1c. Pages & layouts (server route guards)
 
@@ -181,6 +182,8 @@ referenced by the capability registry in §5.
 | PG-38 | `(app)/nutrition/menu/[salesItemId]/label/page.tsx` (N-2, 2026-11-02) | One item's Nutrition Facts label preview: the serving-size picker (previews only, saves nothing), Print, and — ADMIN only — the item's serving override form (writes via NU-10). Sales item resolved inside the caller's org; unknown, cross-org or no recipe → 404 | `nutrition.view`: ADMIN, MANAGER, STORE; upgrade card when inventory or nutrition is off | route-guard + data-scope (org) |
 | PG-39 | `src/app/print/nutrition-label/[salesItemId]` (N-2) | Print view of one item's label (`?serving=` carries the picker's preview size, never saved). Outside the app shell, so it repeats the gate: both modules + `nutrition.view`; anything refused is a 404 | ADMIN, MANAGER, STORE (`nutrition.view`); org-scoped | route-guard + data-scope (org) |
 | PG-40 | `(app)/nutrition/settings/page.tsx` (N-2) | Serving Settings: the org's drink serving size and the size table (writes via NU-9) | `nutrition.manage`: ADMIN; other viewers redirect to /nutrition/menu | route-guard |
+| PG-41 | `src/app/menu/[slug]/page.tsx` (N-3, 2026-11-02) | **PUBLIC — no session, by design.** The org's nutrition menu, read-only, embeddable (`?embed=1`). Renders ONLY the payload built by `buildPublicMenu` (`src/lib/public-menu.ts`): item and size names, menu group names, rounded label values for fully Verified sizes, allergen labels, disclaimer and cross-contact texts, the org's display name, a last-updated date — never prices, costs, ingredients, recipes, documents, links, user names or ids (pinned by `scripts/verify-n3-public.ts`). Unknown slug, menu off, or inventory/nutrition module off → the same plain 404 | Anyone (public) | public by design — data-scope (slug → one org) + serializer |
+| PG-42 | `(app)/nutrition/publish/page.tsx` (N-3) | Public Menu settings: on/off, web address, included menu groups, hidden items, disclaimer and cross-contact texts, live counts, link and embed code (writes via NU-11) | `nutrition.manage`: ADMIN; other viewers redirect to /nutrition/menu; upgrade card when inventory or nutrition is off | route-guard |
 
 ### 1d. Platform APIs
 
@@ -363,6 +366,7 @@ whole answer today.
 | NU-8 | `nutrition/ingredients/[id]/label/read` POST (N-1c, 2026-11-02) | "Read label": sends the ingredient's stored label document to the Anthropic API (base64 from the PRIVATE store, never a URL) and returns the transcribed panel for the dialog's review. Writes NO nutrition. Refused with no record (F6), no document, or a HEIC file (415). 503 when `ANTHROPIC_API_KEY` is unset. Per-org limit 30/hour and 300/day counted from `AuditLog` (429); a successful read of the same file hash within 24 h is reused, not re-sent (`{ fresh: true }` forces a new call). One `AuditLog` row per outcome (`nutrition.label.read` / `.read.failed` / `.read.reused`) — file name, hash, model, success/failure, and the transcribed values on success; never the file | ADMIN (`nutrition.manage`); org-scoped | handler + data-scope (org) + rate limit |
 | NU-9 | `nutrition/settings` PUT (N-2, 2026-11-02) | The org's Nutrition Facts serving settings: drink serving size (null = the 12 fl oz default) and size-table rows keyed on the exact Square variation name (a null volume removes the row). Values 0 < fl oz ≤ 200. One `AuditLog` row (`nutrition.serving.settings`, from → to) in the transaction | ADMIN (`nutrition.manage`); org-scoped | handler + data-scope (org) |
 | NU-10 | `nutrition/items/[salesItemId]/serving` PUT + DELETE (N-2) | One sales item's serving override: "per item", or its own volume and/or serving size; DELETE returns it to the table/defaults. Sales item resolved inside the caller's org (404 otherwise). One `AuditLog` row (`nutrition.serving.item`, from → to) per change | ADMIN (`nutrition.manage`); org-scoped | handler + data-scope (org) |
+| NU-11 | `nutrition/publish` PUT (N-3, 2026-11-02) | The org's public menu settings (creates the `PublicMenu` row on first save; no row = off). Included groups must be this org's `SquareCategory` rows and hidden items this org's Square item ids, else 400; a slug taken by another org → 409. One `AuditLog` row (`nutrition.publish.settings`, from → to) in the transaction; expires the cached public payload at once | ADMIN (`nutrition.manage`); org-scoped | handler + data-scope (org) |
 
 N-1c also widened NU-2's PUT: an optional `appliedFromRead` (the read's audit
 id, apply intent, edited fields) must name a read of the same ingredient in the

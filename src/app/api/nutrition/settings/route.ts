@@ -3,6 +3,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { requireNutrition } from "@/lib/nutrition-access"
 import { flOzError } from "@/lib/nutrition-label"
+import { invalidatePublicMenu } from "@/lib/public-menu-data"
 
 // PUT /api/nutrition/settings — the org's Nutrition Facts serving settings
 // (N-2): the drink serving size (null = the 12 fl oz default, R-1) and the
@@ -69,5 +70,6 @@ export async function PUT(req: Request) {
     })
   })
 
+  invalidatePublicMenu(ctx.org.id) // N-3: the public menu shows this; stale-while-revalidate (R-3)
   return NextResponse.json({ success: true, changedSizes: changed.length })
 }

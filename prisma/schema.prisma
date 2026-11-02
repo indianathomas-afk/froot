@@ -247,6 +247,7 @@ model Organization {
   milestoneSettings             MilestoneSettings?
   nutritionSizeVolumes          NutritionSizeVolume[]
   nutritionItemServings         NutritionItemServing[]
+  publicMenu                    PublicMenu?
 }
 
 model User {
@@ -1499,8 +1500,9 @@ model SquareCategory {
   name             String
   isDeleted        Boolean @default(false)
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  salesItems   SalesItem[]
+  organization         Organization         @relation(fields: [organizationId], references: [id])
+  salesItems           SalesItem[]
+  publicMenuCategories PublicMenuCategory[]
 
   @@unique([organizationId, squareCategoryId])
 }
@@ -1706,6 +1708,59 @@ model NutritionItemServing {
   salesItem    SalesItem    @relation(fields: [salesItemId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+}
+
+// ─── N-3: public nutrition menu ──────────────────────────────────────────────
+// Rulings: docs/DECISIONS.md 2026-11-02 N-3 (Gary, DRAFT: "Accept all leans");
+// audit docs/prompts/N-3_AUDIT.md § E. One row per org; NO ROW = OFF, and
+// enabled defaults false (N3-F3), so nothing is public until an ADMIN saves
+// the page with the menu turned on. Not the MenuItem* stub (DEBT-124).
+
+// slug is the public web address (/menu/<slug>), unique across orgs, stored
+// lowercase. Deliberately NOT Organization.slug: the Clerk webhook writes that
+// one, and a URL the ADMIN chose must never be overwritten by a sync.
+// disclaimer / crossContactNotice null = the default text in code, so an
+// improved default reaches every org that never edited it.
+model PublicMenu {
+  id                 String   @id @default(cuid())
+  organizationId     String   @unique
+  enabled            Boolean  @default(false)
+  slug               String   @unique
+  disclaimer         String?
+  crossContactNotice String?
+  updatedByUserId    String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization Organization           @relation(fields: [organizationId], references: [id])
+  categories   PublicMenuCategory[]
+  hiddenItems  PublicMenuHiddenItem[]
+}
+
+// Included menu groups — none by default (N3-F3). Keyed on the SquareCategory
+// ROW, not SalesItem.menuGroup (a name copy): a category renamed in Square
+// stays included. The write route must check the category is in the same org.
+model PublicMenuCategory {
+  publicMenuId     String
+  squareCategoryId String
+  createdAt        DateTime @default(now())
+
+  publicMenu     PublicMenu     @relation(fields: [publicMenuId], references: [id], onDelete: Cascade)
+  squareCategory SquareCategory @relation(fields: [squareCategoryId], references: [id], onDelete: Cascade)
+
+  @@id([publicMenuId, squareCategoryId])
+}
+
+// Hidden items — the Square ITEM (every size), by its Square id, which
+// survives catalog re-syncs. No FK: there is no Square item table.
+model PublicMenuHiddenItem {
+  publicMenuId String
+  squareItemId String
+  createdAt    DateTime @default(now())
+
+  publicMenu PublicMenu @relation(fields: [publicMenuId], references: [id], onDelete: Cascade)
+
+  @@id([publicMenuId, squareItemId])
 }
 
 enum Allergen {

@@ -9,6 +9,7 @@ import {
 import { PROOF_ONLY_NUMBERS } from "@/lib/nutrition"
 import { RESET_TO_ESTIMATED, proofRefusal, resetsOnLabelRemoval } from "@/lib/nutrition-proof"
 import { findOrgIngredient, nutritionAudit, serializeIngredient } from "@/lib/nutrition-record"
+import { invalidatePublicMenu } from "@/lib/public-menu-data"
 
 // /api/nutrition/ingredients/[id]/label — the one label document on an
 // ingredient's nutrition record (N-1b deliverable 1).
@@ -137,6 +138,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   await deleteLabelBlob(replacedUrl)
 
   const updated = await findOrgIngredient(ctx.org.id, ing.id)
+  invalidatePublicMenu(ctx.org.id) // N-3: the public menu shows this; stale-while-revalidate (R-3)
   return NextResponse.json(await serializeIngredient(updated!, ctx.org.id), { status: replacedUrl ? 200 : 201 })
 }
 
@@ -171,5 +173,6 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   await deleteLabelBlob(existing.labelFileUrl)
 
   const updated = await findOrgIngredient(ctx.org.id, ing.id)
+  invalidatePublicMenu(ctx.org.id) // N-3: the public menu shows this; stale-while-revalidate (R-3)
   return NextResponse.json(await serializeIngredient(updated!, ctx.org.id))
 }
