@@ -76,6 +76,12 @@ export type NutritionAuditAction =
   | "nutrition.unverified"
   | "nutrition.status.reset"
   | "nutrition.record.cleared"
+  // N-1c. A read that called the model / one that failed — both count toward
+  // the per-org rate limit; a reuse of a result for the same file does not.
+  | "nutrition.label.read"
+  | "nutrition.label.read.failed"
+  | "nutrition.label.read.reused"
+  | "nutrition.label.applied"
 
 export function nutritionAudit(
   tx: Prisma.TransactionClient,

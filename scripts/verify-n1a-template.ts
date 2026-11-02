@@ -25,7 +25,6 @@
  * WHAT IT CANNOT DETECT: the route's ADMIN gate, the apply transaction, or how
  * Keva's real ingredient names match. Those are Gary's staging pass.
  */
-import type { Allergen } from "@prisma/client"
 import Papa from "papaparse"
 import { IMPORT_COLUMNS, NUTRIENT_KEYS, type NutrientKey, type NutrientValues, type NutritionInput } from "../src/lib/nutrition"
 import {

@@ -180,6 +180,16 @@ export async function readLabelMeta(fileUrl: string): Promise<{
   }
 }
 
+/** The stored bytes, for N-1c's label read. Same two calls as readLabelMeta;
+ *  the bytes stay on the server and are sent on as base64, never as a URL. */
+export async function readLabelBytes(fileUrl: string): Promise<{ bytes: Uint8Array; contentType: string }> {
+  const token = nutritionBlobToken()
+  const info = await head(fileUrl, { token })
+  const res = await fetch(info.url, { headers: { authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new Error(`Failed to read label blob (${res.status})`)
+  return { bytes: new Uint8Array(await res.arrayBuffer()), contentType: info.contentType }
+}
+
 /** Store-relative pathname out of a full private blob URL. */
 export function labelPathnameFromUrl(fileUrl: string): string {
   return new URL(fileUrl).pathname.replace(/^\//, "")

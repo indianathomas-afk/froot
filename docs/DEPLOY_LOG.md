@@ -2,7 +2,135 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-01 — N-1b: nutrition proof — source links, label documents, Estimated/Verified
+## UNPROMOTED — 2026-11-02 — N-1c: "Read label" — the model reads an attached label, an ADMIN reviews and applies
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two N-1c commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `b396623`, `fc4133f`, on top of `origin/staging`
+(`3698898`). **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `b396623` | N-1c work: `src/lib/label-review.ts` (pure: output schema + Zod parse, serving matcher, F7 value parsing with FDA Daily Values, allergen mapping, name check, review builder); `src/lib/label-read.ts` (the one Anthropic API call, `fetch`, base64, model `LABEL_READ_MODEL` = claude-sonnet-5-5); new route `POST /api/nutrition/ingredients/[id]/label/read` (NU-8); NU-2 PUT takes optional `appliedFromRead`; `nutrition-section.tsx` + new `label-read-review.tsx`; `nutrition-files.ts` `readLabelBytes`; four audit actions in `nutrition-record.ts`; fixture `scripts/verify-n1c-label.ts`; `docs/PERMISSIONS_INVENTORY.md` NU-8; CLAUDE.md env line `ANTHROPIC_API_KEY` |
+| `fc4133f` | `docs(N-1c)`: prompt of record `docs/prompts/N-1c.md`, audit `docs/prompts/N-1c_AUDIT.md`, DECISIONS draft, row `in_progress`, N-1d filed `planned` |
+| the commit immediately after `fc4133f` | `docs(N-1c PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`; DECISIONS ratified by Gary at this check ("Ratify as written") |
+
+**Blast radius: A NEW ENV VAR, ONE NEW ADMIN-ONLY ROUTE THAT CALLS AN EXTERNAL
+API (ANTHROPIC) AND WRITES ONLY `AuditLog`, AND AN OPTIONAL FIELD ON AN EXISTING
+WRITE — ALL DARK BEHIND `activeModules` "nutrition", LIKE N-1/N-1b. NO SCHEMA,
+NO MIGRATION, NO CRON, NO SQUARE CALL.**
+
+- **New env var `ANTHROPIC_API_KEY`** — Preview AND Production, a SEPARATE key
+  per environment, both Sensitive, with a monthly spend limit on the Anthropic
+  side (Gary, 2026-11-02). Unset = NU-8 answers 503 "Label reading isn't set up
+  in this environment"; nothing else changes. Not needed locally (label
+  documents cannot be stored in Development). A deployment carries the env
+  values that existed when it was BUILT: set the key, then redeploy, before
+  expecting anything but a 503.
+- **When enabled — label documents leave Froot.** NU-8 sends the stored label
+  file (base64 from the PRIVATE `froot-nutrition` store, never a URL) to the
+  Anthropic API; accepted by Gary in the ruling. ADMIN only
+  (`nutrition.manage`); refused with no saved nutrition (F6), no document, or a
+  HEIC file (415). Per-org limit 30/hour and 300/day counted from `AuditLog`
+  (429); a successful read of the same file hash within 24 h is reused, not
+  re-sent. One `AuditLog` row per outcome, never the file content. The route
+  WRITES NO NUTRITION.
+- **What changes in existing writes:** NU-2's PUT accepts an optional
+  `appliedFromRead`, which adds one `nutrition.label.applied` `AuditLog` row in
+  the save's transaction. "Apply & mark verified" is that PUT then the existing
+  NU-7 verify route — no new write path to nutrition or VERIFIED.
+- **What does not change:** no schema, no existing value rewritten, nothing
+  saves until Apply, nothing writes to Square.
+
+**Rollback:** revert `b396623`. No migration, so nothing to keep. `AuditLog`
+rows already written (`nutrition.label.read*`, `.applied`) stay and are
+harmless; nutrition values applied from a read are ordinary saved values and
+stay. Unsetting `ANTHROPIC_API_KEY` (and redeploying) turns the read off
+without a code revert. If "nutrition" is on anywhere, switching it off (Neon
+console) hides every surface without a deploy. The docs commits can stay or go
+with it.
+
+**Evidence so far: fixtures and build only.** `scripts/verify-n1c-label.ts`
+59/59 PASS per the build session (pure, no API calls); `verify-n1-nutrition.ts`
+39/39, `verify-n1a-template.ts` 25/25, `verify-n1b-proof.ts` 47/47 (dev
+`br-broad-wave-a6vpjdw0`, rolled back). Review screen render-checked locally on
+a temp `/menu` page with a canned read (page deleted). **`ANTHROPIC_API_KEY` is
+not set anywhere yet, so no live read has run anywhere.** Not observed: the
+route's gates, rate limit, reuse, or the dialog flow end to end. **Nothing has
+been observed on staging or production.** After the push, in order: Gary sets
+the Preview key and redeploys staging; the staging-SHA precondition (deployed
+SHA = local `HEAD`, deployment created after the key was saved); then Gary's
+staging pass — Read label on a PDF/JPG, the review, Apply only, Apply & mark
+verified, the HEIC refusal, and the name-mismatch tickbox. Nothing is promoted
+until Gary confirms it on staging.
+
+## UNPROMOTED — 2026-11-01 — STAMP-bdbeb47-317ce2c: count-sheet banner reads "ingredients can't" (display only); N-1/N-1a/N-1b stamps
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two commits plus this check's own.** Verified by `git log @{u}..`
+at this check: exactly `bdd7c36`, `f5001d2`, on top of `origin/staging`
+(`317ce2c`). **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `bdd7c36` | TIER 1 work: `inventory/counts/[id]/draft-counting.tsx` and `inventory/storage-areas/storage-areas-client.tsx` — the unassigned-ingredients heading is one template string in one `<span>`; `scripts/verify-n1a-template.ts` drops an unused `Allergen` type import |
+| `f5001d2` | `docs(promotion)`: stamps for merges `bdbeb47` (N-1, N-1a) and `317ce2c` (N-1b) — DEPLOY_LOG headings, ROADMAP rows to `shipped`, MIGRATIONS production rows; `docs/prompts/STAMP-bdbeb47-317ce2c.md` |
+| the commit immediately after `f5001d2` | `docs(STAMP-bdbeb47-317ce2c PRE-PUSH-CHECK)`: this entry |
+
+**Blast radius: TWO HEADING LINES UNDER `/inventory`, DISPLAY ONLY, PLUS ONE
+FIXTURE IMPORT LINE. NO SCHEMA, NO MIGRATION, NO API ROUTE, NO ENV VAR, NO
+CRON, NO SQUARE CALL, NO PERMISSION CHANGE, NOTHING WRITTEN.**
+
+- **What changes:** the count sheet's and storage-areas page's
+  unassigned-ingredients banner renders "225 ingredients can't be counted yet"
+  instead of "225 ingredientscan't be counted yet". Same text, same
+  pluralisation, now a single text node.
+- **What does not:** no conditional, query or gate moved; the
+  `unassigned.length` / `unassignedCount` values are the ones already rendered.
+  The fixture change is a type-only import and does not ship in the app bundle.
+- **No ROADMAP row:** TIER 1 writes none (CLAUDE.md § Session Tiers). The
+  prompt of record is `docs/prompts/STAMP-bdbeb47-317ce2c.md`.
+
+**Rollback:** revert `bdd7c36`. Nothing written, so the old rendering returns on
+the next load. The stamp commit `f5001d2` is docs only and stays.
+
+**Evidence so far: build only.** Not browser-checked. After the push: the
+staging-SHA precondition (deployed SHA = local `HEAD`), then the count sheet
+banner and `/inventory/storage-areas` under a named org id — the space between
+"ingredients" and "can't" is present.
+
+## 317ce2c — 2026-11-01 — N-1b: nutrition proof — source links, label documents, Estimated/Verified
+
+**PROMOTED 2026-11-01 in merge `317ce2c`** (`317ce2c2d2a2b1474ebbb83f805ad6f16e1d5d06`,
+"Merge branch 'staging'", 2026-11-01 18:48:51 -0800 (Pacific) = 2026-11-02
+02:48:51 UTC), `--no-ff`. First parent `bdbeb47` (prior tip of `main`), second
+parent `2979f1c` (staging tip). **3 commits** in `317ce2c^1..317ce2c^2` —
+`0962d72`, `50ef062`, `2979f1c` (N-1b) — and **28 files**, read out of
+`git log` and `git diff --shortstat` at this stamp. `main` moved
+`bdbeb47..317ce2c`; `staging` fast-forwarded to it. Not the same promotion as
+N-1 / N-1a as the line below expected: they went first, in `bdbeb47`. Stamped
+post-merge by STAMP-bdbeb47-317ce2c (2026-11-01), on `staging`; the heading
+previously read "UNPROMOTED — 2026-11-01 — N-1b: nutrition proof — source links, label documents, Estimated/Verified".
+The "staging only", "Ships with N-1 and N-1a … in the same promotion" and
+"NEITHER WAS PUSHED" lines below are spent, kept.
+
+**Observed, staging (Gary):** label upload, view, Mark verified, "Still
+verified?" → Estimated, and the "N of M items verified" line all worked.
+
+**Observed, production (Gary, Neon `br-sparkling-block-a620qvg4`, `Organization`
+`cf888f2d-f234-48c7-8097-fd5b44b5b3dd`):** migration
+`20261101230000_n1b_nutrition_proof` `finished_at` 2026-11-02 02:49:41 UTC
+(2026-11-01 18:49:41 PST). Gary imported planning chat's estimated nutrition
+file (all records Estimated), then verified **Almond Milk** against the Almond
+Breeze Original spec sheet (04/04/23): label numbers entered per 8 fl. oz, PDF
+uploaded, link saved, Verified by gary@kevajuice.com.
+
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
@@ -75,7 +203,15 @@ pass — upload, view, replace, remove, verify, the "Still verified?" and
 clear-proof questions, an import reset, and Menu Nutrition's Proof column and
 verified count. Nothing is promoted until Gary confirms it on staging.
 
-## UNPROMOTED — 2026-11-01 — N-1a: nutrition "Download template" that imports back as zero changes
+## bdbeb47 — 2026-11-01 — N-1a: nutrition "Download template" that imports back as zero changes
+
+**PROMOTED 2026-11-01 in merge `bdbeb47`**, together with N-1 — merge details
+and evidence (template re-import 0 ready / 225 unchanged on staging) are on
+the N-1 entry below. No migration of its own. Stamped post-merge by
+STAMP-bdbeb47-317ce2c (2026-11-01), on `staging`; the heading previously read
+"UNPROMOTED — 2026-11-01 — N-1a: nutrition "Download template" that imports back as zero changes". The "staging only" and "NEITHER WAS PUSHED" lines
+below are spent, kept.
+
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
@@ -126,7 +262,32 @@ then Gary's staging pass — the download, the ADMIN gate, and a real Keva
 template imported back as zero changes. Nothing is promoted until Gary
 confirms it on staging.
 
-## UNPROMOTED — 2026-11-01 — N-1: ingredient nutrition & allergens, computed through recipes
+## bdbeb47 — 2026-11-01 — N-1: ingredient nutrition & allergens, computed through recipes
+
+**PROMOTED 2026-11-01 in merge `bdbeb47` (`bdbeb47b2bf830d90b5ab9fad6112cbbf5d16a03`,
+"Merge branch 'staging'", 2026-11-01 15:49:08 -0800 (Pacific) = 2026-11-01
+23:49:08 UTC), `--no-ff`. First parent `62b9d86` (prior tip of `main`), second
+parent `b143e5f` (staging tip). **7 commits** in `bdbeb47^1..bdbeb47^2` —
+`8e37495` (62b9d86 stamp), `70baf2f` / `2c2c0fa` / `a6a33bf` (N-1), `b0bc473` /
+`bc3d621` / `b143e5f` (N-1a) — and **36 files**, read out of `git log` and
+`git diff --shortstat` at this stamp. `main` moved `62b9d86..bdbeb47`;
+`staging` fast-forwarded to it. Migration
+`20261101210000_n1_ingredient_nutrition` applied to production at promotion
+(below). Shipped with N-1a (entry above). Stamped post-merge by
+STAMP-bdbeb47-317ce2c (2026-11-01), on `staging`; the heading previously read
+"UNPROMOTED — 2026-11-01 — N-1: ingredient nutrition & allergens, computed through recipes". The "staging only" and "NEITHER WAS PUSHED" lines
+below are spent, kept.
+
+**Observed, staging, before promotion (Gary):** Liquid Olympian Smoothie (M)
+computed 395 kcal / 102 g carb / 78.8 g sugars, matching hand math; the
+unedited N-1a template re-imported as 0 ready / 225 unchanged.
+
+**Observed, production (Gary, Neon `br-sparkling-block-a620qvg4`):** migration
+`20261101210000_n1_ingredient_nutrition` `finished_at` 2026-11-01 23:49:42 UTC
+(15:49:42 PST). Gary then turned the nutrition module on for `Organization`
+`cf888f2d-f234-48c7-8097-fd5b44b5b3dd` (`activeModules` now
+`{inventory,hr,labor,nutrition}`, branch id in the same output).
+
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next

@@ -17394,7 +17394,12 @@ phases:
     # "Add the MIGRATIONS.md entry in this check's single docs commit").
     # The "(NOT pushed)" and "is the commit immediately after 70baf2f" lines
     # above are spent, kept: the docs SHA is 2c2c0fa.
-    status: staging
+    # `staging` -> `shipped` 2026-11-01, stamped post-merge 2026-11-01 by
+    # STAMP-bdbeb47-317ce2c (on `staging`): merge bdbeb47 (DEPLOY_LOG entry
+    # `bdbeb47 — 2026-11-01 — N-1`). Any "NOT pushed" / "staging" comment
+    # above is spent, kept.
+    status: shipped
+    shipped: 2026-11-01
     title: "Nutrition — schema & menu item manager"
     commits:
       - "70baf2f"
@@ -17407,6 +17412,9 @@ phases:
       # + the commit immediately after 2c2c0fa: docs(N-1 PRE-PUSH-CHECK) —
       # DECISIONS ratified, this row to staging, MIGRATIONS entry, DEPLOY_LOG
       # entry
+      - "a6a33bf"
+      - "bdbeb47"
+      # promotion merge 2026-11-01 (main 62b9d86..bdbeb47, migration 20261101210000_n1_ingredient_nutrition)
     notes: >
       BUILT 2026-11-01, TIER 3 (prepended; nothing below is edited). Prompt of
       record: docs/prompts/N-1.md; audit: docs/prompts/N-1_AUDIT.md. Gary's
@@ -17449,6 +17457,14 @@ phases:
 
       MenuItem/MenuItemNutrition/MenuItemAllergen models and module flag scaffolded; no UI or routes.
 
+      PROMOTED 2026-11-01 in merge bdbeb47 (rider, STAMP-bdbeb47-317ce2c).
+      Staging (Gary): Liquid Olympian Smoothie (M) computed 395 kcal / 102 g
+      carb / 78.8 g sugars, matching hand math. Production (Gary, Neon
+      br-sparkling-block-a620qvg4): migration finished_at 2026-11-01 23:49:42
+      UTC; nutrition then turned on for `Organization`
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd (activeModules now
+      {inventory,hr,labor,nutrition}).
+
   - id: N-1a
     track: nutrition
     size: S
@@ -17462,7 +17478,12 @@ phases:
     # check: "Ratify as written." DEPLOY_LOG UNPROMOTED entry written. No
     # migration. The "(NOT pushed)" and "is the commit immediately after
     # b0bc473" lines above are spent, kept: the docs SHA is bc3d621.
-    status: staging
+    # `staging` -> `shipped` 2026-11-01, stamped post-merge 2026-11-01 by
+    # STAMP-bdbeb47-317ce2c (on `staging`): merge bdbeb47 (DEPLOY_LOG entry
+    # `bdbeb47 — 2026-11-01 — N-1a`). Any "NOT pushed" / "staging" comment
+    # above is spent, kept.
+    status: shipped
+    shipped: 2026-11-01
     title: "Nutrition — Download template (round-trip CSV)"
     commits:
       - "b0bc473"
@@ -17475,6 +17496,9 @@ phases:
       # N-1a PRE-PUSH-CHECK
       # + the commit immediately after bc3d621: docs(N-1a PRE-PUSH-CHECK) —
       # DECISIONS ratified, this row to staging, DEPLOY_LOG entry
+      - "b143e5f"
+      - "bdbeb47"
+      # promotion merge 2026-11-01 (main 62b9d86..bdbeb47, with N-1, no migration of its own)
     notes: >
       BUILT 2026-11-01, TIER 2. Prompt of record: docs/prompts/N-1a.md. Ships
       with N-1 in the same promotion. The session stopped at the prompt's step
@@ -17504,6 +17528,11 @@ phases:
       AMBIGUOUS, because the matcher sees every non-deleted ingredient (N-1
       behaviour, unchanged).
 
+      PROMOTED 2026-11-01 in merge bdbeb47 with N-1 (rider,
+      STAMP-bdbeb47-317ce2c). Staging (Gary): the unedited template
+      re-imported as 0 ready / 225 unchanged. The "NOT VERIFIED ON STAGING"
+      line above is spent, kept.
+
   - id: N-1b
     track: nutrition
     size: M
@@ -17519,7 +17548,12 @@ phases:
     # NUTRITION_BLOB_READ_WRITE_TOKEN (Preview + Production) ride this push.
     # The "(NOT pushed)" and "is the commit immediately after 0962d72" lines
     # above are spent, kept: the docs SHA is 50ef062.
-    status: staging
+    # `staging` -> `shipped` 2026-11-01, stamped post-merge 2026-11-01 by
+    # STAMP-bdbeb47-317ce2c (on `staging`): merge 317ce2c (DEPLOY_LOG entry
+    # `317ce2c — 2026-11-01 — N-1b`). Any "NOT pushed" / "staging" comment
+    # above is spent, kept.
+    status: shipped
+    shipped: 2026-11-01
     title: "Nutrition — proof: source links, label documents, Estimated/Verified"
     commits:
       - "0962d72"
@@ -17534,6 +17568,9 @@ phases:
       # + the commit immediately after 50ef062: docs(N-1b PRE-PUSH-CHECK) —
       # DECISIONS ratified, this row to staging, DEPLOY_LOG entry, MIGRATIONS
       # pointer repaired
+      - "2979f1c"
+      - "317ce2c"
+      # promotion merge 2026-11-01 (main bdbeb47..317ce2c, migration 20261101230000_n1b_nutrition_proof)
     notes: >
       BUILT 2026-11-01, TIER 3. Prompt of record: docs/prompts/N-1b.md; audit
       docs/prompts/N-1b_AUDIT.md. Rulings: docs/DECISIONS.md 2026-11-01 N-1b,
@@ -17566,6 +17603,17 @@ phases:
       rendering — no browser pass was run (no local store, and the preview has
       no session). All of it is Gary's staging pass, and the series rule
       holds: nothing promotes until Gary confirms it on staging.
+
+      PROMOTED 2026-11-01 in merge 317ce2c (rider, STAMP-bdbeb47-317ce2c).
+      Staging (Gary): label upload, view, Mark verified, "Still verified?" →
+      Estimated, and the "N of M items verified" line all worked. Production
+      (Gary, Neon br-sparkling-block-a620qvg4, `Organization`
+      cf888f2d-f234-48c7-8097-fd5b44b5b3dd): migration finished_at 2026-11-02
+      02:49:41 UTC; planning chat's estimated nutrition file imported (all
+      Estimated), then Almond Milk verified against the Almond Breeze Original
+      spec sheet (04/04/23) — per 8 fl. oz, PDF uploaded, link saved, Verified
+      by gary@kevajuice.com. The "NOT VERIFIED ANYWHERE" line above is spent,
+      kept.
     deferred:
       - "Label document version history (replace keeps none; AuditLog rows carry old/new file names and hashes)"
       - "Cross-contact (\"may contain\") allergens"
@@ -17574,7 +17622,30 @@ phases:
   - id: N-1c
     track: nutrition
     size: M
-    status: planned
+    # → in_progress 2026-11-02 at the work commit b396623 (NOT pushed). The
+    # docs SHA is the commit immediately after b396623 (its own SHA cannot be
+    # written inside itself).
+    # N-1c PRE-PUSH-CHECK 2026-11-02: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after fc4133f (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-02 N-1c ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written. No
+    # migration. Env var ANTHROPIC_API_KEY (Preview + Production) rides this
+    # push. The "(NOT pushed)" and "is the commit immediately after b396623"
+    # lines above are spent, kept: the docs SHA is fc4133f.
+    status: staging
+    commits:
+      - "b396623"
+      # feat(N-1c): read route, label-review/label-read libs, review UI,
+      # appliedFromRead audit, fixture, NU-8, ANTHROPIC_API_KEY env line,
+      # 2026-11-02
+      # + the commit immediately after b396623: docs(N-1c) — prompt, audit,
+      # DECISIONS draft, this row, N-1d filed
+      - "fc4133f"
+      # docs(N-1c): the docs commit named on the line above; recorded by the
+      # N-1c PRE-PUSH-CHECK
+      # + the commit immediately after fc4133f: docs(N-1c PRE-PUSH-CHECK) —
+      # DECISIONS ratified, this row to staging, DEPLOY_LOG entry
     title: "Nutrition — AI \"read the label\" from an uploaded document or link, human confirms"
     notes: >
       FILED 2026-11-01 by the N-1b docs commit (series in docs/prompts/N-1b.md:
@@ -17585,6 +17656,55 @@ phases:
       from N-1b: label files carry a sha256 (labelFileHash) to key a read on,
       and HEIC photos will need converting before a model can read them.
       Behind N-1b. NOT SCOPED as a prompt yet.
+
+      BUILT 2026-11-02, TIER 3 (the "NOT SCOPED as a prompt yet" line above is
+      spent, kept). Prompt of record: docs/prompts/N-1c.md; audit
+      docs/prompts/N-1c_AUDIT.md. Rulings: docs/DECISIONS.md 2026-11-02 N-1c,
+      DRAFT until PRE-PUSH-CHECK. WHAT WAS BUILT: "Read label" in the
+      ingredient dialog's Proof box (ADMIN, a document attached, not HEIC,
+      saved nutrition first per N-1b F6) sends the stored document to the
+      Anthropic API as base64 (claude-sonnet-5-5, one constant in
+      src/lib/label-read.ts; fetch, no SDK) and opens a side-by-side review:
+      label vs saved for every nutrient and allergen, differences and flags
+      shown, name check with a "This is the product we use" tickbox, every
+      field editable. Apply is the existing PUT (optional appliedFromRead adds
+      one nutrition.label.applied AuditLog row); "Apply & mark verified" is
+      that PUT then the existing verify route. Basis chosen in code from the
+      printed serving in the ingredient's own dimension, never weight<->volume.
+      "<1 g" -> 0.5, "0" -> 0, %DV-only -> FDA Daily Value, all flagged.
+      Allergens from the printed Contains line (FDA Edition 5 Table 1 tree
+      nuts; coconut not mapped) unioned with the model's. Per-org 30/hour,
+      300/day counted from AuditLog; 24 h reuse of a read of the same file
+      hash. New route NU-8. No schema change. New env var ANTHROPIC_API_KEY
+      (Preview + Production, separate keys, Sensitive, spend limit) — NOT SET
+      ANYWHERE YET, so the route answers 503 until Gary sets it. Fixture
+      scripts/verify-n1c-label.ts 59/59 (pure, no API calls); N-1 39/39, N-1a
+      25/25, N-1b 47/47 (dev br-broad-wave-a6vpjdw0, rolled back). Review
+      screen render-checked locally on a temp /menu page with the canned
+      Almond Breeze read (page deleted). NOT VERIFIED: any live read, the
+      route's gates, rate limit and reuse, the dialog flow end to end. All of
+      it is Gary's staging pass; the series rule holds — nothing promotes until
+      Gary confirms it on staging.
+    deferred:
+      - "Reading a label before any nutrition is saved (N-1b F6 still applies; revisit in N-1d)"
+      - "Values printed as an upper limit other than \"<1 g\" (e.g. cholesterol \"<5 mg\") are left blank and flagged, not guessed — not covered by the N1C-F7 ruling"
+      - "Large photos are refused, not resized (no sharp, by ruling)"
+
+  - id: N-1d
+    track: nutrition
+    size: M
+    status: planned
+    title: "Nutrition — read a label from a pasted link, and batch-read many labels with a review queue"
+    notes: >
+      FILED 2026-11-02 by the N-1c docs commit (out of scope in
+      docs/prompts/N-1c.md: "reading from a pasted link (needs SSRF-safe
+      fetching), and batch reading many labels at once with a review queue").
+      Builds on N-1c's read route, review builder (src/lib/label-review.ts)
+      and audit-row rate limit. Gary, 2026-11-02, N1C-F6: "Read label requires
+      saved nutrition first, for N-1c; revisit in N-1d" — in a batch flow "no
+      record yet" will be the common case (audit § E, option c: read an
+      uploaded-but-unregistered file, then save and register in order). Behind
+      N-1c. NOT SCOPED as a prompt yet.
 
   - id: N-2
     track: nutrition

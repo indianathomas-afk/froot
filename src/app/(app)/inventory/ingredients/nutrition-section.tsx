@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ALLERGENS, NUTRIENTS, allergenLabel, allowedBasisUnits, type NutrientKey } from "@/lib/nutrition"
 import { PROOF_LABEL, type ProofState } from "@/lib/nutrition-proof"
+import { buildLabelReview, parseLabelOutput, type LabelReview } from "@/lib/label-review"
+import { LabelReadReview, type ReviewedValues } from "./label-read-review"
 
 // N-1 deliverable 7: nutrition, allergens and the not-food flag, as a section
 // of the ingredient dialog (F6). It loads and saves through
@@ -34,6 +36,10 @@ import { PROOF_LABEL, type ProofState } from "@/lib/nutrition-proof"
 // the code into the question (Gary, F3 "Still verified?", F7 clear-with-proof)
 // and re-sends with the answer. Proof controls stay disabled until a record
 // exists (F6).
+//
+// N-1c: "Read label" (ADMIN, a document attached, not HEIC) reads it and opens
+// the side-by-side review (label-read-review.tsx). Gary, 2026-11-02: "Read
+// label is a button only; never read on upload."
 
 type LabelDoc = {
   fileName: string | null
@@ -44,6 +50,8 @@ type LabelDoc = {
 }
 
 type Loaded = {
+  name: string
+  brand: string | null
   kind: string
   reportingUnit: string
   nutritionExempt: boolean
@@ -128,6 +136,8 @@ export function NutritionSection({
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const [question, setQuestion] = useState<Question | null>(null)
+  const [reading, setReading] = useState(false)
+  const [read, setRead] = useState<{ readId: string; readAt: string; reused: boolean; review: LabelReview } | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -171,24 +181,25 @@ export function NutritionSection({
 
   // Apply a successful response; returns false (and shows the error) otherwise.
   // A 409 with a known code becomes a question instead.
-  async function handle(res: Response, okText: string, retry: { stillVerified?: (keep: boolean) => void; clearProof?: () => void }) {
+  async function handle(res: Response, okText: string, retry: { stillVerified?: (keep: boolean) => void; clearProof?: () => void }): Promise<boolean> {
     const body = await res.json().catch(() => ({}))
     if (res.status === 409 && body.code === "CONFIRM_STILL_VERIFIED" && retry.stillVerified) {
       setQuestion({ kind: "still-verified", answer: retry.stillVerified })
-      return
+      return false
     }
     if (res.status === 409 && body.code === "CONFIRM_CLEAR_PROOF" && retry.clearProof) {
       setQuestion({ kind: "clear-proof", hasDocument: Boolean(body.hasDocument), answer: retry.clearProof })
-      return
+      return false
     }
     if (!res.ok) {
       setMessage({ ok: false, text: body.error ?? "Save failed" })
-      return
+      return false
     }
     setData(body)
     setForm(toForm(body))
     setMessage({ ok: true, text: okText })
     onSaved()
+    return true
   }
 
   async function run(fn: () => Promise<void>) {
@@ -264,7 +275,9 @@ export function NutritionSection({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fileUrl: blob.url, fileName: file.name, ...(keepVerified !== undefined && { keepVerified }) }),
-        }).then((res) => handle(res, "Label document saved", { stillVerified: (keep) => run(() => register(keep)) }))
+        }).then(async (res) => {
+          if (await handle(res, "Label document saved", { stillVerified: (keep) => run(() => register(keep)) })) setRead(null)
+        })
       await register()
     })
   }
@@ -273,7 +286,80 @@ export function NutritionSection({
     run(async () => {
       const q = keepVerified === undefined ? "" : `?keepVerified=${keepVerified}`
       const res = await fetch(`${labelHref}${q}`, { method: "DELETE" })
-      await handle(res, "Label document removed", { stillVerified: (keep) => removeLabel(keep) })
+      if (await handle(res, "Label document removed", { stillVerified: (keep) => removeLabel(keep) })) setRead(null)
+    })
+  }
+
+  // N-1c: read the attached label, then review it side by side. Reading writes
+  // nothing; Apply is a normal PUT carrying `appliedFromRead` for the audit row.
+  function readLabel(fresh = false) {
+    if (!data) return
+    const snapshot = data
+    setReading(true)
+    setMessage(null)
+    fetch(`${labelHref}/read`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fresh }) })
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setMessage({ ok: false, text: body.error ?? "Reading the label failed" })
+          return
+        }
+        const parsed = parseLabelOutput(body.output)
+        if (!parsed.ok) {
+          setMessage({ ok: false, text: parsed.error })
+          return
+        }
+        const sn = snapshot.nutrition
+        const stored = sn
+          ? { basisAmount: sn.basisAmount, basisUnit: sn.basisUnit, values: Object.fromEntries(NUTRIENTS.map((nt) => [nt.key, sn[nt.key]])) as Record<NutrientKey, number | null> }
+          : null
+        setRead({
+          readId: body.readId,
+          readAt: body.readAt,
+          reused: Boolean(body.reused),
+          review: buildLabelReview(parsed.output, snapshot, stored),
+        })
+      })
+      .catch(() => setMessage({ ok: false, text: "Reading the label failed" }))
+      .finally(() => setReading(false))
+  }
+
+  // F2 (Gary, 2026-11-02): "'Apply & mark verified' as the main button, 'Apply only' as secondary."
+  function applyRead(v: ReviewedValues, verify: boolean, keepVerified?: boolean) {
+    if (!read || !data) return
+    const readId = read.readId
+    run(async () => {
+      const res = await fetch(`/api/nutrition/ingredients/${ingredientId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nutrition: {
+            basisAmount: v.basisAmount,
+            basisUnit: v.basisUnit,
+            values: v.values,
+            sourceNote: data.nutrition?.sourceNote ?? null,
+          },
+          allergens: v.allergens,
+          nutritionExempt: data.nutritionExempt,
+          // The record is re-verified from the label straight after, so a verified
+          // record's "Still verified?" is answered here: reset, then verify.
+          ...(verify ? { keepVerified: false } : keepVerified !== undefined && { keepVerified }),
+          appliedFromRead: { readId, intent: verify ? "apply-and-verify" : "apply-only", edited: v.edited, nameWarningAcknowledged: v.nameWarningAcknowledged },
+        }),
+      })
+      const saved = await handle(res, "Label applied", { stillVerified: (keep) => applyRead(v, verify, keep) })
+      if (!saved) return
+      setRead(null)
+      if (verify) {
+        const vr = await fetch(`/api/nutrition/ingredients/${ingredientId}/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ verified: true }),
+        })
+        if (!(await handle(vr, "Label applied and marked verified", {}))) {
+          setMessage({ ok: false, text: "The label was applied, but marking it verified failed — use Mark verified." })
+        }
+      }
     })
   }
 
@@ -395,6 +481,9 @@ export function NutritionSection({
                   </a>
                   {canEdit && (
                     <>
+                      <Button size="sm" disabled={saving || reading || dirty || n.label.downloadOnly} onClick={() => readLabel()}>
+                        {reading ? "Reading label…" : "Read label"}
+                      </Button>
                       <Button variant="outline" size="sm" disabled={saving} onClick={() => fileInput.current?.click()}>Replace</Button>
                       <Button
                         variant="outline"
@@ -414,6 +503,14 @@ export function NutritionSection({
                 </div>
               ) : (
                 <p className="text-xs text-[var(--color-muted-foreground)]">No label document.</p>
+              )}
+              {canEdit && n?.label?.downloadOnly && (
+                <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
+                  HEIC photos can&apos;t be read. To read this label, upload a JPG or PNG (on iPhone: Share → Save as JPEG, or Settings → Camera → Formats → Most Compatible).
+                </p>
+              )}
+              {canEdit && n?.label && !n.label.downloadOnly && dirty && (
+                <p className="text-xs text-[var(--color-muted-foreground)] mt-1">Save your changes first, then read the label.</p>
               )}
               <input
                 ref={fileInput}
@@ -447,6 +544,22 @@ export function NutritionSection({
           </>
         )}
       </div>
+
+      {reading && <Skeleton className="h-40 w-full" />}
+      {read && !reading && (
+        <LabelReadReview
+          key={read.readId}
+          review={read.review}
+          reportingUnit={data.reportingUnit}
+          hasStored={Boolean(n)}
+          readAt={read.readAt}
+          reused={read.reused}
+          busy={saving}
+          onApply={(v, verify) => applyRead(v, verify)}
+          onReadAgain={() => readLabel(true)}
+          onDiscard={() => setRead(null)}
+        />
+      )}
 
       {message && <p className={`text-xs ${message.ok ? "text-[#25ba3b]" : "text-[var(--color-destructive)]"}`}>{message.text}</p>}
       {canEdit ? (
