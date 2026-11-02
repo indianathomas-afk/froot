@@ -2,6 +2,44 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-01 — STAMP-bdbeb47-317ce2c: count-sheet banner reads "ingredients can't" (display only); N-1/N-1a/N-1b stamps
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two commits plus this check's own.** Verified by `git log @{u}..`
+at this check: exactly `bdd7c36`, `f5001d2`, on top of `origin/staging`
+(`317ce2c`). **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `bdd7c36` | TIER 1 work: `inventory/counts/[id]/draft-counting.tsx` and `inventory/storage-areas/storage-areas-client.tsx` — the unassigned-ingredients heading is one template string in one `<span>`; `scripts/verify-n1a-template.ts` drops an unused `Allergen` type import |
+| `f5001d2` | `docs(promotion)`: stamps for merges `bdbeb47` (N-1, N-1a) and `317ce2c` (N-1b) — DEPLOY_LOG headings, ROADMAP rows to `shipped`, MIGRATIONS production rows; `docs/prompts/STAMP-bdbeb47-317ce2c.md` |
+| the commit immediately after `f5001d2` | `docs(STAMP-bdbeb47-317ce2c PRE-PUSH-CHECK)`: this entry |
+
+**Blast radius: TWO HEADING LINES UNDER `/inventory`, DISPLAY ONLY, PLUS ONE
+FIXTURE IMPORT LINE. NO SCHEMA, NO MIGRATION, NO API ROUTE, NO ENV VAR, NO
+CRON, NO SQUARE CALL, NO PERMISSION CHANGE, NOTHING WRITTEN.**
+
+- **What changes:** the count sheet's and storage-areas page's
+  unassigned-ingredients banner renders "225 ingredients can't be counted yet"
+  instead of "225 ingredientscan't be counted yet". Same text, same
+  pluralisation, now a single text node.
+- **What does not:** no conditional, query or gate moved; the
+  `unassigned.length` / `unassignedCount` values are the ones already rendered.
+  The fixture change is a type-only import and does not ship in the app bundle.
+- **No ROADMAP row:** TIER 1 writes none (CLAUDE.md § Session Tiers). The
+  prompt of record is `docs/prompts/STAMP-bdbeb47-317ce2c.md`.
+
+**Rollback:** revert `bdd7c36`. Nothing written, so the old rendering returns on
+the next load. The stamp commit `f5001d2` is docs only and stays.
+
+**Evidence so far: build only.** Not browser-checked. After the push: the
+staging-SHA precondition (deployed SHA = local `HEAD`), then the count sheet
+banner and `/inventory/storage-areas` under a named org id — the space between
+"ingredients" and "can't" is present.
+
 ## 317ce2c — 2026-11-01 — N-1b: nutrition proof — source links, label documents, Estimated/Verified
 
 **PROMOTED 2026-11-01 in merge `317ce2c`** (`317ce2c2d2a2b1474ebbb83f805ad6f16e1d5d06`,
