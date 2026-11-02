@@ -17504,6 +17504,73 @@ phases:
       AMBIGUOUS, because the matcher sees every non-deleted ingredient (N-1
       behaviour, unchanged).
 
+  - id: N-1b
+    track: nutrition
+    size: M
+    # → in_progress 2026-11-01 at the work commit 0962d72 (NOT pushed). The
+    # docs SHA is the commit immediately after 0962d72 (its own SHA cannot be
+    # written inside itself).
+    status: in_progress
+    title: "Nutrition — proof: source links, label documents, Estimated/Verified"
+    commits:
+      - "0962d72"
+      # feat(N-1b): migration, private label store, verify/label routes,
+      # reset rules, dialog proof UI, Menu Nutrition verified, fixture,
+      # NU-5..NU-7, 2026-11-01
+      # + the commit immediately after 0962d72: docs(N-1b) — prompt, audit,
+      # DECISIONS draft, MIGRATIONS entry, CLAUDE.md env line, this row
+    notes: >
+      BUILT 2026-11-01, TIER 3. Prompt of record: docs/prompts/N-1b.md; audit
+      docs/prompts/N-1b_AUDIT.md. Rulings: docs/DECISIONS.md 2026-11-01 N-1b,
+      DRAFT until PRE-PUSH-CHECK. WHY: the first real nutrition file was
+      estimates, and the first spot check found Keva's almond milk is
+      sweetened Almond Breeze Original, not the unsweetened chat assumed; the
+      supplier PDF held its panel as an image. WHAT SHIPPED: every
+      IngredientNutrition record carries status ESTIMATED | VERIFIED
+      (verifiedAt/By), a sourceUrl and one label document (PDF, PNG, JPG,
+      WEBP, HEIC; 10 MB) in the new PRIVATE froot-nutrition Blob store
+      (NUTRITION_BLOB_READ_WRITE_TOKEN, Preview + Production only — no
+      Development connection, so uploads cannot be tried locally). VERIFIED is
+      set only by ADMIN through POST .../verify and only with a document or a
+      link; removing the last proof resets. The import resets VERIFIED to
+      ESTIMATED on a basis, number, allergen or source-link change, never on
+      the source note or the not-food flag, and never sets VERIFIED. The
+      dialog asks "Still verified?" (server 409, the dialog re-sends) and asks
+      before clearing numbers that carry proof. Stale after 12 months shows
+      "Re-check label" and counts as not verified. Menu Nutrition: Proof
+      column, "N of M items verified" (no-food items left out), an
+      Estimated-only filter, and "Not verified" in To fix, ranked after
+      missing and partial. Template: source_url writable, status a helper
+      column; the unedited template still plans zero changes. Migration
+      20261101230000_n1b_nutrition_proof (additive; the NOT NULL DEFAULT
+      ESTIMATED is the backfill), applied to dev by Gary. Fixtures:
+      verify-n1b-proof.ts 47/47 (pure + a rolled-back transaction on dev
+      br-broad-wave-a6vpjdw0); verify-n1-nutrition.ts 39/39;
+      verify-n1a-template.ts 25/25. NOT VERIFIED ANYWHERE: an upload, the
+      signed view, HEIC behaviour, the dialog questions and Menu Nutrition's
+      rendering — no browser pass was run (no local store, and the preview has
+      no session). All of it is Gary's staging pass, and the series rule
+      holds: nothing promotes until Gary confirms it on staging.
+    deferred:
+      - "Label document version history (replace keeps none; AuditLog rows carry old/new file names and hashes)"
+      - "Cross-contact (\"may contain\") allergens"
+      - "An abandoned upload (blob PUT, register never sent or refused) leaves an orphan blob in froot-nutrition; nothing sweeps it"
+
+  - id: N-1c
+    track: nutrition
+    size: M
+    status: planned
+    title: "Nutrition — AI \"read the label\" from an uploaded document or link, human confirms"
+    notes: >
+      FILED 2026-11-01 by the N-1b docs commit (series in docs/prompts/N-1b.md:
+      N-1b proof + status, no AI → N-1c → N-2 label preview → N-3 public
+      menu, which will show customers only Verified nutrition and allergens).
+      Reads an N-1b label document (or source link) and proposes the panel's
+      values for a human to confirm; never verifies on its own. Known input
+      from N-1b: label files carry a sha256 (labelFileHash) to key a read on,
+      and HEIC photos will need converting before a model can read them.
+      Behind N-1b. NOT SCOPED as a prompt yet.
+
   - id: N-2
     track: nutrition
     size: M
