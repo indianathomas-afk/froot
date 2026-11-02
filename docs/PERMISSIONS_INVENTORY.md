@@ -134,7 +134,7 @@ referenced by the capability registry in §5.
 | NV-15 | Inventory section (11 items) | Ingredients/Sales Items/Counts/Adjustments/Purchase Orders: ADMIN, MANAGER, STORE · Recipes/Storage Areas/Vendors/Expected Stock/Alerts/Reports: ADMIN, MANAGER | `activeModules` includes inventory |
 | NV-16 | Settings link | ADMIN (`canSeeSettings`) | — |
 | NV-17 | Alerts badge fetch | ADMIN, MANAGER (`showAlertBadge`) | inventory active |
-| NV-18 | Nutrition section: Menu Nutrition (/nutrition/menu) · Import Nutrition (/nutrition/import) (N-1, 2026-11-01) | Menu Nutrition: ADMIN, MANAGER, STORE (`nutrition.view`) · Import: ADMIN (`nutrition.manage`) | `activeModules` includes inventory AND nutrition (R-4) |
+| NV-18 | Nutrition section: Menu Nutrition (/nutrition/menu) · Import Nutrition (/nutrition/import) (N-1, 2026-11-01) · Serving Settings (/nutrition/settings) (N-2, 2026-11-02) | Menu Nutrition: ADMIN, MANAGER, STORE (`nutrition.view`) · Import and Serving Settings: ADMIN (`nutrition.manage`) | `activeModules` includes inventory AND nutrition (R-4) |
 
 ### 1c. Pages & layouts (server route guards)
 
@@ -178,6 +178,9 @@ referenced by the capability registry in §5.
 | PG-35 | `src/app/page.tsx`, `(auth)/*` | Landing/sign-in/up | Public | — |
 | PG-36 | `(app)/nutrition/menu/page.tsx` (+ `nutrition/page.tsx` → redirect) | Menu Nutrition (N-1) | `nutrition.view`: ADMIN, MANAGER, STORE; upgrade card when inventory or nutrition is off | route-guard |
 | PG-37 | `(app)/nutrition/import/page.tsx` | Nutrition CSV import (N-1) | `nutrition.manage`: ADMIN; others redirect to /nutrition/menu | route-guard |
+| PG-38 | `(app)/nutrition/menu/[salesItemId]/label/page.tsx` (N-2, 2026-11-02) | One item's Nutrition Facts label preview: the serving-size picker (previews only, saves nothing), Print, and — ADMIN only — the item's serving override form (writes via NU-10). Sales item resolved inside the caller's org; unknown, cross-org or no recipe → 404 | `nutrition.view`: ADMIN, MANAGER, STORE; upgrade card when inventory or nutrition is off | route-guard + data-scope (org) |
+| PG-39 | `src/app/print/nutrition-label/[salesItemId]` (N-2) | Print view of one item's label (`?serving=` carries the picker's preview size, never saved). Outside the app shell, so it repeats the gate: both modules + `nutrition.view`; anything refused is a 404 | ADMIN, MANAGER, STORE (`nutrition.view`); org-scoped | route-guard + data-scope (org) |
+| PG-40 | `(app)/nutrition/settings/page.tsx` (N-2) | Serving Settings: the org's drink serving size and the size table (writes via NU-9) | `nutrition.manage`: ADMIN; other viewers redirect to /nutrition/menu | route-guard |
 
 ### 1d. Platform APIs
 
@@ -358,6 +361,8 @@ whole answer today.
 | NU-6 | `nutrition/ingredients/[id]/label/upload-url` POST, `nutrition/ingredients/[id]/label` POST + DELETE (N-1b) | Upload / replace / remove the label document. upload-url presigns a PUT with the type allow-list and 10 MB cap in the signature, under `nutrition/{org}/ingredients/{id}/`; register pins that folder, re-reads the stored bytes (type, size, sha256, first-bytes check) and writes an `AuditLog` row; refused with no nutrition record (F6) | ADMIN (`nutrition.manage`); org-scoped | handler + data-scope (org) + namespace pin |
 | NU-7 | `nutrition/ingredients/[id]/verify` POST (N-1b) | Mark VERIFIED (requires a label document or a source link — F2) or back to ESTIMATED; the only writer of VERIFIED. `AuditLog` row in the transaction | ADMIN (`nutrition.manage`); org-scoped | handler + data-scope (org) |
 | NU-8 | `nutrition/ingredients/[id]/label/read` POST (N-1c, 2026-11-02) | "Read label": sends the ingredient's stored label document to the Anthropic API (base64 from the PRIVATE store, never a URL) and returns the transcribed panel for the dialog's review. Writes NO nutrition. Refused with no record (F6), no document, or a HEIC file (415). 503 when `ANTHROPIC_API_KEY` is unset. Per-org limit 30/hour and 300/day counted from `AuditLog` (429); a successful read of the same file hash within 24 h is reused, not re-sent (`{ fresh: true }` forces a new call). One `AuditLog` row per outcome (`nutrition.label.read` / `.read.failed` / `.read.reused`) — file name, hash, model, success/failure, and the transcribed values on success; never the file | ADMIN (`nutrition.manage`); org-scoped | handler + data-scope (org) + rate limit |
+| NU-9 | `nutrition/settings` PUT (N-2, 2026-11-02) | The org's Nutrition Facts serving settings: drink serving size (null = the 12 fl oz default) and size-table rows keyed on the exact Square variation name (a null volume removes the row). Values 0 < fl oz ≤ 200. One `AuditLog` row (`nutrition.serving.settings`, from → to) in the transaction | ADMIN (`nutrition.manage`); org-scoped | handler + data-scope (org) |
+| NU-10 | `nutrition/items/[salesItemId]/serving` PUT + DELETE (N-2) | One sales item's serving override: "per item", or its own volume and/or serving size; DELETE returns it to the table/defaults. Sales item resolved inside the caller's org (404 otherwise). One `AuditLog` row (`nutrition.serving.item`, from → to) per change | ADMIN (`nutrition.manage`); org-scoped | handler + data-scope (org) |
 
 N-1c also widened NU-2's PUT: an optional `appliedFromRead` (the read's audit
 id, apply intent, edited fields) must name a read of the same ingredient in the
@@ -518,8 +523,8 @@ Deny-by-default: unknown capability → `false`.
 | `inventory.adjustments.record` | all roles (scoped) | IV-9 |
 | `inventory.analytics.view` | ADMIN, MANAGER (reports, expected, alerts, finalized-count summary) | NV-15/17, PG-22, IV-10, IV-5 summary |
 | `inventory.costs.view` | ADMIN, MANAGER (vendor prices + adjustments, recipe costs, order guide) | IV-1 pricing rows, IV-10 order-guide |
-| `nutrition.view` | ADMIN, MANAGER, STORE (N-1 F3; STAFF excluded) | NV-18, PG-36, NU-1 |
-| `nutrition.manage` | ADMIN (N-1 F3: edits nutrition, allergens, the not-food flag; runs the import) | NV-18, PG-37, NU-2, NU-3, NU-4, NU-6, NU-7, NU-8 |
+| `nutrition.view` | ADMIN, MANAGER, STORE (N-1 F3; STAFF excluded) | NV-18, PG-36, PG-38, PG-39, NU-1 |
+| `nutrition.manage` | ADMIN (N-1 F3: edits nutrition, allergens, the not-food flag; runs the import; N-2: serving settings and item overrides) | NV-18, PG-37, PG-40, NU-2, NU-3, NU-4, NU-6, NU-7, NU-8, NU-9, NU-10 |
 | `labor.view` | all roles (read-only viewer; nav now matches the guard) | NV-13, PG-17, LB-1 |
 | `labor.manage` | ADMIN, MANAGER (scoped) | NV-14, PG-16, LB-2/3 |
 | `labor.toggle` | ADMIN | LB-4 |

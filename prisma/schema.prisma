@@ -164,6 +164,12 @@ model Organization {
   // Not a display preference like `hrDateStampFormat` above — it feeds a value
   // stamped onto a permanent artifact, so it is only ever read at MINT time.
   timezone                String    @default("America/Los_Angeles")
+  // N-2 (N2-F1 / R-1, Gary 2026-11-02: "12 fl oz default, changeable in
+  // settings."). The org's drink serving size for the Nutrition Facts label,
+  // in fl oz. NULL = the 12 fl oz default (the paceAlertThresholdPct shape:
+  // NULL means "use the default", so every existing org needs no backfill).
+  // An item's own servingFlOz (NutritionItemServing) beats it.
+  nutritionServingFlOz    Float?
   createdAt               DateTime  @default(now())
 
   stores                        Store[]
@@ -239,6 +245,8 @@ model Organization {
   wageSnapshots                 WageSnapshot[]
   staffLastRaises               StaffLastRaise[]
   milestoneSettings             MilestoneSettings?
+  nutritionSizeVolumes          NutritionSizeVolume[]
+  nutritionItemServings         NutritionItemServing[]
 }
 
 model User {
@@ -1512,10 +1520,11 @@ model SalesItem {
   recipeStatus      String   @default("UNMAPPED") // UNMAPPED | MAPPED | NON_RECIPE
   updatedAt         DateTime @updatedAt
 
-  organization        Organization         @relation(fields: [organizationId], references: [id])
-  squareCategory      SquareCategory?      @relation(fields: [squareCategoryId], references: [id])
+  organization        Organization          @relation(fields: [organizationId], references: [id])
+  squareCategory      SquareCategory?       @relation(fields: [squareCategoryId], references: [id])
   recipe              Recipe?
   varianceAdjustments VarianceAdjustment[]
+  nutritionServing    NutritionItemServing?
 
   @@unique([organizationId, squareVariationId])
 }
@@ -1649,6 +1658,54 @@ model IngredientNutrition {
 enum NutritionStatus {
   ESTIMATED
   VERIFIED
+}
+
+// ─── N-2: Nutrition Facts label serving settings ─────────────────────────────
+// Rulings: docs/DECISIONS.md 2026-11-02 N-2 (Gary, DRAFT); audit
+// docs/prompts/N-2_AUDIT.md § D. Volumes are fl oz. An item's volume is found
+// as: its NutritionItemServing (perItem, else volumeFlOz) → this table, by
+// its SalesItem.variationName → neither = labeled per item (F1). Never
+// inferred from the cup kit (F3), and never parsed from the name when a label
+// is drawn (F6): the settings screen only PRE-FILLS a volume from names like
+// "20oz." for the ADMIN to confirm and save.
+
+// The org size table (F3): what each Square size name means in volume. Keyed
+// on the variation name EXACTLY as synced — "20oz." and "20oz" are two rows
+// (F6). Org-wide, so every item with the name gets the volume; a name shared
+// by drinks and food ("Small", "L") is escaped per item.
+model NutritionSizeVolume {
+  id              String   @id @default(cuid())
+  organizationId  String
+  variationName   String
+  volumeFlOz      Float
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, variationName])
+}
+
+// The per-item override (F3): "a volume, a serving size, or 'per item'".
+// perItem = the whole item is one serving, whatever the size table says.
+// Off SalesItem deliberately: SalesItem is upserted by the Square sync, and a
+// separate row means the sync can never touch an ADMIN's setting.
+model NutritionItemServing {
+  id              String   @id @default(cuid())
+  organizationId  String
+  salesItemId     String   @unique
+  perItem         Boolean  @default(false)
+  volumeFlOz      Float?
+  servingFlOz     Float?
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  salesItem    SalesItem    @relation(fields: [salesItemId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }
 
 enum Allergen {

@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import type { Allergen } from "@prisma/client"
-import { Upload } from "lucide-react"
+import { FileText, Upload } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -165,7 +165,8 @@ export function MenuNutritionClient({
       </div>
       <p className="text-sm text-[var(--color-muted-foreground)] mb-6">
         Computed from each item&apos;s recipe and its ingredients&apos; nutrition. A dash means at least one ingredient is
-        missing that value — Froot never counts an unknown as zero. Values are unrounded; labels come later.
+        missing that value — Froot never counts an unknown as zero. Values here are unrounded; open an item and choose
+        Label for its FDA-rounded Nutrition Facts.
       </p>
 
       {items.length === 0 ? (
@@ -293,7 +294,18 @@ export function MenuNutritionClient({
       <Dialog open={openId !== null} onOpenChange={(o) => !o && setOpenId(null)}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{detail?.name ?? items.find((i) => i.recipeId === openId)?.name ?? "Item"}</DialogTitle>
+            <div className="flex items-center justify-between gap-3 pr-6">
+              <DialogTitle>{items.find((i) => i.recipeId === openId)?.name ?? detail?.name ?? "Item"}</DialogTitle>
+              {/* N-2: the item's Nutrition Facts label preview. */}
+              {openId && (
+                <Link
+                  href={`/nutrition/menu/${items.find((i) => i.recipeId === openId)?.salesItemId}/label`}
+                  className="inline-flex items-center gap-2 border border-[var(--color-border)] rounded-md px-3 py-1.5 text-sm hover:bg-[var(--color-muted)] shrink-0"
+                >
+                  <FileText className="h-4 w-4" /> Label
+                </Link>
+              )}
+            </div>
           </DialogHeader>
           {detailError && <p className="text-sm text-[var(--color-destructive)]">{detailError}</p>}
           {!detail && !detailError && (
