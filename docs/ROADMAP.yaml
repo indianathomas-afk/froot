@@ -17823,7 +17823,17 @@ phases:
     # → in_progress 2026-11-02 at the work commit d88ef4d (NOT pushed). The
     # docs SHA is the commit immediately after d88ef4d (its own SHA cannot be
     # written inside itself).
-    status: in_progress
+    # N-2 PRE-PUSH-CHECK 2026-11-02: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after 5400ec2 (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-02 N-2 ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written. The
+    # cleared "BEHIND N-1" blocker restored verbatim in notes, marked cleared
+    # (Gary's instruction at this check). Migration
+    # 20261102230000_n2_nutrition_serving_settings (additive, no backfill)
+    # rides this push. The "(NOT pushed)" and "is the commit immediately after
+    # d88ef4d" lines above are spent, kept: the docs SHA is 5400ec2.
+    status: staging
     commits:
       - "d88ef4d"
       # feat(N-2): Nutrition Facts label with selectable serving size —
@@ -17832,6 +17842,12 @@ phases:
       # Settings; routes NU-9, NU-10; fixture verify-n2-label.ts, 2026-11-02
       # + the commit immediately after d88ef4d: docs(N-2) — prompt, audit,
       # DECISIONS draft, MIGRATIONS entry, this row, the 22b8a7f stamp
+      - "5400ec2"
+      # docs(N-2): the docs commit named on the line above; recorded by the
+      # N-2 PRE-PUSH-CHECK
+      # + the commit immediately after 5400ec2: docs(N-2 PRE-PUSH-CHECK) —
+      # DECISIONS ratified, blocker text restored, this row to staging,
+      # DEPLOY_LOG entry
     title: "Nutrition — Nutrition Facts label with selectable serving size"
     notes: >
       RETITLED 2026-11-02 by the N-2 docs commit (preserve-and-mark); the old
@@ -17839,6 +17855,20 @@ phases:
       "BEHIND N-1" was REMOVED from this row by the same commit because it
       cleared: N-1 shipped 2026-11-01 (merge bdbeb47) with its routes and UI.
       Its text, kept: "BEHIND N-1 — … This phase is a facts editor over
+      exactly those models, so there is nothing to edit and nothing to edit
+      it with until N-1 builds the surface. CLEARS WHEN: N-1 ships its routes
+      and UI."
+
+      BLOCKER RESTORED IN FULL 2026-11-02 by the N-2 PRE-PUSH-CHECK, on
+      Gary's instruction ("restore the blocker's full original text in this
+      check's docs commit, marked as cleared"). The quote above shortened it
+      with "…"; it is kept as written. The blocker as it stood at 22b8a7f,
+      verbatim — CLEARED 2026-11-02 (N-1 shipped 2026-11-01, merge bdbeb47,
+      with its routes and UI): "BEHIND N-1 — promoted to a blocker entry
+      2026-08-06 so the board can tell this row from a ready one. N-1 is
+      `planned`: per its own note the MenuItem / MenuItemNutrition /
+      MenuItemAllergen models and the module flag are scaffolded, but there
+      is NO UI and there are NO routes. This phase is a facts editor over
       exactly those models, so there is nothing to edit and nothing to edit
       it with until N-1 builds the surface. CLEARS WHEN: N-1 ships its routes
       and UI."
