@@ -5,6 +5,67 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-02 — N-3: public nutrition menu, forks N3-F1–F8 and R-1–R-3 (Gary) — DRAFT
+
+**DRAFT — ruled by Gary in chat 2026-11-02 at the N-3 Phase 1 STOP; to be
+ratified at PRE-PUSH-CHECK.** The audit he ruled on is
+`docs/prompts/N-3_AUDIT.md` (forks N3-F1–F5 from the prompt; N3-F6–F8 and
+RULING NOW R-1–R-3 raised by the audit). His words, recorded exactly:
+
+> "Accept all leans"
+
+That is the whole ruling. **The leans are the audit's and the planning chat's
+wording, not Gary's;** they are listed below so the ruling can be read without
+the audit open, and the audit is the text of record for each. Accepted as
+leaned:
+
+- **N3-F1** Unverified items: show the item and its sizes with "Nutrition
+  coming soon" — no numbers and no allergens.
+- **N3-F2** List calories: whole item as sold, per size; per-serving values
+  live in the full label.
+- **N3-F3** Defaults: menu off until turned on; no menu groups included until
+  ticked.
+- **N3-F4** Cross-contact notice: always shown with allergens and the filter,
+  wording editable.
+- **N3-F5** Embedding: `frame-ancestors *` on `/menu/*` only.
+- **N3-F6** Verified but incomplete: numbers only when the size is Verified
+  AND every nutrient is known; otherwise "coming soon".
+- **N3-F7** Per-size verification: Verified sizes show calories; item-level
+  allergens (and the filter) only when every size is Verified.
+- **N3-F8** No food ingredients (NO_FOOD) or no recipe yet → "coming soon";
+  NON_RECIPE items left off the public menu.
+- **R-1** Framing for the rest of the app: option (b) — every non-`/menu`
+  route sends `X-Frame-Options: DENY` + `frame-ancestors 'none'` (before N-3
+  no route sent either; audit § B).
+- **R-2** The public menu also 404s when the org's nutrition or inventory
+  module is off.
+- **R-3** Cache: 5 minutes for recipe/ingredient edits and the stale line;
+  immediate on publish-setting changes; stale-while-revalidate on nutrition
+  writes.
+
+His later message ("Applied to dev: 20261103000000_n3_public_menu. Go on
+Phase 3.") is a session instruction, not a ruling.
+
+**Claude implementation choices (no explicit instruction — for the record):**
+- Under an active allergen filter, items whose allergens are not shown
+  (unverified or partly verified) are hidden too, and the page says so — an
+  unknown is never shown as safe. Follows from F1/F7; not separately ruled.
+- A fully Verified item with no recorded allergens reads "No major allergens
+  in the standard recipe", always beside the cross-contact notice.
+- Items with no Square category cannot be included (inclusion keys on the
+  SquareCategory row). Sizes are ordered by volume (override, then size
+  table), then name; groups and items alphabetically.
+- "Last updated" is the UTC date of the newest `verifiedAt` among food
+  ingredients of SHOWN Verified sizes.
+- Slug: 3–60 characters, lowercase letters, digits and single hyphens;
+  stored lowercase; pre-filled from the org name; a separate column from the
+  Clerk-written `Organization.slug`.
+- Hidden items are whole Square items (every size), by Square item id.
+- The `/menu` header rule uses `/menu/:path+`, not `:path*` — `*` also matched
+  bare `/menu` and stacked both rules there (measured on a dev server).
+- ClerkProvider (root layout) still loads on the public/embedded page;
+  accepted for N-3 (audit § A, COMMENT).
+
 ## 2026-11-02 — N-2: Nutrition Facts label, serving settings, forks N2-F1–F6 and R-1–R-8 (Gary)
 
 **RATIFIED BY GARY, 2026-11-02, at the N-2 PRE-PUSH-CHECK, as written:**

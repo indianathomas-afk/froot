@@ -2,7 +2,32 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-02 — N-2: Nutrition Facts label with selectable serving size
+## 8c94126 — 2026-11-02 — N-2: Nutrition Facts label with selectable serving size
+
+**PROMOTED 2026-11-02 in merge `8c94126`** (`8c9412675fd6ad0fe3e9ebedac99bda7b9fe5779`,
+"Merge branch 'staging'", 2026-11-02 14:43:33 -0800 (Pacific) = 2026-11-02
+22:43:33 UTC), `--no-ff`. First parent `22b8a7f` (prior tip of `main`), second
+parent `b87cc09` (staging tip). **3 commits** in `8c94126^1..8c94126^2` —
+`d88ef4d`, `5400ec2`, `b87cc09` — and **23 files**, read out of `git log` and
+`git diff --shortstat` at this stamp. `main` moved `22b8a7f..8c94126`;
+`staging` fast-forwarded to it (`origin/main` = `origin/staging` = `8c94126`,
+measured by `git rev-parse` at this stamp). Stamped post-merge by N-3
+(2026-11-02), on `staging`; the heading previously read "UNPROMOTED —
+2026-11-02 — N-2: Nutrition Facts label with selectable serving size". The
+"staging only", "NEITHER WAS PUSHED" and "Nothing has been observed on staging
+or production" lines below are spent, kept.
+
+**Migration on production: `20261102230000_n2_nutrition_serving_settings`
+`finished_at` — OWED.** Not yet recorded; Gary runs the read-only query in the
+Neon console (branch id from `current_setting('neon.branch_id', true)`, never a
+typed label) at the next PRE-PUSH-CHECK, and it is written here then.
+
+**Staging evidence (Gary, as relayed in the N-3 prompt):** Liquid Olympian
+Smoothie (M) label — 2 servings per container, 12 fl oz (360 mL), 200 / 390
+kcal, carbs 51 g 19% / 102 g 37%, fiber 4 g 14% / 9 g 32%, sugars 39 / 79 g,
+added 19 g 38% / 38 g 76%, protein 2 / 4 g, vitamins shown "—", Estimated
+banner — matching hand math. Org and Clerk instance as in Gary's staging pass;
+not re-observed by this session.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
