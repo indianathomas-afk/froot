@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { convert } from "@/lib/units"
 import { loadCostGraph, loopErrorMessage, type GraphIngredient, type GraphRecipe, type Loop } from "@/lib/recipe-cost"
 import { NUTRIENT_KEYS, emptyNutrients, sortAllergens, type NutrientKey, type NutrientValues } from "@/lib/nutrition"
+import { proofState, type ProofState } from "@/lib/nutrition-proof"
 
 // ─── Recipe nutrition engine (N-1) ───────────────────────────────────────────
 // Mirrors src/lib/recipe-cost.ts: computed at READ TIME from the org's whole
@@ -39,6 +40,8 @@ export type NutritionIngredient = GraphIngredient & {
   nutritionExempt: boolean
   allergens: Allergen[]
   nutrition: NutritionRecord | null
+  /** N-1b — absent in graphs built without proof (treated as not verified) */
+  proof?: ProofState
 }
 
 export type NutritionGraph = {
@@ -46,7 +49,7 @@ export type NutritionGraph = {
   ingredients: Map<string, NutritionIngredient>
 }
 
-export async function loadNutritionGraph(organizationId: string): Promise<NutritionGraph> {
+export async function loadNutritionGraph(organizationId: string, now = new Date()): Promise<NutritionGraph> {
   const [cost, extras] = await Promise.all([
     loadCostGraph(organizationId),
     prisma.ingredient.findMany({
@@ -71,6 +74,7 @@ export async function loadNutritionGraph(organizationId: string): Promise<Nutrit
             values: Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, n[k]])) as NutrientValues,
           }
         : null,
+      proof: proofState(n, now),
     })
   }
   return { recipes: cost.recipes, ingredients }
@@ -281,16 +285,27 @@ export function incompleteNutrients(n: RecipeNutrition): NutrientKey[] {
 // ─── "To fix": ingredients blocking completeness, ranked ──────────────────────
 // The BEV-1 pattern: each ingredient that blocks at least one item, with how
 // many items it blocks. "missing" = no record at all; "partial" = a record
-// with some nutrients unknown (which ones are listed).
+// with some nutrients unknown (which ones are listed). N-1b adds "unverified"
+// = a complete-enough record that is ESTIMATED or STALE — it blocks an item
+// from showing Verified. Pass proofOf to include it; one entry per ingredient,
+// so an ingredient that is partial AND unverified shows as partial until its
+// values are filled in, then as unverified.
 
 export type Blocker = {
   ingredientId: string
-  kind: "missing" | "partial"
+  kind: "missing" | "partial" | "unverified"
   missingNutrients: NutrientKey[]
   itemCount: number
+  /** unverified only: VERIFIED but older than the stale window */
+  stale?: boolean
 }
 
-export function rankBlockers(results: Iterable<RecipeNutrition>): Blocker[] {
+const KIND_RANK: Record<Blocker["kind"], number> = { missing: 0, partial: 1, unverified: 2 }
+
+export function rankBlockers(
+  results: Iterable<RecipeNutrition>,
+  proofOf?: (ingredientId: string) => ProofState
+): Blocker[] {
   const map = new Map<string, Blocker>()
   for (const r of results) {
     for (const id of r.missingIngredientIds) {
@@ -304,8 +319,17 @@ export function rankBlockers(results: Iterable<RecipeNutrition>): Blocker[] {
       b.itemCount++
       map.set(id, b)
     }
+    if (!proofOf) continue
+    for (const id of r.foodIngredientIds) {
+      if (r.missingIngredientIds.has(id) || r.partialIngredients.has(id)) continue
+      const p = proofOf(id)
+      if (p === "VERIFIED" || p === "NONE") continue
+      const b = map.get(id) ?? { ingredientId: id, kind: "unverified", missingNutrients: [], itemCount: 0, stale: p === "STALE" }
+      b.itemCount++
+      map.set(id, b)
+    }
   }
   return [...map.values()].sort((a, b) =>
-    a.kind !== b.kind ? (a.kind === "missing" ? -1 : 1) : b.itemCount - a.itemCount
+    a.kind !== b.kind ? KIND_RANK[a.kind] - KIND_RANK[b.kind] : b.itemCount - a.itemCount
   )
 }

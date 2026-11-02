@@ -4,6 +4,7 @@ import { requireNutrition } from "@/lib/nutrition-access"
 import {
   APPLYABLE, NutritionUploadSchema, parseNutritionCsv, planNutritionForOrg, summarizeNutritionPlan,
 } from "@/lib/nutrition-import"
+import { RESET_TO_ESTIMATED } from "@/lib/nutrition-proof"
 
 // POST /api/nutrition/import/apply — { csv, fileName }. RE-PLANS from the
 // uploaded text (never trusts a client-sent plan) and writes the NEW / UPDATE /
@@ -44,15 +45,26 @@ export async function POST(req: Request) {
         if (Object.keys(ingData).length > 0) {
           await tx.ingredient.update({ where: { id: ingredientId }, data: ingData })
         }
+        // N-1b: the link and the reset ride with the record. The import never
+        // writes VERIFIED — only RESET_TO_ESTIMATED (F2, F3).
+        const proof = {
+          ...(w.sourceUrl && { sourceUrl: w.sourceUrl.url }),
+          ...(w.resetStatus && RESET_TO_ESTIMATED),
+        }
         if (w.nutrition) {
           const row = {
             basisAmount: w.nutrition.basisAmount,
             basisUnit: w.nutrition.basisUnit,
             ...w.nutrition.values,
             sourceNote: w.nutrition.sourceNote,
+            ...proof,
             updatedByUserId: userId,
           }
           await tx.ingredientNutrition.upsert({ where: { ingredientId }, create: { ingredientId, ...row }, update: row })
+        } else if (Object.keys(proof).length > 0) {
+          // DETAILS_ONLY / NOT_FOOD: the record exists (the planner refuses a
+          // link without one), so this touches exactly that row.
+          await tx.ingredientNutrition.updateMany({ where: { ingredientId }, data: proof })
         }
       }
       await tx.auditLog.create({
@@ -65,6 +77,8 @@ export async function POST(req: Request) {
             fileName: parsed.data.fileName ?? null,
             fileSize: parsed.data.csv.length,
             ingredientIds: toWrite.map((p) => p.ingredientId),
+            // N-1b: which VERIFIED records this import sent back to ESTIMATED.
+            statusResetIngredientIds: toWrite.filter((p) => p.write!.resetStatus).map((p) => p.ingredientId),
             summary,
           },
         },

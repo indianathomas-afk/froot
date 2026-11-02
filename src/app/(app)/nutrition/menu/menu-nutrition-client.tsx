@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { NUTRIENTS, allergenLabel, type NutrientKey, type NutrientValues } from "@/lib/nutrition"
+import type { ItemVerification } from "@/lib/nutrition-proof"
 
 export type MenuItemRow = {
   salesItemId: string
@@ -24,14 +25,37 @@ export type MenuItemRow = {
   incompleteNutrients: NutrientKey[]
   complete: boolean
   error: string | null
+  // N-1b
+  verification: ItemVerification
+  verifiedIngredientCount: number
+  staleIngredientCount: number
 }
 
 export type BlockerRow = {
   ingredientId: string
   name: string
-  kind: "missing" | "partial"
+  kind: "missing" | "partial" | "unverified"
   missingNutrients: NutrientKey[]
   itemCount: number
+  stale?: boolean
+}
+
+const BLOCKER_BADGE = (b: BlockerRow) =>
+  b.kind === "missing" ? "No nutrition" : b.kind === "partial" ? "Some values missing" : b.stale ? "Re-check label" : "Not verified"
+
+// N-1b: the Proof column. Estimated is the honest default, not an error, so it
+// is muted; Verified is the success colour; stale is the warning colour.
+function ProofCell({ i }: { i: MenuItemRow }) {
+  if (i.verification === "NO_FOOD") return <span className="text-[var(--color-muted-foreground)]">No food</span>
+  if (i.verification === "VERIFIED") return <span className="text-[#25ba3b]">Verified</span>
+  if (i.staleIngredientCount > 0) {
+    return <span className="text-[#efa201]">Re-check label · {i.staleIngredientCount}</span>
+  }
+  return (
+    <span className="text-[var(--color-muted-foreground)]">
+      Estimated · {i.verifiedIngredientCount} of {i.foodIngredientCount} verified
+    </span>
+  )
 }
 
 type Detail = {
@@ -44,6 +68,8 @@ type Detail = {
   foodIngredientCount: number
   missingIngredients: string[]
   partialIngredients: { name: string; missing: NutrientKey[] }[]
+  verification: ItemVerification
+  unverifiedIngredients: { name: string; stale: boolean }[]
   lines: {
     id: string
     name: string
@@ -92,18 +118,25 @@ export function MenuNutritionClient({
 }) {
   const [query, setQuery] = useState("")
   const [incompleteOnly, setIncompleteOnly] = useState(false)
+  const [estimatedOnly, setEstimatedOnly] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
   const [detail, setDetail] = useState<Detail | null>(null)
   const [detailError, setDetailError] = useState<string | null>(null)
   const latest = useRef<string | null>(null)
 
   const completeCount = items.filter((i) => i.complete).length
+  // F8: items with no food ingredients are not counted, either way.
+  const verifiable = items.filter((i) => i.verification !== "NO_FOOD")
+  const verifiedCount = verifiable.filter((i) => i.verification === "VERIFIED").length
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
     return items.filter(
-      (i) => (!incompleteOnly || !i.complete) && (!q || i.name.toLowerCase().includes(q) || (i.menuGroup ?? "").toLowerCase().includes(q))
+      (i) =>
+        (!incompleteOnly || !i.complete) &&
+        (!estimatedOnly || i.verification === "NOT_VERIFIED") &&
+        (!q || i.name.toLowerCase().includes(q) || (i.menuGroup ?? "").toLowerCase().includes(q))
     )
-  }, [items, query, incompleteOnly])
+  }, [items, query, incompleteOnly, estimatedOnly])
 
   async function open(recipeId: string) {
     latest.current = recipeId
@@ -147,6 +180,9 @@ export function MenuNutritionClient({
             <span className="font-medium text-[var(--color-foreground)]">
               {completeCount} of {items.length} item{items.length === 1 ? "" : "s"} complete
             </span>
+            <span className="text-[var(--color-muted-foreground)]">
+              {" "}· {verifiedCount} of {verifiable.length} item{verifiable.length === 1 ? "" : "s"} verified
+            </span>
             {withoutRecipeCount > 0 && (
               <span className="text-[var(--color-muted-foreground)]">
                 {" "}· {withoutRecipeCount} sales item{withoutRecipeCount === 1 ? " has" : "s have"} no recipe yet
@@ -171,7 +207,7 @@ export function MenuNutritionClient({
                       )}
                     </span>
                     <span className="flex items-center gap-2 shrink-0">
-                      <Badge variant="outline">{b.kind === "missing" ? "No nutrition" : "Some values missing"}</Badge>
+                      <Badge variant="outline">{BLOCKER_BADGE(b)}</Badge>
                       <span className="text-[var(--color-muted-foreground)] tabular-nums">{b.itemCount}</span>
                     </span>
                   </li>
@@ -185,6 +221,10 @@ export function MenuNutritionClient({
             <div className="flex items-center gap-2">
               <Checkbox id="incomplete-only" checked={incompleteOnly} onCheckedChange={(v) => setIncompleteOnly(v === true)} />
               <Label htmlFor="incomplete-only" className="text-sm">Incomplete only</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="estimated-only" checked={estimatedOnly} onCheckedChange={(v) => setEstimatedOnly(v === true)} />
+              <Label htmlFor="estimated-only" className="text-sm">Estimated only</Label>
             </div>
           </div>
 
@@ -200,6 +240,7 @@ export function MenuNutritionClient({
                   ))}
                   <th className="text-left px-3 py-2 font-medium">Allergens</th>
                   <th className="text-left px-3 py-2 font-medium">Ingredients</th>
+                  <th className="text-left px-3 py-2 font-medium">Proof</th>
                 </tr>
               </thead>
               <tbody>
@@ -229,12 +270,17 @@ export function MenuNutritionClient({
                         </span>
                       )}
                     </td>
+                    <td className="px-3 py-2 text-xs whitespace-nowrap"><ProofCell i={i} /></td>
                   </tr>
                 ))}
                 {shown.length === 0 && (
                   <tr>
-                    <td colSpan={KEY_COLUMNS.length + 3} className="px-3 py-6 text-center text-[var(--color-muted-foreground)]">
-                      {incompleteOnly ? "Every item matching your search is complete." : "No items match your search."}
+                    <td colSpan={KEY_COLUMNS.length + 4} className="px-3 py-6 text-center text-[var(--color-muted-foreground)]">
+                      {estimatedOnly
+                        ? "Every item matching your filters is verified."
+                        : incompleteOnly
+                          ? "Every item matching your search is complete."
+                          : "No items match your search."}
                     </td>
                   </tr>
                 )}
@@ -290,6 +336,18 @@ export function MenuNutritionClient({
                   </ul>
                 </div>
               )}
+              {detail.verification === "VERIFIED" ? (
+                <p className="text-xs text-[#25ba3b]">Verified — every ingredient&apos;s nutrition is checked against a real label.</p>
+              ) : detail.unverifiedIngredients.length > 0 ? (
+                <div className="rounded-lg border border-[var(--color-border)] px-3 py-2">
+                  <div className="font-medium mb-1">Not verified yet</div>
+                  <ul className="space-y-0.5 text-xs">
+                    {detail.unverifiedIngredients.map((u) => (
+                      <li key={u.name}>{u.name} — {u.stale ? "re-check label (verified over 12 months ago)" : "estimated"}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>

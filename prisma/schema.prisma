@@ -1592,31 +1592,55 @@ model Ingredient {
 // unknown is not zero, and the engine (src/lib/recipe-nutrition.ts) never sums
 // past a null (N1-F5). Column names follow the MenuItemNutrition stub.
 model IngredientNutrition {
-  id              String   @id @default(cuid())
-  ingredientId    String   @unique
-  basisAmount     Float
-  basisUnit       String
-  calories        Float?
-  totalFatG       Float?
-  saturatedFatG   Float?
-  transFatG       Float?
-  cholesterolMg   Float?
-  sodiumMg        Float?
-  totalCarbG      Float?
-  dietaryFiberG   Float?
-  totalSugarsG    Float?
-  addedSugarsG    Float?
-  proteinG        Float?
-  vitaminDMcg     Float?
-  calciumMg       Float?
-  ironMg          Float?
-  potassiumMg     Float?
-  sourceNote      String?
-  updatedByUserId String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                    String          @id @default(cuid())
+  ingredientId          String          @unique
+  basisAmount           Float
+  basisUnit             String
+  calories              Float?
+  totalFatG             Float?
+  saturatedFatG         Float?
+  transFatG             Float?
+  cholesterolMg         Float?
+  sodiumMg              Float?
+  totalCarbG            Float?
+  dietaryFiberG         Float?
+  totalSugarsG          Float?
+  addedSugarsG          Float?
+  proteinG              Float?
+  vitaminDMcg           Float?
+  calciumMg             Float?
+  ironMg                Float?
+  potassiumMg           Float?
+  sourceNote            String?
+  updatedByUserId       String?
+  // N-1b: proof and status. Status covers the numbers AND the ingredient's
+  // allergens (N1B-F1). VERIFIED needs a label document or a sourceUrl and is
+  // set by ADMIN only (F2); import changes reset to ESTIMATED (F3). Stale
+  // (12 months from verifiedAt, F4) is computed, never stored.
+  status                NutritionStatus @default(ESTIMATED)
+  verifiedByUserId      String?
+  verifiedAt            DateTime?
+  sourceUrl             String?
+  // One label document per record, in the private froot-nutrition Blob
+  // store (F5). Replacing it keeps no history; AuditLog rows record each
+  // upload/replace/remove/verify.
+  labelFileUrl          String?
+  labelFilePathname     String?
+  labelFileName         String?
+  labelContentType      String?
+  labelSizeBytes        Int?
+  labelFileHash         String?
+  labelUploadedByUserId String?
+  labelUploadedAt       DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
 
   ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+}
+
+enum NutritionStatus {
+  ESTIMATED
+  VERIFIED
 }
 
 enum Allergen {

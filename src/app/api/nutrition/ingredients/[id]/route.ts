@@ -3,12 +3,23 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { requireNutrition } from "@/lib/nutrition-access"
 import { ALLERGENS, NUTRIENT_KEYS, nutritionInputError, sortAllergens, type NutrientValues } from "@/lib/nutrition"
+import { storedNutritionInput } from "@/lib/nutrition-import"
+import { RESET_TO_ESTIMATED, allergensChanged, hasProof, numbersChanged, parseSourceUrl } from "@/lib/nutrition-proof"
+import { deleteLabelBlob } from "@/lib/nutrition-files"
+import { findOrgIngredient, nutritionAudit, serializeIngredient } from "@/lib/nutrition-record"
 
 // GET /api/nutrition/ingredients/[id] — one ingredient's nutrition record,
 // allergens and not-food flag (nutrition.view). PUT replaces all three
 // (nutrition.manage — ADMIN, N1-F3). `nutrition: null` removes the record.
 // Writes never touch the Ingredient's other fields, so this route is separate
 // from the inventory PATCH, which MANAGER may call. N-1.
+//
+// N-1b: the record also carries its proof (source link, label document) and
+// its status. The SERVER decides whether a save changes anything that matters
+// to a VERIFIED record, and answers 409 with a code the dialog turns into a
+// question — Gary, F3: "dialog changes ask "Still verified?"", F7: "Clearing
+// the numbers when a document exists asks first; a confirmed clear removes the
+// record, its proof and the file together."
 
 const nutrientSchema = z.number().nonnegative().nullable()
 
@@ -19,30 +30,24 @@ const PutSchema = z.object({
       basisUnit: z.string().min(1),
       values: z.object(Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, nutrientSchema])) as Record<keyof NutrientValues, typeof nutrientSchema>),
       sourceNote: z.string().max(500).nullable(),
+      // N-1b. Absent = leave the stored link as is.
+      sourceUrl: z.string().max(2100).nullable().optional(),
     })
     .nullable(),
   allergens: z.array(z.enum(ALLERGENS.map((a) => a.value) as [string, ...string[]])),
   nutritionExempt: z.boolean(),
+  // N-1b answers to the dialog's questions; absent = not asked yet.
+  keepVerified: z.boolean().optional(),
+  confirmClearProof: z.boolean().optional(),
 })
-
-const SELECT = {
-  id: true,
-  name: true,
-  brand: true,
-  kind: true,
-  reportingUnit: true,
-  nutritionExempt: true,
-  allergens: true,
-  nutrition: true,
-} as const
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireNutrition("nutrition.view")
   if ("error" in ctx) return ctx.error
   const { id } = await params
-  const ing = await prisma.ingredient.findFirst({ where: { id, organizationId: ctx.org.id, deletedAt: null }, select: SELECT })
+  const ing = await findOrgIngredient(ctx.org.id, id)
   if (!ing) return NextResponse.json({ error: "Not found" }, { status: 404 })
-  return NextResponse.json(ing)
+  return NextResponse.json(await serializeIngredient(ing, ctx.org.id))
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -54,7 +59,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues.map((i) => i.message).join(", ") }, { status: 400 })
   const data = parsed.data
 
-  const ing = await prisma.ingredient.findFirst({ where: { id, organizationId: ctx.org.id, deletedAt: null } })
+  const ing = await findOrgIngredient(ctx.org.id, id)
   if (!ing) return NextResponse.json({ error: "Not found" }, { status: 404 })
   if (ing.kind === "PREPARED" && data.nutrition) {
     return NextResponse.json({ error: "A prepared ingredient's nutrition is computed from its recipe" }, { status: 400 })
@@ -63,9 +68,50 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const err = nutritionInputError(data.nutrition, ing.reportingUnit)
     if (err) return NextResponse.json({ error: err }, { status: 400 })
   }
+  let sourceUrl: string | null | undefined = undefined
+  if (data.nutrition && data.nutrition.sourceUrl !== undefined) {
+    const u = parseSourceUrl(data.nutrition.sourceUrl)
+    if ("error" in u) return NextResponse.json({ error: u.error }, { status: 400 })
+    sourceUrl = u.url
+  }
 
   const allergens = sortAllergens(data.allergens as (typeof ALLERGENS)[number]["value"][])
-  const updated = await prisma.$transaction(async (tx) => {
+  const existing = ing.nutrition
+
+  // F7: clearing the numbers on a record that holds proof asks first.
+  if (!data.nutrition && existing && hasProof(existing) && data.confirmClearProof !== true) {
+    return NextResponse.json(
+      {
+        error: "Clearing the nutrition also removes its source link and label document",
+        code: "CONFIRM_CLEAR_PROOF",
+        hasDocument: Boolean(existing.labelFileUrl),
+      },
+      { status: 409 }
+    )
+  }
+
+  // F2 / F3 on a VERIFIED record.
+  let reset: "proof-removed" | "changed" | null = null
+  if (data.nutrition && existing?.status === "VERIFIED") {
+    const nextUrl = sourceUrl === undefined ? existing.sourceUrl : sourceUrl
+    const stored = storedNutritionInput(existing)!
+    const changed =
+      numbersChanged(stored, data.nutrition) || allergensChanged(ing.allergens, allergens) || nextUrl !== existing.sourceUrl
+    if (!hasProof({ sourceUrl: nextUrl, labelFileUrl: existing.labelFileUrl })) {
+      reset = "proof-removed" // F2: "Removing the last proof resets to Estimated." Never asked.
+    } else if (changed) {
+      if (data.keepVerified === undefined) {
+        return NextResponse.json(
+          { error: "This nutrition is verified. Is it still verified after this change?", code: "CONFIRM_STILL_VERIFIED" },
+          { status: 409 }
+        )
+      }
+      if (!data.keepVerified) reset = "changed"
+    }
+  }
+
+  const removedLabelUrl = !data.nutrition && existing ? existing.labelFileUrl : null
+  await prisma.$transaction(async (tx) => {
     await tx.ingredient.update({
       where: { id: ing.id },
       data: { allergens, nutritionExempt: data.nutritionExempt },
@@ -76,13 +122,36 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         basisUnit: data.nutrition.basisUnit,
         ...data.nutrition.values,
         sourceNote: data.nutrition.sourceNote?.trim() || null,
+        ...(sourceUrl !== undefined && { sourceUrl }),
+        ...(reset && RESET_TO_ESTIMATED),
         updatedByUserId: ctx.dbUser?.id ?? null,
       }
       await tx.ingredientNutrition.upsert({ where: { ingredientId: ing.id }, create: { ingredientId: ing.id, ...row }, update: row })
+      if (reset) {
+        await nutritionAudit(tx, ctx, "nutrition.status.reset", ing.id, { via: "dialog", reason: reset })
+      }
     } else {
       await tx.ingredientNutrition.deleteMany({ where: { ingredientId: ing.id } })
+      if (existing && hasProof(existing)) {
+        await nutritionAudit(tx, ctx, "nutrition.record.cleared", ing.id, {
+          status: existing.status,
+          sourceUrl: existing.sourceUrl,
+          labelFileName: existing.labelFileName,
+          labelFileHash: existing.labelFileHash,
+        })
+        if (existing.labelFileUrl) {
+          await nutritionAudit(tx, ctx, "nutrition.label.removed", ing.id, {
+            via: "record cleared",
+            fileName: existing.labelFileName,
+            fileHash: existing.labelFileHash,
+          })
+        }
+      }
     }
-    return tx.ingredient.findUniqueOrThrow({ where: { id: ing.id }, select: SELECT })
   })
-  return NextResponse.json(updated)
+  // After the commit, so a failed transaction never loses a file still referenced.
+  await deleteLabelBlob(removedLabelUrl)
+
+  const updated = await findOrgIngredient(ctx.org.id, ing.id)
+  return NextResponse.json(await serializeIngredient(updated!, ctx.org.id))
 }

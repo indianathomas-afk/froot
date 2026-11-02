@@ -27,8 +27,9 @@ export const NUTRIENTS = [
 ] as const
 
 // The CSV import's columns, in order — also the template's (N-1a).
+// source_url is N-1b's writable proof link; the import can never set VERIFIED.
 export const IMPORT_COLUMNS: string[] = [
-  "name", "brand", "basis_amount", "basis_unit", ...NUTRIENTS.map((n) => n.csv), "allergens", "not_food", "source",
+  "name", "brand", "basis_amount", "basis_unit", ...NUTRIENTS.map((n) => n.csv), "allergens", "not_food", "source", "source_url",
 ]
 
 export type NutrientKey = (typeof NUTRIENTS)[number]["key"]

@@ -5,6 +5,7 @@ import { can } from "@/lib/permissions"
 import { nutritionActive } from "@/lib/nutrition-access"
 import { ingredientDisplayName } from "@/lib/nutrition"
 import { computeAllRecipeNutrition, incompleteNutrients, loadNutritionGraph, rankBlockers } from "@/lib/recipe-nutrition"
+import { itemVerification, type ProofState } from "@/lib/nutrition-proof"
 import { NutritionUpgradeCard } from "../upgrade-card"
 import { MenuNutritionClient, type MenuItemRow, type BlockerRow } from "./menu-nutrition-client"
 
@@ -13,6 +14,11 @@ import { MenuNutritionClient, type MenuItemRow, type BlockerRow } from "./menu-n
 // ingredients blocking completeness ranked by how many items each blocks.
 // Read-only; no FDA rounding (that is N-2). nutrition.view = ADMIN, MANAGER,
 // STORE (F3); both modules required (R-4).
+//
+// N-1b deliverable 6: an item is Verified only when every food ingredient it
+// reaches is VERIFIED and not stale; items with no food ingredients are left
+// out of "N of M items verified" (Gary, F8). The "To fix" list gains a "not
+// verified" reason, ranked the same way.
 export default async function MenuNutritionPage() {
   let current
   try {
@@ -32,11 +38,13 @@ export default async function MenuNutritionPage() {
     loadNutritionGraph(current.org.id),
   ])
   const results = computeAllRecipeNutrition(graph)
+  const proofOf = (id: string): ProofState => graph.ingredients.get(id)?.proof ?? "NONE"
 
   const withRecipe = salesItems.filter((s) => s.recipe && results.has(s.recipe.id))
   const items: MenuItemRow[] = withRecipe.map((s) => {
     const n = results.get(s.recipe!.id)!
     const food = n.foodIngredientIds.size
+    const foodIds = [...n.foodIngredientIds]
     return {
       salesItemId: s.id,
       recipeId: s.recipe!.id,
@@ -49,12 +57,15 @@ export default async function MenuNutritionPage() {
       incompleteNutrients: incompleteNutrients(n),
       complete: n.complete,
       error: n.error,
+      verification: itemVerification(n, proofOf),
+      verifiedIngredientCount: foodIds.filter((id) => proofOf(id) === "VERIFIED").length,
+      staleIngredientCount: foodIds.filter((id) => proofOf(id) === "STALE").length,
     }
   })
 
   // Ranked over the items shown — a blocker that only affects prep recipes
   // nobody sells is not on this list.
-  const blockers: BlockerRow[] = rankBlockers(withRecipe.map((s) => results.get(s.recipe!.id)!)).map((b) => {
+  const blockers: BlockerRow[] = rankBlockers(withRecipe.map((s) => results.get(s.recipe!.id)!), proofOf).map((b) => {
     const ing = graph.ingredients.get(b.ingredientId)
     return { ...b, name: ing ? ingredientDisplayName(ing) : "Unknown ingredient" }
   })

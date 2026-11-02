@@ -25,7 +25,7 @@ type Result = { rows: NutritionRowPlan[]; summary: Record<NutritionRowStatus, nu
 const STATUSES: { status: NutritionRowStatus; title: string; help: string; writes: boolean }[] = [
   { status: "NEW", title: "New nutrition", help: "", writes: true },
   { status: "UPDATE", title: "Replaces existing nutrition", help: "The whole record is replaced: a blank cell becomes unknown.", writes: true },
-  { status: "DETAILS_ONLY", title: "Allergens or not-food flag only", help: "Nutrition values stay as they are.", writes: true },
+  { status: "DETAILS_ONLY", title: "Allergens, not-food flag or source link only", help: "Nutrition values stay as they are.", writes: true },
   { status: "NOT_FOOD", title: "Marked not food", help: "Cups, lids, napkins and the like — they never make an item incomplete. Any nutrition already saved is kept.", writes: true },
   { status: "UNCHANGED", title: "Unchanged", help: "These rows match what's saved, so nothing is written.", writes: false },
   { status: "UNMATCHED", title: "No matching ingredient", help: "The name must match an ingredient exactly (spacing and capitals don't matter), with or without its brand. Import never creates ingredients.", writes: false },

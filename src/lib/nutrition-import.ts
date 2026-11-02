@@ -1,18 +1,20 @@
 import Papa from "papaparse"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
-import type { Allergen } from "@prisma/client"
+import type { Allergen, NutritionStatus } from "@prisma/client"
 import { normName } from "@/lib/bevspot/plan-import"
 import {
   IMPORT_COLUMNS, NUTRIENTS, NUTRIENT_KEYS, allergenLabel, emptyNutrients, ingredientDisplayName, nutritionInputError, sortAllergens,
   type NutrientKey, type NutrientValues, type NutritionInput,
 } from "@/lib/nutrition"
+import { numbersChanged, parseSourceUrl, type ProofState } from "@/lib/nutrition-proof"
 
 // ─── CSV import (N-1 deliverable 4) ───────────────────────────────────────────
 // Columns (header case/spacing/punctuation ignored):
 //   name (required) · brand (optional) · basis_amount · basis_unit ·
 //   one column per nutrient (NUTRIENTS[].csv) · allergens (optional, "milk;
-//   tree nuts") · not_food (optional, yes/no) · source (optional)
+//   tree nuts") · not_food (optional, yes/no) · source (optional) ·
+//   source_url (optional, N-1b — http/https; blank clears the stored link)
 // Matching is BEV-1 F5 exactly: whitespace/case folding on name, or on
 // brand + " " + name. Never creates ingredients.
 
@@ -81,12 +83,15 @@ export type PlanIngredientRef = {
   nutrition: NutritionInput | null
   allergens: Allergen[]
   nutritionExempt: boolean
+  /** N-1b — the stored proof link and status (absent = no record / not loaded) */
+  sourceUrl?: string | null
+  status?: NutritionStatus | null
 }
 
 // N-1a (Gary, 2026-11-01): A — every nutrient blank on an ingredient with no
 // record does nothing; B — a row identical to what is stored is UNCHANGED and
-// not written. DETAILS_ONLY = allergens and/or the not-food flag change while
-// the nutrition record does not.
+// not written. DETAILS_ONLY = allergens, the not-food flag and/or (N-1b) the
+// source link change while the nutrition numbers do not.
 export type NutritionRowStatus =
   | "NEW" | "UPDATE" | "DETAILS_ONLY" | "NOT_FOOD" | "UNCHANGED" | "UNMATCHED" | "AMBIGUOUS" | "DUPLICATE" | "INVALID"
 
@@ -103,8 +108,16 @@ export type NutritionRowPlan = {
     nutrition: NutritionInput | null // never set on NOT_FOOD / DETAILS_ONLY rows
     allergens: Allergen[] | null
     nutritionExempt: boolean | null
+    /** N-1b: null = leave the stored link as is; { url: null } clears it */
+    sourceUrl?: { url: string | null } | null
+    /** N-1b, F3: "Import changes reset to Estimated" — true only when a VERIFIED
+     *  record's basis, numbers, allergens or source link change. The import
+     *  never sets VERIFIED. */
+    resetStatus?: boolean
   } | null
 }
+
+export const RESET_DETAIL = "Verified → Estimated (the change needs re-verifying)"
 
 export const APPLYABLE: ReadonlySet<NutritionRowStatus> = new Set(["NEW", "UPDATE", "DETAILS_ONLY", "NOT_FOOD"])
 
@@ -133,6 +146,7 @@ export function planNutritionImport(csv: NutritionCsv, ingredients: PlanIngredie
     }
   }
   const hasAllergenCol = csv.headers.includes("allergens")
+  const hasSourceUrlCol = csv.headers.includes("source_url")
   const plans: NutritionRowPlan[] = []
   const seen = new Map<string, number>() // ingredientId → first rowNumber
 
@@ -177,6 +191,14 @@ export function planNutritionImport(csv: NutritionCsv, ingredients: PlanIngredie
     }
     const notFood = parseYesNo(c.not_food ?? "")
     if (notFood === "bad") { plans.push(invalid(`not_food must be yes or no, not "${c.not_food}"`, ing)); continue }
+    // N-1b: undefined = column absent (leave as is); null = blank (clear).
+    let sourceUrl: string | null | undefined = undefined
+    if (hasSourceUrlCol) {
+      const u = parseSourceUrl(c.source_url)
+      if ("error" in u) { plans.push(invalid(u.error, ing)); continue }
+      sourceUrl = u.url
+    }
+    const verified = ing.status === "VERIFIED"
 
     const values = emptyNutrients(null)
     let bad: string | null = null
@@ -198,11 +220,18 @@ export function planNutritionImport(csv: NutritionCsv, ingredients: PlanIngredie
     if (notFood === true) {
       // Sets the flag (and allergens); never touches the nutrition record.
       if (anyValue || basisGiven) { plans.push(invalid("Not-food rows carry no nutrition — clear the values or not_food", ing)); continue }
+      // The template exports not-food rows with source_url blank; a blank here
+      // is ignored, because a not-food row never touches the record (N-1a).
+      if (sourceUrl) { plans.push(invalid("Not-food rows carry no source link — clear source_url or not_food", ing)); continue }
       if (allergensWrite === null && flagWrite === null) {
         plans.push({ ...matched, status: "UNCHANGED", detail: null, write: null })
         continue
       }
-      plans.push({ ...matched, status: "NOT_FOOD", detail: null, write: { nutrition: null, allergens: allergensWrite, nutritionExempt: flagWrite } })
+      const resetStatus = verified && allergensWrite !== null
+      plans.push({
+        ...matched, status: "NOT_FOOD", detail: resetStatus ? RESET_DETAIL : null,
+        write: { nutrition: null, allergens: allergensWrite, nutritionExempt: flagWrite, ...(resetStatus && { resetStatus }) },
+      })
       continue
     }
 
@@ -221,19 +250,38 @@ export function planNutritionImport(csv: NutritionCsv, ingredients: PlanIngredie
     }
     // A: no values and no record → nothing to write for nutrition; no empty record.
 
-    if (nutritionWrite === null && allergensWrite === null && flagWrite === null) {
+    // N-1b, F6 (Gary): "an import row with a link but no values is rejected".
+    const recordAfter = ing.nutrition !== null || nutritionWrite !== null
+    if (sourceUrl && !recordAfter) { plans.push(invalid("Add nutrient values before a source link", ing)); continue }
+    const sourceUrlWrite = sourceUrl !== undefined && recordAfter && sourceUrl !== (ing.sourceUrl ?? null) ? { url: sourceUrl } : null
+
+    if (nutritionWrite === null && allergensWrite === null && flagWrite === null && sourceUrlWrite === null) {
       plans.push({ ...matched, status: "UNCHANGED", detail: anyValue || ing.nutrition ? null : "No nutrient values — nothing to import", write: null })
       continue
     }
-    const write = { nutrition: nutritionWrite, allergens: allergensWrite, nutritionExempt: flagWrite }
+    // F3: a source-note-only edit is written but resets nothing; the not-food
+    // flag never resets.
+    const resetStatus =
+      verified &&
+      ((nutritionWrite !== null && ing.nutrition !== null && numbersChanged(ing.nutrition, nutritionWrite)) ||
+        allergensWrite !== null ||
+        sourceUrlWrite !== null)
+    // The N-1b keys appear only when they carry something, so every write an
+    // N-1-era file produces is byte-identical to what it was before N-1b.
+    const write = {
+      nutrition: nutritionWrite, allergens: allergensWrite, nutritionExempt: flagWrite,
+      ...(sourceUrlWrite && { sourceUrl: sourceUrlWrite }),
+      ...(resetStatus && { resetStatus }),
+    }
     if (nutritionWrite === null) {
-      plans.push({ ...matched, status: "DETAILS_ONLY", detail: null, write })
+      plans.push({ ...matched, status: "DETAILS_ONLY", detail: resetStatus ? RESET_DETAIL : null, write })
       continue
     }
+    const details = [anyValue ? null : "No nutrient values — every nutrient becomes unknown", resetStatus ? RESET_DETAIL : null].filter(Boolean)
     plans.push({
       ...matched,
       status: ing.nutrition ? "UPDATE" : "NEW",
-      detail: anyValue ? null : "No nutrient values — every nutrient becomes unknown",
+      detail: details.length ? details.join(" · ") : null,
       write,
     })
   }
@@ -276,7 +324,12 @@ export async function planNutritionForOrg(organizationId: string, csv: Nutrition
   })
   return planNutritionImport(
     csv,
-    ingredients.map((i) => ({ ...i, nutrition: storedNutritionInput(i.nutrition) }))
+    ingredients.map((i) => ({
+      ...i,
+      nutrition: storedNutritionInput(i.nutrition),
+      sourceUrl: i.nutrition?.sourceUrl ?? null,
+      status: i.nutrition?.status ?? null,
+    }))
   )
 }
 
@@ -289,10 +342,13 @@ export function summarizeNutritionPlan(plan: NutritionRowPlan[]): Record<Nutriti
 // ─── Template export (N-1a) ──────────────────────────────────────────────────
 // The org's ingredients as an import file: the import's columns in the
 // import's order, pre-filled with what is stored, so an unedited file imports
-// as zero changes (Gary, 2026-11-01). Three helper columns go at the end; the
-// parser keeps unknown columns and nothing reads them.
+// as zero changes (Gary, 2026-11-01). The helper columns go at the end; the
+// parser keeps unknown columns and nothing reads them — which is exactly how
+// N-1b's `status` is "exported for information, ignored on import".
 
-export const TEMPLATE_HELPER_COLUMNS = ["category", "reporting_unit", "has_nutrition"] as const
+export const TEMPLATE_HELPER_COLUMNS = ["category", "reporting_unit", "has_nutrition", "status"] as const
+
+const STATUS_CELL: Record<ProofState, string> = { NONE: "", ESTIMATED: "estimated", VERIFIED: "verified", STALE: "re-check label" }
 
 export type TemplateIngredient = {
   id: string
@@ -306,6 +362,9 @@ export type TemplateIngredient = {
   allergens: Allergen[]
   nutritionExempt: boolean
   nutrition: NutritionInput | null
+  /** N-1b (absent = no link / no record) */
+  sourceUrl?: string | null
+  proof?: ProofState
 }
 
 /** Active, non-archived, non-PREPARED (those take nutrition from their recipe),
@@ -333,9 +392,12 @@ export function templateRow(i: TemplateIngredient): Record<string, string> {
     allergens: sortAllergens(i.allergens).map((a) => allergenLabel(a).toLowerCase()).join("; "),
     not_food: i.nutritionExempt ? "yes" : "",
     source: n?.sourceNote ?? "",
+    // Not-food rows export it blank, and the import ignores a blank on them.
+    source_url: n ? i.sourceUrl ?? "" : "",
     category: i.category ?? "",
     reporting_unit: i.reportingUnit,
     has_nutrition: i.nutrition ? "yes" : "no",
+    status: STATUS_CELL[i.proof ?? (i.nutrition ? "ESTIMATED" : "NONE")],
   }
   for (const nt of NUTRIENTS) row[nt.csv] = n ? num(n.values[nt.key]) : ""
   return row
