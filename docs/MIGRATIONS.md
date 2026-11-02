@@ -2083,8 +2083,22 @@ Milk both carry documents, per the prompt).
 | Branch | VERIFIED without a document (`to_reset`) | VERIFIED total |
 |---|---|---|
 | dev | unknown (applied before counting) | — |
-| staging | owed — Gary, before the push | owed |
-| production | owed — Gary, before promotion | owed |
+| staging `br-square-feather-a63z92vz` | **0** | **1** |
+| production `br-sparkling-block-a620qvg4` | **0** (was 1 before Gary uploaded Almond Milk's label document) | **2** |
+
+**Counted by Gary in the Neon console, 2026-11-02, before the migration
+reached either branch** (filled in at the N-1d PRE-PUSH-CHECK). The branch id on
+each row was read from the server (`neon.branch_id`) in the same output as the
+counts, not typed. Neither branch had the migration applied when counted, so on
+both the backfill is expected to touch **0 rows**.
+
+**The "Expected on production: 0" above was right in the end and wrong when it
+was written.** The prompt said Almond Milk and Coconut Milk both carried
+documents; the first production count returned `to_reset` **1**. Gary uploaded
+Almond Milk's label document, and the recount returned 0 with `verified_total`
+2. Had the push gone first, the backfill would have reset Almond Milk to
+Estimated — correct by F2, but not what anyone expected. The sentence is kept as
+written; this paragraph is the correction.
 
 **GENERATED AGAINST THE LIVE DEV DATABASE, after a clean baseline.** Before
 `prisma/schema.prisma` was edited, the diff with no `-o` returned `-- This is

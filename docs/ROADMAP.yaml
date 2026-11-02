@@ -17709,7 +17709,19 @@ phases:
     # → in_progress 2026-11-02 at the work commit 8e3d887 (NOT pushed). The
     # docs SHA is the commit immediately after 8e3d887 (its own SHA cannot be
     # written inside itself).
-    status: in_progress
+    # N-1d PRE-PUSH-CHECK 2026-11-02: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after d8b6c39 (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-02 N-1d ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written.
+    # Migration 20261102220000_n1d_proof_only_nutrition rides this push;
+    # backfill counts measured by Gary in the Neon console 2026-11-02, before
+    # apply: staging br-square-feather-a63z92vz to_reset 0 (verified_total 1),
+    # production br-sparkling-block-a620qvg4 to_reset 0 (verified_total 2) —
+    # recorded in MIGRATIONS.md and DEPLOY_LOG.md (F2b). The "(NOT pushed)" and
+    # "is the commit immediately after 8e3d887" lines above are spent, kept:
+    # the docs SHA is d8b6c39.
+    status: staging
     commits:
       - "8e3d887"
       # feat(N-1d): proof-only records, Verified needs a document, FDA printed
@@ -17719,6 +17731,12 @@ phases:
       # + the commit immediately after 8e3d887: docs(N-1d) — prompt, audit,
       # DECISIONS draft, MIGRATIONS entry, this row, N-1e filed, the 560f350
       # stamp
+      - "d8b6c39"
+      # docs(N-1d): the docs commit named on the line above; recorded by the
+      # N-1d PRE-PUSH-CHECK
+      # + the commit immediately after d8b6c39: docs(N-1d PRE-PUSH-CHECK) —
+      # DECISIONS ratified, MIGRATIONS backfill counts, this row to staging,
+      # DEPLOY_LOG entry
     title: "Nutrition — label workflow fixes (proof without numbers, Verified needs a document, printed bounds) + Ingredients table layout"
     notes: >
       RESCOPED 2026-11-02 by the N-1d docs commit (preserve-and-mark). The

@@ -2,6 +2,84 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-02 — N-1d: proof without numbers, Verified needs a document, FDA printed bounds, Ingredients table
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two N-1d commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `8e3d887`, `d8b6c39`, on top of `origin/staging`
+(`560f350`). **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `8e3d887` | N-1d work: migration `20261102220000_n1d_proof_only_nutrition`; `schema.prisma` (basis nullable); proof-only records in `nutrition.ts` (`hasNutrition`, `PROOF_ONLY_NUMBERS`), `nutrition-proof.ts`, `recipe-nutrition.ts`, `nutrition-import.ts`, `nutrition-record.ts`; F3/F3a printed bounds in `label-review.ts`; routes NU-2 `ingredients/[id]`, `label`, `label/upload-url`, `label/read`, `verify`; `nutrition-section.tsx`, `ingredients-client.tsx`; `app-shell.tsx` wide-route list; fixture `scripts/verify-n1d.ts`; pins updated in `verify-n1b-proof.ts`, `verify-n1c-label.ts` |
+| `d8b6c39` | `docs(N-1d)`: prompt of record `docs/prompts/N-1d.md`, audit `docs/prompts/N-1d_AUDIT.md`, DECISIONS draft, MIGRATIONS entry, row `in_progress`, N-1e filed `planned`, N-1c + STAMP entries stamped `560f350` |
+| the commit immediately after `d8b6c39` | `docs(N-1d PRE-PUSH-CHECK)`: this entry, MIGRATIONS backfill counts, row SHAs, row to `staging`; DECISIONS ratified by Gary at this check ("Ratify as written") |
+
+**Blast radius: A SCHEMA MIGRATION WITH A DATA BACKFILL, PLUS CHANGED RULES ON
+EXISTING NUTRITION WRITES — ALL BEHIND `activeModules` "nutrition", LIKE
+N-1/N-1b/N-1c. NO NEW ENV VAR, NO NEW ROUTE, NO CRON, NO SQUARE CALL.**
+
+- **Migration `20261102220000_n1d_proof_only_nutrition`, applied by `prisma
+  migrate deploy` in the Vercel build** — staging on this push, production at
+  promotion. Three parts: `basisAmount` / `basisUnit` lose NOT NULL (nothing
+  dropped); a hand-authored CHECK `IngredientNutrition_basis_together` (both
+  null or both set; in § Protected indexes, Hazard 1); a hand-authored backfill,
+  `VERIFIED` with no `labelFileUrl` -> `ESTIMATED`, verifier cleared, **no
+  AuditLog row (F2b)**.
+- **Backfill counts (F2b: "record the counts in MIGRATIONS and DEPLOY_LOG").**
+  Measured by Gary in the Neon console 2026-11-02, branch id read from the
+  server in the same output, migration NOT yet applied on either:
+
+  | Branch | `to_reset` | `verified_total` |
+  |---|---|---|
+  | staging `br-square-feather-a63z92vz` | 0 | 1 |
+  | production `br-sparkling-block-a620qvg4` | 0 (was 1 until Gary uploaded Almond Milk's label document) | 2 |
+  | dev `br-broad-wave-a6vpjdw0` | unknown — applied before counting | — |
+
+  So the backfill is expected to touch 0 rows on both deployed branches. A
+  Verified record that loses its document between this count and the deploy
+  would be reset too — correct by F2, and the reason it is named here.
+- **What changes in existing behaviour:** a label document, a source link and
+  Read label now work with no numbers saved (a proof-only record counts as "No
+  nutrition" everywhere); clearing the numbers keeps the document and link;
+  Verified needs an uploaded document (a link alone no longer qualifies) and
+  removing the document resets to Estimated unasked; editing the link never
+  asks "Still verified?". Read label pre-fills cholesterol "<5 mg" as 2 and
+  "<1 g" as 0.5 for carbohydrate, fiber, sugars, added sugars and protein — and
+  a fat "<1 g" is now left BLANK and flagged (N-1c filled 0.5). The
+  Ingredients table moves the actions column before Last Edited, makes it
+  sticky, and widens `/inventory/ingredients` (exact match) to
+  `max-w-screen-2xl`.
+- **What does not change:** no column dropped, no new route or permission,
+  nothing writes to Square.
+
+**Rollback:** revert `8e3d887`. **The migration stays** (additive-only: never
+restore NOT NULL by hand). Two things the revert does not undo: rows the
+backfill reset stay `ESTIMATED` (expected 0 per the counts above), and any
+proof-only record saved after the deploy (`basisAmount IS NULL`) stays — the
+pre-N-1d code types the basis as required, so **count proof-only rows in the
+Neon console before reverting**; if there are any, what to do with them is a
+ruling, not a rollback step. If "nutrition" is on anywhere, switching it off
+(Neon console) hides every surface without a deploy. The docs commits can stay
+or go with it.
+
+**Evidence so far: fixtures and build only.** `scripts/verify-n1d.ts` 42/42 PASS
+per the build session, against the applied schema on dev
+`br-broad-wave-a6vpjdw0` (database part rolled back), including the CHECK
+refusing half a basis and the backfill statement run verbatim; N-1 40/40, N-1a
+26/26, N-1b 48/48, N-1c 59/59. **Nothing has been observed on staging or
+production**, and the migration has not reached either. After the push, in
+order: the build log shows the migration applied on staging; the
+staging-SHA precondition (deployed SHA = local `HEAD`); then Gary's staging
+pass — a document and a link on an ingredient with no numbers, Read label on
+it, clearing numbers keeps the proof, Verified refused on a link alone,
+removing the document resets to Estimated, a fat "<1 g" left blank and
+flagged, the Ingredients table at laptop width. Nothing is promoted until Gary
+confirms it on staging.
+
 ## 560f350 — 2026-11-02 — N-1c: "Read label" — the model reads an attached label, an ADMIN reviews and applies
 
 **PROMOTED 2026-11-02 in merge `560f350`** (`560f3507cda41299bba9c5dc18070c5eee5f91af`,
