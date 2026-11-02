@@ -1937,6 +1937,9 @@ the work commit (`9fc21d6`). It refuses any other branch and leaves no rows.
 
 ## 2026-11-01 — `20261101210000_n1_ingredient_nutrition` (N-1)
 
+**On production at promotion (merge `bdbeb47`), stamped by
+STAMP-bdbeb47-317ce2c; the "DEV ONLY" line below is spent, kept.**
+
 **APPLIED TO DEV ONLY, by Gary.** Written by the N-1 PRE-PUSH-CHECK, not by
 the N-1 docs commit (`2c2c0fa`), which carried no entry here — found as drift
 at the check's Step 2 and added on Gary's instruction: *"Add the MIGRATIONS.md
@@ -1949,8 +1952,8 @@ no database, so no dev time is written. Staging and production get it through
 | Branch | Applied (`_prisma_migrations.finished_at`) | By |
 |---|---|---|
 | dev `br-broad-wave-a6vpjdw0` | applied by Gary 2026-11-01 — finished_at not read at this check | Gary |
-| staging `br-square-feather-a63z92vz` | not yet | Vercel build, on Gary's push |
-| production `br-sparkling-block-a620qvg4` | not yet | Vercel build, at promotion |
+| staging `br-square-feather-a63z92vz` | applied — finished_at not read; staging evidence in the DEPLOY_LOG entry (STAMP-bdbeb47-317ce2c) | Vercel build, on Gary's push |
+| production `br-sparkling-block-a620qvg4` | 2026-11-01 23:49:42 UTC (15:49:42 PST) | Vercel build, at promotion (merge `bdbeb47`) |
 
 Timestamp note: the folder name is the UTC instant of generation.
 
@@ -1982,6 +1985,9 @@ the row and `docs/prompts/N-1_AUDIT.md` list none (the file itself implies a
 
 ## 2026-11-01 — `20261101230000_n1b_nutrition_proof` (N-1b)
 
+**On production at promotion (merge `317ce2c`), stamped by
+STAMP-bdbeb47-317ce2c; the "DEV ONLY" line below is spent, kept.**
+
 **APPLIED TO DEV ONLY, by Gary**, after the N-1b Phase 2 STOP and before the
 work commit `0962d72` (§ A migration STOPS the session). The session read no
 `_prisma_migrations.finished_at`, so no dev time is written; the evidence that
@@ -1992,8 +1998,8 @@ writing the new columns on `neon.branch_id = br-broad-wave-a6vpjdw0`.
 | Branch | Applied (`_prisma_migrations.finished_at`) | By |
 |---|---|---|
 | dev `br-broad-wave-a6vpjdw0` | applied by Gary 2026-11-01 — finished_at not read | Gary |
-| staging `br-square-feather-a63z92vz` | not yet | Vercel build, on Gary's push |
-| production `br-sparkling-block-a620qvg4` | not yet | Vercel build, at promotion |
+| staging `br-square-feather-a63z92vz` | applied — finished_at not read; staging evidence in the DEPLOY_LOG entry (STAMP-bdbeb47-317ce2c) | Vercel build, on Gary's push |
+| production `br-sparkling-block-a620qvg4` | 2026-11-02 02:49:41 UTC (2026-11-01 18:49:41 PST) | Vercel build, at promotion (merge `317ce2c`) |
 
 **GENERATED AGAINST THE LIVE DEV DATABASE, after a clean baseline.** Before
 `prisma/schema.prisma` was edited, the diff with no `-o` returned `-- This is

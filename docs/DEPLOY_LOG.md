@@ -2,7 +2,32 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-01 — N-1b: nutrition proof — source links, label documents, Estimated/Verified
+## 317ce2c — 2026-11-01 — N-1b: nutrition proof — source links, label documents, Estimated/Verified
+
+**PROMOTED 2026-11-01 in merge `317ce2c`** (`317ce2c2d2a2b1474ebbb83f805ad6f16e1d5d06`,
+"Merge branch 'staging'", 2026-11-01 18:48:51 -0800 (Pacific) = 2026-11-02
+02:48:51 UTC), `--no-ff`. First parent `bdbeb47` (prior tip of `main`), second
+parent `2979f1c` (staging tip). **3 commits** in `317ce2c^1..317ce2c^2` —
+`0962d72`, `50ef062`, `2979f1c` (N-1b) — and **28 files**, read out of
+`git log` and `git diff --shortstat` at this stamp. `main` moved
+`bdbeb47..317ce2c`; `staging` fast-forwarded to it. Not the same promotion as
+N-1 / N-1a as the line below expected: they went first, in `bdbeb47`. Stamped
+post-merge by STAMP-bdbeb47-317ce2c (2026-11-01), on `staging`; the heading
+previously read "UNPROMOTED — 2026-11-01 — N-1b: nutrition proof — source links, label documents, Estimated/Verified".
+The "staging only", "Ships with N-1 and N-1a … in the same promotion" and
+"NEITHER WAS PUSHED" lines below are spent, kept.
+
+**Observed, staging (Gary):** label upload, view, Mark verified, "Still
+verified?" → Estimated, and the "N of M items verified" line all worked.
+
+**Observed, production (Gary, Neon `br-sparkling-block-a620qvg4`, `Organization`
+`cf888f2d-f234-48c7-8097-fd5b44b5b3dd`):** migration
+`20261101230000_n1b_nutrition_proof` `finished_at` 2026-11-02 02:49:41 UTC
+(2026-11-01 18:49:41 PST). Gary imported planning chat's estimated nutrition
+file (all records Estimated), then verified **Almond Milk** against the Almond
+Breeze Original spec sheet (04/04/23): label numbers entered per 8 fl. oz, PDF
+uploaded, link saved, Verified by gary@kevajuice.com.
+
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
@@ -75,7 +100,15 @@ pass — upload, view, replace, remove, verify, the "Still verified?" and
 clear-proof questions, an import reset, and Menu Nutrition's Proof column and
 verified count. Nothing is promoted until Gary confirms it on staging.
 
-## UNPROMOTED — 2026-11-01 — N-1a: nutrition "Download template" that imports back as zero changes
+## bdbeb47 — 2026-11-01 — N-1a: nutrition "Download template" that imports back as zero changes
+
+**PROMOTED 2026-11-01 in merge `bdbeb47`**, together with N-1 — merge details
+and evidence (template re-import 0 ready / 225 unchanged on staging) are on
+the N-1 entry below. No migration of its own. Stamped post-merge by
+STAMP-bdbeb47-317ce2c (2026-11-01), on `staging`; the heading previously read
+"UNPROMOTED — 2026-11-01 — N-1a: nutrition "Download template" that imports back as zero changes". The "staging only" and "NEITHER WAS PUSHED" lines
+below are spent, kept.
+
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
@@ -126,7 +159,32 @@ then Gary's staging pass — the download, the ADMIN gate, and a real Keva
 template imported back as zero changes. Nothing is promoted until Gary
 confirms it on staging.
 
-## UNPROMOTED — 2026-11-01 — N-1: ingredient nutrition & allergens, computed through recipes
+## bdbeb47 — 2026-11-01 — N-1: ingredient nutrition & allergens, computed through recipes
+
+**PROMOTED 2026-11-01 in merge `bdbeb47` (`bdbeb47b2bf830d90b5ab9fad6112cbbf5d16a03`,
+"Merge branch 'staging'", 2026-11-01 15:49:08 -0800 (Pacific) = 2026-11-01
+23:49:08 UTC), `--no-ff`. First parent `62b9d86` (prior tip of `main`), second
+parent `b143e5f` (staging tip). **7 commits** in `bdbeb47^1..bdbeb47^2` —
+`8e37495` (62b9d86 stamp), `70baf2f` / `2c2c0fa` / `a6a33bf` (N-1), `b0bc473` /
+`bc3d621` / `b143e5f` (N-1a) — and **36 files**, read out of `git log` and
+`git diff --shortstat` at this stamp. `main` moved `62b9d86..bdbeb47`;
+`staging` fast-forwarded to it. Migration
+`20261101210000_n1_ingredient_nutrition` applied to production at promotion
+(below). Shipped with N-1a (entry above). Stamped post-merge by
+STAMP-bdbeb47-317ce2c (2026-11-01), on `staging`; the heading previously read
+"UNPROMOTED — 2026-11-01 — N-1: ingredient nutrition & allergens, computed through recipes". The "staging only" and "NEITHER WAS PUSHED" lines
+below are spent, kept.
+
+**Observed, staging, before promotion (Gary):** Liquid Olympian Smoothie (M)
+computed 395 kcal / 102 g carb / 78.8 g sugars, matching hand math; the
+unedited N-1a template re-imported as 0 ready / 225 unchanged.
+
+**Observed, production (Gary, Neon `br-sparkling-block-a620qvg4`):** migration
+`20261101210000_n1_ingredient_nutrition` `finished_at` 2026-11-01 23:49:42 UTC
+(15:49:42 PST). Gary then turned the nutrition module on for `Organization`
+`cf888f2d-f234-48c7-8097-fd5b44b5b3dd` (`activeModules` now
+`{inventory,hr,labor,nutrition}`, branch id in the same output).
+
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
