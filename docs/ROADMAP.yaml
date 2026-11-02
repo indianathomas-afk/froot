@@ -17622,7 +17622,17 @@ phases:
   - id: N-1c
     track: nutrition
     size: M
-    status: planned
+    # → in_progress 2026-11-02 at the work commit b396623 (NOT pushed). The
+    # docs SHA is the commit immediately after b396623 (its own SHA cannot be
+    # written inside itself).
+    status: in_progress
+    commits:
+      - "b396623"
+      # feat(N-1c): read route, label-review/label-read libs, review UI,
+      # appliedFromRead audit, fixture, NU-8, ANTHROPIC_API_KEY env line,
+      # 2026-11-02
+      # + the commit immediately after b396623: docs(N-1c) — prompt, audit,
+      # DECISIONS draft, this row, N-1d filed
     title: "Nutrition — AI \"read the label\" from an uploaded document or link, human confirms"
     notes: >
       FILED 2026-11-01 by the N-1b docs commit (series in docs/prompts/N-1b.md:
@@ -17633,6 +17643,55 @@ phases:
       from N-1b: label files carry a sha256 (labelFileHash) to key a read on,
       and HEIC photos will need converting before a model can read them.
       Behind N-1b. NOT SCOPED as a prompt yet.
+
+      BUILT 2026-11-02, TIER 3 (the "NOT SCOPED as a prompt yet" line above is
+      spent, kept). Prompt of record: docs/prompts/N-1c.md; audit
+      docs/prompts/N-1c_AUDIT.md. Rulings: docs/DECISIONS.md 2026-11-02 N-1c,
+      DRAFT until PRE-PUSH-CHECK. WHAT WAS BUILT: "Read label" in the
+      ingredient dialog's Proof box (ADMIN, a document attached, not HEIC,
+      saved nutrition first per N-1b F6) sends the stored document to the
+      Anthropic API as base64 (claude-sonnet-5-5, one constant in
+      src/lib/label-read.ts; fetch, no SDK) and opens a side-by-side review:
+      label vs saved for every nutrient and allergen, differences and flags
+      shown, name check with a "This is the product we use" tickbox, every
+      field editable. Apply is the existing PUT (optional appliedFromRead adds
+      one nutrition.label.applied AuditLog row); "Apply & mark verified" is
+      that PUT then the existing verify route. Basis chosen in code from the
+      printed serving in the ingredient's own dimension, never weight<->volume.
+      "<1 g" -> 0.5, "0" -> 0, %DV-only -> FDA Daily Value, all flagged.
+      Allergens from the printed Contains line (FDA Edition 5 Table 1 tree
+      nuts; coconut not mapped) unioned with the model's. Per-org 30/hour,
+      300/day counted from AuditLog; 24 h reuse of a read of the same file
+      hash. New route NU-8. No schema change. New env var ANTHROPIC_API_KEY
+      (Preview + Production, separate keys, Sensitive, spend limit) — NOT SET
+      ANYWHERE YET, so the route answers 503 until Gary sets it. Fixture
+      scripts/verify-n1c-label.ts 59/59 (pure, no API calls); N-1 39/39, N-1a
+      25/25, N-1b 47/47 (dev br-broad-wave-a6vpjdw0, rolled back). Review
+      screen render-checked locally on a temp /menu page with the canned
+      Almond Breeze read (page deleted). NOT VERIFIED: any live read, the
+      route's gates, rate limit and reuse, the dialog flow end to end. All of
+      it is Gary's staging pass; the series rule holds — nothing promotes until
+      Gary confirms it on staging.
+    deferred:
+      - "Reading a label before any nutrition is saved (N-1b F6 still applies; revisit in N-1d)"
+      - "Values printed as an upper limit other than \"<1 g\" (e.g. cholesterol \"<5 mg\") are left blank and flagged, not guessed — not covered by the N1C-F7 ruling"
+      - "Large photos are refused, not resized (no sharp, by ruling)"
+
+  - id: N-1d
+    track: nutrition
+    size: M
+    status: planned
+    title: "Nutrition — read a label from a pasted link, and batch-read many labels with a review queue"
+    notes: >
+      FILED 2026-11-02 by the N-1c docs commit (out of scope in
+      docs/prompts/N-1c.md: "reading from a pasted link (needs SSRF-safe
+      fetching), and batch reading many labels at once with a review queue").
+      Builds on N-1c's read route, review builder (src/lib/label-review.ts)
+      and audit-row rate limit. Gary, 2026-11-02, N1C-F6: "Read label requires
+      saved nutrition first, for N-1c; revisit in N-1d" — in a batch flow "no
+      record yet" will be the common case (audit § E, option c: read an
+      uploaded-but-unregistered file, then save and register in order). Behind
+      N-1c. NOT SCOPED as a prompt yet.
 
   - id: N-2
     track: nutrition

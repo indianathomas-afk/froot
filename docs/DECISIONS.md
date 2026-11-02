@@ -5,6 +5,76 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-02 — N-1c: "Read label", forks N1C-F1–F7, API key and limits (Gary) — DRAFT
+
+**DRAFT — ruled by Gary in chat 2026-11-02 at the N-1c Phase 1 STOP; to be
+ratified at PRE-PUSH-CHECK.** The audit he ruled on is
+`docs/prompts/N-1c_AUDIT.md` (forks N1C-F1–F5 from the prompt, F6–F7 raised by
+the audit, RULING NOW 1–4). His words, recorded exactly:
+
+> "Accept F1–F6 and the RULING NOW items as recommended, with these words:
+> F1: Read label is a button only; never read on upload.
+> F2: "Apply & mark verified" as the main button, "Apply only" as secondary.
+> F3: Name mismatch is a warning plus a "This is the product we use" tickbox,
+> checked in code.
+> F4: claude-sonnet-5-5 in one constant. Skip the Haiku comparison.
+> F5: HEIC stays attached as proof; Read label is disabled on it with a "share
+> as JPEG" instruction.
+> F6: Read label requires saved nutrition first, for N-1c; revisit in N-1d.
+> F7 (changed): "<1 g" pre-fills as 0.5 (FDA: printed "<1 g" means 0.5 to
+> under 1 g) and "0 g" as 0, both flagged on the review screen. A nutrient
+> printed only as %DV is converted using the FDA Daily Values, flagged.
+> Nothing is left blank when the label gives a value.
+> ANTHROPIC_API_KEY: separate keys for Preview and Production, marked
+> Sensitive, with a monthly spend limit; 503 if unset. Use fetch, no SDK. No
+> sharp. Labels being sent to Anthropic is accepted.
+> Rate limit 30 reads/hour and 300/day per org via audit rows; 24 h reuse of a
+> result for the same file; maxDuration 60 with a 45 s call timeout.
+> Verify the FDA coconut/tree-nut point in Phase 2 against an FDA source."
+
+The message's closing instructions (record a DRAFT, no schema change expected,
+build, commit and stop) are left out above. They are session instructions,
+not rulings. F7 is Gary's changed ruling, not the audit's lean (the audit leaned "leave it
+blank"). "No sharp" settles RULING NOW 4: large photos are refused, not
+resized.
+
+**The FDA point, verified in Phase 2 as instructed.** FDA, "Questions and
+Answers Regarding Food Allergens, Including the Food Allergen Labeling
+Requirements of the FD&C Act (Edition 5)", January 2025 (PDF
+fda.gov/media/117410/download, read 2026-11-02). Table 1, "Tree Nuts FDA
+Considers as Major Food Allergens", lists twelve: almond, black walnut, Brazil
+nut, California walnut, cashew, filbert/hazelnut, heartnut/Japanese walnut,
+macadamia nut/bush nut, pecan, pine nut/piñon nut, pistachio, and walnut. The
+word "coconut" does not appear anywhere in the document, and C.8 says tree
+nuts not in Table 1 "should not be included in the 'Contains' statement". So
+the audit's claim, which came from memory, holds. The Daily Values used for F7
+come from FDA's "Daily Value on the Nutrition and Supplement Facts Labels"
+page (content current 03/05/2024, read 2026-11-02). **The "0.5 to under 1 g"
+reading in F7 is Gary's words. It was NOT checked against 21 CFR 101.9(c)**,
+because the eCFR host refused automated reads.
+
+**Claude, implementation choices — not rulings:**
+- Printed upper limits other than "<1 g", such as cholesterol "<5 mg", are
+  left blank and flagged ("Label gives only an upper limit — enter a value").
+  They are not guessed. That reads "when the label gives a value" as not
+  covering a bound. **Gary may rule otherwise.**
+- Allergens are the union of the printed Contains line, mapped in code, and
+  the model's own mapping. Each disagreement is shown, because under-declaring
+  is the failure that hurts someone. "May contain" lines are shown and never
+  mapped. Coconut gets a note and is not ticked.
+- The basis prefers the household measure over the metric parenthetical. It
+  is expressed in the ingredient's own unit when that is exact (1 cup →
+  8 fl. oz), otherwise in the printed unit. A bare label "oz" is weight.
+- Name check: a variant word (Original, Unsweetened, Sugar-free, and so on) on
+  both sides that differs raises the warning. So does fewer than half of the
+  ingredient's words appearing in the printed name.
+- "Apply & mark verified" on an already-verified record answers "Still
+  verified?" with no on the ADMIN's behalf. The trail then reads reset, then
+  verified.
+- Vitamin D printed in IU is converted at 40 IU = 1 mcg and flagged. A %DV is
+  never used for calories, trans fat or total sugars, which have no Daily
+  Value.
+
 ## 2026-11-01 — N-1b: nutrition proof, Estimated/Verified, forks N1B-F1–F8 and storage (Gary)
 
 **RATIFIED BY GARY, 2026-11-01, at the N-1b PRE-PUSH-CHECK, as written.** The
