@@ -2068,8 +2068,8 @@ on its word: diff dev before the fixture, every time.**
 | Branch | Applied (`_prisma_migrations.finished_at`) | By |
 |---|---|---|
 | dev `br-broad-wave-a6vpjdw0` | applied by Gary 2026-11-02 — finished_at not read | Gary |
-| staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
-| production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
+| staging `br-square-feather-a63z92vz` | applied on Gary's push (staging tests passed before promotion, per the N-2 prompt) — finished_at not read | Vercel build |
+| production `br-sparkling-block-a620qvg4` | **2026-11-02 21:19:42 UTC** (13:19:42 PST), promotion `22b8a7f` (Gary, as relayed in the N-2 prompt; stamped by N-2) | Vercel build |
 
 **Backfill counts (N1D-F2b: "no audit row for the backfill; record the counts
 in MIGRATIONS and DEPLOY_LOG").** The migration does not report a row count,
@@ -2130,3 +2130,51 @@ fixture's own rows, inside a transaction that is always rolled back.
 the first "applied"; empty after the second). `npm run build` also runs
 `prisma generate`. No `migrate deploy`, `db execute`, `migrate dev`, `migrate
 reset` or `migrate resolve` was run by the session.
+
+## 2026-11-02 — `20261102230000_n2_nutrition_serving_settings` (N-2)
+
+**APPLIED TO DEV ONLY, by Gary**, after the N-2 Phase 2 STOP and before the
+work commit `d88ef4d` (§ A migration STOPS the session). Staging and production
+get it from the Vercel build on Gary's push and at promotion.
+
+**Dev was checked before the fixture, not taken on its word** (the N-1d
+lesson above): after Gary's "Applied to dev", the shape diff against dev
+returned `-- This is an empty migration.`, and a read-only SELECT on
+`neon.branch_id = br-broad-wave-a6vpjdw0` returned the
+`_prisma_migrations` row below.
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | **2026-11-02 21:55:42 UTC** (13:55:42 PST) | Gary |
+| staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
+| production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
+
+**GENERATED AGAINST THE LIVE DEV DATABASE, after a clean baseline.** Before
+`prisma/schema.prisma` was edited, the diff with no `-o` returned `-- This is
+an empty migration.` against dev. Every statement is generated; nothing is
+hand-authored, so nothing joins § Protected indexes. **Additive only — no
+backfill, nothing dropped:**
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "Organization" ADD COLUMN "nutritionServingFlOz" DOUBLE PRECISION` | nullable; NULL = the 12 fl oz default (R-1), so no backfill |
+| `CREATE TABLE "NutritionSizeVolume"` + unique `(organizationId, variationName)` + FK to Organization (RESTRICT) | the size table (F3), one row per EXACT Square variation name (F6) |
+| `CREATE TABLE "NutritionItemServing"` + unique `salesItemId` + index `organizationId` + FKs to Organization (RESTRICT) and SalesItem (**CASCADE**) | the per-item override; removed with its sales item |
+
+**Fixture:** `scripts/verify-n2-label.ts`, 52 checks, all pass, against the
+applied schema on dev `br-broad-wave-a6vpjdw0`. Its part 10 creates a fixture
+org with a serving size, two sales items, two size-table rows and a "per item"
+override; asserts the duplicate-name refusal (`P2002`), reads them back
+through `loadServingSettings`, resolves both items, and asserts the override
+cascades with its sales item — inside a transaction that is always rolled
+back (10f checks nothing leaked). Part 9 asserts the migration file drops
+nothing.
+
+**Prisma commands for this migration, verbatim:**
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`
+(baseline, empty) · `npx prisma validate` · `npx prisma format` ·
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/20261102230000_n2_nutrition_serving_settings/migration.sql` ·
+`npx prisma generate` · the same diff with no `-o` once more after Gary's
+apply (empty). `npm run build` also runs `prisma generate`. No `migrate
+deploy`, `db execute`, `migrate dev`, `migrate reset` or `migrate resolve` was
+run by the session.

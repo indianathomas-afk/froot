@@ -5,6 +5,100 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-02 — N-2: Nutrition Facts label, serving settings, forks N2-F1–F6 and R-1–R-8 (Gary) — DRAFT
+
+**DRAFT — ruled by Gary in chat 2026-11-02 at the N-2 Phase 1 STOP; to be
+ratified at PRE-PUSH-CHECK.** The audit he ruled on is
+`docs/prompts/N-2_AUDIT.md` (forks N2-F1–F5 from the prompt; N2-F6 and
+RULING NOW R-1–R-8 raised by the audit). His words, recorded exactly:
+
+> "Rulings:
+> F1: Default drink serving 12 fl oz; anything not in the size table is
+> labeled per item.
+> F2: Two columns (per serving and per container) whenever there is more than
+> one serving.
+> F3: Volume comes from the org size table keyed by the exact Square variation
+> name, plus a per-item override that can set a volume, a serving size, or
+> "per item". Never inferred from the cup kit.
+> F4: "Estimated — not for publication" banner on any item not fully
+> Verified, including items with no food ingredients; missing nutrients show
+> "—". An item whose calculation has an error shows the error and a link to
+> the recipe, no label.
+> F5: Rounding strictly per 21 CFR 101.9(c).
+> F6: The size table matches the exact Square name. Settings pre-fill volumes
+> from names like "20oz." for me to confirm; nothing is guessed when a label
+> is drawn.
+> R-1: 12 fl oz default, changeable in settings. I understand FDA's nearest
+> reference amount for juices and shakes is 8 fl oz; the panel is voluntary.
+> R-2: Yes. Exact ratio for per-serving values; the label prints the rounded
+> servings per container.
+> R-3: Yes. Apply the single-serving rule (an item under 200% of the serving
+> size is one serving of the whole item).
+> R-4: Yes. %DV from the rounded amount the label shows.
+> R-5: Re-read the FDA rule for vitamin D, calcium, iron and potassium
+> rounding and cite it before building. Only if it truly can't be read, use
+> 0.1 mcg / 10 mg / 0.1 mg / 10 mg, marked "unconfirmed" in code comments and
+> DECISIONS.
+> R-6: Yes.
+> R-7: Yes.
+> R-8: Yes. "12 fl oz (360 mL)"."
+
+The message's closing instructions (record a DRAFT, proceed to Phase 2, stop
+after the migration file exists) are left out above. They are session
+instructions, not rulings.
+
+**Every ruling matches the audit's lean except R-5**, which asks for a re-read
+instead of accepting the remembered increments. R-6 and R-7 accept the audit's
+leans as written there: R-6 = cholesterol 2–5 mg "<5mg"; carbohydrate, fiber,
+sugars, added sugars and protein 0.5–<1 g "<1g"; below the zero threshold 0;
+fat at exactly 5 g → nearest gram. R-7 = "0%" below 2 %, no asterisk.
+
+**R-5 re-read (Claude, 2026-11-02, Phase 2) — the rule WAS read, so the
+fallback increments are NOT used.** Sources, read as text:
+- 21 CFR 101.9(c)(8)(iii), CFR annual edition dated 2024-04-01 (govinfo
+  `CFR-2024-title21-vol2-sec101-9.xml`): amounts are declared "using the units
+  of measurement and the levels of significance given in paragraph (c)(8)(iv)
+  of this section, except that zeros following decimal points may be dropped,
+  and additional levels of significance may be used when the number of
+  decimal places indicated is not sufficient to express lower amounts (e.g.,
+  the RDI for zinc is given in whole milligrams, but the quantitative amount
+  may be declared in tenths of a milligram)". The paragraph excludes sodium
+  only.
+- The (c)(8)(iv) table has no separate rounding column; its "levels of
+  significance" are the RDIs as printed: vitamin D 20 mcg, calcium 1,300 mg,
+  iron 18 mg, potassium 4,700 mg. All are whole numbers, so **the declared
+  amount is to the nearest whole mcg / mg**, with tenths allowed for amounts
+  too small to show in whole units.
+- The 2016 final rule's preamble (81 FR 33742, May 27, 2016, at 33902–33903,
+  govinfo `FR-2016-05-27/html/2016-11867.htm`) declined commenters' specific
+  increments: the table's levels of significance give "manufacturers some
+  flexibility to determine if the value should be rounded to the nearest whole
+  number or to a fraction of a whole number based on the nutrient and the
+  quantity present in a serving of the food."
+- **Potassium is not on the sodium bands.** The same preamble describes the
+  OLD rule (potassium at (c)(5): 0 below 5 mg, nearest 5 to 140 mg, nearest 10
+  above). In the current text (c)(5) is fluoride, and potassium is a mandatory
+  (c)(8) mineral under the paragraph quoted above, so its amount follows the
+  table: whole mg.
+- **Not read:** FDA's Food Labeling Guide Appendix H and its 2019 Q&A guidance
+  on quantitative amounts of vitamins and minerals. Both were downloaded as
+  PDFs whose text could not be extracted here. Both are non-binding guidance.
+  eCFR redirected to a different host again, so the current eCFR edition was
+  not compared with the 2024 annual edition.
+
+So the rule differs from the fallback (calcium and potassium are whole mg, not
+"nearest 10 mg"; vitamin D and iron are whole units, with tenths optional).
+**One choice remains inside the rule, owed to Gary before the build:** when to
+use the tenths that "additional levels of significance" allows. Claude's lean:
+whole units, plus one decimal place only when the amount is below one whole
+unit (e.g. iron 0.4 mg prints "0.4mg", not "0mg").
+
+**R-5 tenths — ruled by Gary in chat 2026-11-02 at the N-2 Phase 2 STOP, in
+his words:** "R-5 tenths: Yes. Vitamin D, calcium, iron and potassium are
+declared in whole units, with one decimal only when the amount is below 1 unit
+(e.g. iron 0.7 mg, vitamin D 0.3 mcg)." This matches the lean. Nothing above
+is marked "unconfirmed", because the rule was read.
+
 ## 2026-11-02 — N-1d: proof without numbers, Verified needs a document, printed bounds, Ingredients table (Gary)
 
 **RATIFIED BY GARY, 2026-11-02, at the N-1d PRE-PUSH-CHECK, as written:**

@@ -2,7 +2,29 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-02 — N-1d: proof without numbers, Verified needs a document, FDA printed bounds, Ingredients table
+## 22b8a7f — 2026-11-02 — N-1d: proof without numbers, Verified needs a document, FDA printed bounds, Ingredients table
+
+**PROMOTED 2026-11-02 in merge `22b8a7f`** (`22b8a7fd7698d279a47ba2fb4e4c2c0ce203b81e`,
+"Merge branch 'staging'", 2026-11-02 13:19:08 -0800 (Pacific) = 2026-11-02
+21:19:08 UTC), `--no-ff`. First parent `560f350` (prior tip of `main`), second
+parent `aba8c57` (staging tip). **3 commits** in `22b8a7f^1..22b8a7f^2` —
+`8e3d887`, `d8b6c39`, `aba8c57` — and **25 files**, read out of `git log` and
+`git diff --shortstat` at this stamp. `main` moved `560f350..22b8a7f`;
+`staging` fast-forwarded to it. Stamped post-merge by N-2 (2026-11-02), on
+`staging`; the heading previously read "UNPROMOTED — 2026-11-02 — N-1d: proof
+without numbers, Verified needs a document, FDA printed bounds, Ingredients
+table". The "staging only", "NEITHER WAS PUSHED" and "Nothing has been observed
+on staging or production" lines below are spent, kept.
+
+**Migration on production (Gary, as relayed in the N-2 prompt):**
+`20261102220000_n1d_proof_only_nutrition` `finished_at` 2026-11-02 21:19:42 UTC
+(13:19:42 PST) on production `br-sparkling-block-a620qvg4`, 34 s after the
+merge. **The backfill reset 0 rows on production** — `verified_total` 2 before
+and after, as the pre-push count predicted.
+
+**Observed, staging (Gary, as relayed in the N-2 prompt):** the Ingredients
+table layout; Read label on an ingredient with no nutrition; Verified refused
+with a link only; clearing the numbers keeps the label. All passed.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
