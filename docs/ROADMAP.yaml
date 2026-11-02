@@ -17510,7 +17510,16 @@ phases:
     # → in_progress 2026-11-01 at the work commit 0962d72 (NOT pushed). The
     # docs SHA is the commit immediately after 0962d72 (its own SHA cannot be
     # written inside itself).
-    status: in_progress
+    # N-1b PRE-PUSH-CHECK 2026-11-01: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after 50ef062 (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-01 N-1b ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written.
+    # Migration 20261101230000_n1b_nutrition_proof (additive) and env var
+    # NUTRITION_BLOB_READ_WRITE_TOKEN (Preview + Production) ride this push.
+    # The "(NOT pushed)" and "is the commit immediately after 0962d72" lines
+    # above are spent, kept: the docs SHA is 50ef062.
+    status: staging
     title: "Nutrition — proof: source links, label documents, Estimated/Verified"
     commits:
       - "0962d72"
@@ -17519,6 +17528,12 @@ phases:
       # NU-5..NU-7, 2026-11-01
       # + the commit immediately after 0962d72: docs(N-1b) — prompt, audit,
       # DECISIONS draft, MIGRATIONS entry, CLAUDE.md env line, this row
+      - "50ef062"
+      # docs(N-1b): the docs commit named on the line above; recorded by the
+      # N-1b PRE-PUSH-CHECK
+      # + the commit immediately after 50ef062: docs(N-1b PRE-PUSH-CHECK) —
+      # DECISIONS ratified, this row to staging, DEPLOY_LOG entry, MIGRATIONS
+      # pointer repaired
     notes: >
       BUILT 2026-11-01, TIER 3. Prompt of record: docs/prompts/N-1b.md; audit
       docs/prompts/N-1b_AUDIT.md. Rulings: docs/DECISIONS.md 2026-11-01 N-1b,

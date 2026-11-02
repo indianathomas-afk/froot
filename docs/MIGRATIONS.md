@@ -2012,7 +2012,8 @@ key.** `verifiedByUserId` and `labelUploadedByUserId` are plain ids like the
 existing `updatedByUserId`, not relations, so § Hand-authored FK `ON DELETE`
 has nothing to mirror and § Protected indexes has nothing to add. Rulings:
 `docs/DECISIONS.md` "2026-11-01 — N-1b: nutrition proof, Estimated/Verified,
-forks N1B-F1–F8 and storage (Gary) — DRAFT".
+forks N1B-F1–F8 and storage (Gary)" (heading read "— DRAFT" until the
+N-1b PRE-PUSH-CHECK ratified it; pointer repaired there).
 
 **Fixture:** `scripts/verify-n1b-proof.ts`, 47 checks, all pass, run against
 the applied schema (its part 7 writes and reads the new columns on dev inside a

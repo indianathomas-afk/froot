@@ -5,7 +5,17 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-01 — N-1b: nutrition proof, Estimated/Verified, forks N1B-F1–F8 and storage (Gary) — DRAFT
+## 2026-11-01 — N-1b: nutrition proof, Estimated/Verified, forks N1B-F1–F8 and storage (Gary)
+
+**RATIFIED BY GARY, 2026-11-01, at the N-1b PRE-PUSH-CHECK, as written.** The
+whole entry, unchanged, was printed verbatim and put to him as "Ratify as
+written, or give me your wording." His reply, recorded exactly: *"Ratify as
+written"*. It covers his quoted ruling as written: storage option (i) and
+forks F1–F4 and F6–F8, plus the "Also accept" line. The closing paragraph's
+list (10 MB cap, presigned-PUT upload, 307 to a 5-minute signed URL, verify as
+its own route) stays Claude's recommendation and is not made a ruling by this.
+Nothing in the entry was reworded. The heading read "— DRAFT" until this
+check; the DRAFT paragraph below is spent, kept.
 
 **DRAFT — ruled by Gary in chat 2026-11-01 at the N-1b Phase 1 STOP; to be
 ratified at PRE-PUSH-CHECK.** The audit he ruled on is

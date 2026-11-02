@@ -2,6 +2,79 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-01 — N-1b: nutrition proof — source links, label documents, Estimated/Verified
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+Ships with N-1 and N-1a (entries below) in the same promotion.
+
+**Payload: two N-1b commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `0962d72`, `50ef062`, on top of `origin/staging`.
+**NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `0962d72` | N-1b work: schema + migration `20261101230000_n1b_nutrition_proof`; `src/lib/nutrition-files.ts` (private store), `src/lib/nutrition-proof.ts` (shared rules); routes `/api/nutrition/ingredients/[id]/label` (GET/POST/DELETE), `/label/upload-url`, `/verify`; NU-2 PUT and NU-3 apply widened; proof UI in the ingredient dialog's nutrition section; Menu Nutrition Proof column, verified count, Estimated filter, "Not verified" in To fix; template `source_url` + `status` helper; fixture `scripts/verify-n1b-proof.ts`; `docs/PERMISSIONS_INVENTORY.md` NU-5..NU-7 |
+| `50ef062` | `docs(N-1b)`: prompt of record `docs/prompts/N-1b.md`, audit `docs/prompts/N-1b_AUDIT.md`, DECISIONS draft, MIGRATIONS entry, CLAUDE.md env line, row `in_progress`, N-1c filed `planned` |
+| the commit immediately after `50ef062` | `docs(N-1b PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`, MIGRATIONS pointer repaired; DECISIONS ratified by Gary at this check ("Ratify as written") |
+
+**Blast radius: A MIGRATION (ADDITIVE), A NEW ENV VAR AND A NEW PRIVATE BLOB
+STORE, NEW ADMIN-ONLY WRITE ROUTES — ALL DARK BEHIND `activeModules`
+"nutrition", LIKE N-1. NO CRON, NO SQUARE CALL.**
+
+- **Migration `20261101230000_n1b_nutrition_proof`** — runs in the Vercel
+  build on push (staging) and at promotion (production). Additive only: enum
+  `NutritionStatus` (`ESTIMATED`, `VERIFIED`); on `IngredientNutrition`,
+  `status` NOT NULL DEFAULT `ESTIMATED` (the default is the backfill — every
+  existing record becomes ESTIMATED) and eleven nullable columns
+  (`verifiedByUserId`, `verifiedAt`, `sourceUrl`, eight `label*` file
+  columns). No DROP, ALTER COLUMN, index or foreign key. Detail:
+  `docs/MIGRATIONS.md`.
+- **New env var `NUTRITION_BLOB_READ_WRITE_TOKEN`** — RW token for the new
+  PRIVATE `froot-nutrition` Blob store (iad1), set in Preview and Production
+  (per Gary; no Development scope exists). `src/lib/nutrition-files.ts` reads
+  only this name. Unset = label upload/view answer 503; nothing else breaks.
+  The store connection also created `NUTRITION_BLOB_STORE_ID` and
+  `NUTRITION_BLOB_WEBHOOK_PUBLIC_KEY`; nothing reads them.
+- **When enabled — new write paths, ADMIN only (`nutrition.manage`):** label
+  upload / replace / remove (NU-6: presigned browser PUT with type allow-list
+  and 10 MB cap; register pins `nutrition/{org}/ingredients/{id}/`, re-reads
+  type, size, sha256 and first bytes) and verify / unverify (NU-7, the only
+  writer of VERIFIED; needs a document or a source link). NU-2's PUT and
+  NU-3's import apply now write `sourceUrl` and reset VERIFIED → ESTIMATED on
+  a basis, number, allergen or proof change (409 confirmations in the
+  dialog). Every proof write adds an `AuditLog` row in its transaction.
+  ADMIN, MANAGER and STORE can view a label (NU-5, 307 to a 5-minute signed
+  URL); STAFF cannot.
+- **What does not change:** no existing nutrition value is rewritten (status
+  only gains its default); the unedited template still imports as zero
+  changes; nothing writes to Square.
+
+**Rollback:** revert `0962d72` but KEEP the migration folder
+`prisma/migrations/20261101230000_n1b_nutrition_proof/` (restore it after the
+revert) — the database keeps the enum and the twelve columns (additive-only: no
+column drops, ever); `status` has a default and the rest are nullable, so the
+reverted N-1 code writes `IngredientNutrition` rows without them. Removing the
+folder would leave every branch's `_prisma_migrations` naming a migration the
+repo no longer holds. Label files already uploaded stay in `froot-nutrition`,
+unread; the env var can stay set. If "nutrition" is on anywhere, switching it
+off (Neon console) hides every surface without a deploy. The docs commits can
+stay or go with it.
+
+**Evidence so far: fixtures and build only.** `scripts/verify-n1b-proof.ts`
+47/47 PASS per the build session (pure rules + a rolled-back transaction on dev
+`br-broad-wave-a6vpjdw0`); `verify-n1-nutrition.ts` 39/39 and
+`verify-n1a-template.ts` 25/25 unchanged. Migration applied to dev by Gary
+2026-11-01. **No upload, signed view, HEIC download, dialog question or Menu
+Nutrition rendering has been observed anywhere** — no browser pass ran (no
+local store). **Nothing has been observed on staging or production.** After the
+push, in order: the staging-SHA precondition (deployed SHA = local `HEAD`);
+confirm the staging build log shows the migration applied; then Gary's staging
+pass — upload, view, replace, remove, verify, the "Still verified?" and
+clear-proof questions, an import reset, and Menu Nutrition's Proof column and
+verified count. Nothing is promoted until Gary confirms it on staging.
+
 ## UNPROMOTED — 2026-11-01 — N-1a: nutrition "Download template" that imports back as zero changes
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
