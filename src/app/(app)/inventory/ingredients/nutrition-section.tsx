@@ -33,9 +33,15 @@ import { LabelReadReview, type ReviewedValues } from "./label-read-review"
 // N-1b deliverable 5: the record's proof — a source link and one label
 // document — and its Estimated/Verified status. The SERVER decides when a save
 // touches a verified record and answers 409 with a code; this component turns
-// the code into the question (Gary, F3 "Still verified?", F7 clear-with-proof)
-// and re-sends with the answer. Proof controls stay disabled until a record
-// exists (F6).
+// the code into the question (Gary, F3 "Still verified?") and re-sends with the
+// answer.
+//
+// N-1d (Gary, 2026-11-02, DRAFT), superseding N-1b F6 and F7: proof works on
+// any food ingredient, numbers or not (N1D-F1). A record with proof and no
+// numbers is "No nutrition". Clearing the numbers keeps the document and the
+// link (F1a), so there is no "clear the proof?" question any more; the file
+// goes only with Remove. Verified needs the label document — the link is
+// reference only (F2).
 //
 // N-1c: "Read label" (ADMIN, a document attached, not HEIC) reads it and opens
 // the side-by-side review (label-read-review.tsx). Gary, 2026-11-02: "Read
@@ -58,8 +64,9 @@ type Loaded = {
   allergens: Allergen[]
   nutrition:
     | ({
-        basisAmount: number
-        basisUnit: string
+        // null on a proof-only record (N1D-F1)
+        basisAmount: number | null
+        basisUnit: string | null
         sourceNote: string | null
         sourceUrl: string | null
         status: NutritionStatus
@@ -86,7 +93,7 @@ function toForm(d: Loaded): Form {
   return {
     exempt: d.nutritionExempt,
     allergens: new Set(d.allergens),
-    basisAmount: d.nutrition ? String(d.nutrition.basisAmount) : "",
+    basisAmount: d.nutrition?.basisAmount != null ? String(d.nutrition.basisAmount) : "",
     basisUnit: d.nutrition?.basisUnit ?? d.reportingUnit,
     values: Object.fromEntries(NUTRIENTS.map((n) => [n.key, d.nutrition?.[n.key] == null ? "" : String(d.nutrition[n.key])])) as Record<NutrientKey, string>,
     sourceNote: d.nutrition?.sourceNote ?? "",
@@ -118,7 +125,6 @@ const fmtSize = (b: number | null) => (b === null ? "" : b >= 1024 * 1024 ? `${(
 
 type Question =
   | { kind: "still-verified"; answer: (keep: boolean) => void }
-  | { kind: "clear-proof"; hasDocument: boolean; answer: () => void }
   | { kind: "remove-label"; answer: () => void }
 
 export function NutritionSection({
@@ -174,21 +180,18 @@ export function NutritionSection({
   const dirty = formKey(form) !== formKey(toForm(data))
   const n = data.nutrition
   const proof: ProofState = n?.proof ?? "NONE"
-  // F6: "Proof controls stay disabled until nutrition exists".
-  const proofLocked = !n || data.nutritionExempt
-  const savedHasProof = Boolean(n?.sourceUrl || n?.label)
+  // N1D-F1: proof is open on every food ingredient; only not-food is locked.
+  const proofLocked = data.nutritionExempt
+  const savedHasNumbers = n?.basisAmount != null
+  const savedHasDocument = Boolean(n?.label)
   const labelHref = `/api/nutrition/ingredients/${ingredientId}/label`
 
   // Apply a successful response; returns false (and shows the error) otherwise.
   // A 409 with a known code becomes a question instead.
-  async function handle(res: Response, okText: string, retry: { stillVerified?: (keep: boolean) => void; clearProof?: () => void }): Promise<boolean> {
+  async function handle(res: Response, okText: string, retry: { stillVerified?: (keep: boolean) => void }): Promise<boolean> {
     const body = await res.json().catch(() => ({}))
     if (res.status === 409 && body.code === "CONFIRM_STILL_VERIFIED" && retry.stillVerified) {
       setQuestion({ kind: "still-verified", answer: retry.stillVerified })
-      return false
-    }
-    if (res.status === 409 && body.code === "CONFIRM_CLEAR_PROOF" && retry.clearProof) {
-      setQuestion({ kind: "clear-proof", hasDocument: Boolean(body.hasDocument), answer: retry.clearProof })
       return false
     }
     if (!res.ok) {
@@ -212,7 +215,7 @@ export function NutritionSection({
     }
   }
 
-  function save(answers: { keepVerified?: boolean; confirmClearProof?: boolean } = {}) {
+  function save(answers: { keepVerified?: boolean } = {}) {
     if (!form) return
     run(async () => {
       const nutrition = blank
@@ -224,18 +227,20 @@ export function NutritionSection({
               NUTRIENTS.map((nt) => [nt.key, form.values[nt.key].trim() === "" ? null : Number(form.values[nt.key])])
             ),
             sourceNote: form.sourceNote.trim() || null,
-            // F6: the link is only sent once a record exists to hold it.
-            ...(!proofLocked && { sourceUrl: form.sourceUrl.trim() || null }),
           }
       const res = await fetch(`/api/nutrition/ingredients/${ingredientId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nutrition, allergens: [...form.allergens], nutritionExempt: form.exempt, ...answers }),
+        body: JSON.stringify({
+          nutrition,
+          // N1D-F1b: the link saves with or without numbers.
+          ...(!proofLocked && { sourceUrl: form.sourceUrl.trim() || null }),
+          allergens: [...form.allergens],
+          nutritionExempt: form.exempt,
+          ...answers,
+        }),
       })
-      await handle(res, "Nutrition saved", {
-        stillVerified: (keep) => save({ ...answers, keepVerified: keep }),
-        clearProof: () => save({ ...answers, confirmClearProof: true }),
-      })
+      await handle(res, "Nutrition saved", { stillVerified: (keep) => save({ ...answers, keepVerified: keep }) })
     })
   }
 
@@ -282,11 +287,11 @@ export function NutritionSection({
     })
   }
 
-  function removeLabel(keepVerified?: boolean) {
+  // N1D-F2: removing the document always resets a verified record; never asked.
+  function removeLabel() {
     run(async () => {
-      const q = keepVerified === undefined ? "" : `?keepVerified=${keepVerified}`
-      const res = await fetch(`${labelHref}${q}`, { method: "DELETE" })
-      if (await handle(res, "Label document removed", { stillVerified: (keep) => removeLabel(keep) })) setRead(null)
+      const res = await fetch(labelHref, { method: "DELETE" })
+      if (await handle(res, "Label document removed", {})) setRead(null)
     })
   }
 
@@ -310,7 +315,8 @@ export function NutritionSection({
           return
         }
         const sn = snapshot.nutrition
-        const stored = sn
+        // A proof-only record has no numbers to compare against (N1D-F1).
+        const stored = sn && sn.basisAmount !== null && sn.basisUnit !== null
           ? { basisAmount: sn.basisAmount, basisUnit: sn.basisUnit, values: Object.fromEntries(NUTRIENTS.map((nt) => [nt.key, sn[nt.key]])) as Record<NutrientKey, number | null> }
           : null
         setRead({
@@ -451,7 +457,7 @@ export function NutritionSection({
         )}
         {proofLocked ? (
           <p className="text-xs text-[var(--color-muted-foreground)]">
-            {data.nutritionExempt ? "Not-food items carry no nutrition label." : "Save nutrition first, then add a source link or label document."}
+            Not-food items carry no nutrition label.
           </p>
         ) : (
           <>
@@ -527,7 +533,7 @@ export function NutritionSection({
             {canEdit && (
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 {proof !== "VERIFIED" && (
-                  <Button size="sm" disabled={saving || dirty || !savedHasProof} onClick={() => setVerified(true)}>
+                  <Button size="sm" disabled={saving || dirty || !savedHasNumbers || !savedHasDocument} onClick={() => setVerified(true)}>
                     {proof === "STALE" ? "Re-verify" : "Mark verified"}
                   </Button>
                 )}
@@ -536,7 +542,13 @@ export function NutritionSection({
                 )}
                 {proof !== "VERIFIED" && (
                   <span className="text-xs text-[var(--color-muted-foreground)]">
-                    {dirty ? "Save your changes first." : !savedHasProof ? "Add a label document or a source link to verify." : "Checked against the real label?"}
+                    {dirty
+                      ? "Save your changes first."
+                      : !savedHasNumbers
+                        ? "Save the nutrition numbers to verify them."
+                        : !savedHasDocument
+                          ? "Upload the label document to verify — a source link alone isn't enough."
+                          : "Checked against the real label?"}
                   </span>
                 )}
               </div>
@@ -551,7 +563,7 @@ export function NutritionSection({
           key={read.readId}
           review={read.review}
           reportingUnit={data.reportingUnit}
-          hasStored={Boolean(n)}
+          hasStored={savedHasNumbers}
           readAt={read.readAt}
           reused={read.reused}
           busy={saving}
@@ -589,29 +601,12 @@ export function NutritionSection({
               </AlertDialogFooter>
             </>
           )}
-          {question?.kind === "clear-proof" && (
-            <>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Clear this nutrition and its proof?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Every value is blank, so the nutrition record will be removed — together with its source link
-                  {question.hasDocument ? " and its label document, which is deleted" : ""}. This can&apos;t be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => { setQuestion(null); question.answer() }} className="bg-[var(--color-destructive)] text-white hover:bg-[var(--color-destructive)]/90">
-                  Clear nutrition
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </>
-          )}
           {question?.kind === "remove-label" && (
             <>
               <AlertDialogHeader>
                 <AlertDialogTitle>Remove the label document?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  The file is deleted. {n?.status === "VERIFIED" && !n.sourceUrl ? "It's this record's only proof, so the nutrition goes back to Estimated." : ""}
+                  The file is deleted. {n?.status === "VERIFIED" ? "It's the proof this nutrition was verified against, so it goes back to Estimated." : ""}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

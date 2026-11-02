@@ -3,6 +3,7 @@ import { z } from "zod"
 import { requireNutrition } from "@/lib/nutrition-access"
 import { NutritionFileError, getLabelUploadUrl, labelKeyPrefix } from "@/lib/nutrition-files"
 import { findOrgIngredient } from "@/lib/nutrition-record"
+import { proofRefusal } from "@/lib/nutrition-proof"
 
 const bodySchema = z.object({
   fileName: z.string().trim().min(1).max(255),
@@ -13,8 +14,9 @@ const bodySchema = z.object({
 // POST /api/nutrition/ingredients/[id]/label/upload-url — first leg of the
 // private browser upload (the HR-3 pattern): a presigned PUT straight to the
 // froot-nutrition store under this ingredient's folder. ADMIN
-// (nutrition.manage). F6 (Gary): "Proof controls stay disabled until nutrition
-// exists" — so no URL is minted for an ingredient without a record. N-1b.
+// (nutrition.manage). N-1b. N1D-F1 (Gary, 2026-11-02): "Accept the unlock as
+// in item 1" — any non-PREPARED food ingredient, with or without numbers (the
+// N-1b F6 lock is gone).
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireNutrition("nutrition.manage")
   if ("error" in ctx) return ctx.error
@@ -25,8 +27,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const ing = await findOrgIngredient(ctx.org.id, id)
   if (!ing) return NextResponse.json({ error: "Not found" }, { status: 404 })
-  if (!ing.nutrition) return NextResponse.json({ error: "Save nutrition before adding a label document" }, { status: 409 })
-  if (ing.nutritionExempt) return NextResponse.json({ error: "Not-food items carry no nutrition label" }, { status: 409 })
+  const refusal = proofRefusal(ing)
+  if (refusal) return NextResponse.json({ error: refusal }, { status: 409 })
 
   try {
     const { pathname, uploadUrl } = await getLabelUploadUrl({

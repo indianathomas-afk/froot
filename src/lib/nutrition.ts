@@ -81,6 +81,24 @@ export function basisUnitError(basisUnit: string, reportingUnit: string): string
   return `"${basisUnit}" isn't a ${unitDimension(reportingUnit)} unit — nutrition must be per a ${unitDimension(reportingUnit)} amount (${allowedBasisUnits(reportingUnit).join(", ")})`
 }
 
+// ─── Proof-only records (N-1d, N1D-F1) ───────────────────────────────────────
+// A record whose basis is null holds a label document and/or a source link and
+// no numbers. It counts as "No nutrition" EVERYWHERE — engine, completeness,
+// "To fix", the template, the import — so every "is there nutrition?" test
+// goes through this, never through the record's mere presence.
+export function hasNutrition<T extends { basisAmount: number | null; basisUnit: string | null }>(
+  n: T | null | undefined
+): n is T & { basisAmount: number; basisUnit: string } {
+  return n != null && n.basisAmount !== null && n.basisUnit !== null
+}
+
+/** What a proof-only record's numbers are written as (basis null ⇒ every nutrient null). */
+export const PROOF_ONLY_NUMBERS = {
+  basisAmount: null,
+  basisUnit: null,
+  ...Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, null])),
+} as { basisAmount: null; basisUnit: null } & Record<NutrientKey, null>
+
 export type NutritionInput = {
   basisAmount: number
   basisUnit: string

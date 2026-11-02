@@ -1591,11 +1591,18 @@ model Ingredient {
 // basisUnit equals reportingUnit exactly (N1-F1). Every nutrient is nullable:
 // unknown is not zero, and the engine (src/lib/recipe-nutrition.ts) never sums
 // past a null (N1-F5). Column names follow the MenuItemNutrition stub.
+//
+// N-1d (N1D-F1): a record with a NULL basis is PROOF-ONLY — a label document
+// and/or source link with no numbers yet. It counts as "No nutrition"
+// everywhere (hasNutrition in src/lib/nutrition.ts). basisAmount and basisUnit
+// are null together, enforced by the hand-authored CHECK
+// "IngredientNutrition_basis_together" (F1c; docs/MIGRATIONS.md — Prisma
+// cannot express it); code also keeps every nutrient null while the basis is.
 model IngredientNutrition {
   id                    String          @id @default(cuid())
   ingredientId          String          @unique
-  basisAmount           Float
-  basisUnit             String
+  basisAmount           Float?
+  basisUnit             String?
   calories              Float?
   totalFatG             Float?
   saturatedFatG         Float?
@@ -1614,8 +1621,9 @@ model IngredientNutrition {
   sourceNote            String?
   updatedByUserId       String?
   // N-1b: proof and status. Status covers the numbers AND the ingredient's
-  // allergens (N1B-F1). VERIFIED needs a label document or a sourceUrl and is
-  // set by ADMIN only (F2); import changes reset to ESTIMATED (F3). Stale
+  // allergens (N1B-F1). VERIFIED needs a label document — since N-1d F2 the
+  // sourceUrl is reference only — and is set by ADMIN only (F2); import
+  // changes reset to ESTIMATED (F3). Stale
   // (12 months from verifiedAt, F4) is computed, never stored.
   status                NutritionStatus @default(ESTIMATED)
   verifiedByUserId      String?

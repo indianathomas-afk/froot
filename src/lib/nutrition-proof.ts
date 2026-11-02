@@ -1,5 +1,5 @@
 import type { Allergen, NutritionStatus } from "@prisma/client"
-import { NUTRIENT_KEYS, sortAllergens, type NutritionInput } from "@/lib/nutrition"
+import { NUTRIENT_KEYS, hasNutrition, sortAllergens, type NutritionInput } from "@/lib/nutrition"
 
 // ─── Nutrition proof and Estimated/Verified (N-1b) ───────────────────────────
 // PURE — no database. Shared by the dialog's routes, the CSV import, Menu
@@ -14,13 +14,25 @@ import { NUTRIENT_KEYS, sortAllergens, type NutritionInput } from "@/lib/nutriti
 //   F4 "Stale after 12 months from the verified date"
 //   F8 "Items with no food ingredients are not counted as verified and are left
 //       out of "N of M items verified"."
+// N-1d (Gary, 2026-11-02, DRAFT), superseding F2 and F6 above:
+//   N1D-F1 "Accept the unlock as in item 1." — proof (document, link) on any
+//       non-PREPARED ingredient; a record with proof and no basis is "No
+//       nutrition" everywhere (hasNutrition, src/lib/nutrition.ts).
+//   N1D-F2 "Verified requires an uploaded label document; the link is
+//       reference only. Removing the last document resets to Estimated without
+//       asking."
+//   N1D-F2a "editing the link no longer asks "Still verified?" and no longer
+//       resets on import."
 
 export const STALE_AFTER_MONTHS = 12
 
-/** NONE = no nutrition record (F1: an ingredient with allergens but no record has no status). */
+/** NONE = no nutrition (F1: an ingredient with allergens but no record has no
+ *  status; N-1d: nor has a proof-only record). */
 export type ProofState = "NONE" | "ESTIMATED" | "VERIFIED" | "STALE"
 
 export type ProofRecord = {
+  basisAmount: number | null
+  basisUnit: string | null
   status: NutritionStatus
   verifiedAt: Date | null
   sourceUrl: string | null
@@ -38,26 +50,35 @@ export function isStale(verifiedAt: Date, now: Date): boolean {
 }
 
 export function proofState(r: ProofRecord | null, now: Date): ProofState {
-  if (!r) return "NONE"
+  if (!hasNutrition(r)) return "NONE"
   if (r.status !== "VERIFIED") return "ESTIMATED"
   // A VERIFIED row with no date cannot be dated; treat it as needing a re-check.
   if (!r.verifiedAt || isStale(r.verifiedAt, now)) return "STALE"
   return "VERIFIED"
 }
 
+/** Anything a clear or a delete would lose — the link counts here even though
+ *  it no longer proves anything (N1D-F2). */
 export function hasProof(r: { sourceUrl: string | null; labelFileUrl: string | null }): boolean {
   return Boolean(r.sourceUrl) || Boolean(r.labelFileUrl)
 }
 
-/** Why a record cannot be marked verified, or null when it can (F2). */
+/** Why a record cannot be marked verified, or null when it can (N1D-F2). */
 export function verifyRefusal(
   ing: { kind: string; nutritionExempt: boolean },
-  r: { sourceUrl: string | null; labelFileUrl: string | null } | null
+  r: { basisAmount: number | null; basisUnit: string | null; labelFileUrl: string | null } | null
 ): string | null {
   if (ing.kind === "PREPARED") return "A prepared ingredient's nutrition is computed from its recipe"
   if (ing.nutritionExempt) return "Not-food items carry no nutrition to verify"
-  if (!r) return "Save nutrition before verifying it"
-  if (!hasProof(r)) return "Add a label document or a source link before marking this verified"
+  if (!hasNutrition(r)) return "Save nutrition before verifying it"
+  if (!r.labelFileUrl) return "Upload the label document before marking this verified"
+  return null
+}
+
+/** Why proof (a document, a link) can't be attached here, or null (N1D-F1). */
+export function proofRefusal(ing: { kind: string; nutritionExempt: boolean }): string | null {
+  if (ing.kind === "PREPARED") return "A prepared ingredient's nutrition is computed from its recipe"
+  if (ing.nutritionExempt) return "Not-food items carry no nutrition label"
   return null
 }
 
@@ -116,3 +137,20 @@ export const PROOF_LABEL: Record<ProofState, string> = {
 /** What a VERIFIED → ESTIMATED reset writes. verifiedAt/By are cleared: the
  *  AuditLog row keeps who verified it and when. */
 export const RESET_TO_ESTIMATED = { status: "ESTIMATED", verifiedAt: null, verifiedByUserId: null } as const
+
+// ─── N-1d decisions the routes make, kept pure so the fixture can pin them ───
+/** N1D-F2: "Removing the last document resets to Estimated without asking."
+ *  One document per record, so removing it on a VERIFIED record always resets. */
+export function resetsOnLabelRemoval(status: NutritionStatus): boolean {
+  return status === "VERIFIED"
+}
+
+/** N1D-F1a / F1b: a save with no numbers keeps a proof-only record while a
+ *  document or a link remains; only with nothing left does the record go. */
+export function afterNumbersCleared(
+  existing: { labelFileUrl: string | null } | null,
+  nextSourceUrl: string | null
+): "keep-proof-only" | "delete" | "nothing" {
+  if (existing?.labelFileUrl || nextSourceUrl) return "keep-proof-only"
+  return existing ? "delete" : "nothing"
+}

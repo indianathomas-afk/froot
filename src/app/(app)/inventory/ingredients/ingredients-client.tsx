@@ -83,6 +83,12 @@ const emptyForm = {
 }
 
 type GroupBy = "none" | "category" | "subcategory" | "vendor" | "lastEdited"
+
+// N-1d (N1D-F4 / F4a, Gary 2026-11-02): the row actions sit before Last
+// Edited and stay pinned to the table's right edge when it scrolls sideways on
+// a laptop-width screen — Last Edited scrolls underneath. Opaque so the cells
+// passing under it never show through. Display only.
+const ACTIONS_STICKY = "sticky right-0 z-10 bg-[var(--color-card)] shadow-[-1px_0_0_var(--color-border)]"
 type ViewFilter = "active" | "archived" | "all"
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g
@@ -480,10 +486,15 @@ export function IngredientsClient({
                           "Vendor Price",
                           "Cost / Unit",
                           ...(parsStoreId ? ["Par / Reorder", "Usage / wk"] : []),
-                          "Last Edited",
                           "",
+                          "Last Edited",
                         ].map((h) => (
-                          <th key={h} className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-4 py-3">{h}</th>
+                          <th
+                            key={h}
+                            className={`text-left text-xs font-medium text-[var(--color-muted-foreground)] px-4 py-3${h === "" ? ` ${ACTIONS_STICKY}` : ""}`}
+                          >
+                            {h}
+                          </th>
                         ))}
                       </tr>
                     </thead>
@@ -561,11 +572,7 @@ export function IngredientsClient({
                               </td>
                             </>
                           )}
-                          <td className="px-4 py-3 text-xs text-[var(--color-muted-foreground)]">
-                            {formatDate(ing.updatedAt)}
-                            {ing.lastEditedByName && <div>{ing.lastEditedByName}</div>}
-                          </td>
-                          <td className="px-4 py-3">
+                          <td className={`px-4 py-3 ${ACTIONS_STICKY}`}>
                             {canManage && (
                               <div className="flex items-center gap-1">
                                 <button onClick={() => setDialogIngredient(ing)} className="p-1.5 rounded hover:bg-[var(--color-accent)] transition-colors" title="Edit">
@@ -605,6 +612,10 @@ export function IngredientsClient({
                                 </AlertDialog>
                               </div>
                             )}
+                          </td>
+                          <td className="px-4 py-3 text-xs whitespace-nowrap text-[var(--color-muted-foreground)]">
+                            {formatDate(ing.updatedAt)}
+                            {ing.lastEditedByName && <div>{ing.lastEditedByName}</div>}
                           </td>
                         </tr>
                       ))}

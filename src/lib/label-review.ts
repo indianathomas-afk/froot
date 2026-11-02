@@ -192,10 +192,41 @@ export const FDA_DAILY_VALUES: Partial<Record<NutrientKey, number>> = {
   addedSugarsG: 50, proteinG: 50, vitaminDMcg: 20, calciumMg: 1300, ironMg: 18, potassiumMg: 4700,
 }
 
-export type ValueFlag = "LESS_THAN_1G" | "ZERO" | "FROM_DV" | "UNIT_CONVERTED" | "LESS_THAN_OTHER" | "UNREADABLE"
+// ─── Printed bounds (N1D-F3 / F3a, Gary 2026-11-02) ───────────────────────────
+// "Cholesterol "<5 mg" pre-fills as 2; "<1 g" pre-fills as 0.5 for total
+// carbohydrate, dietary fiber, total sugars, added sugars and protein, all
+// flagged." "a fat value printed as "<1 g" (total, saturated or trans) is left
+// blank and flagged as not a standard FDA fat declaration".
+// Each fill is the LOW END of the band 21 CFR 101.9(c) gives the statement
+// (law.cornell.edu/cfr/text/21/101.9, read 2026-11-02):
+//   (c)(3) cholesterol: "2 to 5 milligrams … may be stated as 'less than 5
+//          milligrams'" → 2.
+//   (c)(6), (c)(6)(i)–(iii), (c)(7) carbohydrate, fiber, sugars, added sugars,
+//          protein: "less than 1 gram" may be used below 1 g; below 0.5 g it
+//          may be zero → 0.5.
+//   (c)(2), (c)(2)(i)–(ii) fats: below 0.5 g "shall be expressed as zero" —
+//          there is no "less than 1 gram" form, so no band to fill from.
+// Keyed on the number and unit AS PRINTED. Any other bound stays blank, flagged.
+const LESS_THAN_1G_KEYS: ReadonlySet<NutrientKey> = new Set([
+  "totalCarbG", "dietaryFiberG", "totalSugarsG", "addedSugarsG", "proteinG",
+])
+const FAT_KEYS: ReadonlySet<NutrientKey> = new Set(["totalFatG", "saturatedFatG", "transFatG"])
+
+function printedBound(key: NutrientKey, n: number, unit: string): ParsedValue {
+  if (n === 1 && unit === "g" && LESS_THAN_1G_KEYS.has(key)) return { value: 0.5, flag: "LESS_THAN_1G" }
+  if (n === 5 && unit === "mg" && key === "cholesterolMg") return { value: 2, flag: "LESS_THAN_5MG" }
+  if (n === 1 && unit === "g" && FAT_KEYS.has(key)) return { value: null, flag: "LESS_THAN_1G_FAT" }
+  return { value: null, flag: "LESS_THAN_OTHER" }
+}
+
+export type ValueFlag =
+  | "LESS_THAN_1G" | "LESS_THAN_5MG" | "LESS_THAN_1G_FAT"
+  | "ZERO" | "FROM_DV" | "UNIT_CONVERTED" | "LESS_THAN_OTHER" | "UNREADABLE"
 
 export const FLAG_TEXT: Record<ValueFlag, string> = {
   LESS_THAN_1G: "Label says <1 g — filled as 0.5 g",
+  LESS_THAN_5MG: "Label says <5 mg — filled as 2 mg",
+  LESS_THAN_1G_FAT: "Label says <1 g — not a standard FDA fat declaration; enter it from the label",
   ZERO: "Label says 0 — FDA allows 0 for small amounts",
   FROM_DV: "Only a %DV is printed — converted with the FDA Daily Value",
   UNIT_CONVERTED: "Printed in a different unit — converted",
@@ -234,10 +265,7 @@ export function parsePrintedValue(key: NutrientKey, printed: string, dailyValueP
       n = (n * MASS_TO_MG[unit]) / MASS_TO_MG[target]
       converted = true
     }
-    if (lessThan) {
-      if (Number(m[2]) === 1 && unit === "g") return { value: 0.5, flag: "LESS_THAN_1G" }
-      return { value: null, flag: "LESS_THAN_OTHER" }
-    }
+    if (lessThan) return printedBound(key, Number(m[2]), unit)
     const value = round4(n)
     if (value === 0) return { value: 0, flag: "ZERO" }
     return { value, flag: converted ? "UNIT_CONVERTED" : null }

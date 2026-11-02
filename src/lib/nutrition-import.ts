@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import type { Allergen, NutritionStatus } from "@prisma/client"
 import { normName } from "@/lib/bevspot/plan-import"
 import {
-  IMPORT_COLUMNS, NUTRIENTS, NUTRIENT_KEYS, allergenLabel, emptyNutrients, ingredientDisplayName, nutritionInputError, sortAllergens,
+  IMPORT_COLUMNS, NUTRIENTS, NUTRIENT_KEYS, allergenLabel, emptyNutrients, hasNutrition, ingredientDisplayName, nutritionInputError, sortAllergens,
   type NutrientKey, type NutrientValues, type NutritionInput,
 } from "@/lib/nutrition"
 import { numbersChanged, parseSourceUrl, type ProofState } from "@/lib/nutrition-proof"
@@ -251,8 +251,14 @@ export function planNutritionImport(csv: NutritionCsv, ingredients: PlanIngredie
     // A: no values and no record → nothing to write for nutrition; no empty record.
 
     // N-1b, F6 (Gary): "an import row with a link but no values is rejected".
+    // N-1d (E): only a link that DIFFERS from the stored one — a proof-only
+    // record exports its link, and the unedited row must stay UNCHANGED. The
+    // import still never creates a proof-only record.
     const recordAfter = ing.nutrition !== null || nutritionWrite !== null
-    if (sourceUrl && !recordAfter) { plans.push(invalid("Add nutrient values before a source link", ing)); continue }
+    if (sourceUrl && !recordAfter && sourceUrl !== (ing.sourceUrl ?? null)) {
+      plans.push(invalid("Add nutrient values before a source link", ing))
+      continue
+    }
     const sourceUrlWrite = sourceUrl !== undefined && recordAfter && sourceUrl !== (ing.sourceUrl ?? null) ? { url: sourceUrl } : null
 
     if (nutritionWrite === null && allergensWrite === null && flagWrite === null && sourceUrlWrite === null) {
@@ -260,12 +266,11 @@ export function planNutritionImport(csv: NutritionCsv, ingredients: PlanIngredie
       continue
     }
     // F3: a source-note-only edit is written but resets nothing; the not-food
-    // flag never resets.
+    // flag never resets. N1D-F2a: nor does the link — it is reference only.
     const resetStatus =
       verified &&
       ((nutritionWrite !== null && ing.nutrition !== null && numbersChanged(ing.nutrition, nutritionWrite)) ||
-        allergensWrite !== null ||
-        sourceUrlWrite !== null)
+        allergensWrite !== null)
     // The N-1b keys appear only when they carry something, so every write an
     // N-1-era file produces is byte-identical to what it was before N-1b.
     const write = {
@@ -300,13 +305,14 @@ export const NutritionUploadSchema = z.object({
 })
 
 type StoredNutritionRow = Record<NutrientKey, number | null> & {
-  basisAmount: number
-  basisUnit: string
+  basisAmount: number | null
+  basisUnit: string | null
   sourceNote: string | null
 }
 
+/** null for no record AND for a proof-only record (N1D-F1). */
 export function storedNutritionInput(n: StoredNutritionRow | null): NutritionInput | null {
-  if (!n) return null
+  if (!hasNutrition(n)) return null
   return {
     basisAmount: n.basisAmount,
     basisUnit: n.basisUnit,
@@ -393,7 +399,9 @@ export function templateRow(i: TemplateIngredient): Record<string, string> {
     not_food: i.nutritionExempt ? "yes" : "",
     source: n?.sourceNote ?? "",
     // Not-food rows export it blank, and the import ignores a blank on them.
-    source_url: n ? i.sourceUrl ?? "" : "",
+    // N-1d (E): a proof-only record (n null) still exports its link, so filling
+    // its numbers later never erases it.
+    source_url: i.nutritionExempt ? "" : i.sourceUrl ?? "",
     category: i.category ?? "",
     reporting_unit: i.reportingUnit,
     has_nutrition: i.nutrition ? "yes" : "no",

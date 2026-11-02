@@ -29,6 +29,7 @@ export function findOrgIngredient(orgId: string, id: string) {
 
 function serializeNutrition(n: IngredientNutrition, now: Date, verifiedByName: string | null) {
   return {
+    // N1D-F1: null on a proof-only record; proof is then "NONE".
     basisAmount: n.basisAmount,
     basisUnit: n.basisUnit,
     ...Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, n[k]])),

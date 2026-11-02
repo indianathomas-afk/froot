@@ -13,8 +13,9 @@ import { parseLabelOutput } from "@/lib/label-review"
 // review from it (src/lib/label-review.ts). WRITES NO NUTRITION — Apply goes
 // through PUT …/[id] like any other save (deliverable 4).
 //
-// Gary, 2026-11-02: "Read label is a button only; never read on upload." "Read
-// label requires saved nutrition first, for N-1c" (F6). "Rate limit 30
+// Gary, 2026-11-02: "Read label is a button only; never read on upload." N-1c
+// F6 ("Read label requires saved nutrition first, for N-1c") is superseded by
+// N1D-F1: any non-PREPARED food ingredient with a document. "Rate limit 30
 // reads/hour and 300/day per org via audit rows; 24 h reuse of a result for the
 // same file; maxDuration 60 with a 45 s call timeout."
 //
@@ -44,8 +45,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (ing.kind === "PREPARED") return NextResponse.json({ error: "A prepared ingredient's nutrition is computed from its recipe" }, { status: 409 })
   if (ing.nutritionExempt) return NextResponse.json({ error: "Not-food items carry no nutrition label" }, { status: 409 })
   const n = ing.nutrition
-  if (!n) return NextResponse.json({ error: "Save nutrition first, then upload the label to read it" }, { status: 409 })
-  if (!n.labelFileUrl || !n.labelFileHash) return NextResponse.json({ error: "Upload a label document first" }, { status: 409 })
+  if (!n?.labelFileUrl || !n.labelFileHash) return NextResponse.json({ error: "Upload a label document first" }, { status: 409 })
   const typeReason = unreadableTypeReason(n.labelContentType)
   if (typeReason) return NextResponse.json({ error: typeReason, code: "UNSUPPORTED_TYPE" }, { status: 415 })
   if (!labelReadConfigured()) {

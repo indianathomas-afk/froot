@@ -6,7 +6,8 @@ import {
   NutritionFileError, deleteLabelBlob, getLabelDownloadUrl, labelKeyPrefix, labelPathnameFromUrl, readLabelMeta,
   sniffMatches, validateLabelMeta,
 } from "@/lib/nutrition-files"
-import { RESET_TO_ESTIMATED } from "@/lib/nutrition-proof"
+import { PROOF_ONLY_NUMBERS } from "@/lib/nutrition"
+import { RESET_TO_ESTIMATED, proofRefusal, resetsOnLabelRemoval } from "@/lib/nutrition-proof"
 import { findOrgIngredient, nutritionAudit, serializeIngredient } from "@/lib/nutrition-record"
 
 // /api/nutrition/ingredients/[id]/label — the one label document on an
@@ -17,11 +18,17 @@ import { findOrgIngredient, nutritionAudit, serializeIngredient } from "@/lib/nu
 //   POST   register an uploaded file / replace the current one (ADMIN)
 //   DELETE remove it (ADMIN)
 //
-// On a VERIFIED record, replacing the document or removing it while a source
-// link remains is a change to the proof, so it asks (Gary, F3: "A change means
-// the basis, any number, the allergens, or the proof"). Removing the LAST proof
-// resets without asking (F2). Replacing keeps no history; the AuditLog row
-// carries the old and new file names and hashes.
+// On a VERIFIED record, replacing the document is a change to the proof, so it
+// asks (Gary, F3: "A change means the basis, any number, the allergens, or the
+// proof"). Removing it resets without asking — it is the only proof
+// (N1D-F2: "Removing the last document resets to Estimated without asking.").
+// Replacing keeps no history; the AuditLog row carries the old and new file
+// names and hashes.
+//
+// N1D-F1: registering on an ingredient with no record creates a PROOF-ONLY
+// record (no basis, no numbers — "No nutrition" everywhere). Removing the
+// document never deletes the record: N1D-F1a, "Deleting the label file is only
+// done with the Remove button" — and Remove deletes only the file.
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireNutrition("nutrition.view")
@@ -62,8 +69,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const ing = await findOrgIngredient(ctx.org.id, id)
   if (!ing) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  const refusal = proofRefusal(ing)
+  if (refusal) return NextResponse.json({ error: refusal }, { status: 409 })
   const existing = ing.nutrition
-  if (!existing) return NextResponse.json({ error: "Save nutrition before adding a label document" }, { status: 409 })
 
   // Namespace pin: the blob must sit in THIS org's and THIS ingredient's
   // folder, so a registration cannot point at another org's file.
@@ -76,9 +84,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!pathname.startsWith(`${labelKeyPrefix(ctx.org.id, ing.id)}/`)) {
     return NextResponse.json({ error: "File is outside this ingredient's upload space" }, { status: 400 })
   }
-  if (existing.labelFileUrl === fileUrl) return NextResponse.json(await serializeIngredient(ing, ctx.org.id))
+  if (existing?.labelFileUrl === fileUrl) return NextResponse.json(await serializeIngredient(ing, ctx.org.id))
 
-  if (existing.status === "VERIFIED" && keepVerified === undefined) return askStillVerified()
+  if (existing?.status === "VERIFIED" && keepVerified === undefined) return askStillVerified()
 
   // Authoritative metadata from the stored bytes, never the client's word.
   let meta: Awaited<ReturnType<typeof readLabelMeta>>
@@ -99,29 +107,30 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     )
   }
 
-  const replacedUrl = existing.labelFileUrl
-  const reset = existing.status === "VERIFIED" && keepVerified === false
+  const replacedUrl = existing?.labelFileUrl ?? null
+  const reset = existing?.status === "VERIFIED" && keepVerified === false
   await prisma.$transaction(async (tx) => {
-    await tx.ingredientNutrition.update({
+    const label = {
+      labelFileUrl: meta.url,
+      labelFilePathname: pathname,
+      labelFileName: fileName,
+      labelContentType: meta.contentType,
+      labelSizeBytes: meta.sizeBytes,
+      labelFileHash: meta.fileHash,
+      labelUploadedByUserId: ctx.dbUser?.id ?? null,
+      labelUploadedAt: new Date(),
+    }
+    await tx.ingredientNutrition.upsert({
       where: { ingredientId: ing.id },
-      data: {
-        labelFileUrl: meta.url,
-        labelFilePathname: pathname,
-        labelFileName: fileName,
-        labelContentType: meta.contentType,
-        labelSizeBytes: meta.sizeBytes,
-        labelFileHash: meta.fileHash,
-        labelUploadedByUserId: ctx.dbUser?.id ?? null,
-        labelUploadedAt: new Date(),
-        ...(reset && RESET_TO_ESTIMATED),
-      },
+      create: { ingredientId: ing.id, ...PROOF_ONLY_NUMBERS, ...label },
+      update: { ...label, ...(reset && RESET_TO_ESTIMATED) },
     })
     await nutritionAudit(tx, ctx, replacedUrl ? "nutrition.label.replaced" : "nutrition.label.uploaded", ing.id, {
       fileName,
       fileHash: meta.fileHash,
       contentType: meta.contentType,
       sizeBytes: meta.sizeBytes,
-      ...(replacedUrl && { previousFileName: existing.labelFileName, previousFileHash: existing.labelFileHash }),
+      ...(replacedUrl && { previousFileName: existing!.labelFileName, previousFileHash: existing!.labelFileHash }),
     })
     if (reset) await nutritionAudit(tx, ctx, "nutrition.status.reset", ing.id, { via: "label", reason: "changed" })
   })
@@ -131,23 +140,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   return NextResponse.json(await serializeIngredient(updated!, ctx.org.id), { status: replacedUrl ? 200 : 201 })
 }
 
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireNutrition("nutrition.manage")
   if ("error" in ctx) return ctx.error
   const { id } = await params
-  const keep = new URL(req.url).searchParams.get("keepVerified")
-  const keepVerified = keep === "true" ? true : keep === "false" ? false : undefined
 
   const ing = await findOrgIngredient(ctx.org.id, id)
   const existing = ing?.nutrition
   if (!ing || !existing?.labelFileUrl) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  let reset: "proof-removed" | "changed" | null = null
-  if (existing.status === "VERIFIED") {
-    if (!existing.sourceUrl) reset = "proof-removed" // F2, never asked
-    else if (keepVerified === undefined) return askStillVerified()
-    else if (!keepVerified) reset = "changed"
-  }
+  // N1D-F2: the document is the only proof, so removing it always resets a
+  // VERIFIED record — never asked. ?keepVerified is no longer read here.
+  const reset = resetsOnLabelRemoval(existing.status) ? "proof-removed" : null
 
   await prisma.$transaction(async (tx) => {
     await tx.ingredientNutrition.update({

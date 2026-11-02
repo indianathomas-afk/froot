@@ -8,8 +8,9 @@ import { findOrgIngredient, nutritionAudit, serializeIngredient } from "@/lib/nu
 // POST /api/nutrition/ingredients/[id]/verify — { verified: true } marks the
 // record VERIFIED now; { verified: false } returns it to ESTIMATED. ADMIN
 // (nutrition.manage). The one place VERIFIED is ever set — the import never
-// does (Gary, F2: "Verified needs a label document or a source link, set by
-// ADMIN only."). Verifying an already-verified record restarts its 12-month
+// does (Gary, N-1b F2: "… set by ADMIN only."). N1D-F2 (Gary, 2026-11-02):
+// "Verified requires an uploaded label document; the link is reference only."
+// A proof-only record (no numbers) cannot be verified (N1D-F1). Verifying an already-verified record restarts its 12-month
 // window (F4), which is how "Re-check label" is cleared. N-1b.
 
 const Schema = z.object({ verified: z.boolean() })

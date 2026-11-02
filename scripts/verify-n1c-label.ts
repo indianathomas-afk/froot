@@ -113,7 +113,9 @@ check("3b. %DV only: calcium 35% → 455 mg (DV 1300), flagged FROM_DV", parsePr
 check("3c. %DV only: iron 4% → 0.72 mg (DV 18)", parsePrintedValue("ironMg", "", "4%"), { value: 0.72, flag: "FROM_DV" })
 check("3d. vitamin D 100 IU → 2.5 mcg, flagged UNIT_CONVERTED", parsePrintedValue("vitaminDMcg", "100 IU", ""), { value: 2.5, flag: "UNIT_CONVERTED" })
 check("3e. potassium printed 0.17g → 170 mg, flagged UNIT_CONVERTED", parsePrintedValue("potassiumMg", "0.17g", ""), { value: 170, flag: "UNIT_CONVERTED" })
-check("3f. cholesterol \"<5mg\" is not guessed — null, flagged LESS_THAN_OTHER", parsePrintedValue("cholesterolMg", "<5mg", ""), { value: null, flag: "LESS_THAN_OTHER" })
+// 3f updated by N-1d (N1D-F3, Gary 2026-11-02: "Cholesterol "<5 mg" pre-fills
+// as 2"; 21 CFR 101.9(c)(3) "2 to 5 milligrams"). It used to pin null.
+check("3f. cholesterol \"<5mg\" → 2, flagged LESS_THAN_5MG (N-1d)", parsePrintedValue("cholesterolMg", "<5mg", ""), { value: 2, flag: "LESS_THAN_5MG" })
 check("3g. garbage text → null, UNREADABLE", parsePrintedValue("sodiumMg", "see panel", ""), { value: null, flag: "UNREADABLE" })
 check("3h. total sugars has no DV — a %DV alone stays UNREADABLE", parsePrintedValue("totalSugarsG", "", "10%"), { value: null, flag: "UNREADABLE" })
 check("3i. calories in g is refused", parsePrintedValue("calories", "60g", ""), { value: null, flag: "UNREADABLE" })
