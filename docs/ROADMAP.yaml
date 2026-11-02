@@ -17721,7 +17721,12 @@ phases:
     # recorded in MIGRATIONS.md and DEPLOY_LOG.md (F2b). The "(NOT pushed)" and
     # "is the commit immediately after 8e3d887" lines above are spent, kept:
     # the docs SHA is d8b6c39.
-    status: staging
+    # `staging` -> `shipped` 2026-11-02, stamped post-merge 2026-11-02 by the
+    # N-2 docs commit (on `staging`): merge 22b8a7f (DEPLOY_LOG entry
+    # `22b8a7f — 2026-11-02 — N-1d`). Any "NOT pushed" / "staging" comment
+    # above is spent, kept.
+    status: shipped
+    shipped: 2026-11-02
     commits:
       - "8e3d887"
       # feat(N-1d): proof-only records, Verified needs a document, FDA printed
@@ -17783,6 +17788,15 @@ phases:
       record yet" will be the common case (audit § E, option c: read an
       uploaded-but-unregistered file, then save and register in order). Behind
       N-1c. NOT SCOPED as a prompt yet.
+
+      PROMOTED 2026-11-02 in merge 22b8a7f (rider, N-2 docs commit). Migration
+      20261102220000_n1d_proof_only_nutrition finished on production
+      br-sparkling-block-a620qvg4 at 2026-11-02 21:19:42 UTC; the backfill
+      reset 0 rows there (verified_total 2 before and after). Staging (Gary):
+      the Ingredients table layout, Read label on an ingredient with no
+      nutrition, Verified refused with a link only, and clearing the numbers
+      keeps the label — all passed. The "NOT VERIFIED" line above is spent,
+      kept.
     deferred:
       - "The backfill (VERIFIED without a document -> ESTIMATED) writes no AuditLog row, by ruling F2b; the per-branch counts live in MIGRATIONS.md and DEPLOY_LOG.md"
       - "A label document removed while a read's review is open is caught only by the verify leg of Apply & mark verified (the dialog then says to use Mark verified)"
@@ -17806,25 +17820,110 @@ phases:
   - id: N-2
     track: nutrition
     size: M
-    status: planned
-    title: "Nutrition — facts editor + label preview"
+    # → in_progress 2026-11-02 at the work commit d88ef4d (NOT pushed). The
+    # docs SHA is the commit immediately after d88ef4d (its own SHA cannot be
+    # written inside itself).
+    # N-2 PRE-PUSH-CHECK 2026-11-02: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after 5400ec2 (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-02 N-2 ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written. The
+    # cleared "BEHIND N-1" blocker restored verbatim in notes, marked cleared
+    # (Gary's instruction at this check). Migration
+    # 20261102230000_n2_nutrition_serving_settings (additive, no backfill)
+    # rides this push. The "(NOT pushed)" and "is the commit immediately after
+    # d88ef4d" lines above are spent, kept: the docs SHA is 5400ec2.
+    status: staging
+    commits:
+      - "d88ef4d"
+      # feat(N-2): Nutrition Facts label with selectable serving size —
+      # migration 20261102230000_n2_nutrition_serving_settings; nutrition-label
+      # and nutrition-serving libs; label preview, print view, Serving
+      # Settings; routes NU-9, NU-10; fixture verify-n2-label.ts, 2026-11-02
+      # + the commit immediately after d88ef4d: docs(N-2) — prompt, audit,
+      # DECISIONS draft, MIGRATIONS entry, this row, the 22b8a7f stamp
+      - "5400ec2"
+      # docs(N-2): the docs commit named on the line above; recorded by the
+      # N-2 PRE-PUSH-CHECK
+      # + the commit immediately after 5400ec2: docs(N-2 PRE-PUSH-CHECK) —
+      # DECISIONS ratified, blocker text restored, this row to staging,
+      # DEPLOY_LOG entry
+    title: "Nutrition — Nutrition Facts label with selectable serving size"
     notes: >
+      RETITLED 2026-11-02 by the N-2 docs commit (preserve-and-mark); the old
+      title was "Nutrition — facts editor + label preview". The blocker
+      "BEHIND N-1" was REMOVED from this row by the same commit because it
+      cleared: N-1 shipped 2026-11-01 (merge bdbeb47) with its routes and UI.
+      Its text, kept: "BEHIND N-1 — … This phase is a facts editor over
+      exactly those models, so there is nothing to edit and nothing to edit
+      it with until N-1 builds the surface. CLEARS WHEN: N-1 ships its routes
+      and UI."
+
+      BLOCKER RESTORED IN FULL 2026-11-02 by the N-2 PRE-PUSH-CHECK, on
+      Gary's instruction ("restore the blocker's full original text in this
+      check's docs commit, marked as cleared"). The quote above shortened it
+      with "…"; it is kept as written. The blocker as it stood at 22b8a7f,
+      verbatim — CLEARED 2026-11-02 (N-1 shipped 2026-11-01, merge bdbeb47,
+      with its routes and UI): "BEHIND N-1 — promoted to a blocker entry
+      2026-08-06 so the board can tell this row from a ready one. N-1 is
+      `planned`: per its own note the MenuItem / MenuItemNutrition /
+      MenuItemAllergen models and the module flag are scaffolded, but there
+      is NO UI and there are NO routes. This phase is a facts editor over
+      exactly those models, so there is nothing to edit and nothing to edit
+      it with until N-1 builds the surface. CLEARS WHEN: N-1 ships its routes
+      and UI."
+
+      BUILT 2026-11-02, TIER 3. Prompt of record: docs/prompts/N-2.md; audit
+      docs/prompts/N-2_AUDIT.md. Rulings: docs/DECISIONS.md 2026-11-02 N-2
+      (N2-F1–F6, R-1–R-8, R-5 tenths), DRAFT until PRE-PUSH-CHECK. WHAT WAS
+      BUILT: (1) Serving Settings /nutrition/settings (ADMIN): drink serving
+      size (blank = 12 fl oz) and a size table keyed on the EXACT Square
+      variation name, listing names on items with a recipe, pre-filled (not
+      saved) from names like "20oz." (F6). (2) Per-item override on the label
+      page (ADMIN): "per item", or the item's own volume and/or serving size;
+      override > table > per item, serving override > org > 12. (3)
+      src/lib/nutrition-label.ts, pure: servings per container per 21 CFR
+      101.9(b)(6) (under 2x the serving = one serving of the whole item, R-3)
+      and (b)(8)(i) ("about", 0.5 steps between 2 and 5); per serving at the
+      exact ratio (R-2); two columns whenever more than one serving (F2);
+      every nutrient rounded per 101.9(c), "<5mg"/"<1g" (R-6); vitamin D,
+      calcium, iron, potassium in whole units with one decimal below 1 unit
+      (R-5, read from (c)(8)(iii)-(iv) and 81 FR 33902-03 — potassium is NOT
+      on the sodium bands); %DV from the declared amount (R-4), "0%" below 2%
+      (R-7), no protein %DV ((c)(7)(i)); "12 fl oz (360 mL)" (R-8);
+      "Contains:" from the engine's allergen union. It scales and rounds the
+      engine's totals only — one calculation path. (4) Honesty (F4): missing
+      nutrients "—", never 0; "Estimated — not for publication" on anything
+      not fully Verified, including items with no food ingredients; an engine
+      error shows the error and a recipe link, no label. (5) Label preview
+      /nutrition/menu/[salesItemId]/label (Label link in the Menu Nutrition
+      item dialog) with a serving-size picker that previews only; print view
+      /print/nutrition-label/[salesItemId]. Migration
+      20261102230000_n2_nutrition_serving_settings (Organization.
+      nutritionServingFlOz, NutritionSizeVolume, NutritionItemServing;
+      additive, no backfill) — applied to dev by Gary 2026-11-02 21:55:42 UTC;
+      staging/production via the Vercel build. Routes NU-9, NU-10; pages
+      PG-38–40. Fixture scripts/verify-n2-label.ts 52/52 (dev
+      br-broad-wave-a6vpjdw0, rolled back); N-1 39/39, N-1a 25/25, N-1b
+      47/47, N-1c 59/59, N-1d 41/41. Label UI render-checked locally on a temp
+      /menu page with synthetic data (deleted). NOT VERIFIED: the pages and
+      routes against real recipes (Recipe is empty on dev), the gates, the
+      print page — Gary's staging pass. Series rule: nothing promotes until
+      Gary confirms it on staging.
+
       RESCOPED 2026-11-01 (BEV-1 docs commit, after Gary's F1). Now: an
       FDA-style Nutrition Facts label preview per item and size, built from
       N-1's COMPUTED nutrition, with an optional per-item override and a
       publish toggle. The blocker below names the MenuItem* models as the
       thing to edit. Under F1 those stay untouched (DEBT-124), so read
       "N-1 ships its routes and UI" as the rescoped N-1. Blocker left as
-      written.
-    blockers:
-      - >
-        BEHIND N-1 — promoted to a blocker entry 2026-08-06 so the board can
-        tell this row from a ready one. N-1 is `planned`: per its own note the
-        MenuItem / MenuItemNutrition / MenuItemAllergen models and the module
-        flag are scaffolded, but there is NO UI and there are NO routes. This
-        phase is a facts editor over exactly those models, so there is nothing
-        to edit and nothing to edit it with until N-1 builds the surface.
-        CLEARS WHEN: N-1 ships its routes and UI.
+      written. (Removed 2026-11-02 when it cleared — see the RETITLED
+      paragraph above.)
+    deferred:
+      - "Protein %DV is not shown: 21 CFR 101.9(c)(7)(i) makes it voluntary and requires a PDCAAS protein-quality correction Froot has no data for"
+      - "Servings are fl oz only; a food item (bowl, cookie, pretzel) is labeled per item — no weight-based serving size"
+      - "Before N-3 publishes anything: whether Keva is a 20+-location chain under 21 CFR 101.11, and whether publishing a full panel affects the restaurant exemption's proviso in 101.9(j)(2)(i) — a question for Gary/counsel (N-2 audit B10)"
+      - "The per-item override has no hand-authored CHECK (perItem excludes a volume/serving; values > 0): NU-10 validates it, the database does not"
 
   - id: N-3
     track: nutrition
@@ -17871,6 +17970,24 @@ phases:
       ARE sellable variations and do import. Needs a read-only modifier sync
       (ITEMS_READ is already held, so no new OAuth scope) and a place for
       modifier recipes. Behind N-1. NOT SCOPED.
+
+  - id: N-6
+    track: nutrition
+    size: L
+    status: planned
+    title: "Nutrition — serving profiles (per menu group; volume, weight, fraction or per item)"
+    notes: >
+      FILED 2026-11-02 by the N-2 docs commit, at Gary's request, in his
+      words: "Serving profiles — serving rules per menu group instead of one
+      org-wide drink serving; serving types by volume (fl oz/mL), weight
+      (g/oz), fraction of item (e.g. 1/4 cookie) or per item; size table in
+      any unit; cooked-yield guidance for prep recipes. Needed before selling
+      USE Froot outside juice/smoothie shops (e.g. burgers, salads, cookies
+      like Crumbl, beer). Builds on N-2's NutritionSizeVolume /
+      NutritionItemServing." What N-2 leaves for this row: one org-wide serving
+      size (Organization.nutritionServingFlOz), a size table and overrides in
+      fl oz only, and every food item labeled per item (N-2 row, deferred).
+      Behind N-2. NOT SCOPED as a prompt yet.
 
   # ---- Square integration ----
 

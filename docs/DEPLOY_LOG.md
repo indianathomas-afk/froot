@@ -2,7 +2,89 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-02 — N-1d: proof without numbers, Verified needs a document, FDA printed bounds, Ingredients table
+## UNPROMOTED — 2026-11-02 — N-2: Nutrition Facts label with selectable serving size
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two N-2 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `d88ef4d`, `5400ec2`, on top of `origin/staging`
+(`22b8a7f`). **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `d88ef4d` | N-2 work: migration `20261102230000_n2_nutrition_serving_settings`; `schema.prisma`; `src/lib/nutrition-label.ts` (pure: serving resolution, servings per container, 21 CFR 101.9(c) rounding, %DV) and `src/lib/nutrition-serving.ts`; label preview `/nutrition/menu/[salesItemId]/label`, print view `/print/nutrition-label/[salesItemId]`, Serving Settings `/nutrition/settings`; `nutrition-facts-label.tsx`; Label link in the Menu Nutrition item dialog; sidebar entry; routes NU-9 `PUT nutrition/settings`, NU-10 `PUT/DELETE nutrition/items/[salesItemId]/serving`; PERMISSIONS_INVENTORY PG-38–40, NU-9, NU-10, NV-18; fixture `scripts/verify-n2-label.ts` |
+| `5400ec2` | `docs(N-2)`: prompt of record `docs/prompts/N-2.md`, audit `docs/prompts/N-2_AUDIT.md`, DECISIONS draft, MIGRATIONS entry, row `in_progress`, N-1d stamped `22b8a7f` (DEPLOY_LOG, MIGRATIONS, ROADMAP `shipped`), N-6 filed `planned` |
+| the commit immediately after `5400ec2` | `docs(N-2 PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`, the cleared "BEHIND N-1" blocker restored verbatim in the row's notes (Gary's instruction); DECISIONS ratified by Gary at this check ("Ratify as written") |
+
+**Blast radius: AN ADDITIVE SCHEMA MIGRATION (NO BACKFILL), TWO NEW ADMIN WRITE
+ROUTES AND THREE NEW PAGES — ALL BEHIND `activeModules` "nutrition", LIKE
+N-1/N-1b/N-1c/N-1d. NO NEW ENV VAR, NO CRON, NO SQUARE CALL, NOTHING PUBLIC.**
+
+- **Migration `20261102230000_n2_nutrition_serving_settings`, applied by `prisma
+  migrate deploy` in the Vercel build** — staging on this push, production at
+  promotion. Additive only: nullable `Organization.nutritionServingFlOz` (NULL =
+  the 12 fl oz default, R-1); new tables `NutritionSizeVolume` (unique
+  `(organizationId, variationName)`, FK RESTRICT) and `NutritionItemServing`
+  (unique `salesItemId`, FK to SalesItem **CASCADE**). Nothing dropped, no
+  backfill, no hand-authored statement. Applied to dev by Gary 2026-11-02
+  21:55:42 UTC (`br-broad-wave-a6vpjdw0`).
+- **What is new:** Serving Settings (ADMIN, `nutrition.manage`) — the drink
+  serving size and a size table keyed on the EXACT Square variation name,
+  pre-filled from names like "20oz." for the ADMIN to confirm (F6); a per-item
+  override on the label page (ADMIN); a Nutrition Facts label preview and a
+  print view for any user with `nutrition.view`. Both write routes are
+  org-scoped and write an AuditLog row.
+- **What does not change:** no existing nutrition write changes rules; the
+  label only scales and rounds the engine's existing totals. Nothing is
+  published — the public menu is N-3. Nothing writes to Square.
+
+**Rollback:** revert `d88ef4d`. **The migration stays** (additive-only: never
+drop the column or tables by hand). Rows saved in Serving Settings or as
+per-item overrides after the deploy stay in their tables, unread by the
+pre-N-2 code — harmless, and they come back into use if N-2 is re-applied. If
+"nutrition" is on anywhere, switching it off (Neon console) hides every
+surface without a deploy. The docs commits can stay or go with it.
+
+**Evidence so far: fixtures and build only.** `scripts/verify-n2-label.ts`
+52/52 PASS per the build session, against the applied schema on dev
+`br-broad-wave-a6vpjdw0` (database part rolled back); N-1 39/39, N-1a 25/25,
+N-1b 47/47, N-1c 59/59, N-1d 41/41. Label UI render-checked locally on a temp
+`/menu` page with synthetic data (deleted). **Nothing has been observed on
+staging or production**, and the migration has not reached either. After the
+push, in order: the build log shows the migration applied on staging; the
+staging-SHA precondition (deployed SHA = local `HEAD`); then Gary's staging
+pass — Serving Settings (default serving, size table pre-fill and save), a
+per-item override, the label preview against real recipes (two columns when
+more than one serving, the Estimated banner, "—" for missing nutrients, an
+engine error showing no label), the serving-size picker previewing without
+saving, and the print view. Nothing is promoted until Gary confirms it on
+staging.
+
+## 22b8a7f — 2026-11-02 — N-1d: proof without numbers, Verified needs a document, FDA printed bounds, Ingredients table
+
+**PROMOTED 2026-11-02 in merge `22b8a7f`** (`22b8a7fd7698d279a47ba2fb4e4c2c0ce203b81e`,
+"Merge branch 'staging'", 2026-11-02 13:19:08 -0800 (Pacific) = 2026-11-02
+21:19:08 UTC), `--no-ff`. First parent `560f350` (prior tip of `main`), second
+parent `aba8c57` (staging tip). **3 commits** in `22b8a7f^1..22b8a7f^2` —
+`8e3d887`, `d8b6c39`, `aba8c57` — and **25 files**, read out of `git log` and
+`git diff --shortstat` at this stamp. `main` moved `560f350..22b8a7f`;
+`staging` fast-forwarded to it. Stamped post-merge by N-2 (2026-11-02), on
+`staging`; the heading previously read "UNPROMOTED — 2026-11-02 — N-1d: proof
+without numbers, Verified needs a document, FDA printed bounds, Ingredients
+table". The "staging only", "NEITHER WAS PUSHED" and "Nothing has been observed
+on staging or production" lines below are spent, kept.
+
+**Migration on production (Gary, as relayed in the N-2 prompt):**
+`20261102220000_n1d_proof_only_nutrition` `finished_at` 2026-11-02 21:19:42 UTC
+(13:19:42 PST) on production `br-sparkling-block-a620qvg4`, 34 s after the
+merge. **The backfill reset 0 rows on production** — `verified_total` 2 before
+and after, as the pre-push count predicted.
+
+**Observed, staging (Gary, as relayed in the N-2 prompt):** the Ingredients
+table layout; Read label on an ingredient with no nutrition; Verified refused
+with a link only; clearing the numbers keeps the label. All passed.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
