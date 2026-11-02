@@ -739,7 +739,7 @@ function TriagePanel({
         <AlertTriangle className="h-5 w-5 text-[var(--color-warning-text)] shrink-0 mt-0.5" />
         <div className="flex-1">
           <p className="text-sm font-medium text-[var(--color-warning-text)]">
-            {unassigned.length} ingredient{unassigned.length === 1 ? "" : "s"} can&apos;t be counted yet
+            <span>{`${unassigned.length} ingredient${unassigned.length === 1 ? "" : "s"} can't be counted yet`}</span>
           </p>
           <p className="text-xs text-[var(--color-warning-text)]/80">
             They have no storage area at this store. Assign them below{canManage ? " (or archive what you no longer stock)" : ""} —

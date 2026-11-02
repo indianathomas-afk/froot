@@ -151,7 +151,7 @@ export function StorageAreasClient({
           <AlertTriangle className="h-5 w-5 text-[var(--color-warning-text)] shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium text-[var(--color-warning-text)]">
-              {unassignedCount} ingredient{unassignedCount === 1 ? "" : "s"} can&apos;t be counted yet
+              <span>{`${unassignedCount} ingredient${unassignedCount === 1 ? "" : "s"} can't be counted yet`}</span>
             </p>
             <p className="text-xs text-[var(--color-warning-text)]/80">
               Assign them to a storage area at this store so they appear on count sheets. Tap to review.
