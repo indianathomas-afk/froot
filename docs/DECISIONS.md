@@ -5,7 +5,11 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-02 — N-1e: label inbox, batch read, review queue, read from a link — forks N1E-F1–F5 and R1–R4 (Gary) — DRAFT
+## 2026-11-02 — N-1e: label inbox, batch read, review queue, read from a link — forks N1E-F1–F5 and R1–R4 (Gary)
+
+**RATIFIED BY GARY, 2026-11-03, at the N-1e PRE-PUSH-CHECK, as written:**
+"Ratify as written". The "DRAFT" paragraph below is spent, kept; the heading's
+"— DRAFT" suffix was removed at this check.
 
 **DRAFT — ruled by Gary in chat 2026-11-02 at the N-1e Phase 1 STOP; to be
 ratified at PRE-PUSH-CHECK.** The audit he ruled on is

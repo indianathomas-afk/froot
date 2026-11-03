@@ -17807,7 +17807,19 @@ phases:
     # → in_progress 2026-11-02 at the work commit 218e984 (NOT pushed). The
     # docs SHA is the commit immediately after 218e984 (its own SHA cannot be
     # written inside itself).
-    status: in_progress
+    # N-1e PRE-PUSH-CHECK 2026-11-03: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after 55f092e (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-02 N-1e ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written.
+    # verify-n1e re-run at this check: 84/84 on dev br-broad-wave-a6vpjdw0.
+    # Pre-push n1e_applied = 0 on staging br-square-feather-a63z92vz and
+    # production br-sparkling-block-a620qvg4 (Gary, Neon console, branch id
+    # from the server; recorded in MIGRATIONS). Migration
+    # 20261103010000_n1e_label_inbox (additive, no backfill) rides this push.
+    # The "(NOT pushed)" and "is the commit immediately after 218e984" lines
+    # above are spent, kept: the docs SHA is 55f092e.
+    status: staging
     commits:
       - "218e984"
       # feat(N-1e): label inbox, batch read, review queue, read from a link;
@@ -17815,6 +17827,12 @@ phases:
       # 2026-11-02
       # + the commit immediately after 218e984: docs(N-1e) — prompt, audit,
       # DECISIONS draft, MIGRATIONS entry, this row
+      - "55f092e"
+      # docs(N-1e): the docs commit named on the line above; recorded by the
+      # N-1e PRE-PUSH-CHECK
+      # + the commit immediately after 55f092e: docs(N-1e PRE-PUSH-CHECK) —
+      # DECISIONS ratified, pre-push applied = 0 recorded, this row to
+      # staging, DEPLOY_LOG entry
     title: "Nutrition — read a label from a pasted link, and batch-read many labels with a review queue"
     notes: >
       BUILT 2026-11-02, TIER 3. Prompt of record: docs/prompts/N-1e.md. Audit

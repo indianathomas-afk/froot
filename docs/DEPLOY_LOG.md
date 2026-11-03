@@ -2,6 +2,88 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-03 — N-1e: label inbox, batch read, review queue, read a label from a link
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two N-1e commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `218e984`, `55f092e`, on top of `origin/staging`
+(`c33df9d`). **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `218e984` | N-1e work: migration `20261103010000_n1e_label_inbox`; `schema.prisma` (`NutritionLabelInboxItem`, `NutritionInboxStatus`); ADMIN page `/nutrition/labels` (sidebar "Label Inbox") and routes NU-12–NU-16 under `api/nutrition/labels/`; dialog route `ingredients/[id]/label/from-link`; `src/lib/safe-fetch.ts` (link fetcher), `label-read-run.ts` (the one shared read run), `label-inbox.ts`, `label-match.ts`, `nutrition-label-attach.ts`; the N-1c `label/read` and `label` routes refactored onto the shared run; PERMISSIONS_INVENTORY NU-12–NU-16, PG-43, NV-18, NU-6/7/8 corrected; fixture `scripts/verify-n1e.ts` |
+| `55f092e` | `docs(N-1e)`: prompt of record `docs/prompts/N-1e.md`, audit `docs/prompts/N-1e_AUDIT.md`, DECISIONS draft, MIGRATIONS entry, row `in_progress` |
+| the commit immediately after `55f092e` | `docs(N-1e PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`; DECISIONS ratified by Gary at this check ("Ratify as written"); the pre-push `applied = 0` measurement recorded in MIGRATIONS |
+
+**Blast radius: NUTRITION ONLY, ADMIN ONLY — BUT IT ADDS FROOT'S FIRST SERVER
+FETCH OF A USER-SUPPLIED URL, AND IT CHANGES HOW THE EXISTING N-1c READ IS
+COUNTED.** Additive schema migration (no backfill). No new env var, no cron, no
+Square call, no `next.config.ts` / `src/proxy.ts` change. Uses the existing
+`ANTHROPIC_API_KEY` and `NUTRITION_BLOB_READ_WRITE_TOKEN`.
+
+- **Link fetcher (`src/lib/safe-fetch.ts`, N1E-F4 / R3) — the new attack
+  surface.** An ADMIN can paste a URL and the server fetches it. https and
+  port 443 only, no `user:pass@`, every resolved address checked at connect
+  time (custom `lookup` on `node:https`, defeating DNS rebinding), redirects
+  re-checked (max 3), 15 s, 10 MB enforced while streaming, type by
+  Content-Type AND first bytes, HTML refused, no cookies or credentials sent.
+  Nothing outside `/nutrition/labels` and the ingredient dialog's Proof box
+  calls it.
+- **The N-1c read limit is now ONE pool.** 30/hour and 300/day per org are
+  unchanged, but dialog reads and inbox reads now count against the same
+  limit (`src/lib/label-read-run.ts`). An org that used the dialog heavily can
+  hit the limit sooner than before once it also uses the inbox. The N-1c
+  dialog's read and label routes were refactored onto the shared run; their
+  responses are meant to be unchanged.
+- **Migration `20261103010000_n1e_label_inbox`, applied by `prisma migrate
+  deploy` in the Vercel build** — staging on this push, production at
+  promotion. Additive only: one enum (`NutritionInboxStatus`), one table
+  (`NutritionLabelInboxItem`), one index, one FK to `Organization` **ON DELETE
+  RESTRICT** — an org with inbox rows cannot be hard-deleted until they are
+  gone. No existing table altered, nothing dropped. Pre-push measurement
+  (Gary, Neon console, branch id from the server): `n1e_applied = 0` on
+  staging `br-square-feather-a63z92vz` and production
+  `br-sparkling-block-a620qvg4`.
+- **What is new:** `/nutrition/labels` (ADMIN) — drop many files, one row
+  each, ingredient suggested and never assigned; Read all / selected one at a
+  time, stopping at the limit with "N left — continue after …"; the review
+  queue (Apply & mark verified / Apply only / Skip / Discard; Apply copies the
+  file into the ingredient's folder and then calls the UNCHANGED PUT + verify
+  routes); "Replace current label?" before a replace; leftovers 7+ days old
+  with "Discard all older than 7 days". "Add from link" in the ingredient
+  dialog's Proof box.
+- **What does not change:** no new write path for nutrition values — Apply
+  goes through the N-1c/N-1d PUT and verify routes. Nothing writes to Square.
+
+**Rollback:** revert `218e984`. That removes the inbox page, its routes, the
+link fetcher and the shared read run together, and puts the N-1c dialog's read
+and label routes back to their pre-N-1e code. **The migration stays**
+(additive-only: never drop the table or enum by hand); inbox rows stay in their
+table, unread by the pre-N-1e code, and their files stay in the private store
+under `nutrition/{org}/inbox/`. Without a deploy: switching "nutrition" off for
+the org (Neon console) closes the inbox with the rest of the module. The docs
+commits can stay or go with it.
+
+**Evidence so far: fixtures and build only.** `scripts/verify-n1e.ts` 84/84
+PASS, re-run at this check (2026-11-03) against the applied schema on dev
+`br-broad-wave-a6vpjdw0` (database part rolled back, 9g); the build session
+also reported N-1, N-1a, N-1b, N-1c, N-1d, N-2, N-3, BEV-1 all passing, per
+the work commit. **Nothing has been observed on staging or production**, and
+the migration has not reached either. **Not covered by any fixture:** the blob
+copy/put/delete (no Development store connection), the model call, and the
+live pages. After the push, in order: the build log shows the migration
+applied on staging; the staging-SHA precondition (deployed SHA = local
+`HEAD`); then Gary's staging pass — drop several labels on `/nutrition/labels`
+(one HEIC, refused); a suggestion that is NOT assigned until confirmed; Read
+all to completion; Apply & mark verified on one, Apply only on another, Skip,
+Discard; "Replace current label?" on an ingredient that already has one; a
+link to a direct PDF/image read in the dialog's Proof box and in the inbox; an
+HTML product-page link refused. Nothing is promoted until Gary confirms it on
+staging.
+
 ## a00fa1e — 2026-11-02 — N-3: public nutrition menu (/menu/<slug>, link + embed), Verified sizes only
 
 **PROMOTED 2026-11-02 in merge `a00fa1e`** (`a00fa1ed92f90bb27c3ed28b187ada47e0cabe68`,

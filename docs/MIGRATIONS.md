@@ -2256,6 +2256,12 @@ the word is not the check.**
 | staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
 | production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
 
+**Pre-push measurement, recorded at the N-1e PRE-PUSH-CHECK (2026-11-03):**
+`n1e_applied = 0` on staging `br-square-feather-a63z92vz` and on production
+`br-sparkling-block-a620qvg4` — measured by Gary in the Neon console before the
+check, branch id read from the server. Neither branch had the migration before
+the push.
+
 **GENERATED AGAINST THE LIVE DEV DATABASE, after a clean baseline** (the diff
 with no `-o` returned `-- This is an empty migration.` before
 `prisma/schema.prisma` was edited; datasource host `ep-late-water-a6k53nv2`,
