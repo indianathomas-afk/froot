@@ -18192,6 +18192,10 @@ phases:
       # fix(N-5-SYNC): batch the Square catalog sync; maxDuration back to 300,
       # 2026-11-03 (NOT pushed) + the commit immediately after 9a069ca:
       # docs(N-5-SYNC) — this rider, DEPLOY_LOG note, DECISIONS, prompt
+      - "2556904"
+      # docs(N-5-SYNC) — the docs commit named above
+      # + the commit immediately after 2556904: docs(N-5-SYNC PRE-PUSH-CHECK)
+      # — DECISIONS N-5-SYNC ratified ("Ratify as written"), these SHAs
     title: "Nutrition — Square modifiers (add-ons)"
     notes: >
       BUILT 2026-11-03, TIER 3. Prompt of record: docs/prompts/N-5.md. Audit
@@ -18240,7 +18244,10 @@ phases:
       N-5-SYNC (Gary: "Go as planned"). DB calls per sync, measured by
       verify-n5-sync on dev br-broad-wave-a6vpjdw0: 11 first sync (1,200
       rows), 9 changed catalog, 4 unchanged re-run — was ~1 per category and
-      per variation. verify-n5-sync 37/37; verify-n5-modifiers and 59 other
+      per variation. verify-n5-sync 37/37 [CORRECTED 2026-11-03 at the
+      N-5-SYNC PRE-PUSH-CHECK: 35/35 — the script runs exactly 35 checks, none
+      conditional; re-run on dev br-broad-wave-a6vpjdw0, ALL PASS, rolled
+      back; verify-n5-modifiers 51/51 in the same run]; verify-n5-modifiers and 59 other
       earlier fixtures pass; eng1-engagement, hr8-compliance, ms5,
       nav1-url-sets, notify14-doc-digest fail identically at e32e22c without
       this change (pre-existing, not N-5). NOT VERIFIED: the staging re-test

@@ -85,7 +85,10 @@ compute), and N-5's `maxDuration = 60` above lowered it. The writes, one
 upsert per variation from `iad1` to Neon `us-west-2`, needed ~80–250 s. **Fix,
 work commit `9a069ca`:** category and sales-item writes batched (unchanged rows
 not written), modifier updates batched, `maxDuration = 300`. Fixture
-`verify-n5-sync` 37/37 on dev `br-broad-wave-a6vpjdw0` (rolled back). **This
+`verify-n5-sync` 37/37 on dev `br-broad-wave-a6vpjdw0` (rolled back)
+[CORRECTED 2026-11-03 at the N-5-SYNC PRE-PUSH-CHECK: 35/35 — the script runs
+exactly 35 checks, none conditional; re-run on dev `br-broad-wave-a6vpjdw0`,
+ALL PASS, rolled back]. **This
 payload now rides with N-5: promote both together, never N-5 without
 `9a069ca`.** Rollback for the fix alone: revert `9a069ca`, but that brings the
 60 s timeout back. Staging re-test after Gary's push: the staging-SHA

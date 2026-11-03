@@ -7,6 +7,9 @@ decisions too.)
 
 ## 2026-11-03 — N-5-SYNC: catalog sync batched; R1 skip unchanged rows, R2 batch modifier updates (Gary)
 
+**RATIFIED BY GARY, 2026-11-03, at the N-5-SYNC PRE-PUSH-CHECK, as written:**
+"Ratify as written"
+
 Ruled by Gary in chat 2026-11-03 at the N-5-SYNC Phase 1 STOP. His words,
 recorded exactly:
 
