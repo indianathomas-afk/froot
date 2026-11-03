@@ -1,17 +1,18 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
-import { computeAllRecipeCosts, loadCostGraph, recipesUsing } from "@/lib/recipe-cost"
+import { computeAllRecipeCosts, loadCostGraph, recipeKind, recipesUsing } from "@/lib/recipe-cost"
 import { RecipeEditorClient } from "./recipe-editor-client"
 
 // Editor for one recipe; id === "new" creates (optionally pre-attached to
-// ?salesItemId= from the triage queue).
+// ?salesItemId= from the triage queue, or N-5's ?modifierId= from the
+// Modifiers tab).
 export default async function RecipeEditorPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ salesItemId?: string }>
+  searchParams: Promise<{ salesItemId?: string; modifierId?: string }>
 }) {
   const { orgId, userId } = await auth()
   if (!orgId) redirect("/dashboard")
@@ -24,7 +25,7 @@ export default async function RecipeEditorPage({
   const isManager = dbUser?.role === "ADMIN" || dbUser?.role === "MANAGER"
 
   const { id } = await params
-  const { salesItemId: prefillSalesItemId } = await searchParams
+  const { salesItemId: prefillSalesItemId, modifierId: prefillModifierId } = await searchParams
   const isNew = id === "new"
 
   const [graph, ingredients, attachableSalesItems] = await Promise.all([
@@ -58,10 +59,29 @@ export default async function RecipeEditorPage({
         include: {
           lines: { orderBy: { sortOrder: "asc" } },
           salesItem: { select: { id: true, displayName: true, priceCents: true, menuGroup: true } },
+          squareModifier: { select: { id: true, name: true, priceCents: true, modifierList: { select: { name: true } } } },
           preparedIngredient: { select: { id: true, name: true, isActive: true } },
         },
       })
   if (!isNew && !recipe) notFound()
+
+  // N-5: the modifier a new recipe is for, when opened from the Modifiers tab.
+  const prefillModifier =
+    isNew && prefillModifierId
+      ? await prisma.squareModifier.findFirst({
+          where: { id: prefillModifierId, organizationId: org.id, recipe: null },
+          select: { id: true, name: true, priceCents: true, modifierList: { select: { name: true } } },
+        })
+      : null
+  const modifierSource = recipe?.squareModifier ?? prefillModifier
+  const modifier = modifierSource
+    ? {
+        id: modifierSource.id,
+        name: modifierSource.name,
+        listName: modifierSource.modifierList.name,
+        priceCents: modifierSource.priceCents,
+      }
+    : null
 
   const prefillSalesItem = prefillSalesItemId
     ? await prisma.salesItem.findFirst({
@@ -71,13 +91,14 @@ export default async function RecipeEditorPage({
     : null
 
   // Sub-recipe options for the typeahead (any recipe except this one; prep
-  // recipes first), with computed unit costs for live line pricing.
+  // recipes first), with computed unit costs for live line pricing. N-5:
+  // modifier recipes are never offered — they may hold negative lines.
   const subRecipeOptions = [...graph.recipes.values()]
-    .filter((r) => r.id !== id && r.isActive)
+    .filter((r) => r.id !== id && r.isActive && recipeKind(r) !== "modifier")
     .map((r) => ({
       id: r.id,
       name: r.name,
-      isPrep: r.salesItemId === null,
+      isPrep: recipeKind(r) === "prep",
       yieldQty: r.yieldQty,
       yieldUnit: r.yieldUnit,
       servingSizeQty: r.servingSizeQty,
@@ -117,7 +138,8 @@ export default async function RecipeEditorPage({
             }
           : null
       }
-      prefillSalesItem={prefillSalesItem}
+      prefillSalesItem={modifier ? null : prefillSalesItem}
+      modifier={modifier}
       ingredients={ingredients.map((i) => ({
         id: i.id,
         displayName: i.brand ? `${i.brand} ${i.name}` : i.name,

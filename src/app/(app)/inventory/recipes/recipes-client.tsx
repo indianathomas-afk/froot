@@ -37,8 +37,22 @@ type PrepRecipe = {
   usedInCount: number
 }
 
+// N-5: a synced Square modifier and its recipe's (signed) cost.
+type ModifierRow = {
+  id: string
+  name: string
+  listName: string
+  priceCents: number | null
+  recipeStatus: string
+  recipeId: string | null
+  cost: number | null
+  costError: string | null
+}
+
 const usd = (n: number | null) =>
   n === null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD" })
+// N5-F2: a modifier's cost can net negative and is shown with its sign.
+const signedUsd = (n: number | null) => (n === null ? "—" : `${n < 0 ? "−" : "+"}${usd(Math.abs(n))}`)
 const pct = (n: number | null) => (n === null ? "—" : `${(n * 100).toFixed(1)}%`)
 const price = (cents: number | null) => (cents === null ? "—" : usd(cents / 100))
 
@@ -51,12 +65,14 @@ function StatusBadge({ status }: { status: string }) {
 export function RecipesClient({
   items,
   prepRecipes,
+  modifiers,
   stores,
   isManager,
   isAdmin,
 }: {
   items: Item[]
   prepRecipes: PrepRecipe[]
+  modifiers: ModifierRow[]
   stores: { id: string; name: string }[]
   isManager: boolean
   isAdmin: boolean
@@ -183,6 +199,7 @@ export function RecipesClient({
             )}
           </TabsTrigger>
           <TabsTrigger value="prep">Prep Recipes</TabsTrigger>
+          <TabsTrigger value="modifiers">Modifiers</TabsTrigger>
         </TabsList>
 
         <TabsContent value="menu-items">
@@ -350,6 +367,18 @@ export function RecipesClient({
             </div>
           )}
         </TabsContent>
+
+        <TabsContent value="modifiers">
+          <ModifiersTab
+            modifiers={modifiers}
+            isManager={isManager}
+            onNotice={(msg) => {
+              setNotice(msg)
+              router.refresh()
+              setTimeout(() => setNotice(null), 4000)
+            }}
+          />
+        </TabsContent>
       </Tabs>
 
       <RecordPrepDialog
@@ -482,5 +511,176 @@ export function RecordPrepDialog({
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// N-5: Square modifiers (add-ons, swaps, removals) and their recipes. A
+// modifier recipe may net negative ("No Banana"), so its cost keeps its sign.
+function ModifiersTab({
+  modifiers,
+  isManager,
+  onNotice,
+}: {
+  modifiers: ModifierRow[]
+  isManager: boolean
+  onNotice: (message: string) => void
+}) {
+  const router = useRouter()
+  const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState("unmapped")
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [busy, setBusy] = useState(false)
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return modifiers.filter((m) => {
+      if (q && !m.name.toLowerCase().includes(q) && !m.listName.toLowerCase().includes(q)) return false
+      if (statusFilter === "unmapped") return m.recipeStatus === "UNMAPPED"
+      if (statusFilter === "mapped") return m.recipeStatus === "MAPPED"
+      if (statusFilter === "non_recipe") return m.recipeStatus === "NON_RECIPE"
+      return true
+    })
+  }, [modifiers, search, statusFilter])
+
+  const grouped = useMemo(() => {
+    const groups = new Map<string, ModifierRow[]>()
+    for (const m of filtered) groups.set(m.listName, [...(groups.get(m.listName) ?? []), m])
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))
+  }, [filtered])
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  async function bulkSetStatus(recipeStatus: "NON_RECIPE" | "UNMAPPED") {
+    setBusy(true)
+    try {
+      const res = await fetch("/api/inventory/modifiers/bulk", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [...selected], recipeStatus }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSelected(new Set())
+        onNotice(`${data.updated} modifier${data.updated === 1 ? "" : "s"} updated`)
+      } else {
+        onNotice(data.error ?? "Update failed")
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function openModifier(m: ModifierRow) {
+    if (m.recipeId) router.push(`/inventory/recipes/${m.recipeId}`)
+    else router.push(`/inventory/recipes/new?modifierId=${m.id}`)
+  }
+
+  if (modifiers.length === 0) {
+    return (
+      <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-16 text-center text-[var(--color-muted-foreground)]">
+        <p className="text-sm mb-1">No Square modifiers yet.</p>
+        <p className="text-xs">Run &ldquo;Sync from Square&rdquo; in Sales Items — add-ons, swaps and removals come in with the catalog.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <Input placeholder="Search modifiers or lists..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="unmapped">Unmapped</SelectItem>
+            <SelectItem value="all">All modifiers</SelectItem>
+            <SelectItem value="mapped">Mapped</SelectItem>
+            <SelectItem value="non_recipe">Non-recipe</SelectItem>
+          </SelectContent>
+        </Select>
+        {isManager && selected.size > 0 && (
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-sm text-[var(--color-muted-foreground)]">{selected.size} selected</span>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => bulkSetStatus("NON_RECIPE")}>
+              Mark non-recipe
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => bulkSetStatus("UNMAPPED")}>
+              Mark unmapped
+            </Button>
+          </div>
+        )}
+      </div>
+      <p className="text-xs text-[var(--color-muted-foreground)] mb-3">
+        A modifier&apos;s recipe is what it adds or takes out of the drink — use negative amounts for removals and swaps.
+        One recipe covers every size.
+      </p>
+
+      {filtered.length === 0 ? (
+        <div className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] p-16 text-center text-[var(--color-muted-foreground)]">
+          <p className="text-sm">No modifiers match your filters.</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {grouped.map(([list, rows]) => (
+            <div key={list} className="border border-[var(--color-border)] rounded-lg bg-[var(--color-card)] overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-[var(--color-border)] bg-[var(--color-accent)]/30">
+                <h2 className="text-sm font-semibold text-[var(--color-foreground)]">{list}</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[var(--color-border)]">
+                      {isManager && <th className="w-10 px-4 py-2" />}
+                      {["Modifier", "Charge", "Recipe Cost", "Status"].map((h) => (
+                        <th key={h} className="text-left text-xs font-medium text-[var(--color-muted-foreground)] px-4 py-2">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((m) => (
+                      <tr
+                        key={m.id}
+                        className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-accent)]/30 transition-colors cursor-pointer"
+                        onClick={() => openModifier(m)}
+                      >
+                        {isManager && (
+                          <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                            {!m.recipeId && (
+                              <Checkbox
+                                checked={selected.has(m.id)}
+                                onCheckedChange={() => toggle(m.id)}
+                                aria-label={`Select ${m.name}`}
+                              />
+                            )}
+                          </td>
+                        )}
+                        <td className="px-4 py-2.5 text-sm text-[var(--color-foreground)]">{m.name}</td>
+                        <td className="px-4 py-2.5 text-sm text-[var(--color-foreground)]">{price(m.priceCents)}</td>
+                        <td className="px-4 py-2.5 text-sm">
+                          {m.costError ? (
+                            <span className="inline-flex items-center gap-1 text-[var(--color-warning-text)]" title={m.costError}>
+                              <AlertTriangle className="h-3.5 w-3.5" /> N/A
+                            </span>
+                          ) : (
+                            <span className="text-[var(--color-foreground)] tabular-nums">{m.recipeId ? signedUsd(m.cost) : "—"}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5"><StatusBadge status={m.recipeStatus} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

@@ -2,7 +2,113 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-03 — N-1e-UI: label inbox ingredient picker is a searchable combobox
+## UNPROMOTED — 2026-11-03 — N-5: Square modifiers — sync, modifier recipes, BevSpot modifier import
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two N-5 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `a9ff45e`, `4ad86a5`, on top of `origin/staging`
+(`3945425`). **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `a9ff45e` | N-5 work: migration `20261103020000_n5_square_modifiers`; `schema.prisma` (`SquareModifierList`, `SquareModifier`, `SquareItemModifierList`, `Recipe.squareModifierId`); `src/lib/square-modifier-sync.ts` called from `api/square/sales-items/sync`; `recipeKind()` in `recipe-cost.ts` at every prep/item site; negative lines on modifier recipes only (`recipe-api.ts`); Modifiers tab on `/inventory/recipes` + `api/inventory/modifiers/bulk`; Modifiers section on Menu Nutrition; BevSpot planner/apply import modifier rows; PERMISSIONS_INVENTORY PG-21, PG-36, IV-2, SQ-6; fixture `scripts/verify-n5-modifiers.ts` |
+| `4ad86a5` | `docs(N-5)`: prompt of record `docs/prompts/N-5.md`, audit `docs/prompts/N-5_AUDIT.md`, read-only production SQL `docs/prompts/N-5_PROD_QUERY.sql`, DECISIONS draft, MIGRATIONS entry, row `in_progress`, N-5b filed |
+| the commit immediately after `4ad86a5` | `docs(N-5 PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`; DECISIONS ratified by Gary at this check ("Ratify as written") |
+
+**Blast radius: INVENTORY + NUTRITION, AND IT CHANGES THE SHARED "SYNC FROM
+SQUARE" ROUTE AND THE PREP/ITEM TEST USED ACROSS RECIPES.** Additive schema
+migration (no backfill). No new Square scope, no new Square endpoint (modifier
+lists come from the same `GET /v2/catalog/list` pages already walked), nothing
+writes to Square. No new env var, no cron, no `next.config.ts` /
+`src/proxy.ts` change.
+
+- **Migration `20261103020000_n5_square_modifiers`, applied by `prisma migrate
+  deploy` in the Vercel build** — staging on this push, production at
+  promotion. Three new tables (`SquareModifierList`, `SquareModifier`,
+  `SquareItemModifierList`) and one nullable unique column on `Recipe`
+  (`squareModifierId`, FK SET NULL). New FKs to `Organization` are **ON DELETE
+  RESTRICT** — an org with synced modifiers cannot be hard-deleted until they
+  are gone. Nothing dropped, no existing column altered. **Not measured on
+  staging or production at this check** — no `applied = 0` reading was taken;
+  per MIGRATIONS.md both read "not yet".
+- **"Sync from Square" (`api/square/sales-items/sync`) now also writes modifier
+  rows,** batched in one transaction AFTER the unchanged item/variation
+  writes, with `maxDuration = 60`. If the modifier write fails the route
+  errors after items were already written and `lastCatalogSyncAt` is not
+  stamped. The audit could not observe a live modifier payload — **the first
+  staging sync is the first proof.**
+- **`recipeKind()` replaces "salesItemId null = prep" at every site** (cost,
+  nutrition, counts, recipe lists, duplicate, BevSpot planner). A modifier
+  recipe is never a sub-recipe line, never countable, never duplicated onto a
+  menu item (422). Negative lines are accepted on modifier recipes only.
+- **BevSpot import:** a row whose Square id is a synced modifier imports as
+  that modifier's recipe under BEV-1's rules; apply marks modifiers MAPPED in
+  the same transaction. Exact-name sub-recipe reuse considers prep recipes
+  only (`src/lib/bevspot/plan-import.ts:180`, confirmed read-only at this
+  check). Only provable on production — staging's catalog has different ids.
+
+- **What is new on screen:** Modifiers tab on `/inventory/recipes` (bulk "Mark
+  non-recipe"); modifier recipe editing with signed cost; a Modifiers section
+  under the items table on Menu Nutrition — signed, plainly rounded deltas,
+  "may add" allergens from positive lines only, Cost column only for
+  `inventory.costs.view`. **Not on the public menu** (N5-F5).
+- **What does not change:** sales usage / theoretical inventory ignore order
+  modifiers until N-5b. Existing item and prep recipes cost and label as
+  before.
+
+**Rollback:** revert `a9ff45e`. The migration is additive and stays applied;
+the reverted code ignores the new tables and column. Any modifier recipes
+created in the meantime remain as rows and would then read as prep recipes
+(their `squareModifierId` is invisible to the old code) — delete them, or roll
+forward instead of back, if any were made. The docs commits can stay.
+
+**Evidence so far: fixture and build only.** Per the work commit:
+`verify-n5-modifiers` 51/51 against the applied schema on dev
+`br-broad-wave-a6vpjdw0` (part 7 rolled back); BEV-1, N-1, N-1a, N-1b, N-1c,
+N-1d, N-1e, N-2, N-3 fixtures re-run, all pass. `npm run build` re-run green at
+this check. **Nothing has been observed on staging.** After the push: the
+staging-SHA precondition (deployed SHA = local `HEAD`), migration
+`finished_at` on staging read in the Neon console, then Gary's staging pass —
+"Sync from Square" brings in modifier lists, the Modifiers tab and Menu
+Nutrition section render, a modifier recipe with a negative line saves, and
+the routes' role gates hold.
+
+**N-5-SYNC note, 2026-11-03 — the sync timed out on staging; fixed, NOT yet
+pushed or re-tested.** Gary's staging test after the push of `e32e22c`: Sales
+Items → Sync from Square showed "Sync failed — check your connection"; Vercel
+runtime log (Preview) "Task timed out after 60 seconds" on
+`/api/square/sales-items/sync`. Cause: the project default is 300 s (Fluid
+compute), and N-5's `maxDuration = 60` above lowered it. The writes, one
+upsert per variation from `iad1` to Neon `us-west-2`, needed ~80–250 s. **Fix,
+work commit `9a069ca`:** category and sales-item writes batched (unchanged rows
+not written), modifier updates batched, `maxDuration = 300`. Fixture
+`verify-n5-sync` 37/37 on dev `br-broad-wave-a6vpjdw0` (rolled back)
+[CORRECTED 2026-11-03 at the N-5-SYNC PRE-PUSH-CHECK: 35/35 — the script runs
+exactly 35 checks, none conditional; re-run on dev `br-broad-wave-a6vpjdw0`,
+ALL PASS, rolled back]. **This
+payload now rides with N-5: promote both together, never N-5 without
+`9a069ca`.** Rollback for the fix alone: revert `9a069ca`, but that brings the
+60 s timeout back. Staging re-test after Gary's push: the staging-SHA
+precondition, then Sync from Square completes (read the duration and the
+`[sales-items/sync]` line in the Vercel log), Recipes → Modifiers lists the
+add-ons, and a second sync straight after is fast with `updated=0`.
+
+## 4dbfa03 — 2026-11-03 — N-1e-UI: label inbox ingredient picker is a searchable combobox
+
+**PROMOTED 2026-11-03 in merge `4dbfa03`**, together with N-1e (entry below,
+which carries the merge facts). Stamped post-merge by STAMP-4dbfa03
+(2026-11-03), on `staging`; the heading previously read "UNPROMOTED —
+2026-11-03 — N-1e-UI: label inbox ingredient picker is a searchable combobox".
+The "staging only", "NEITHER WAS PUSHED" and "Nothing has been observed on
+staging" lines below are spent, kept.
+
+**Staging evidence (Gary, as relayed in the STAMP-4dbfa03 prompt, before
+promotion):** the searchable picker worked on `/nutrition/labels` — typing
+filtered, keyboard choice worked, the list scrolled and stayed on screen. Org
+and Clerk instance as in Gary's staging pass; not re-observed by this session.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
@@ -40,7 +146,38 @@ push: the staging-SHA precondition (deployed SHA = local `HEAD`), then Gary
 re-runs the step that found it on `/nutrition/labels` — type into "Pick the
 ingredient…", the list filters, stays on-screen, and scrolls.
 
-## UNPROMOTED — 2026-11-03 — N-1e: label inbox, batch read, review queue, read a label from a link
+## 4dbfa03 — 2026-11-03 — N-1e: label inbox, batch read, review queue, read a label from a link
+
+**PROMOTED 2026-11-03 in merge `4dbfa03`** (`4dbfa03d0d88d5f44f30fc7ffe0e7576e955b07c`,
+"Merge branch 'staging'", 2026-11-03 09:07:47 -0800 (Pacific) = 2026-11-03
+17:07:47 UTC), `--no-ff`. First parent `a00fa1e` (prior tip of `main`), second
+parent `9d2d955` (staging tip). **7 commits** in `4dbfa03^1..4dbfa03^2` —
+`c33df9d` (the a00fa1e stamp), N-1e `218e984`, `55f092e`, `bb26400`, N-1e-UI
+`23ea7d3`, `ffda710`, `9d2d955` — and **37 files**, read out of `git log` and
+`git diff --shortstat` at this stamp. `main` moved `a00fa1e..4dbfa03`; local
+`staging` fast-forwarded to it. Measured by `git rev-parse` at this stamp:
+`origin/main` = `4dbfa03`, `origin/staging` = `9d2d955` (the fast-forward was
+not yet pushed). Stamped post-merge by STAMP-4dbfa03 (2026-11-03), on
+`staging`; the heading previously read "UNPROMOTED — 2026-11-03 — N-1e: label
+inbox, batch read, review queue, read a label from a link". The "staging
+only", "NEITHER WAS PUSHED", "Nothing has been observed on staging or
+production" and "the migration has not reached either" lines below are spent,
+kept.
+
+**Migration on production: `20261103010000_n1e_label_inbox` `finished_at`
+2026-11-03 17:08:19.627415 UTC (09:08:19 PST)** on
+`br-sparkling-block-a620qvg4` (branch id read from the server in the same
+output), measured by Gary in the Neon console — 32 s after the merge.
+
+**Staging evidence (Gary, as relayed in the STAMP-4dbfa03 prompt, before
+promotion):** three labels dropped into the inbox on `/nutrition/labels` —
+Almond Breeze Original (PDF), Thirster Coconut Milk (screenshot), Oregon
+Ice-Cream Vanilla Yogurt (screenshot); all three matched and were Confirmed;
+Read all ran; the review queue applied and skipped; a product web-page link and
+`http://localhost` were both refused; the inbox survived closing and reopening
+the tab. Org and Clerk instance as in Gary's staging pass; not re-observed by
+this session. Not named in the relayed evidence (so not claimed here): the HEIC
+refusal, Discard, "Replace current label?", and a direct PDF/image link read.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next

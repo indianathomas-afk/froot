@@ -2253,8 +2253,8 @@ the word is not the check.**
 | Branch | Applied (`_prisma_migrations.finished_at`) | By |
 |---|---|---|
 | dev `br-broad-wave-a6vpjdw0` | applied (second attempt), 2026-11-02 — `finished_at` NOT read by the session; the evidence is the empty shape diff and the fixture's part 9 printing `neon.branch_id = br-broad-wave-a6vpjdw0` against the new table | Gary |
-| staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
-| production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
+| staging `br-square-feather-a63z92vz` | applied on Gary's push (`/nutrition/labels` inbox staging pass completed before promotion, per the STAMP-4dbfa03 prompt) — finished_at not read. (Was: "not yet — on Gary's push" — spent.) | Vercel build |
+| production `br-sparkling-block-a620qvg4` | **2026-11-03 17:08:19.627415 UTC** (09:08:19 PST) — 32 s after the promotion `4dbfa03` merge (17:07:47 UTC). Read by Gary in the Neon console, branch id from the server in the same output, recorded by STAMP-4dbfa03. (Was: "not yet — at promotion" — spent.) | Vercel build |
 
 **Pre-push measurement, recorded at the N-1e PRE-PUSH-CHECK (2026-11-03):**
 `n1e_applied = 0` on staging `br-square-feather-a63z92vz` and on production
@@ -2290,5 +2290,57 @@ additive.
 `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/20261103010000_n1e_label_inbox/migration.sql` ·
 the same diff with no `-o` after Gary's first apply (NOT empty — the full
 script) · the same diff after his re-apply (empty) · `npx prisma generate`.
+`npm run build` also runs `prisma generate`. No `migrate deploy`, `db execute`,
+`migrate dev`, `migrate reset` or `migrate resolve` was run by the session.
+
+## 2026-11-03 — `20261103020000_n5_square_modifiers` (N-5)
+
+**APPLIED TO DEV ONLY, by Gary**, after the N-5 Phase 2 STOP and before the
+work commit `a9ff45e` (§ A migration STOPS the session). Staging and production
+get it from the Vercel build on Gary's push and at promotion. The timestamp is
+`20261103020000` — chosen only to sort after N-1e's `20261103010000`; it is a
+name, not a clock reading.
+
+After Gary's "Applied to dev: 20261103020000_n5_square_modifiers (Datasource
+ep-late-water-a6k53nv2)", the shape diff against the dev datasource (host
+`ep-late-water-a6k53nv2`, both `.env` URLs; `env | grep -c DATABASE_URL`
+printed `0`) returned `-- This is an empty migration.` — the check, not the
+word.
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | applied 2026-11-03 — `finished_at` NOT read by the session; the evidence is the empty shape diff and the fixture's part 7 printing `neon.branch_id = br-broad-wave-a6vpjdw0` against the new tables | Gary |
+| staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
+| production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
+
+**GENERATED AGAINST THE LIVE DEV DATABASE, after a clean baseline** (the diff
+with no `-o` returned `-- This is an empty migration.` before
+`prisma/schema.prisma` was edited; datasource host `ep-late-water-a6k53nv2`).
+Every statement is generated; nothing is hand-authored, so nothing joins
+§ Protected indexes. **Additive only — no backfill, nothing dropped; the one
+existing table touched gains a nullable column:**
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "Recipe" ADD COLUMN "squareModifierId" TEXT` + unique index + FK to SquareModifier (SET NULL) | a recipe may belong to a Square modifier; at most one of salesItemId / squareModifierId (enforced in the API) |
+| `CREATE TABLE "SquareModifierList"` + unique `(organizationId, squareModifierListId)` + FK to Organization (RESTRICT) | synced, read-only |
+| `CREATE TABLE "SquareModifier"` + unique `(organizationId, squareModifierId)` + index `(modifierListId)` + FKs to Organization and SquareModifierList (RESTRICT) | synced, read-only; `recipeStatus` is Froot's |
+| `CREATE TABLE "SquareItemModifierList"` + unique `(organizationId, squareItemId, modifierListId)` + index `(organizationId, squareItemId)` + FKs to Organization (RESTRICT) and SquareModifierList (CASCADE) | item ↔ list links, keyed by the Square ITEM id; rewritten wholesale on each sync |
+
+No rows exist on any branch until an ADMIN runs "Sync from Square".
+
+**Fixture:** `scripts/verify-n5-modifiers.ts`, 51 checks, all pass, against the
+applied schema on dev `br-broad-wave-a6vpjdw0`. Its part 7 creates an "N-5
+Fixture Org", syncs a canned catalog, attaches a modifier recipe with a
+negative line, re-syncs with a modifier gone (swept to isDeleted, recipe and
+MAPPED kept; NON_RECIPE survives), and re-adds it — inside a transaction that
+is always rolled back (7i checks nothing leaked). 6j asserts the migration file
+is additive.
+
+**Prisma commands for this migration, verbatim:**
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`
+(baseline, empty) · `npx prisma format` · `npx prisma validate` ·
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/20261103020000_n5_square_modifiers/migration.sql` ·
+the same diff with no `-o` after Gary's apply (empty) · `npx prisma generate`.
 `npm run build` also runs `prisma generate`. No `migrate deploy`, `db execute`,
 `migrate dev`, `migrate reset` or `migrate resolve` was run by the session.

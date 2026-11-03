@@ -17832,7 +17832,13 @@ phases:
     # already on origin/staging). DEPLOY_LOG UNPROMOTED entry written. NOT
     # pushed when the check ran — Gary runs the push. The "is the commit
     # immediately after 23ea7d3" line above is spent, kept: it is ffda710.
-    status: staging
+    # `staging` -> `shipped` 2026-11-03, stamped post-merge 2026-11-03 by
+    # STAMP-4dbfa03 (on `staging`): merge 4dbfa03 (DEPLOY_LOG entries
+    # `4dbfa03 — 2026-11-03 — N-1e` and `— N-1e-UI`). The N-1e-UI
+    # PRE-PUSH-CHECK docs SHA is 9d2d955. Any "NOT pushed" / "staging" /
+    # "Status unchanged" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-11-03
     commits:
       - "218e984"
       # feat(N-1e): label inbox, batch read, review queue, read from a link;
@@ -17859,8 +17865,31 @@ phases:
       # N-1e-UI PRE-PUSH-CHECK
       # + the commit immediately after ffda710: docs(N-1e-UI PRE-PUSH-CHECK) —
       # row SHAs, DEPLOY_LOG entry
+      - "9d2d955"
+      # docs(N-1e-UI PRE-PUSH-CHECK): the commit named on the line above;
+      # recorded by STAMP-4dbfa03
     title: "Nutrition — read a label from a pasted link, and batch-read many labels with a review queue"
     notes: >
+      PROMOTED 2026-11-03 in merge 4dbfa03 (rider, STAMP-4dbfa03): --no-ff,
+      main a00fa1e..4dbfa03, 7 commits / 37 files (c33df9d, N-1e 218e984
+      55f092e bb26400, N-1e-UI 23ea7d3 ffda710 9d2d955), local staging
+      fast-forwarded (origin/main = 4dbfa03; origin/staging = 9d2d955, the
+      fast-forward not yet pushed — measured). Migration
+      20261103010000_n1e_label_inbox production finished_at 2026-11-03
+      17:08:19.627415 UTC (09:08:19 PST, 32 s after the merge) on
+      br-sparkling-block-a620qvg4, branch id from the server, read by Gary in
+      the Neon console. Staging (Gary, as relayed in the STAMP-4dbfa03 prompt,
+      before promotion): three labels dropped into the inbox (Almond Breeze
+      Original PDF, Thirster Coconut Milk screenshot, Oregon Ice-Cream Vanilla
+      Yogurt screenshot); the N-1e-UI searchable picker worked (typing,
+      keyboard choice, list scrolls and stays on screen); all three matched and
+      Confirmed; Read all ran; the review queue applied and skipped; a product
+      web-page link and http://localhost were both refused; the inbox survived
+      closing and reopening the tab. Not named in that evidence: the HEIC
+      refusal, Discard, "Replace current label?", a direct PDF/image link
+      read. Shipped, not verified in production. The "NOT pushed" and "Nothing
+      has been observed on staging" lines below are spent, kept.
+
       BUILT 2026-11-02, TIER 3. Prompt of record: docs/prompts/N-1e.md. Audit
       docs/prompts/N-1e_AUDIT.md. Rulings: docs/DECISIONS.md 2026-11-02 N-1e
       (Gary: "Accept all leans" — N1E-F1–F5, R1–R4), DRAFT until
@@ -18130,9 +18159,100 @@ phases:
   - id: N-5
     track: nutrition
     size: M
-    status: planned
+    # → in_progress 2026-11-03 at the work commit a9ff45e (NOT pushed). The
+    # docs SHA is the commit immediately after a9ff45e (its own SHA cannot be
+    # written inside itself).
+    # N-5 PRE-PUSH-CHECK 2026-11-03: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after 4ad86a5 (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-03 N-5 ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written.
+    # Confirmed read-only at this check: BevSpot exact-name sub-recipe reuse
+    # (F6 / BEV-1b) considers prep recipes only —
+    # src/lib/bevspot/plan-import.ts:180 skips any recipe whose recipeKind()
+    # is not "prep"; the graph comes from loadCostGraph (include, all
+    # scalars, so squareModifierId is loaded). No pre-push applied
+    # measurement on staging/production was taken at this check. Migration
+    # 20261103020000_n5_square_modifiers (additive, no backfill) rides this
+    # push. The "(NOT pushed)" and "is the commit immediately after a9ff45e"
+    # lines above are spent, kept: the docs SHA is 4ad86a5.
+    status: staging
+    commits:
+      - "a9ff45e"
+      # feat(N-5): Square modifiers — sync, modifier recipes, BevSpot modifier
+      # import; migration 20261103020000_n5_square_modifiers; fixture
+      # verify-n5-modifiers.ts, 2026-11-03
+      # + the commit immediately after a9ff45e: docs(N-5) — prompt, audit,
+      # production query, DECISIONS draft, MIGRATIONS entry, this row, N-5b
+      - "4ad86a5"
+      # docs(N-5) — the docs commit named above
+      # + the commit immediately after 4ad86a5: docs(N-5 PRE-PUSH-CHECK) —
+      # DECISIONS ratified, DEPLOY_LOG entry, this row to staging
+      - "9a069ca"
+      # fix(N-5-SYNC): batch the Square catalog sync; maxDuration back to 300,
+      # 2026-11-03 (NOT pushed) + the commit immediately after 9a069ca:
+      # docs(N-5-SYNC) — this rider, DEPLOY_LOG note, DECISIONS, prompt
+      - "2556904"
+      # docs(N-5-SYNC) — the docs commit named above
+      # + the commit immediately after 2556904: docs(N-5-SYNC PRE-PUSH-CHECK)
+      # — DECISIONS N-5-SYNC ratified ("Ratify as written"), these SHAs
     title: "Nutrition — Square modifiers (add-ons)"
     notes: >
+      BUILT 2026-11-03, TIER 3. Prompt of record: docs/prompts/N-5.md. Audit
+      docs/prompts/N-5_AUDIT.md; read-only production SQL
+      docs/prompts/N-5_PROD_QUERY.sql. Rulings: docs/DECISIONS.md 2026-11-03
+      N-5 (Gary: "Accept all leans" — N5-F1–F8), DRAFT until PRE-PUSH-CHECK
+      [ratified at the N-5 PRE-PUSH-CHECK 2026-11-03: "Ratify as written"].
+      No new Square scope (ITEMS_READ covers modifier lists; Froot still never
+      writes Square). Migration 20261103020000_n5_square_modifiers (additive:
+      SquareModifierList, SquareModifier, SquareItemModifierList, nullable
+      unique Recipe.squareModifierId), applied to dev by Gary; dev diff empty
+      after.
+      WHAT WAS BUILT: (1) "Sync from Square" also reads MODIFIER_LIST
+      (src/lib/square-modifier-sync.ts): lists, modifiers (nested or loose),
+      item↔list links from item_data.modifier_list_info; batched, after the
+      unchanged item/variation writes; unseen ones swept to isDeleted and keep
+      their recipe. (2) Modifier recipes: Recipe.squareModifierId;
+      recipeKind() replaces "salesItemId null = prep" at every site; negative
+      lines allowed on modifier recipes only, decided once in
+      validateRecipeLines; a modifier recipe is never a sub-recipe line, never
+      countable, never duplicated onto a menu item. (3) Cost and nutrition
+      signed, no clamp; negative lines add no allergens (N5-F6). Modifiers tab
+      on /inventory/recipes (+ modifiers/bulk); Modifiers section on Menu
+      Nutrition — signed unrounded deltas, "may add" allergens, cost only for
+      inventory.costs.view. Not on the public menu. (4) BevSpot: a row whose
+      Square id is a synced modifier imports as its recipe under BEV-1's rules,
+      negatives allowed for those rows only; apply marks modifiers MAPPED in
+      the same transaction. PERMISSIONS_INVENTORY: PG-21, PG-36, IV-2, SQ-6.
+      FIXTURES: verify-n5-modifiers 51/51 (part 7 on dev
+      br-broad-wave-a6vpjdw0, rolled back); BEV-1, N-1, N-1a, N-1b, N-1c,
+      N-1d, N-1e, N-2, N-3 re-run, all pass.
+      NOT VERIFIED HERE: a live Square payload (the first staging sync is the
+      proof — the audit could not observe one), the pages, and the routes'
+      role gates — Gary's staging pass. The BevSpot modifier import can only
+      be proven on production (staging's catalog has different ids): preview
+      first, read the counts with Gary, then apply.
+      Sales usage from order modifiers is N-5b.
+      RIDER 2026-11-03 (N-5-SYNC, TIER 2, docs/prompts/N-5-SYNC.md): sync
+      batched; timeout fixed — from Gary's staging test 2026-11-03, Vercel log
+      'Task timed out after 60 seconds' on /api/square/sales-items/sync. Cause:
+      Fluid default 300 s; N-5's maxDuration = 60 lowered it, under ~1,179
+      per-row upserts iad1 -> Neon us-west-2 (~80-250 s est.). Work commit
+      9a069ca: categories + sales items batched (createMany; UPDATE ... FROM
+      VALUES per 200 changed rows; unchanged rows not written — R1), modifier
+      updates batched (R2), maxDuration = 300. Rulings: DECISIONS 2026-11-03
+      N-5-SYNC (Gary: "Go as planned"). DB calls per sync, measured by
+      verify-n5-sync on dev br-broad-wave-a6vpjdw0: 11 first sync (1,200
+      rows), 9 changed catalog, 4 unchanged re-run — was ~1 per category and
+      per variation. verify-n5-sync 37/37 [CORRECTED 2026-11-03 at the
+      N-5-SYNC PRE-PUSH-CHECK: 35/35 — the script runs exactly 35 checks, none
+      conditional; re-run on dev br-broad-wave-a6vpjdw0, ALL PASS, rolled
+      back; verify-n5-modifiers 51/51 in the same run]; verify-n5-modifiers and 59 other
+      earlier fixtures pass; eng1-engagement, hr8-compliance, ms5,
+      nav1-url-sets, notify14-doc-digest fail identically at e32e22c without
+      this change (pre-existing, not N-5). NOT VERIFIED: the staging re-test
+      (Gary's push first). Promote N-5 only together with 9a069ca.
+
       FILED 2026-11-01 by the BEV-1 docs commit, as the BEV-1 prompt directed
       ("a ROW for Square modifier nutrition (add-ons) if Phase 1 A5 confirms
       modifiers aren't synced"). A5 confirmed it:
@@ -18144,6 +18264,31 @@ phases:
       ARE sellable variations and do import. Needs a read-only modifier sync
       (ITEMS_READ is already held, so no new OAuth scope) and a place for
       modifier recipes. Behind N-1. NOT SCOPED.
+
+  - id: N-5b
+    track: nutrition
+    size: M
+    status: planned
+    title: "Inventory — count Square order modifiers in theoretical usage"
+    notes: >
+      FILED 2026-11-03 by the N-5 docs commit, on Gary's ruling N5-F1
+      ("Accept all leans": sales usage in N-5b). NOT SCOPED as a prompt yet.
+      What the N-5 audit found (docs/prompts/N-5_AUDIT.md § C): theoretical
+      usage reads SalesLineCache (store × date × variation), and
+      src/lib/sales-sync.ts drops each line's modifiers[] at aggregation, so
+      no add-on, swap or removal reaches usage. Needs: parse
+      line_items[].modifiers[] (usage = line qty × modifier qty — Square:
+      total_price_money is the modifier's base price × the line's quantity);
+      a new cache table (store × date × squareModifierId) written inside
+      writeSalesCache's BUG-7 guarded transaction, after the period upsert, won
+      dates only; readers in expected-inventory (expected on-hand, weekly
+      usage → pars, alerts, order guide) and a decision for the variance,
+      profitability and item-sales reports; a history answer (days cached
+      before the change have no modifier rows — re-sync the window or a
+      "modifier sales complete since" date the engine checks, so a window is
+      never silently undercounted); and a ruling on a default-on modifier
+      removed by the buyer, which Square sends as quantity 0. Its own
+      migration. Needs no new scope (ORDERS_READ is held). Behind N-5.
 
   - id: N-6
     track: nutrition

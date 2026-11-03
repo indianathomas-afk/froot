@@ -46,6 +46,9 @@ type SubRecipeOption = {
 
 type SalesItemOption = { id: string; displayName: string; menuGroup: string | null; priceCents: number | null }
 
+// N-5: the Square modifier a modifier recipe belongs to.
+type ModifierProp = { id: string; name: string; listName: string; priceCents: number | null }
+
 type EditorLine = {
   ingredientId: string | null
   subRecipeId: string | null
@@ -68,6 +71,8 @@ type RecipeProp = {
 
 const usd = (n: number | null) =>
   n === null ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD" })
+// N5-F2: a modifier's cost carries its sign ("+$0.18", "−$0.40").
+const signedUsd = (n: number | null) => (n === null ? "—" : `${n < 0 ? "−" : "+"}${usd(Math.abs(n))}`)
 
 const UNATTACHED = "__none__"
 
@@ -75,6 +80,7 @@ export function RecipeEditorClient({
   isManager,
   recipe,
   prefillSalesItem,
+  modifier,
   ingredients,
   subRecipes,
   attachableSalesItems,
@@ -83,6 +89,7 @@ export function RecipeEditorClient({
   isManager: boolean
   recipe: RecipeProp | null
   prefillSalesItem: SalesItemOption | null
+  modifier: ModifierProp | null
   ingredients: IngredientOption[]
   subRecipes: SubRecipeOption[]
   attachableSalesItems: SalesItemOption[]
@@ -90,9 +97,10 @@ export function RecipeEditorClient({
 }) {
   const router = useRouter()
   const isNew = recipe === null
+  const isModifier = modifier !== null
   const initialSalesItem = recipe?.salesItem ?? prefillSalesItem
 
-  const [name, setName] = useState(recipe?.name ?? prefillSalesItem?.displayName ?? "")
+  const [name, setName] = useState(recipe?.name ?? modifier?.name ?? prefillSalesItem?.displayName ?? "")
   const [salesItemId, setSalesItemId] = useState<string>(initialSalesItem?.id ?? UNATTACHED)
   const [yieldQty, setYieldQty] = useState(String(recipe?.yieldQty ?? 1))
   const [yieldUnit, setYieldUnit] = useState(recipe?.yieldUnit ?? "serving")
@@ -134,12 +142,20 @@ export function RecipeEditorClient({
     }
   }, [search, ingredients, subRecipes])
 
+  // N-5 (N5-F2): only a modifier recipe may hold a negative amount — a removal
+  // ("No Banana") or the swapped-out side of a substitution. The server
+  // enforces the same rule (validateRecipeLines).
+  const amountOk = (raw: string) => {
+    const n = Number(raw)
+    return raw.trim() !== "" && Number.isFinite(n) && n !== 0 && (isModifier || n > 0)
+  }
+
   // Live line costs — mirrors the server engine using the costs shipped with
   // the page (sub-recipe unit costs are snapshots; their own lines aren't
   // being edited here).
   const lineCosts: (number | null)[] = lines.map((line) => {
     const amount = Number(line.amount)
-    if (!Number.isFinite(amount) || amount <= 0) return null
+    if (!amountOk(line.amount)) return null
     if (line.ingredientId) {
       const ing = ingredientById.get(line.ingredientId)
       if (!ing) return null
@@ -223,7 +239,8 @@ export function RecipeEditorClient({
     try {
       const payload = {
         name,
-        salesItemId: salesItemId === UNATTACHED ? null : salesItemId,
+        salesItemId: isModifier || salesItemId === UNATTACHED ? null : salesItemId,
+        ...(isNew && modifier ? { squareModifierId: modifier.id } : {}),
         yieldQty: Number(yieldQty) || 1,
         yieldUnit,
         servingSizeQty: servingSizeQty ? Number(servingSizeQty) : null,
@@ -234,7 +251,7 @@ export function RecipeEditorClient({
           amount: Number(l.amount) || 0,
           unit: l.unit,
         })),
-        ...(salesItemId === UNATTACHED ? { countable } : {}),
+        ...(!isModifier && salesItemId === UNATTACHED ? { countable } : {}),
       }
       const res = await fetch(isNew ? "/api/inventory/recipes" : `/api/inventory/recipes/${recipe!.id}`, {
         method: isNew ? "POST" : "PATCH",
@@ -283,7 +300,7 @@ export function RecipeEditorClient({
     isManager &&
     name.trim().length > 0 &&
     lines.length > 0 &&
-    lines.every((l) => Number(l.amount) > 0) &&
+    lines.every((l) => amountOk(l.amount)) &&
     Number(yieldQty) > 0
 
   return (
@@ -300,7 +317,13 @@ export function RecipeEditorClient({
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">
             {isNew ? "New Recipe" : recipe!.name}
           </h1>
-          {attachedItem && (
+          {modifier && (
+            <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
+              Modifier &ldquo;{modifier.name}&rdquo; · {modifier.listName}
+              {modifier.priceCents !== null && <> · charges {usd(modifier.priceCents / 100)}</>}
+            </p>
+          )}
+          {!modifier && attachedItem && (
             <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
               Costs &ldquo;{attachedItem.displayName}&rdquo;
               {attachedItem.priceCents !== null && <> · sells at {usd(attachedItem.priceCents / 100)}</>}
@@ -309,9 +332,11 @@ export function RecipeEditorClient({
         </div>
         {!isNew && isManager && (
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setDuplicateOpen(true)}>
-              <Copy className="h-3.5 w-3.5 mr-1.5" /> Duplicate to variation
-            </Button>
+            {!isModifier && (
+              <Button variant="outline" size="sm" onClick={() => setDuplicateOpen(true)}>
+                <Copy className="h-3.5 w-3.5 mr-1.5" /> Duplicate to variation
+              </Button>
+            )}
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm">
@@ -322,9 +347,11 @@ export function RecipeEditorClient({
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete this recipe?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {recipe!.salesItem
-                      ? `"${recipe!.salesItem.displayName}" goes back to the unmapped queue.`
-                      : "This prep recipe will be permanently removed."}
+                    {modifier
+                      ? `The modifier "${modifier.name}" goes back to unmapped.`
+                      : recipe!.salesItem
+                        ? `"${recipe!.salesItem.displayName}" goes back to the unmapped queue.`
+                        : "This prep recipe will be permanently removed."}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -369,6 +396,15 @@ export function RecipeEditorClient({
             <Label>Recipe name</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. All That Razz (L)" disabled={!isManager} />
           </div>
+          {modifier ? (
+            <div>
+              <Label>Square modifier</Label>
+              <p className="text-sm text-[var(--color-foreground)] mt-2">{modifier.name}</p>
+              <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
+                Use a negative amount for what this modifier takes out (e.g. &minus;1.6 oz Bananas for &ldquo;No Banana&rdquo;).
+              </p>
+            </div>
+          ) : (
           <div>
             <Label>Attached sales item</Label>
             <Select value={salesItemId} onValueChange={setSalesItemId} disabled={!isManager}>
@@ -386,6 +422,7 @@ export function RecipeEditorClient({
               </SelectContent>
             </Select>
           </div>
+          )}
           <div>
             <Label>Yield</Label>
             <div className="flex items-center gap-2">
@@ -394,7 +431,7 @@ export function RecipeEditorClient({
             </div>
             <p className="text-xs text-[var(--color-muted-foreground)] mt-1">How much one batch makes (e.g. 1 serving, 32 each).</p>
           </div>
-          {salesItemId === UNATTACHED && (
+          {!isModifier && salesItemId === UNATTACHED && (
             <>
               <div>
                 <Label>Typical amount used per recipe (optional)</Label>
@@ -483,7 +520,7 @@ export function RecipeEditorClient({
                       <Input
                         type="number"
                         step="any"
-                        min="0"
+                        min={isModifier ? undefined : "0"}
                         className="h-8 w-24 text-sm"
                         value={line.amount}
                         onChange={(e) => updateLine(i, { amount: e.target.value })}
@@ -499,7 +536,13 @@ export function RecipeEditorClient({
                       </Select>
                     </td>
                     <td className="px-3 py-2 text-sm text-[var(--color-foreground)] whitespace-nowrap">
-                      {lineCosts[i] === null ? <span className="text-[var(--color-muted-foreground)]">—</span> : usd(lineCosts[i])}
+                      {lineCosts[i] === null ? (
+                        <span className="text-[var(--color-muted-foreground)]">—</span>
+                      ) : isModifier ? (
+                        signedUsd(lineCosts[i])
+                      ) : (
+                        usd(lineCosts[i])
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       {isManager && (
@@ -532,7 +575,7 @@ export function RecipeEditorClient({
           </div>
           <div className="text-right">
             <p className="text-lg font-semibold text-[var(--color-foreground)]">
-              Total: {totalCost === null ? "N/A" : usd(totalCost)}
+              Total: {totalCost === null ? "N/A" : isModifier ? signedUsd(totalCost) : usd(totalCost)}
             </p>
             {liveCostPct !== null && (
               <p className="text-sm text-[var(--color-muted-foreground)]">Cost: {(liveCostPct * 100).toFixed(1)}% of price</p>

@@ -44,7 +44,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }),
   ])
   if (!source) return NextResponse.json({ error: "Recipe not found" }, { status: 404 })
-  if (!target) return NextResponse.json({ error: "Sales item not found" }, { status: 404 })
+  // N-5 (N5-F2): a modifier recipe may hold negative lines, which a sales-item
+  // recipe must never carry — so it is never copied onto one.
+  if (source.squareModifierId) {
+    return NextResponse.json({ error: "A modifier recipe can't be copied to a menu item" }, { status: 422 })
+  }
+  if (!target)return NextResponse.json({ error: "Sales item not found" }, { status: 404 })
   if (target.recipe) {
     return NextResponse.json({ error: `"${target.displayName}" already has a recipe` }, { status: 409 })
   }

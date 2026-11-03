@@ -190,6 +190,9 @@ model Organization {
   purchaseOrders                PurchaseOrder[]
   squareCategories              SquareCategory[]
   salesItems                    SalesItem[]
+  squareModifierLists           SquareModifierList[]
+  squareModifiers               SquareModifier[]
+  squareItemModifierLists       SquareItemModifierList[]
   ingredientCategories          IngredientCategory[]
   ingredients                   Ingredient[]
   ingredientDuplicateDismissals IngredientDuplicateDismissal[]
@@ -1532,6 +1535,67 @@ model SalesItem {
   @@unique([organizationId, squareVariationId])
 }
 
+// N-5: Square modifier lists and modifiers (add-ons, swaps, removals), synced
+// read-only by the same ADMIN "Sync from Square" as SalesItem. Like SalesItem,
+// a modifier Square no longer returns is swept to isDeleted and keeps its
+// recipe. Froot never writes these back to Square.
+model SquareModifierList {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  squareModifierListId String
+  name                 String
+  ordinal              Int?
+  isDeleted            Boolean  @default(false)
+  updatedAt            DateTime @updatedAt
+
+  organization Organization             @relation(fields: [organizationId], references: [id])
+  modifiers    SquareModifier[]
+  itemLinks    SquareItemModifierList[]
+
+  @@unique([organizationId, squareModifierListId])
+}
+
+// priceCents is the modifier's base price; Square location overrides are not
+// stored. recipeStatus uses SalesItem's vocabulary (UNMAPPED | MAPPED |
+// NON_RECIPE) so "no recipe needed" modifiers can be marked.
+model SquareModifier {
+  id               String   @id @default(cuid())
+  organizationId   String
+  squareModifierId String
+  modifierListId   String
+  name             String
+  priceCents       Int?
+  ordinal          Int?
+  onByDefault      Boolean  @default(false)
+  isDeleted        Boolean  @default(false)
+  recipeStatus     String   @default("UNMAPPED") // UNMAPPED | MAPPED | NON_RECIPE
+  updatedAt        DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  modifierList SquareModifierList @relation(fields: [modifierListId], references: [id])
+  recipe       Recipe?
+
+  @@unique([organizationId, squareModifierId])
+  @@index([modifierListId])
+}
+
+// Which Square items offer which modifier lists (item_data.modifier_list_info).
+// Keyed by the Square ITEM id, not a SalesItem: SalesItem is one row per
+// variation and the link lives on the item. Rewritten wholesale on each sync.
+model SquareItemModifierList {
+  id             String  @id @default(cuid())
+  organizationId String
+  squareItemId   String
+  modifierListId String
+  enabled        Boolean @default(true)
+
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  modifierList SquareModifierList @relation(fields: [modifierListId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, squareItemId, modifierListId])
+  @@index([organizationId, squareItemId])
+}
+
 model IngredientCategory {
   id             String  @id @default(cuid())
   organizationId String
@@ -1994,24 +2058,31 @@ model StoreMonthlyGoal {
 // inside other recipes. servingSize* pre-fills the amount field when this
 // recipe is added as a line in the editor. Costs are computed at read time
 // (src/lib/recipe-cost.ts) — never stored on the recipe.
+// N-5: squareModifierId set = a MODIFIER recipe (at most one of salesItemId /
+// squareModifierId, enforced in the API). Only modifier recipes may carry
+// negative lines, and a modifier recipe is never a sub-recipe line, never
+// countable, and never listed as prep — so "salesItemId null" alone no longer
+// means prep.
 model Recipe {
-  id              String   @id @default(cuid())
-  organizationId  String
-  name            String
-  salesItemId     String?  @unique
-  yieldQty        Float    @default(1)
-  yieldUnit       String   @default("serving")
-  servingSizeQty  Float?
-  servingSizeUnit String?
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String   @id @default(cuid())
+  organizationId   String
+  name             String
+  salesItemId      String?  @unique
+  squareModifierId String?  @unique
+  yieldQty         Float    @default(1)
+  yieldUnit        String   @default("serving")
+  servingSizeQty   Float?
+  servingSizeUnit  String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  organization       Organization @relation(fields: [organizationId], references: [id])
-  salesItem          SalesItem?   @relation(fields: [salesItemId], references: [id])
+  organization       Organization    @relation(fields: [organizationId], references: [id])
+  salesItem          SalesItem?      @relation(fields: [salesItemId], references: [id])
+  squareModifier     SquareModifier? @relation(fields: [squareModifierId], references: [id])
   lines              RecipeLine[]
-  usedIn             RecipeLine[] @relation("SubRecipeLine")
-  preparedIngredient Ingredient?  @relation("PreparedIngredient")
+  usedIn             RecipeLine[]    @relation("SubRecipeLine")
+  preparedIngredient Ingredient?     @relation("PreparedIngredient")
 
   @@index([organizationId])
 }

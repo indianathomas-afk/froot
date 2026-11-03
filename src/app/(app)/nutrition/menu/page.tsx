@@ -6,8 +6,10 @@ import { nutritionActive } from "@/lib/nutrition-access"
 import { ingredientDisplayName } from "@/lib/nutrition"
 import { computeAllRecipeNutrition, incompleteNutrients, loadNutritionGraph, rankBlockers } from "@/lib/recipe-nutrition"
 import { itemVerification, type ProofState } from "@/lib/nutrition-proof"
+import { computeAllRecipeCosts, loadCostGraph } from "@/lib/recipe-cost"
 import { NutritionUpgradeCard } from "../upgrade-card"
 import { MenuNutritionClient, type MenuItemRow, type BlockerRow } from "./menu-nutrition-client"
+import { ModifierNutritionTable, type ModifierNutritionRow } from "./modifier-nutrition-table"
 
 // N-1 deliverable 6: every Square sales item that has a recipe, with its
 // computed calories, key nutrients, allergens and completeness, plus the
@@ -29,13 +31,23 @@ export default async function MenuNutritionPage() {
   if (!nutritionActive(current.org)) return <NutritionUpgradeCard />
   if (!current.dbUser || !can(current.actor, "nutrition.view")) redirect("/dashboard")
 
-  const [salesItems, graph] = await Promise.all([
+  // N-5: cost is commercial (PERM-2 §3 #5) — only roles that may see recipe
+  // costs get the modifiers' cost column; nutrition.view alone includes STORE.
+  const showModifierCost = can(current.actor, "inventory.costs.view")
+
+  const [salesItems, graph, modifiers, costGraph] = await Promise.all([
     prisma.salesItem.findMany({
       where: { organizationId: current.org.id, isDeleted: false },
       select: { id: true, displayName: true, menuGroup: true, recipeStatus: true, recipe: { select: { id: true } } },
       orderBy: [{ menuGroup: "asc" }, { displayName: "asc" }],
     }),
     loadNutritionGraph(current.org.id),
+    prisma.squareModifier.findMany({
+      where: { organizationId: current.org.id, isDeleted: false },
+      select: { id: true, name: true, recipeStatus: true, recipe: { select: { id: true } }, modifierList: { select: { name: true } } },
+      orderBy: [{ modifierList: { name: "asc" } }, { ordinal: "asc" }, { name: "asc" }],
+    }),
+    showModifierCost ? loadCostGraph(current.org.id) : Promise.resolve(null),
   ])
   const results = computeAllRecipeNutrition(graph)
   const proofOf = (id: string): ProofState => graph.ingredients.get(id)?.proof ?? "NONE"
@@ -70,12 +82,38 @@ export default async function MenuNutritionPage() {
     return { ...b, name: ing ? ingredientDisplayName(ing) : "Unknown ingredient" }
   })
 
+  // N-5: modifiers with a recipe — signed deltas, never label-rounded (N5-F7).
+  const modifierCosts = costGraph ? computeAllRecipeCosts(costGraph) : null
+  const modifierRows: ModifierNutritionRow[] = modifiers
+    .filter((m) => m.recipe && results.has(m.recipe.id))
+    .map((m) => {
+      const n = results.get(m.recipe!.id)!
+      return {
+        modifierId: m.id,
+        recipeId: m.recipe!.id,
+        name: m.name,
+        listName: m.modifierList.name,
+        totals: n.totals,
+        allergens: n.allergens,
+        complete: n.complete,
+        error: n.error,
+        cost: modifierCosts?.get(m.recipe!.id)?.cost ?? null,
+      }
+    })
+
   return (
-    <MenuNutritionClient
-      items={items}
-      blockers={blockers}
-      withoutRecipeCount={salesItems.filter((s) => !s.recipe && s.recipeStatus !== "NON_RECIPE").length}
-      canManage={can(current.actor, "nutrition.manage")}
-    />
+    <>
+      <MenuNutritionClient
+        items={items}
+        blockers={blockers}
+        withoutRecipeCount={salesItems.filter((s) => !s.recipe && s.recipeStatus !== "NON_RECIPE").length}
+        canManage={can(current.actor, "nutrition.manage")}
+      />
+      <ModifierNutritionTable
+        rows={modifierRows}
+        withoutRecipeCount={modifiers.filter((m) => !m.recipe && m.recipeStatus !== "NON_RECIPE").length}
+        showCost={showModifierCost}
+      />
+    </>
   )
 }

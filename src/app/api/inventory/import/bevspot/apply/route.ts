@@ -11,6 +11,9 @@ import { summarizePlan } from "@/lib/bevspot/plan-import"
 // (F9: tx.auditLog.create, so it cannot silently go missing). Never
 // overwrites: a sales item that gained a recipe since the preview fails the
 // whole apply on Recipe.salesItemId's unique index. ADMIN only (IV-3). BEV-1.
+// N-5: modifier recipes go in the same transaction, the same way — marked
+// MAPPED, and a modifier that gained a recipe since the preview fails the
+// apply on Recipe.squareModifierId's unique index.
 
 export const maxDuration = 60
 
@@ -24,10 +27,11 @@ export async function POST(req: Request) {
   const plan = await planForOrg(ctx.orgId, upload.rows)
   const summary = summarizePlan(plan)
   if (plan.toCreate.length === 0) {
-    return NextResponse.json({ created: 0, createdSubRecipes: 0, ...previewPayload(plan) })
+    return NextResponse.json({ created: 0, createdSubRecipes: 0, createdModifierRecipes: 0, ...previewPayload(plan) })
   }
 
   const salesItemIds = plan.toCreate.flatMap((r) => (r.salesItemId ? [r.salesItemId] : []))
+  const modifierIds = plan.toCreate.flatMap((r) => (r.squareModifierId ? [r.squareModifierId] : []))
   try {
     await prisma.$transaction(
       async (tx) => {
@@ -37,6 +41,7 @@ export async function POST(req: Request) {
             organizationId: ctx.orgId,
             name: r.name,
             salesItemId: r.salesItemId,
+            squareModifierId: r.squareModifierId,
             yieldQty: 1,
             yieldUnit: "serving",
           })),
@@ -58,6 +63,11 @@ export async function POST(req: Request) {
           data: { recipeStatus: "MAPPED" },
         })
         if (mapped.count !== salesItemIds.length) throw new StaleImportError()
+        const mappedModifiers = await tx.squareModifier.updateMany({
+          where: { id: { in: modifierIds }, organizationId: ctx.orgId, isDeleted: false, recipeStatus: { not: "NON_RECIPE" } },
+          data: { recipeStatus: "MAPPED" },
+        })
+        if (mappedModifiers.count !== modifierIds.length) throw new StaleImportError()
         await tx.auditLog.create({
           data: {
             organizationId: ctx.orgId,
@@ -70,6 +80,7 @@ export async function POST(req: Request) {
               createdRecipeIds: plan.toCreate.map((r) => r.id),
               salesRecipeCount: summary.ready,
               subRecipeCount: summary.readySubRecipes,
+              modifierRecipeCount: summary.readyModifiers,
               skippedByReason: summary.skippedByReason,
             },
           },
@@ -90,7 +101,12 @@ export async function POST(req: Request) {
     throw e
   }
 
-  return NextResponse.json({ created: summary.ready, createdSubRecipes: summary.readySubRecipes, ...previewPayload(plan) })
+  return NextResponse.json({
+    created: summary.ready,
+    createdSubRecipes: summary.readySubRecipes,
+    createdModifierRecipes: summary.readyModifiers,
+    ...previewPayload(plan),
+  })
 }
 
 class StaleImportError extends Error {}

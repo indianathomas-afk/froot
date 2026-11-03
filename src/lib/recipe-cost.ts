@@ -25,12 +25,28 @@ export type GraphRecipe = {
   id: string
   name: string
   salesItemId: string | null
+  /** N-5: set = a modifier recipe (see recipeKind). Optional so hand-built
+   *  graphs (fixtures, the BevSpot planner) that predate N-5 still type. */
+  squareModifierId?: string | null
   yieldQty: number
   yieldUnit: string
   servingSizeQty: number | null
   servingSizeUnit: string | null
   isActive: boolean
   lines: GraphLine[]
+}
+
+// N-5: what a recipe is FOR. "salesItemId null" used to mean prep on its own;
+// a modifier recipe is also unattached to a sales item, so every site that asks
+// "is this prep?" asks this instead (docs/prompts/N-5_AUDIT.md § D5). A modifier
+// recipe may carry negative lines (removals / swaps), and is therefore never a
+// sub-recipe line, never countable, and never listed as prep.
+export type RecipeKind = "item" | "modifier" | "prep"
+
+export function recipeKind(r: { salesItemId: string | null; squareModifierId?: string | null }): RecipeKind {
+  if (r.squareModifierId) return "modifier"
+  if (r.salesItemId) return "item"
+  return "prep"
 }
 
 export type GraphIngredient = {
