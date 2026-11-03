@@ -2,7 +2,19 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-03 — N-1e-UI: label inbox ingredient picker is a searchable combobox
+## 4dbfa03 — 2026-11-03 — N-1e-UI: label inbox ingredient picker is a searchable combobox
+
+**PROMOTED 2026-11-03 in merge `4dbfa03`**, together with N-1e (entry below,
+which carries the merge facts). Stamped post-merge by STAMP-4dbfa03
+(2026-11-03), on `staging`; the heading previously read "UNPROMOTED —
+2026-11-03 — N-1e-UI: label inbox ingredient picker is a searchable combobox".
+The "staging only", "NEITHER WAS PUSHED" and "Nothing has been observed on
+staging" lines below are spent, kept.
+
+**Staging evidence (Gary, as relayed in the STAMP-4dbfa03 prompt, before
+promotion):** the searchable picker worked on `/nutrition/labels` — typing
+filtered, keyboard choice worked, the list scrolled and stayed on screen. Org
+and Clerk instance as in Gary's staging pass; not re-observed by this session.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
@@ -40,7 +52,38 @@ push: the staging-SHA precondition (deployed SHA = local `HEAD`), then Gary
 re-runs the step that found it on `/nutrition/labels` — type into "Pick the
 ingredient…", the list filters, stays on-screen, and scrolls.
 
-## UNPROMOTED — 2026-11-03 — N-1e: label inbox, batch read, review queue, read a label from a link
+## 4dbfa03 — 2026-11-03 — N-1e: label inbox, batch read, review queue, read a label from a link
+
+**PROMOTED 2026-11-03 in merge `4dbfa03`** (`4dbfa03d0d88d5f44f30fc7ffe0e7576e955b07c`,
+"Merge branch 'staging'", 2026-11-03 09:07:47 -0800 (Pacific) = 2026-11-03
+17:07:47 UTC), `--no-ff`. First parent `a00fa1e` (prior tip of `main`), second
+parent `9d2d955` (staging tip). **7 commits** in `4dbfa03^1..4dbfa03^2` —
+`c33df9d` (the a00fa1e stamp), N-1e `218e984`, `55f092e`, `bb26400`, N-1e-UI
+`23ea7d3`, `ffda710`, `9d2d955` — and **37 files**, read out of `git log` and
+`git diff --shortstat` at this stamp. `main` moved `a00fa1e..4dbfa03`; local
+`staging` fast-forwarded to it. Measured by `git rev-parse` at this stamp:
+`origin/main` = `4dbfa03`, `origin/staging` = `9d2d955` (the fast-forward was
+not yet pushed). Stamped post-merge by STAMP-4dbfa03 (2026-11-03), on
+`staging`; the heading previously read "UNPROMOTED — 2026-11-03 — N-1e: label
+inbox, batch read, review queue, read a label from a link". The "staging
+only", "NEITHER WAS PUSHED", "Nothing has been observed on staging or
+production" and "the migration has not reached either" lines below are spent,
+kept.
+
+**Migration on production: `20261103010000_n1e_label_inbox` `finished_at`
+2026-11-03 17:08:19.627415 UTC (09:08:19 PST)** on
+`br-sparkling-block-a620qvg4` (branch id read from the server in the same
+output), measured by Gary in the Neon console — 32 s after the merge.
+
+**Staging evidence (Gary, as relayed in the STAMP-4dbfa03 prompt, before
+promotion):** three labels dropped into the inbox on `/nutrition/labels` —
+Almond Breeze Original (PDF), Thirster Coconut Milk (screenshot), Oregon
+Ice-Cream Vanilla Yogurt (screenshot); all three matched and were Confirmed;
+Read all ran; the review queue applied and skipped; a product web-page link and
+`http://localhost` were both refused; the inbox survived closing and reopening
+the tab. Org and Clerk instance as in Gary's staging pass; not re-observed by
+this session. Not named in the relayed evidence (so not claimed here): the HEIC
+refusal, Discard, "Replace current label?", and a direct PDF/image link read.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next

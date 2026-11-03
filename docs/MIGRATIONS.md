@@ -2253,8 +2253,8 @@ the word is not the check.**
 | Branch | Applied (`_prisma_migrations.finished_at`) | By |
 |---|---|---|
 | dev `br-broad-wave-a6vpjdw0` | applied (second attempt), 2026-11-02 — `finished_at` NOT read by the session; the evidence is the empty shape diff and the fixture's part 9 printing `neon.branch_id = br-broad-wave-a6vpjdw0` against the new table | Gary |
-| staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
-| production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
+| staging `br-square-feather-a63z92vz` | applied on Gary's push (`/nutrition/labels` inbox staging pass completed before promotion, per the STAMP-4dbfa03 prompt) — finished_at not read. (Was: "not yet — on Gary's push" — spent.) | Vercel build |
+| production `br-sparkling-block-a620qvg4` | **2026-11-03 17:08:19.627415 UTC** (09:08:19 PST) — 32 s after the promotion `4dbfa03` merge (17:07:47 UTC). Read by Gary in the Neon console, branch id from the server in the same output, recorded by STAMP-4dbfa03. (Was: "not yet — at promotion" — spent.) | Vercel build |
 
 **Pre-push measurement, recorded at the N-1e PRE-PUSH-CHECK (2026-11-03):**
 `n1e_applied = 0` on staging `br-square-feather-a63z92vz` and on production

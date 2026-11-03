@@ -17832,7 +17832,13 @@ phases:
     # already on origin/staging). DEPLOY_LOG UNPROMOTED entry written. NOT
     # pushed when the check ran — Gary runs the push. The "is the commit
     # immediately after 23ea7d3" line above is spent, kept: it is ffda710.
-    status: staging
+    # `staging` -> `shipped` 2026-11-03, stamped post-merge 2026-11-03 by
+    # STAMP-4dbfa03 (on `staging`): merge 4dbfa03 (DEPLOY_LOG entries
+    # `4dbfa03 — 2026-11-03 — N-1e` and `— N-1e-UI`). The N-1e-UI
+    # PRE-PUSH-CHECK docs SHA is 9d2d955. Any "NOT pushed" / "staging" /
+    # "Status unchanged" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-11-03
     commits:
       - "218e984"
       # feat(N-1e): label inbox, batch read, review queue, read from a link;
@@ -17859,8 +17865,31 @@ phases:
       # N-1e-UI PRE-PUSH-CHECK
       # + the commit immediately after ffda710: docs(N-1e-UI PRE-PUSH-CHECK) —
       # row SHAs, DEPLOY_LOG entry
+      - "9d2d955"
+      # docs(N-1e-UI PRE-PUSH-CHECK): the commit named on the line above;
+      # recorded by STAMP-4dbfa03
     title: "Nutrition — read a label from a pasted link, and batch-read many labels with a review queue"
     notes: >
+      PROMOTED 2026-11-03 in merge 4dbfa03 (rider, STAMP-4dbfa03): --no-ff,
+      main a00fa1e..4dbfa03, 7 commits / 37 files (c33df9d, N-1e 218e984
+      55f092e bb26400, N-1e-UI 23ea7d3 ffda710 9d2d955), local staging
+      fast-forwarded (origin/main = 4dbfa03; origin/staging = 9d2d955, the
+      fast-forward not yet pushed — measured). Migration
+      20261103010000_n1e_label_inbox production finished_at 2026-11-03
+      17:08:19.627415 UTC (09:08:19 PST, 32 s after the merge) on
+      br-sparkling-block-a620qvg4, branch id from the server, read by Gary in
+      the Neon console. Staging (Gary, as relayed in the STAMP-4dbfa03 prompt,
+      before promotion): three labels dropped into the inbox (Almond Breeze
+      Original PDF, Thirster Coconut Milk screenshot, Oregon Ice-Cream Vanilla
+      Yogurt screenshot); the N-1e-UI searchable picker worked (typing,
+      keyboard choice, list scrolls and stays on screen); all three matched and
+      Confirmed; Read all ran; the review queue applied and skipped; a product
+      web-page link and http://localhost were both refused; the inbox survived
+      closing and reopening the tab. Not named in that evidence: the HEIC
+      refusal, Discard, "Replace current label?", a direct PDF/image link
+      read. Shipped, not verified in production. The "NOT pushed" and "Nothing
+      has been observed on staging" lines below are spent, kept.
+
       BUILT 2026-11-02, TIER 3. Prompt of record: docs/prompts/N-1e.md. Audit
       docs/prompts/N-1e_AUDIT.md. Rulings: docs/DECISIONS.md 2026-11-02 N-1e
       (Gary: "Accept all leans" — N1E-F1–F5, R1–R4), DRAFT until
