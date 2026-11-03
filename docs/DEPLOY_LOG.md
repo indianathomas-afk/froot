@@ -2,7 +2,155 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-02 — N-3: public nutrition menu (/menu/<slug>, link + embed), Verified sizes only
+## UNPROMOTED — 2026-11-03 — N-1e-UI: label inbox ingredient picker is a searchable combobox
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+Rides the same promotion as the N-1e entry below, which it amends.
+
+**Payload: two N-1e-UI commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `23ea7d3`, `ffda710`, on top of `origin/staging`
+(`bb26400`). **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `23ea7d3` | N-1e-UI work: `src/app/(app)/nutrition/labels/ingredient-picker.tsx` only — Radix Select replaced by a Popover + search-input combobox |
+| `ffda710` | `docs(N-1e-UI)`: rider on the N-1e ROADMAP row, prompt of record `docs/prompts/N-1e-UI.md` |
+| the commit immediately after `ffda710` | `docs(N-1e-UI PRE-PUSH-CHECK)`: this entry, row SHAs |
+
+**Blast radius: ONE CLIENT COMPONENT, NUTRITION ONLY, ADMIN ONLY.** No
+migration, no schema, no route, no env var, no cron, no Square call. The picker
+renders in two places — the inbox row and the review queue card on
+`/nutrition/labels` — and both get the new behaviour. Type to filter on the
+display name (brand + name; case- and accent-insensitive, every word must
+match), arrows + Enter to choose, Escape to close; the list is capped to the
+viewport and flips above only when there is no room below. **Unchanged:** the
+suggestion still needs Confirm, nothing is assigned without a click, the
+ingredient list (PREPARED and not-food exclusions) is the same.
+
+**Rollback:** revert `23ea7d3`. The picker goes back to the N-1e Select; nothing
+else moves. The docs commits can stay or go with it.
+
+**Evidence so far: fixture, build and a local render only.** Per the work
+commit: `verify-n1e` 84/84, `npm run build` green, and a local render on a
+temporary `/menu` page (deleted) with 225 sample ingredients. The build was
+re-run green at this check. **Nothing has been observed on staging.** After the
+push: the staging-SHA precondition (deployed SHA = local `HEAD`), then Gary
+re-runs the step that found it on `/nutrition/labels` — type into "Pick the
+ingredient…", the list filters, stays on-screen, and scrolls.
+
+## UNPROMOTED — 2026-11-03 — N-1e: label inbox, batch read, review queue, read a label from a link
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two N-1e commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `218e984`, `55f092e`, on top of `origin/staging`
+(`c33df9d`). **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `218e984` | N-1e work: migration `20261103010000_n1e_label_inbox`; `schema.prisma` (`NutritionLabelInboxItem`, `NutritionInboxStatus`); ADMIN page `/nutrition/labels` (sidebar "Label Inbox") and routes NU-12–NU-16 under `api/nutrition/labels/`; dialog route `ingredients/[id]/label/from-link`; `src/lib/safe-fetch.ts` (link fetcher), `label-read-run.ts` (the one shared read run), `label-inbox.ts`, `label-match.ts`, `nutrition-label-attach.ts`; the N-1c `label/read` and `label` routes refactored onto the shared run; PERMISSIONS_INVENTORY NU-12–NU-16, PG-43, NV-18, NU-6/7/8 corrected; fixture `scripts/verify-n1e.ts` |
+| `55f092e` | `docs(N-1e)`: prompt of record `docs/prompts/N-1e.md`, audit `docs/prompts/N-1e_AUDIT.md`, DECISIONS draft, MIGRATIONS entry, row `in_progress` |
+| the commit immediately after `55f092e` | `docs(N-1e PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`; DECISIONS ratified by Gary at this check ("Ratify as written"); the pre-push `applied = 0` measurement recorded in MIGRATIONS |
+
+**Blast radius: NUTRITION ONLY, ADMIN ONLY — BUT IT ADDS FROOT'S FIRST SERVER
+FETCH OF A USER-SUPPLIED URL, AND IT CHANGES HOW THE EXISTING N-1c READ IS
+COUNTED.** Additive schema migration (no backfill). No new env var, no cron, no
+Square call, no `next.config.ts` / `src/proxy.ts` change. Uses the existing
+`ANTHROPIC_API_KEY` and `NUTRITION_BLOB_READ_WRITE_TOKEN`.
+
+- **Link fetcher (`src/lib/safe-fetch.ts`, N1E-F4 / R3) — the new attack
+  surface.** An ADMIN can paste a URL and the server fetches it. https and
+  port 443 only, no `user:pass@`, every resolved address checked at connect
+  time (custom `lookup` on `node:https`, defeating DNS rebinding), redirects
+  re-checked (max 3), 15 s, 10 MB enforced while streaming, type by
+  Content-Type AND first bytes, HTML refused, no cookies or credentials sent.
+  Nothing outside `/nutrition/labels` and the ingredient dialog's Proof box
+  calls it.
+- **The N-1c read limit is now ONE pool.** 30/hour and 300/day per org are
+  unchanged, but dialog reads and inbox reads now count against the same
+  limit (`src/lib/label-read-run.ts`). An org that used the dialog heavily can
+  hit the limit sooner than before once it also uses the inbox. The N-1c
+  dialog's read and label routes were refactored onto the shared run; their
+  responses are meant to be unchanged.
+- **Migration `20261103010000_n1e_label_inbox`, applied by `prisma migrate
+  deploy` in the Vercel build** — staging on this push, production at
+  promotion. Additive only: one enum (`NutritionInboxStatus`), one table
+  (`NutritionLabelInboxItem`), one index, one FK to `Organization` **ON DELETE
+  RESTRICT** — an org with inbox rows cannot be hard-deleted until they are
+  gone. No existing table altered, nothing dropped. Pre-push measurement
+  (Gary, Neon console, branch id from the server): `n1e_applied = 0` on
+  staging `br-square-feather-a63z92vz` and production
+  `br-sparkling-block-a620qvg4`.
+- **What is new:** `/nutrition/labels` (ADMIN) — drop many files, one row
+  each, ingredient suggested and never assigned; Read all / selected one at a
+  time, stopping at the limit with "N left — continue after …"; the review
+  queue (Apply & mark verified / Apply only / Skip / Discard; Apply copies the
+  file into the ingredient's folder and then calls the UNCHANGED PUT + verify
+  routes); "Replace current label?" before a replace; leftovers 7+ days old
+  with "Discard all older than 7 days". "Add from link" in the ingredient
+  dialog's Proof box.
+- **What does not change:** no new write path for nutrition values — Apply
+  goes through the N-1c/N-1d PUT and verify routes. Nothing writes to Square.
+
+**Rollback:** revert `218e984`. That removes the inbox page, its routes, the
+link fetcher and the shared read run together, and puts the N-1c dialog's read
+and label routes back to their pre-N-1e code. **The migration stays**
+(additive-only: never drop the table or enum by hand); inbox rows stay in their
+table, unread by the pre-N-1e code, and their files stay in the private store
+under `nutrition/{org}/inbox/`. Without a deploy: switching "nutrition" off for
+the org (Neon console) closes the inbox with the rest of the module. The docs
+commits can stay or go with it.
+
+**Evidence so far: fixtures and build only.** `scripts/verify-n1e.ts` 84/84
+PASS, re-run at this check (2026-11-03) against the applied schema on dev
+`br-broad-wave-a6vpjdw0` (database part rolled back, 9g); the build session
+also reported N-1, N-1a, N-1b, N-1c, N-1d, N-2, N-3, BEV-1 all passing, per
+the work commit. **Nothing has been observed on staging or production**, and
+the migration has not reached either. **Not covered by any fixture:** the blob
+copy/put/delete (no Development store connection), the model call, and the
+live pages. After the push, in order: the build log shows the migration
+applied on staging; the staging-SHA precondition (deployed SHA = local
+`HEAD`); then Gary's staging pass — drop several labels on `/nutrition/labels`
+(one HEIC, refused); a suggestion that is NOT assigned until confirmed; Read
+all to completion; Apply & mark verified on one, Apply only on another, Skip,
+Discard; "Replace current label?" on an ingredient that already has one; a
+link to a direct PDF/image read in the dialog's Proof box and in the inbox; an
+HTML product-page link refused. Nothing is promoted until Gary confirms it on
+staging.
+
+## a00fa1e — 2026-11-02 — N-3: public nutrition menu (/menu/<slug>, link + embed), Verified sizes only
+
+**PROMOTED 2026-11-02 in merge `a00fa1e`** (`a00fa1ed92f90bb27c3ed28b187ada47e0cabe68`,
+"Merge branch 'staging'", 2026-11-02 16:09:09 -0800 (Pacific) = 2026-11-03
+00:09:09 UTC), `--no-ff`. First parent `8c94126` (prior tip of `main`), second
+parent `12bd2b4` (staging tip). **3 commits** in `a00fa1e^1..a00fa1e^2` —
+`68571da`, `e73a60c`, `12bd2b4` — and **28 files**, read out of `git log` and
+`git diff --shortstat` at this stamp. `main` moved `8c94126..a00fa1e`;
+`staging` fast-forwarded to it (`origin/main` = `origin/staging` = `a00fa1e`,
+measured by `git rev-parse` at this stamp). Stamped post-merge by
+STAMP-a00fa1e (2026-11-02), on `staging`; the heading previously read
+"UNPROMOTED — 2026-11-02 — N-3: public nutrition menu (/menu/<slug>, link +
+embed), Verified sizes only". The "staging only", "NEITHER WAS PUSHED" and
+"Nothing has been observed on staging or production" lines below are spent,
+kept.
+
+**Migration on production: `20261103000000_n3_public_menu` `finished_at`
+2026-11-03 00:09:51.972546 UTC (2026-11-02 16:09:51 PST)** on
+`br-sparkling-block-a620qvg4` (branch id read from the server in the same
+output), measured by Gary in the Neon console — 43 s after the merge.
+
+**Staging evidence (Gary, as relayed in the STAMP-a00fa1e prompt, before
+promotion):** `/menu/keva-juice-staging` showed Liquid Olympian Smoothie
+**S: 60 cal** (Almond Breeze Original, 8 fl oz, Verified); M / Kids / L
+"coming soon"; item allergens "coming soon" (N3-F7); the cross-contact notice
+under the filter; no prices or ingredients. Sign-out/sign-in, Settings and HR
+pages worked under the new app-wide framing headers. Org and Clerk instance as
+in Gary's staging pass; not re-observed by this session. **The public menu was
+left OFF on production.**
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next

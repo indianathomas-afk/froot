@@ -334,14 +334,14 @@ export function reviewAllergens(containsText: string, modelAllergens: Allergen[]
 
 // ─── Name check (N1C-F3, Gary 2026-11-02: "Name mismatch is a warning plus a
 // 'This is the product we use' tickbox, checked in code.") ────────────────────
-const VARIANT_WORDS = new Set([
+export const VARIANT_WORDS = new Set([
   "original", "unsweetened", "sweetened", "vanilla", "chocolate", "strawberry", "light", "lite", "zero", "sugarfree",
   "nosugar", "organic", "barista", "plain", "unflavored", "reduced", "lowfat", "nonfat", "fatfree", "whole", "skim",
   "decaf", "diet", "keto", "honey", "salted", "unsalted",
 ])
 const STOP_WORDS = new Set(["the", "and", "of", "with", "a", "brand", "inc", "co", "company", "foods", "beverage", "drink"])
 
-function words(s: string): string[] {
+export function words(s: string): string[] {
   return s
     .toLowerCase()
     .replace(/sugar[\s-]+free/g, "sugarfree")
@@ -376,6 +376,17 @@ export function nameWarning(label: { productName: string; brand: string }, ingre
 // ─── The review screen's model (deliverable 3) ───────────────────────────────
 
 export type StoredNutrition = { basisAmount: number; basisUnit: string; values: Record<NutrientKey, number | null> } | null
+
+/** The saved numbers a review compares against, from the serialized record
+ *  GET /api/nutrition/ingredients/[id] returns. A proof-only record has no
+ *  numbers to compare against (N1D-F1). Shared by the dialog and the N-1e
+ *  queue so the two reviews can't differ. */
+export function storedForReview(
+  n: ({ basisAmount: number | null; basisUnit: string | null } & Partial<Record<NutrientKey, number | null>>) | null
+): StoredNutrition {
+  if (!n || n.basisAmount === null || n.basisUnit === null) return null
+  return { basisAmount: n.basisAmount, basisUnit: n.basisUnit, values: Object.fromEntries(NUTRIENTS.map((nt) => [nt.key, n[nt.key] ?? null])) as Record<NutrientKey, number | null> }
+}
 
 export type NutrientRow = {
   key: NutrientKey

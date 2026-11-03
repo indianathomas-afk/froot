@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ALLERGENS, NUTRIENTS, allergenLabel, allowedBasisUnits, type NutrientKey } from "@/lib/nutrition"
 import { PROOF_LABEL, type ProofState } from "@/lib/nutrition-proof"
-import { buildLabelReview, parseLabelOutput, type LabelReview } from "@/lib/label-review"
+import { buildLabelReview, parseLabelOutput, storedForReview, type LabelReview } from "@/lib/label-review"
 import { LabelReadReview, type ReviewedValues } from "./label-read-review"
 
 // N-1 deliverable 7: nutrition, allergens and the not-food flag, as a section
@@ -126,6 +126,7 @@ const fmtSize = (b: number | null) => (b === null ? "" : b >= 1024 * 1024 ? `${(
 type Question =
   | { kind: "still-verified"; answer: (keep: boolean) => void }
   | { kind: "remove-label"; answer: () => void }
+  | { kind: "replace-label"; answer: () => void }
 
 export function NutritionSection({
   ingredientId,
@@ -144,6 +145,7 @@ export function NutritionSection({
   const [question, setQuestion] = useState<Question | null>(null)
   const [reading, setReading] = useState(false)
   const [read, setRead] = useState<{ readId: string; readAt: string; reused: boolean; review: LabelReview } | null>(null)
+  const [labelLink, setLabelLink] = useState("")
   const fileInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -287,6 +289,33 @@ export function NutritionSection({
     })
   }
 
+  // N-1e deliverable 4: the server fetches a direct PDF/image link (SSRF-guarded,
+  // src/lib/safe-fetch.ts) and it becomes the label document like an upload,
+  // with the source link set. N1E-F5 / R4: this path asks "Replace current
+  // label?" — the Upload/Replace button above does not.
+  function addLabelFromLink(answers: { replaceLabel?: boolean; keepVerified?: boolean } = {}) {
+    const url = labelLink.trim()
+    if (!url) return
+    run(async () => {
+      const res = await fetch(`${labelHref}/from-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, ...answers }),
+      })
+      if (res.status === 409) {
+        const body = await res.clone().json().catch(() => ({}))
+        if (body.code === "CONFIRM_REPLACE") {
+          setQuestion({ kind: "replace-label", answer: () => addLabelFromLink({ ...answers, replaceLabel: true }) })
+          return
+        }
+      }
+      if (await handle(res, "Label document saved from the link", { stillVerified: (keep) => addLabelFromLink({ ...answers, keepVerified: keep }) })) {
+        setRead(null)
+        setLabelLink("")
+      }
+    })
+  }
+
   // N1D-F2: removing the document always resets a verified record; never asked.
   function removeLabel() {
     run(async () => {
@@ -314,16 +343,12 @@ export function NutritionSection({
           setMessage({ ok: false, text: parsed.error })
           return
         }
-        const sn = snapshot.nutrition
-        // A proof-only record has no numbers to compare against (N1D-F1).
-        const stored = sn && sn.basisAmount !== null && sn.basisUnit !== null
-          ? { basisAmount: sn.basisAmount, basisUnit: sn.basisUnit, values: Object.fromEntries(NUTRIENTS.map((nt) => [nt.key, sn[nt.key]])) as Record<NutrientKey, number | null> }
-          : null
         setRead({
           readId: body.readId,
           readAt: body.readAt,
           reused: Boolean(body.reused),
-          review: buildLabelReview(parsed.output, snapshot, stored),
+          // A proof-only record has no numbers to compare against (N1D-F1).
+          review: buildLabelReview(parsed.output, snapshot, storedForReview(snapshot.nutrition)),
         })
       })
       .catch(() => setMessage({ ok: false, text: "Reading the label failed" }))
@@ -529,6 +554,21 @@ export function NutritionSection({
                   if (f) upload(f)
                 }}
               />
+              {canEdit && (
+                <div className="flex items-center gap-2 mt-2">
+                  <Input
+                    type="url"
+                    className="h-8 text-xs"
+                    placeholder="…or paste a direct link to the label PDF or image"
+                    value={labelLink}
+                    disabled={saving}
+                    onChange={(e) => setLabelLink(e.target.value)}
+                  />
+                  <Button variant="outline" size="sm" className="shrink-0" disabled={saving || !labelLink.trim()} onClick={() => addLabelFromLink()}>
+                    Add from link
+                  </Button>
+                </div>
+              )}
             </div>
             {canEdit && (
               <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -598,6 +638,20 @@ export function NutritionSection({
                   Mark estimated
                 </AlertDialogAction>
                 <AlertDialogAction onClick={() => { setQuestion(null); question.answer(true) }}>Still verified</AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+          {question?.kind === "replace-label" && (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Replace current label?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This ingredient already has a label document. The current file is deleted once the one from the link replaces it.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => { setQuestion(null); question.answer() }}>Replace</AlertDialogAction>
               </AlertDialogFooter>
             </>
           )}

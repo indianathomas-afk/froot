@@ -17804,9 +17804,98 @@ phases:
   - id: N-1e
     track: nutrition
     size: M
-    status: planned
+    # → in_progress 2026-11-02 at the work commit 218e984 (NOT pushed). The
+    # docs SHA is the commit immediately after 218e984 (its own SHA cannot be
+    # written inside itself).
+    # N-1e PRE-PUSH-CHECK 2026-11-03: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after 55f092e (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-02 N-1e ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written.
+    # verify-n1e re-run at this check: 84/84 on dev br-broad-wave-a6vpjdw0.
+    # Pre-push n1e_applied = 0 on staging br-square-feather-a63z92vz and
+    # production br-sparkling-block-a620qvg4 (Gary, Neon console, branch id
+    # from the server; recorded in MIGRATIONS). Migration
+    # 20261103010000_n1e_label_inbox (additive, no backfill) rides this push.
+    # The "(NOT pushed)" and "is the commit immediately after 218e984" lines
+    # above are spent, kept: the docs SHA is 55f092e.
+    # Rider 2026-11-03 (N-1e-UI, TIER 2): inbox picker made searchable; list
+    # scroll fixed — from Gary's staging test 2026-11-03. Work commit 23ea7d3
+    # (ingredient-picker.tsx only: Popover + search combobox replaces the
+    # Select; serves both the inbox row and the review queue card). Docs SHA
+    # is the commit immediately after 23ea7d3 (its own SHA cannot be written
+    # inside itself). Prompt docs/prompts/N-1e-UI.md. verify-n1e 84/84, build
+    # green. NOT pushed when written — Gary runs the push. Status unchanged.
+    # N-1e-UI PRE-PUSH-CHECK 2026-11-03: docs SHA ffda710 recorded; this
+    # check's commit is the commit immediately after ffda710 (its own SHA
+    # cannot be written inside itself). No ruling. Status stays staging (N-1e
+    # already on origin/staging). DEPLOY_LOG UNPROMOTED entry written. NOT
+    # pushed when the check ran — Gary runs the push. The "is the commit
+    # immediately after 23ea7d3" line above is spent, kept: it is ffda710.
+    status: staging
+    commits:
+      - "218e984"
+      # feat(N-1e): label inbox, batch read, review queue, read from a link;
+      # migration 20261103010000_n1e_label_inbox; fixture verify-n1e.ts,
+      # 2026-11-02
+      # + the commit immediately after 218e984: docs(N-1e) — prompt, audit,
+      # DECISIONS draft, MIGRATIONS entry, this row
+      - "55f092e"
+      # docs(N-1e): the docs commit named on the line above; recorded by the
+      # N-1e PRE-PUSH-CHECK
+      # + the commit immediately after 55f092e: docs(N-1e PRE-PUSH-CHECK) —
+      # DECISIONS ratified, pre-push applied = 0 recorded, this row to
+      # staging, DEPLOY_LOG entry
+      - "bb26400"
+      # docs(N-1e PRE-PUSH-CHECK): the commit named on the line above;
+      # recorded by N-1e-UI
+      - "23ea7d3"
+      # fix(N-1e-UI): label inbox ingredient picker is a searchable combobox,
+      # 2026-11-03
+      # + the commit immediately after 23ea7d3: docs(N-1e-UI) — this rider,
+      # prompt
+      - "ffda710"
+      # docs(N-1e-UI): the commit named on the line above; recorded by the
+      # N-1e-UI PRE-PUSH-CHECK
+      # + the commit immediately after ffda710: docs(N-1e-UI PRE-PUSH-CHECK) —
+      # row SHAs, DEPLOY_LOG entry
     title: "Nutrition — read a label from a pasted link, and batch-read many labels with a review queue"
     notes: >
+      BUILT 2026-11-02, TIER 3. Prompt of record: docs/prompts/N-1e.md. Audit
+      docs/prompts/N-1e_AUDIT.md. Rulings: docs/DECISIONS.md 2026-11-02 N-1e
+      (Gary: "Accept all leans" — N1E-F1–F5, R1–R4), DRAFT until
+      PRE-PUSH-CHECK. Migration 20261103010000_n1e_label_inbox (additive:
+      NutritionLabelInboxItem + NutritionInboxStatus), applied to dev by Gary
+      on the second attempt — the first did not land (docs/MIGRATIONS.md).
+      WHAT WAS BUILT: (1) /nutrition/labels (ADMIN, sidebar "Label Inbox"):
+      drop many PDF/PNG/JPG/WEBP files (HEIC refused with the N-1c note), one
+      persisted row each; an ingredient SUGGESTED from the file name and then
+      the printed product name, never assigned (only PATCH
+      /api/nutrition/labels/[id] writes ingredientId). (2) Read all /
+      selected, one at a time, inside the unchanged 30/hour · 300/day limit,
+      which now counts dialog and inbox reads in ONE pool
+      (src/lib/label-read-run.ts, the single model call site); stops with "N
+      left — continue after …"; failures per row. An inbox read is reusable
+      for the item's life in the inbox (R1). (3) Review queue: the N-1c review
+      unchanged; Apply = attach (copy inside the private store into the
+      ingredient's folder, R2; "Replace current label?" first, F5) then the
+      UNCHANGED PUT + verify routes. (4) Read from a link in the dialog's
+      Proof box and the inbox — src/lib/safe-fetch.ts, Froot's first server
+      fetch of a user-supplied URL: https/443 only, address checked at
+      connect time (custom lookup on node:https, R3), redirects re-checked
+      (max 3), 15 s, 10 MB while streaming, type by header AND first bytes,
+      HTML refused. (5) Leftovers 7+ days old with "Discard all older than 7
+      days"; discard deletes the file. PERMISSIONS_INVENTORY: NU-12–NU-16,
+      PG-43, NV-18; NU-6/NU-7/NU-8 corrected to the N-1d rules (Gary's ask).
+      FIXTURES: verify-n1e 84/84 (part 9 on dev br-broad-wave-a6vpjdw0,
+      rolled back); N-1, N-1a, N-1b, N-1c, N-1d, N-2, N-3, BEV-1 re-run, all
+      pass. verify-nav1-url-sets exits 1 both before and after this work (its
+      NAV-1 baseline 10439b3 predates every nutrition page); the only change
+      in its output is /nutrition/labels GAINED for ADMIN, nothing LOST.
+      NOT VERIFIED HERE: the blob copy/put/delete (no Development store
+      connection), the model, and the live pages — Gary's staging pass. The
+      page was rendered locally against mocked APIs (temp harness, deleted).
+
       FILED 2026-11-02 by the N-1d docs commit: the ORIGINAL scope of the
       N-1d row, moved here unchanged when N-1d was rescoped to the label
       workflow fixes (docs/prompts/N-1d.md: "Batch reading and reading from a
@@ -17961,7 +18050,12 @@ phases:
     # framing headers ride this push. The "(NOT pushed)" and "is the commit
     # immediately after 68571da" lines above are spent, kept: the docs SHA is
     # e73a60c.
-    status: staging
+    # `staging` -> `shipped` 2026-11-02, stamped post-merge 2026-11-02 by
+    # STAMP-a00fa1e (on `staging`): merge a00fa1e (DEPLOY_LOG entry
+    # `a00fa1e — 2026-11-02 — N-3`). The PRE-PUSH-CHECK docs SHA is 12bd2b4.
+    # Any "NOT pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-11-02
     commits:
       - "68571da"
       # feat(N-3): public nutrition menu — /menu/[slug] link + embed, Verified
@@ -17976,8 +18070,27 @@ phases:
       # + the commit immediately after e73a60c: docs(N-3 PRE-PUSH-CHECK) —
       # DECISIONS ratified, N-2 production finished_at, this row to staging,
       # DEPLOY_LOG entry
+      - "12bd2b4"
+      # docs(N-3 PRE-PUSH-CHECK): the commit named on the line above; recorded
+      # by STAMP-a00fa1e
     title: "Nutrition — public menu page (/menu/[orgSlug], SSR, iframe-embeddable)"
     notes: >
+      PROMOTED 2026-11-02 in merge a00fa1e (rider, STAMP-a00fa1e): --no-ff,
+      main 8c94126..a00fa1e, staging fast-forwarded (origin/main =
+      origin/staging = a00fa1e, measured). Migration
+      20261103000000_n3_public_menu production finished_at 2026-11-03
+      00:09:51.972546 UTC (16:09:51 PST, 43 s after the merge) on
+      br-sparkling-block-a620qvg4, branch id from the server, read by Gary in
+      the Neon console. Staging (Gary, as relayed in the STAMP-a00fa1e prompt,
+      before promotion): /menu/keva-juice-staging showed Liquid Olympian
+      Smoothie S: 60 cal (Almond Breeze Original, 8 fl oz, Verified), M / Kids
+      / L "coming soon", item allergens "coming soon" (N3-F7), the
+      cross-contact notice under the filter, no prices or ingredients;
+      sign-out/sign-in, Settings and HR pages worked under the new app-wide
+      framing headers. The public menu was left OFF on production. Shipped,
+      not verified in production. The "NOT pushed" and "NOT VERIFIED ON
+      STAGING" lines below are spent, kept.
+
       BUILT 2026-11-02 (work 68571da, NOT pushed), on Gary's ruling "Accept all
       leans" (DECISIONS 2026-11-02 N-3, DRAFT; audit docs/prompts/N-3_AUDIT.md;
       prompt docs/prompts/N-3.md). The public menu is /menu/<slug> (an

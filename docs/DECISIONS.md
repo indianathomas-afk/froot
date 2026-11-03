@@ -5,6 +5,86 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-02 — N-1e: label inbox, batch read, review queue, read from a link — forks N1E-F1–F5 and R1–R4 (Gary)
+
+**RATIFIED BY GARY, 2026-11-03, at the N-1e PRE-PUSH-CHECK, as written:**
+"Ratify as written". The "DRAFT" paragraph below is spent, kept; the heading's
+"— DRAFT" suffix was removed at this check.
+
+**DRAFT — ruled by Gary in chat 2026-11-02 at the N-1e Phase 1 STOP; to be
+ratified at PRE-PUSH-CHECK.** The audit he ruled on is
+`docs/prompts/N-1e_AUDIT.md` (forks N1E-F1–F5 from the prompt; RULING NOW
+R1–R4 raised by the audit). His words, recorded exactly:
+
+> "Accept all leans"
+
+That is the whole ruling. **The leans are the audit's and the planning chat's
+wording, not Gary's;** they are listed below so the ruling can be read without
+the audit open, and the audit is the text of record for each. Accepted as
+leaned:
+
+- **N1E-F1** Persisted inbox: yes, a small table (`NutritionLabelInboxItem`),
+  so progress and paid reads survive a refresh or a closed tab.
+- **N1E-F2** Matching: suggest, never assign; the ADMIN confirms every file's
+  ingredient before Apply is enabled.
+- **N1E-F3** Batch reads: sequential, inside N-1c's 30/hour and 300/day
+  limits, stop and resume at a limit; no limit increase.
+- **N1E-F4** Link fetching safety: https only; resolve DNS and refuse
+  private, loopback, link-local, metadata and other non-public addresses,
+  re-checked after every redirect, max 3 redirects; 10 MB cap enforced while
+  streaming; short timeout; only PDF/PNG/JPEG/WEBP by both Content-Type and
+  first bytes; never send cookies or credentials; HTML refused. Plus the
+  audit's additions: the address checked at connect time (DNS rebinding),
+  port 443 only, no user:pass@, IPv4-mapped IPv6 unwrapped.
+- **N1E-F5** Replacing an existing label: only after an explicit confirm; the
+  old file is deleted from storage after the replace succeeds.
+- **R1** An inbox item's own read is reusable for as long as the item is in
+  the inbox (amends N-1c's "24 h reuse of a result for the same file" for
+  inbox reads only; dialog reads keep 24 h).
+- **R2** Storage move: copy the file inside the store into the ingredient's
+  folder, then delete the inbox copy (the NU-6 namespace pin stays exact).
+- **R3** Fetcher: `node:https` with a custom `lookup`, no new dependency
+  (not `undici` as a direct dependency).
+- **R4** "Replace current label?" is asked by the inbox queue and the link
+  paths only, not by the ingredient dialog's own Upload/Replace button.
+
+His later messages are session instructions, not rulings: "Applied to dev:
+20261103010000_n1e_label_inbox. Go on Phase 3." (the migration had not
+landed on dev at that point — see `docs/MIGRATIONS.md`), "Re-applied to dev:
+20261103010000_n1e_label_inbox (Datasource ep-late-water-a6k53nv2). Re-run
+your check and go on Phase 3.", and the ask to "fix the stale NU-6, NU-7 and
+NU-8 entries in PERMISSIONS_INVENTORY.md so they describe the N-1d rules"
+(done in the work commit `218e984`).
+
+**Claude implementation choices (no explicit instruction — for the record):**
+- **Where the inbox read is handed to the PUT.** Audit § A step 2(b) proposed
+  widening the ingredient read route's reuse to find inbox reads. Built
+  instead: the attach route (NU-16) writes the `.read.reused` row on the
+  ingredient straight from the inbox item's read and returns its `readId`.
+  Same effect — no model call, the PUT and verify routes unchanged — and the
+  ingredient read route keeps its N-1c reuse exactly (this ingredient, 24 h).
+- The inbox read route's second reuse is org-wide by file hash within 24 h,
+  across dialog and inbox reads (N-1c's window, widened from one ingredient
+  to the org because the transcription depends only on the bytes).
+- Inbox files live under `nutrition/{org}/inbox/` (no per-item folder — the
+  row id does not exist yet at the presign); the random suffix keeps names
+  unique.
+- Link fetch: 15 s timeout; `localhost`, `*.localhost`, `*.internal`, `*.local`
+  refused by name; a host is refused if ANY resolved address is non-public.
+  HEIC is refused by link everywhere (it can't be read); the dialog's upload
+  still accepts HEIC as proof.
+- "Add from link" in the dialog sets the record's `sourceUrl` to the pasted
+  link, replacing any reference link already there (the prompt's "sourceUrl
+  set").
+- Matching: suggest only when the best candidate covers more than half its
+  name words and strictly beats the runner-up; +0.1 when the whole brand is
+  named; −0.05 per variant word on one side only; a label suggestion must
+  also pass the N-1c name check. Top three candidates offered as options.
+- In the queue, the review's own Discard button discards the FILE (the
+  queue's Discard); Skip moves to the next card and leaves the item READ.
+- `nutritionAudit` takes an `entityType` (default "Ingredient"); a failed
+  dialog link fetch logs `nutrition.inbox.fetch.failed` on the Ingredient.
+
 ## 2026-11-02 — N-3: public nutrition menu, forks N3-F1–F8 and R-1–R-3 (Gary)
 
 **RATIFIED BY GARY, 2026-11-02, at the N-3 PRE-PUSH-CHECK, as written:**

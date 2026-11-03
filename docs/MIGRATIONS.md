@@ -2195,8 +2195,8 @@ shape diff against dev returned `-- This is an empty migration.`.
 | Branch | Applied (`_prisma_migrations.finished_at`) | By |
 |---|---|---|
 | dev `br-broad-wave-a6vpjdw0` | **2026-11-02 23:06:55 UTC** (15:06:55 PST) | Gary |
-| staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
-| production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
+| staging `br-square-feather-a63z92vz` | applied on Gary's push (`/menu/keva-juice-staging` checks passed before promotion, per the STAMP-a00fa1e prompt) — finished_at not read. (Was: "not yet — on Gary's push" — spent.) | Vercel build |
+| production `br-sparkling-block-a620qvg4` | **2026-11-03 00:09:51.972546 UTC** (2026-11-02 16:09:51 PST) — 43 s after the promotion `a00fa1e` merge (00:09:09 UTC). Read by Gary in the Neon console, branch id from the server in the same output, recorded by STAMP-a00fa1e. (Was: "not yet — at promotion" — spent.) | Vercel build |
 
 **GENERATED AGAINST THE LIVE DEV DATABASE, after a clean baseline** (the diff
 with no `-o` returned `-- This is an empty migration.` before
@@ -2231,3 +2231,64 @@ leaked). 9a asserts the migration file only creates.
 apply (empty). `npm run build` also runs `prisma generate`. No `migrate
 deploy`, `db execute`, `migrate dev`, `migrate reset` or `migrate resolve` was
 run by the session.
+
+## 2026-11-02 — `20261103010000_n1e_label_inbox` (N-1e)
+
+**APPLIED TO DEV ONLY, by Gary**, after the N-1e Phase 2 STOP and before the
+work commit `218e984` (§ A migration STOPS the session). Staging and production
+get it from the Vercel build on Gary's push and at promotion. The timestamp is
+`20261103010000` although the work was done 2026-11-02 — chosen only to sort
+after N-3's `20261103000000`; it is a name, not a clock reading.
+
+**THE FIRST "APPLIED TO DEV" DID NOT LAND ON DEV — caught by the check, not by
+the fixture.** After Gary's first "Applied to dev", the shape diff against the
+dev datasource (`ep-late-water-a6k53nv2`, both `.env` URLs; `env | grep -c
+DATABASE_URL` printed `0`) still returned the full `CREATE TYPE` / `CREATE
+TABLE` / index / FK script, so the session stopped before any Phase 3 code.
+Where that first apply went was not determined by the session. Gary re-applied
+("Datasource ep-late-water-a6k53nv2"); the same diff then returned `-- This is
+an empty migration.`. **This is why the diff is re-run after every "applied":
+the word is not the check.**
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | applied (second attempt), 2026-11-02 — `finished_at` NOT read by the session; the evidence is the empty shape diff and the fixture's part 9 printing `neon.branch_id = br-broad-wave-a6vpjdw0` against the new table | Gary |
+| staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
+| production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
+
+**Pre-push measurement, recorded at the N-1e PRE-PUSH-CHECK (2026-11-03):**
+`n1e_applied = 0` on staging `br-square-feather-a63z92vz` and on production
+`br-sparkling-block-a620qvg4` — measured by Gary in the Neon console before the
+check, branch id read from the server. Neither branch had the migration before
+the push.
+
+**GENERATED AGAINST THE LIVE DEV DATABASE, after a clean baseline** (the diff
+with no `-o` returned `-- This is an empty migration.` before
+`prisma/schema.prisma` was edited; datasource host `ep-late-water-a6k53nv2`,
+the dev endpoint). Every statement is generated; nothing is hand-authored, so
+nothing joins § Protected indexes. **Additive only — no backfill, nothing
+dropped, no existing table altered:**
+
+| Statement | Kind |
+|---|---|
+| `CREATE TYPE "NutritionInboxStatus"` (`UPLOADED`, `READ`, `FAILED`, `APPLIED`, `DISCARDED`) | inbox item lifecycle; no "reading" state (N1E-F3: reads are driven from the open page) |
+| `CREATE TABLE "NutritionLabelInboxItem"` + index `(organizationId, status, createdAt)` + FK to Organization (RESTRICT) | one row per dropped or fetched label file (N1E-F1). `ingredientId` / `suggestedIngredientId` are plain columns, NOT foreign keys — a soft-deleted ingredient is caught at Apply; `readAuditId` points at the AuditLog row holding the transcription (one copy) |
+
+No rows exist on any branch until an ADMIN drops a file on `/nutrition/labels`.
+
+**Fixture:** `scripts/verify-n1e.ts`, 84 checks, all pass, against the applied
+schema on dev `br-broad-wave-a6vpjdw0`. Its part 9 creates an "N-1e Fixture
+Org" and an inbox row (default `UPLOADED`, no ingredient), and AuditLog rows to
+prove the 24 h reuse window (found at 23 h, not at 25 h) and that dialog and
+inbox reads share ONE 30/hour pool — inside a transaction that is always
+rolled back (9g checks nothing leaked). 8d asserts the migration file is
+additive.
+
+**Prisma commands for this migration, verbatim:**
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`
+(baseline, empty) · `npx prisma validate` · `npx prisma format` ·
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/20261103010000_n1e_label_inbox/migration.sql` ·
+the same diff with no `-o` after Gary's first apply (NOT empty — the full
+script) · the same diff after his re-apply (empty) · `npx prisma generate`.
+`npm run build` also runs `prisma generate`. No `migrate deploy`, `db execute`,
+`migrate dev`, `migrate reset` or `migrate resolve` was run by the session.
