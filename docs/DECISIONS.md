@@ -5,6 +5,69 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-03 — N-5: Square modifiers — sync, modifier recipes, BevSpot modifier import — forks N5-F1–F8 (Gary) — DRAFT
+
+**DRAFT — ruled by Gary in chat 2026-11-03 at the N-5 Phase 1 STOP; to be
+ratified at PRE-PUSH-CHECK.** The audit he ruled on is
+`docs/prompts/N-5_AUDIT.md` (forks N5-F1–F5 from the prompt; N5-F6–F8 raised
+by the audit; no RULING NOW — no new Square scope is needed). His words,
+recorded exactly:
+
+> "Accept all leans"
+
+That is the whole ruling. **The leans are the audit's and the planning chat's
+wording, not Gary's;** they are listed below so the ruling can be read without
+the audit open, and the audit is the text of record for each. Accepted as
+leaned:
+
+- **N5-F1** Scope: sync + modifier recipes + BevSpot modifier import +
+  internal Modifiers view in N-5; sales usage from order modifiers is a
+  separate row, **N-5b** (the audit found it is not small: a new cache table
+  inside the BUG-7 guarded write, five consumers, and a history answer).
+- **N5-F2** Negative lines are allowed only on modifier recipes; a modifier's
+  cost and nutrition may net negative and are shown with their sign.
+- **N5-F3** One recipe per modifier (all sizes), for now.
+- **N5-F4** BevSpot modifier rows follow BEV-1's rules (exact match, never
+  overwrite, preview first); negatives allowed only for rows that resolve to
+  a synced modifier.
+- **N5-F5** No add-ons on the public menu in N-5.
+- **N5-F6** A negative line contributes no allergens; the Modifiers view shows
+  "may add" allergens from positive lines only.
+- **N5-F7** Modifier nutrition is shown as signed, plainly rounded deltas,
+  never through FDA label rounding; no label for a modifier in N-5.
+- **N5-F8** A modifier recipe is its own kind: never a sub-recipe line, never
+  countable, not listed as prep — one `recipeKind()` at every site.
+
+His later message is a session instruction, not a ruling: "Applied to dev:
+20261103020000_n5_square_modifiers (Datasource ep-late-water-a6k53nv2).
+Re-run your check and go on Phase 3."
+
+**Claude implementation choices (no explicit instruction — for the record):**
+- **A recipe's modifier is fixed at creation.** `squareModifierId` is accepted
+  on POST only; PATCH omits it, so a recipe never moves between a modifier and
+  a menu item (and the validator refuses one carrying both).
+- **Duplicate refuses a modifier recipe** (422) — copying it onto a menu item
+  would carry negative lines there. The editor hides the button for one.
+- **`GraphRecipe.squareModifierId` is optional,** so hand-built graphs in the
+  earlier fixtures and the BevSpot planner type unchanged; `recipeKind()`
+  treats absent as not-a-modifier.
+- **Bulk "Mark non-recipe" for modifiers** — a new `inventory/modifiers/bulk`
+  PATCH route mirroring `sales-items/bulk` (ADMIN/MANAGER, Froot's own status
+  only), so "Light Ice"-style modifiers stop showing as unmapped.
+- **Menu Nutrition: Modifiers is a section under the items table,** not a
+  tab. STORE (who holds `nutrition.view`) sees the nutrition; the Cost column
+  renders only for `inventory.costs.view`.
+- **BevSpot negatives are unit-mapped on their magnitude,** so F12's
+  whole-package check and the unit reading are identical for a removal and an
+  addition; the sign goes back on the amount ("−1 can (8.4 fl. oz)" → −8.4
+  fl. oz).
+- **Sync details:** TEXT modifier lists (free-text notes) are skipped; loose
+  top-level `MODIFIER` objects are accepted as well as nested ones (the audit
+  could not observe a live payload); modifier writes are batched in one
+  transaction AFTER the unchanged item/variation writes; `maxDuration = 60`
+  on the sync route. If the modifier write fails, the route errors after the
+  items were already written and `lastCatalogSyncAt` is not stamped.
+
 ## 2026-11-02 — N-1e: label inbox, batch read, review queue, read from a link — forks N1E-F1–F5 and R1–R4 (Gary)
 
 **RATIFIED BY GARY, 2026-11-03, at the N-1e PRE-PUSH-CHECK, as written:**

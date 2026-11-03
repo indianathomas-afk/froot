@@ -18159,9 +18159,54 @@ phases:
   - id: N-5
     track: nutrition
     size: M
-    status: planned
+    # → in_progress 2026-11-03 at the work commit a9ff45e (NOT pushed). The
+    # docs SHA is the commit immediately after a9ff45e (its own SHA cannot be
+    # written inside itself).
+    status: in_progress
+    commits:
+      - "a9ff45e"
+      # feat(N-5): Square modifiers — sync, modifier recipes, BevSpot modifier
+      # import; migration 20261103020000_n5_square_modifiers; fixture
+      # verify-n5-modifiers.ts, 2026-11-03
+      # + the commit immediately after a9ff45e: docs(N-5) — prompt, audit,
+      # production query, DECISIONS draft, MIGRATIONS entry, this row, N-5b
     title: "Nutrition — Square modifiers (add-ons)"
     notes: >
+      BUILT 2026-11-03, TIER 3. Prompt of record: docs/prompts/N-5.md. Audit
+      docs/prompts/N-5_AUDIT.md; read-only production SQL
+      docs/prompts/N-5_PROD_QUERY.sql. Rulings: docs/DECISIONS.md 2026-11-03
+      N-5 (Gary: "Accept all leans" — N5-F1–F8), DRAFT until PRE-PUSH-CHECK.
+      No new Square scope (ITEMS_READ covers modifier lists; Froot still never
+      writes Square). Migration 20261103020000_n5_square_modifiers (additive:
+      SquareModifierList, SquareModifier, SquareItemModifierList, nullable
+      unique Recipe.squareModifierId), applied to dev by Gary; dev diff empty
+      after.
+      WHAT WAS BUILT: (1) "Sync from Square" also reads MODIFIER_LIST
+      (src/lib/square-modifier-sync.ts): lists, modifiers (nested or loose),
+      item↔list links from item_data.modifier_list_info; batched, after the
+      unchanged item/variation writes; unseen ones swept to isDeleted and keep
+      their recipe. (2) Modifier recipes: Recipe.squareModifierId;
+      recipeKind() replaces "salesItemId null = prep" at every site; negative
+      lines allowed on modifier recipes only, decided once in
+      validateRecipeLines; a modifier recipe is never a sub-recipe line, never
+      countable, never duplicated onto a menu item. (3) Cost and nutrition
+      signed, no clamp; negative lines add no allergens (N5-F6). Modifiers tab
+      on /inventory/recipes (+ modifiers/bulk); Modifiers section on Menu
+      Nutrition — signed unrounded deltas, "may add" allergens, cost only for
+      inventory.costs.view. Not on the public menu. (4) BevSpot: a row whose
+      Square id is a synced modifier imports as its recipe under BEV-1's rules,
+      negatives allowed for those rows only; apply marks modifiers MAPPED in
+      the same transaction. PERMISSIONS_INVENTORY: PG-21, PG-36, IV-2, SQ-6.
+      FIXTURES: verify-n5-modifiers 51/51 (part 7 on dev
+      br-broad-wave-a6vpjdw0, rolled back); BEV-1, N-1, N-1a, N-1b, N-1c,
+      N-1d, N-1e, N-2, N-3 re-run, all pass.
+      NOT VERIFIED HERE: a live Square payload (the first staging sync is the
+      proof — the audit could not observe one), the pages, and the routes'
+      role gates — Gary's staging pass. The BevSpot modifier import can only
+      be proven on production (staging's catalog has different ids): preview
+      first, read the counts with Gary, then apply.
+      Sales usage from order modifiers is N-5b.
+
       FILED 2026-11-01 by the BEV-1 docs commit, as the BEV-1 prompt directed
       ("a ROW for Square modifier nutrition (add-ons) if Phase 1 A5 confirms
       modifiers aren't synced"). A5 confirmed it:
@@ -18173,6 +18218,31 @@ phases:
       ARE sellable variations and do import. Needs a read-only modifier sync
       (ITEMS_READ is already held, so no new OAuth scope) and a place for
       modifier recipes. Behind N-1. NOT SCOPED.
+
+  - id: N-5b
+    track: nutrition
+    size: M
+    status: planned
+    title: "Inventory — count Square order modifiers in theoretical usage"
+    notes: >
+      FILED 2026-11-03 by the N-5 docs commit, on Gary's ruling N5-F1
+      ("Accept all leans": sales usage in N-5b). NOT SCOPED as a prompt yet.
+      What the N-5 audit found (docs/prompts/N-5_AUDIT.md § C): theoretical
+      usage reads SalesLineCache (store × date × variation), and
+      src/lib/sales-sync.ts drops each line's modifiers[] at aggregation, so
+      no add-on, swap or removal reaches usage. Needs: parse
+      line_items[].modifiers[] (usage = line qty × modifier qty — Square:
+      total_price_money is the modifier's base price × the line's quantity);
+      a new cache table (store × date × squareModifierId) written inside
+      writeSalesCache's BUG-7 guarded transaction, after the period upsert, won
+      dates only; readers in expected-inventory (expected on-hand, weekly
+      usage → pars, alerts, order guide) and a decision for the variance,
+      profitability and item-sales reports; a history answer (days cached
+      before the change have no modifier rows — re-sync the window or a
+      "modifier sales complete since" date the engine checks, so a window is
+      never silently undercounted); and a ruling on a default-on modifier
+      removed by the buyer, which Square sends as quantity 0. Its own
+      migration. Needs no new scope (ORDERS_READ is held). Behind N-5.
 
   - id: N-6
     track: nutrition
