@@ -34,15 +34,23 @@ import { localDateStr, dbDate } from "@/lib/reports"
  *
  * Some entries are unreachable by the beacon and are here for TOTALITY, not
  * because they will ever be counted: /sign-in and /sign-up are unauthenticated,
- * and /print/* and / render outside both app shells, so no beacon is mounted on
- * them. Listing them costs nothing and keeps "derived from the filesystem"
- * literally true, which is what the fixture checks.
+ * and /print/*, /menu/[slug] (the public menu, N-3) and / render outside both
+ * app shells, so no beacon is mounted on them. Listing them costs nothing and
+ * keeps "derived from the filesystem" literally true, which is what the
+ * fixture checks.
+ *
+ * 2026-11-03 (STAMP-3ea8112-FIXTURES): 18 pages shipped between HELP-1a
+ * (2026-09-04) and N-3 without an entry and were recorded as "/other" until
+ * this date. Added then; rows already written as "/other" are not backfilled.
  */
 export const ROUTE_PATTERNS: readonly string[] = [
   "/",
+  "/calendar",
   "/checklists",
   "/dashboard",
   "/forecasting",
+  "/help",
+  "/help/[slug]",
   "/hr",
   "/hr/acknowledge/[documentId]",
   "/hr/compliance",
@@ -72,6 +80,7 @@ export const ROUTE_PATTERNS: readonly string[] = [
   "/inventory/purchase-orders/new",
   "/inventory/recipes",
   "/inventory/recipes/[id]",
+  "/inventory/recipes/import/bevspot",
   "/inventory/reports",
   "/inventory/sales-items",
   "/inventory/storage-areas",
@@ -79,26 +88,40 @@ export const ROUTE_PATTERNS: readonly string[] = [
   "/items",
   "/labor",
   "/labor/inspector",
+  "/menu/[slug]",
   "/messages",
   "/my",
   "/my/documents",
   "/my/documents/[documentId]",
   "/my/documents/records/[recordId]",
+  "/my/help",
+  "/my/help/[slug]",
   "/my/instagram",
   "/my/messages",
   "/my/training",
   "/my/training/[assignmentId]",
+  "/nutrition",
+  "/nutrition/import",
+  "/nutrition/labels",
+  "/nutrition/menu",
+  "/nutrition/menu/[salesItemId]/label",
+  "/nutrition/publish",
+  "/nutrition/settings",
   "/print/checklist/[id]",
+  "/print/nutrition-label/[salesItemId]",
   "/print/template/[id]",
   "/reports",
   "/reports/operations",
   "/settings",
   "/settings/labor",
+  "/settings/notifications",
   "/sign-in/[[...sign-in]]",
   "/sign-up/[[...sign-up]]",
   "/staff",
   "/staff/[id]",
   "/staff/engagement",
+  "/staff/milestones",
+  "/staff/milestones/report",
   "/store-view",
   "/store-view/checklist/[id]",
   "/stores",

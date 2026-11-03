@@ -81,6 +81,9 @@ type Env = {
   hrEnabled: boolean
   laborEnabled: boolean
   inventoryModule: boolean
+  // N-1: the Nutrition group is gated requiresModule ["inventory", "nutrition"]
+  // in sidebar.tsx. Modelled by href prefix, like /inventory/ above it.
+  nutritionModule: boolean
   staffHasChecklists: boolean
   calendarEnabled: boolean
 }
@@ -96,6 +99,7 @@ function visible(items: Item[], role: string, denied: string[], env: Env): strin
         (!i.requiresLabor || env.laborEnabled) &&
         (!i.requiresCalendar || env.calendarEnabled) &&
         (!i.href.startsWith("/inventory/") || env.inventoryModule) &&
+        (!i.href.startsWith("/nutrition/") || (env.inventoryModule && env.nutritionModule)) &&
         !(role === "STAFF" && i.href === "/checklists" && !env.staffHasChecklists)
     )
     .map((i) => (role === "STAFF" && i.href === "/hr" ? "/my/documents" : i.href))
@@ -126,6 +130,7 @@ const env: Env = {
   hrEnabled: true,
   laborEnabled: true,
   inventoryModule: true,
+  nutritionModule: true,
   staffHasChecklists: true,
   calendarEnabled: true,
 }
@@ -170,18 +175,60 @@ const SANCTIONED_ADDITIONS: Record<string, string> = {
   "/calendar": "CAL-1 — calendar under Checklists, Gary's R5 ruling 2026-09-17",
 }
 
+// ─── ROLE-SCOPED SANCTIONS — the Nutrition group ─────────────────────────────
+//
+// SANCTIONED_ADDITIONS above suppresses a gain for EVERY role, which was right
+// for /help and /calendar (both rulings covered all four roles). The Nutrition
+// ruling is per-role, so its entries suppress a gain ONLY for the roles named:
+// /nutrition/menu appearing for STAFF would still fail as GAINED. And because a
+// sanction can only suppress a gain — it cannot notice an entry that never
+// appeared — NUTRITION_EXACT below also asserts each role's nutrition set
+// EQUALS the ruled one whenever the module is on.
+//
+// Gary's ruling, in his words (STAMP-3ea8112-FIXTURES pointer, 2026-11-03;
+// DRAFT in docs/DECISIONS.md until ratified at PRE-PUSH-CHECK):
+//   "Menu Nutrition shows for ADMIN, MANAGER and STORE; Import Nutrition,
+//    Serving Settings, Label Inbox and Public Menu show for ADMIN only; none
+//    of them show when the nutrition module is off."
+const NUTRITION_RULING = "Gary's nav1 ruling 2026-11-03 (STAMP-3ea8112-FIXTURES)"
+const ROLE_SANCTIONED_ADDITIONS: Record<string, { roles: readonly string[]; why: string }> = {
+  "/nutrition/menu": { roles: ["ADMIN", "MANAGER", "STORE"], why: `N-1 Menu Nutrition — ${NUTRITION_RULING}` },
+  "/nutrition/import": { roles: ["ADMIN"], why: `N-1 Import Nutrition — ${NUTRITION_RULING}` },
+  "/nutrition/labels": { roles: ["ADMIN"], why: `N-1e Label Inbox — ${NUTRITION_RULING}` },
+  "/nutrition/settings": { roles: ["ADMIN"], why: `N-2 Serving Settings — ${NUTRITION_RULING}` },
+  "/nutrition/publish": { roles: ["ADMIN"], why: `N-3 Public Menu — ${NUTRITION_RULING}` },
+}
+const NUTRITION_EXACT: Record<string, readonly string[]> = Object.fromEntries(
+  ["ADMIN", "MANAGER", "STORE", "STAFF"].map((role) => [
+    role,
+    Object.entries(ROLE_SANCTIONED_ADDITIONS)
+      .filter(([u, s]) => u.startsWith("/nutrition/") && s.roles.includes(role))
+      .map(([u]) => u)
+      .sort(),
+  ])
+)
+const sanctioned = (u: string, role: string) =>
+  u in SANCTIONED_ADDITIONS || (ROLE_SANCTIONED_ADDITIONS[u]?.roles.includes(role) ?? false)
+
 function compare(label: string, denied: string[], e: Env) {
   console.log(`── ${label} ─────────────────────────────────────────`)
   for (const role of ROLES) {
     const b = visible(before, role, denied, e)
     const a = visible(after, role, denied, e)
     const lost = b.filter((u) => !a.includes(u))
-    const gained = a.filter((u) => !b.includes(u) && !(u in SANCTIONED_ADDITIONS))
-    const ok = lost.length === 0 && gained.length === 0
+    const gained = a.filter((u) => !b.includes(u) && !sanctioned(u, role))
+    // The ruling, checked as an equality rather than only as a suppressed gain.
+    const nutrition = a.filter((u) => u.startsWith("/nutrition/"))
+    const wantNutrition = e.inventoryModule && e.nutritionModule ? NUTRITION_EXACT[role] : []
+    const nutritionOk = JSON.stringify(nutrition) === JSON.stringify(wantNutrition)
+    const ok = lost.length === 0 && gained.length === 0 && nutritionOk
     if (!ok) failures++
     console.log(
       `${role.padEnd(8)} before=${String(b.length).padStart(2)} after=${String(a.length).padStart(2)}  ${
-        ok ? "IDENTICAL" : `LOST ${JSON.stringify(lost)} GAINED ${JSON.stringify(gained)}`
+        ok
+          ? "IDENTICAL"
+          : `LOST ${JSON.stringify(lost)} GAINED ${JSON.stringify(gained)}` +
+            (nutritionOk ? "" : ` NUTRITION ${JSON.stringify(nutrition)} want ${JSON.stringify(wantNutrition)}`)
       }`
     )
   }
@@ -198,6 +245,10 @@ compare("labor.access DENIED per-user (the sanctioned drop)", ["labor.access"], 
 // proves the flag is actually read; the all-modules-on run above only proves
 // the sanction suppresses the gain.
 compare("calendar toggle OFF (every org today)", [], { ...env, calendarEnabled: false })
+// Gary's nav1 ruling 2026-11-03: "none of them show when the nutrition module
+// is off." Every nutrition URL must vanish for every role. The all-modules-on
+// runs above only prove the sanctions; this one proves the gate is read.
+compare("nutrition module OFF (inventory on)", [], { ...env, nutritionModule: false })
 
 console.log("── full sets, all modules on ──────────────────────────")
 for (const role of ROLES) {

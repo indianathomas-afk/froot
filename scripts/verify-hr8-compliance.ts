@@ -5,10 +5,10 @@
  *
  * Creates a throwaway org (2 stores, 5 staff) exercising every status branch
  * agreed for HR-8 (Gary, 2026-07-22 — see docs/DECISIONS.md):
- *   docs   — complete via signed record · complete via all-required-acked
- *            (pending-record) · needs-resign (record on old version) ·
- *            in-progress · not-started · store-scoped applicability ·
- *            inactive + non-required docs excluded
+ *   docs   — complete via signed record · all-required-acked but no record
+ *            → in-progress (R1) · complete via a record on an earlier
+ *            version (R2) · in-progress · not-started · store-scoped
+ *            applicability · inactive + non-required docs excluded
  *   training — Completed(+certified) · InProgress · overdue (dueDate past,
  *              not Completed) · terminated staff's assignment invisible
  *   forms  — outside the percentage; executed vs PendingSupervisor counts,
@@ -17,6 +17,17 @@
  *            summaries map (terminated → pct null), single-staff detail for a
  *            terminated member still returns auditable items
  * Everything is deleted afterwards.
+ *
+ * EXPECTATIONS UPDATED 2026-11-03 (STAMP-3ea8112-FIXTURES, fixture only — no
+ * code changed). Two later rulings reversed what this file first asserted:
+ *   R1 (`32205a4`, 2026-08-15) — completion derives from the SIGNED RECORD, not
+ *      from checkpoints. s2's docA (every required checkpoint acked, no record)
+ *      is in-progress with recordMissing, no longer "complete (pending-record)".
+ *   R2 (`457a57f`, 2026-08-16) — a current-cycle signature on an EARLIER version
+ *      still counts. s3's docB (record on v1, current v2) is complete with
+ *      signedOnEarlierVersion, no longer needs-resign.
+ * Every downstream number below follows from those two. The fixture was red
+ * from 2026-08-15 until this date (docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 3).
  */
 import "dotenv/config"
 import { prisma } from "../src/lib/prisma"
@@ -175,15 +186,15 @@ async function main() {
       ],
     })
     // s2: ALL required checkpoints acked on docA v1 (incl. skipping the
-    // optional one) but no record yet → pending-record = complete; ONE of two
-    // checkpoints on docB v2 → in-progress.
+    // optional one) but no record yet → in-progress with recordMissing (R1);
+    // ONE of two checkpoints on docB v2 → in-progress.
     await prisma.hrDocumentAcknowledgment.createMany({
       data: [
         ...requiredA.map((ck) => ackSnap(docA, ck, docAv1, s2)),
         ackSnap(docB, requiredB[0], docBv2, s2),
       ],
     })
-    // s3: signed record on docB v1 (superseded) → needs-resign.
+    // s3: signed record on docB v1 (superseded by v2) → complete (R2).
     await prisma.hrSignedRecord.create({
       data: { hrDocumentVersionId: docBv1.id, staffMemberId: s3.id, completedAt: new Date(now.getTime() - 30 * dayMs), signedPdfPathname: "hr/fixture/s3-b.pdf", signedPdfHash: "sig3b" },
     })
@@ -254,23 +265,24 @@ async function main() {
     check("s1: training complete + certified", itemStatus(d1, "HR8 Training M1") === "complete" && (d1.items.find((i) => i.kind === "training") as { certified: boolean }).certified)
     check("s1: pct 100", d1.pct === 100)
 
-    check("s2: docA complete via all-required-acked (pending-record)", itemStatus(d2, "HR8 Doc A") === "complete")
-    const d2docA = d2.items.find((i) => i.kind === "document" && i.title === "HR8 Doc A") as { ackedCount: number; requiredCount: number }
+    check("s2: docA in-progress — all required acked but no record (R1)", itemStatus(d2, "HR8 Doc A") === "in-progress", `got ${itemStatus(d2, "HR8 Doc A")}`)
+    const d2docA = d2.items.find((i) => i.kind === "document" && i.title === "HR8 Doc A") as { ackedCount: number; requiredCount: number; recordMissing: boolean }
+    check("s2: docA flags recordMissing (R1)", d2docA.recordMissing === true)
     check("s2: docA counts required checkpoints only (2/2, optional ignored)", d2docA.ackedCount === 2 && d2docA.requiredCount === 2, `got ${d2docA.ackedCount}/${d2docA.requiredCount}`)
     check("s2: docB in-progress (1/2)", itemStatus(d2, "HR8 Doc B") === "in-progress")
     check("s2: training in-progress (future due date)", itemStatus(d2, "HR8 Training M1") === "in-progress")
     const d2training = d2.items.find((i) => i.kind === "training") as { lessonsDone: number; lessonsTotal: number }
     check("s2: lesson progress 1/2", d2training.lessonsDone === 1 && d2training.lessonsTotal === 2)
-    check("s2: pct 33 (1/3)", d2.pct === 33, `got ${d2.pct}`)
+    check("s2: pct 0 (0/3 — R1)", d2.pct === 0, `got ${d2.pct}`)
 
     check("s3: 4 required (docC applies via Store B)", d3.requiredTotal === 4, `got ${d3.requiredTotal}`)
-    check("s3: docB needs-resign (record pinned to v1)", itemStatus(d3, "HR8 Doc B") === "needs-resign")
-    const d3docB = d3.items.find((i) => i.kind === "document" && i.title === "HR8 Doc B") as { signedVersionNumber: number | null }
-    check("s3: needs-resign carries prior signed version v1", d3docB.signedVersionNumber === 1)
+    check("s3: docB complete via the v1 record (R2)", itemStatus(d3, "HR8 Doc B") === "complete", `got ${itemStatus(d3, "HR8 Doc B")}`)
+    const d3docB = d3.items.find((i) => i.kind === "document" && i.title === "HR8 Doc B") as { signedVersionNumber: number | null; signedOnEarlierVersion: boolean }
+    check("s3: docB signedOnEarlierVersion, signed version v1 (R2)", d3docB.signedOnEarlierVersion === true && d3docB.signedVersionNumber === 1, `got ${d3docB.signedOnEarlierVersion}/v${d3docB.signedVersionNumber}`)
     check("s3: docA not-started", itemStatus(d3, "HR8 Doc A") === "not-started")
     check("s3: docC not-started", itemStatus(d3, "HR8 Doc C") === "not-started")
     check("s3: training overdue", itemStatus(d3, "HR8 Training M1") === "overdue")
-    check("s3: pct 0", d3.pct === 0)
+    check("s3: pct 25 (1/4 — R2)", d3.pct === 25, `got ${d3.pct}`)
 
     check("s5 (no store): docC does NOT apply — 2 required", d5.requiredTotal === 2, `got ${d5.requiredTotal}`)
     check("s4 (terminated): detail still computed, active=false", d4.active === false && d4.requiredTotal === 3)
@@ -278,7 +290,7 @@ async function main() {
     // 2. Summaries map (the /staff column) — terminated → pct null.
     const summaries = await getStaffComplianceSummaries(org.id, [s1.id, s2.id, s4.id])
     check("summaries: s1 → 100", summaries.get(s1.id)?.pct === 100)
-    check("summaries: s2 → 33", summaries.get(s2.id)?.pct === 33)
+    check("summaries: s2 → 0", summaries.get(s2.id)?.pct === 0, `got ${summaries.get(s2.id)?.pct}`)
     check("summaries: terminated s4 → pct null", summaries.get(s4.id)?.pct === null)
 
     // 3. Single-staff detail (the Compliance tab) for a terminated member.
@@ -289,16 +301,16 @@ async function main() {
     const rollup = await getOrgComplianceRollup(org.id, { storeIds: null })
     check("rollup: 4 ACTIVE staff (terminated excluded)", rollup.totals.staffCount === 4)
     check("rollup: required 12 (3+3+4+2)", rollup.totals.requiredTotal === 12, `got ${rollup.totals.requiredTotal}`)
-    check("rollup: completed 4 (3+1+0+0)", rollup.totals.completedCount === 4, `got ${rollup.totals.completedCount}`)
+    check("rollup: completed 4 (3+0+1+0)", rollup.totals.completedCount === 4, `got ${rollup.totals.completedCount}`)
     check("rollup: pct 33", rollup.totals.pct === 33)
     check("rollup: fullyCompliant 1", rollup.totals.fullyCompliant === 1)
-    check("rollup: overdue 1 · needs-resign 1", rollup.totals.overdueCount === 1 && rollup.totals.needsResignCount === 1)
+    check("rollup: overdue 1 · needs-resign 0 (R2)", rollup.totals.overdueCount === 1 && rollup.totals.needsResignCount === 0, `got ${rollup.totals.overdueCount} · ${rollup.totals.needsResignCount}`)
 
     const storeRollA = rollup.stores.find((s) => s.storeId === storeA.id)
     const storeRollB = rollup.stores.find((s) => s.storeId === storeB.id)
     const unassigned = rollup.stores.find((s) => s.storeId === null)
-    check("store A: 2 staff, 4/6 = 67%", storeRollA?.staffCount === 2 && storeRollA?.pct === 67, `got ${storeRollA?.staffCount} staff, ${storeRollA?.pct}%`)
-    check("store B: 1 staff, 0/4 = 0%", storeRollB?.staffCount === 1 && storeRollB?.pct === 0)
+    check("store A: 2 staff, 3/6 = 50%", storeRollA?.staffCount === 2 && storeRollA?.pct === 50, `got ${storeRollA?.staffCount} staff, ${storeRollA?.pct}%`)
+    check("store B: 1 staff, 1/4 = 25%", storeRollB?.staffCount === 1 && storeRollB?.pct === 25, `got ${storeRollB?.staffCount} staff, ${storeRollB?.pct}%`)
     check("unassigned bucket: s5 only", unassigned?.staffCount === 1)
     const sumStaff = rollup.stores.reduce((n, s) => n + s.staffCount, 0)
     check("store rollups sum to totals", sumStaff === rollup.totals.staffCount)
@@ -306,7 +318,7 @@ async function main() {
     // 5. Manager scope (Store A only).
     const scoped = await getOrgComplianceRollup(org.id, { storeIds: [storeA.id] })
     check("manager scope: 2 staff (s1, s2)", scoped.totals.staffCount === 2 && scoped.staff.every((s) => [s1.id, s2.id].includes(s.staffId)))
-    check("manager scope: required 6, completed 4", scoped.totals.requiredTotal === 6 && scoped.totals.completedCount === 4)
+    check("manager scope: required 6, completed 3", scoped.totals.requiredTotal === 6 && scoped.totals.completedCount === 3, `got ${scoped.totals.requiredTotal}, ${scoped.totals.completedCount}`)
     check("manager scope: single store row", scoped.stores.length === 1 && scoped.stores[0].storeId === storeA.id)
 
     // 6. Agreements — outside the pct; pending limited to ACTIVE staff in scope.

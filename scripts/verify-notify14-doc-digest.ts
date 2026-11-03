@@ -78,10 +78,21 @@ const FILE = {
   uploadedByUserId: "fixture",
 }
 const LIVE: DeliveryMode = "live"
-// Monday 2026-11-02 (PST, UTC-8): 08:30 local = 16:30 UTC.
-const MON_0830 = new Date("2026-11-02T16:30:00.000Z")
-const MON_0730 = new Date("2026-11-02T15:30:00.000Z")
-const TUE_0830 = new Date("2026-11-03T16:30:00.000Z")
+// The test Monday is DERIVED, never hard-coded: the Monday of NEXT ISO week in
+// Pacific, 1–7 days ahead. §5 sends the weekly digest for the REAL today, and
+// the weekly duplicate guard keys on the ISO week (periodKey, schedule.ts), so
+// §7's scheduled run must land in a different week or it correctly mails
+// nobody. Until 2026-11-03 these were the literal Monday 2026-11-02, which
+// became the real week on that date and turned §7 red on any build
+// (STAMP-3ea8112-FIXTURES; docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 5). 1–7 days
+// ahead is also exactly where the literal sat when the fixture was written.
+// zonedInstant keeps 08:30 / 07:30 Pacific local whatever the DST offset.
+const TODAY_PT = localDateStr(new Date(), TZ)
+const ISO_DOW = ((new Date(`${TODAY_PT}T12:00:00.000Z`).getUTCDay() + 6) % 7) + 1 // Mon=1 … Sun=7
+const TEST_MONDAY = addDays(TODAY_PT, 8 - ISO_DOW)
+const MON_0830 = zonedInstant(TEST_MONDAY, "08:30", TZ)!
+const MON_0730 = zonedInstant(TEST_MONDAY, "07:30", TZ)!
+const TUE_0830 = zonedInstant(addDays(TEST_MONDAY, 1), "08:30", TZ)!
 
 async function main() {
   const [{ branch }] = await prisma.$queryRaw<{ branch: string | null }[]>`SELECT current_setting('neon.branch_id', true) AS branch`
@@ -100,7 +111,7 @@ async function main() {
   const paceSpec = getKind("pace.alert")!.schedule!
   const msSpec = getKind("milestone.reached")!.schedule!
   const d1 = slotDue(digestSpec, null, MON_0830, "UTC")
-  check("no row: Monday 08:30 Pacific is due, weekly (F2)", d1.due && d1.frequency === "weekly" && d1.localDate === "2026-11-02", JSON.stringify(d1))
+  check("no row: Monday 08:30 Pacific is due, weekly (F2)", d1.due && d1.frequency === "weekly" && d1.localDate === TEST_MONDAY, JSON.stringify(d1))
   check("no row: Monday 07:30 Pacific is NOT due (before 8 AM)", !slotDue(digestSpec, null, MON_0730, "UTC").due)
   check("no row: Tuesday 08:30 Pacific is NOT due (weekly = Monday)", !slotDue(digestSpec, null, TUE_0830, "UTC").due)
   check(

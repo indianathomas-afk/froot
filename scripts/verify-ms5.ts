@@ -226,10 +226,19 @@ check(
 
 // ─── C. DATABASE ─────────────────────────────────────────────────────────────
 
-/// An instant on today's UTC date at which Denver is already a day ahead of
-/// Los Angeles (late evening Pacific) — the hour the two stores disagree.
-function splitHour(): Date {
-  const d = new Date()
+/// An instant on `day`'s UTC date (default today) at which Denver is already a
+/// day ahead of Los Angeles (late evening Pacific) — the hour the two stores
+/// disagree. The hour is searched FOR THAT DATE, with that date's offsets.
+///
+/// 2026-11-03 (STAMP-3ea8112-FIXTURES, fixture only): the raise used to sit at
+/// `ago(10)` off TODAY's split instant. Across a DST change the two dates have
+/// different offsets (07:30Z splits in MST/PST, 06:30Z in MDT/PDT), so for ~10
+/// days after each change the raise landed on the SAME local day in both zones
+/// and C14b could not tell Ana's dates from Cara's — red from 2026-11-01 on any
+/// build, no leak (docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 4). No single hour
+/// splits both dates then, so the raise gets its own split instant: RAISE_AT.
+function splitHour(day: Date = new Date()): Date {
+  const d = day
   for (let h = 0; h < 24; h++) {
     const c = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h, 30))
     if (localDateStr(c, DEN) > localDateStr(c, LA)) return c
@@ -262,6 +271,8 @@ async function db() {
     const tLA = localDateStr(now, LA)
     const tDEN = localDateStr(now, DEN)
     const ago = (days: number) => new Date(now.getTime() - days * 86_400_000)
+    // The raise instant: a split hour on the date ten days back (see splitHour).
+    const RAISE_AT = splitHour(ago(10))
     const store = (name: string, timezone: string) =>
       prisma.store.create({ data: { organizationId: org.id, name: `MS-5 ${name}`, timezone, squareLocationId: `ms5-loc-${name}-${stamp}` } })
     const P1 = await store("Pacific One", LA)
@@ -299,7 +310,7 @@ async function db() {
       await prisma.wageSnapshot.createMany({
         data: [
           { organizationId: org.id, squareTeamMemberId: tm(n), payType: "HOURLY", hourlyRate: 15, capturedAt: ago(40) },
-          { organizationId: org.id, squareTeamMemberId: tm(n), payType: "HOURLY", hourlyRate: 16, capturedAt: ago(10) },
+          { organizationId: org.id, squareTeamMemberId: tm(n), payType: "HOURLY", hourlyRate: 16, capturedAt: RAISE_AT },
         ],
       })
     }
@@ -329,7 +340,8 @@ async function db() {
     await log(tasks[2].id, Mo.id, 1)
 
     // The raise dates, in each member's own zone, and their cooldown ends.
-    const raised = (zone: string) => localDateStr(ago(10), zone)
+    const raised = (zone: string) => localDateStr(RAISE_AT, zone)
+    if (raised(LA) === raised(DEN)) throw new Error(`fixture setup: raise at ${RAISE_AT.toISOString()} is the same local day in both zones`)
     const RAISE_DATES = [raised(LA), raised(DEN), addDays(raised(LA), 90), addDays(raised(DEN), 90)]
 
     const MANAGER = P("MANAGER")
