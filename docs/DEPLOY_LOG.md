@@ -2,6 +2,44 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-03 — N-1e-UI: label inbox ingredient picker is a searchable combobox
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+Rides the same promotion as the N-1e entry below, which it amends.
+
+**Payload: two N-1e-UI commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `23ea7d3`, `ffda710`, on top of `origin/staging`
+(`bb26400`). **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `23ea7d3` | N-1e-UI work: `src/app/(app)/nutrition/labels/ingredient-picker.tsx` only — Radix Select replaced by a Popover + search-input combobox |
+| `ffda710` | `docs(N-1e-UI)`: rider on the N-1e ROADMAP row, prompt of record `docs/prompts/N-1e-UI.md` |
+| the commit immediately after `ffda710` | `docs(N-1e-UI PRE-PUSH-CHECK)`: this entry, row SHAs |
+
+**Blast radius: ONE CLIENT COMPONENT, NUTRITION ONLY, ADMIN ONLY.** No
+migration, no schema, no route, no env var, no cron, no Square call. The picker
+renders in two places — the inbox row and the review queue card on
+`/nutrition/labels` — and both get the new behaviour. Type to filter on the
+display name (brand + name; case- and accent-insensitive, every word must
+match), arrows + Enter to choose, Escape to close; the list is capped to the
+viewport and flips above only when there is no room below. **Unchanged:** the
+suggestion still needs Confirm, nothing is assigned without a click, the
+ingredient list (PREPARED and not-food exclusions) is the same.
+
+**Rollback:** revert `23ea7d3`. The picker goes back to the N-1e Select; nothing
+else moves. The docs commits can stay or go with it.
+
+**Evidence so far: fixture, build and a local render only.** Per the work
+commit: `verify-n1e` 84/84, `npm run build` green, and a local render on a
+temporary `/menu` page (deleted) with 225 sample ingredients. The build was
+re-run green at this check. **Nothing has been observed on staging.** After the
+push: the staging-SHA precondition (deployed SHA = local `HEAD`), then Gary
+re-runs the step that found it on `/nutrition/labels` — type into "Pick the
+ingredient…", the list filters, stays on-screen, and scrolls.
+
 ## UNPROMOTED — 2026-11-03 — N-1e: label inbox, batch read, review queue, read a label from a link
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at

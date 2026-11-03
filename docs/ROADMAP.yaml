@@ -17826,6 +17826,12 @@ phases:
     # is the commit immediately after 23ea7d3 (its own SHA cannot be written
     # inside itself). Prompt docs/prompts/N-1e-UI.md. verify-n1e 84/84, build
     # green. NOT pushed when written — Gary runs the push. Status unchanged.
+    # N-1e-UI PRE-PUSH-CHECK 2026-11-03: docs SHA ffda710 recorded; this
+    # check's commit is the commit immediately after ffda710 (its own SHA
+    # cannot be written inside itself). No ruling. Status stays staging (N-1e
+    # already on origin/staging). DEPLOY_LOG UNPROMOTED entry written. NOT
+    # pushed when the check ran — Gary runs the push. The "is the commit
+    # immediately after 23ea7d3" line above is spent, kept: it is ffda710.
     status: staging
     commits:
       - "218e984"
@@ -17848,6 +17854,11 @@ phases:
       # 2026-11-03
       # + the commit immediately after 23ea7d3: docs(N-1e-UI) — this rider,
       # prompt
+      - "ffda710"
+      # docs(N-1e-UI): the commit named on the line above; recorded by the
+      # N-1e-UI PRE-PUSH-CHECK
+      # + the commit immediately after ffda710: docs(N-1e-UI PRE-PUSH-CHECK) —
+      # row SHAs, DEPLOY_LOG entry
     title: "Nutrition — read a label from a pasted link, and batch-read many labels with a review queue"
     notes: >
       BUILT 2026-11-02, TIER 3. Prompt of record: docs/prompts/N-1e.md. Audit
