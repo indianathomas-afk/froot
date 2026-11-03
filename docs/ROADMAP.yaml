@@ -18188,6 +18188,10 @@ phases:
       # docs(N-5) — the docs commit named above
       # + the commit immediately after 4ad86a5: docs(N-5 PRE-PUSH-CHECK) —
       # DECISIONS ratified, DEPLOY_LOG entry, this row to staging
+      - "9a069ca"
+      # fix(N-5-SYNC): batch the Square catalog sync; maxDuration back to 300,
+      # 2026-11-03 (NOT pushed) + the commit immediately after 9a069ca:
+      # docs(N-5-SYNC) — this rider, DEPLOY_LOG note, DECISIONS, prompt
     title: "Nutrition — Square modifiers (add-ons)"
     notes: >
       BUILT 2026-11-03, TIER 3. Prompt of record: docs/prompts/N-5.md. Audit
@@ -18225,6 +18229,22 @@ phases:
       be proven on production (staging's catalog has different ids): preview
       first, read the counts with Gary, then apply.
       Sales usage from order modifiers is N-5b.
+      RIDER 2026-11-03 (N-5-SYNC, TIER 2, docs/prompts/N-5-SYNC.md): sync
+      batched; timeout fixed — from Gary's staging test 2026-11-03, Vercel log
+      'Task timed out after 60 seconds' on /api/square/sales-items/sync. Cause:
+      Fluid default 300 s; N-5's maxDuration = 60 lowered it, under ~1,179
+      per-row upserts iad1 -> Neon us-west-2 (~80-250 s est.). Work commit
+      9a069ca: categories + sales items batched (createMany; UPDATE ... FROM
+      VALUES per 200 changed rows; unchanged rows not written — R1), modifier
+      updates batched (R2), maxDuration = 300. Rulings: DECISIONS 2026-11-03
+      N-5-SYNC (Gary: "Go as planned"). DB calls per sync, measured by
+      verify-n5-sync on dev br-broad-wave-a6vpjdw0: 11 first sync (1,200
+      rows), 9 changed catalog, 4 unchanged re-run — was ~1 per category and
+      per variation. verify-n5-sync 37/37; verify-n5-modifiers and 59 other
+      earlier fixtures pass; eng1-engagement, hr8-compliance, ms5,
+      nav1-url-sets, notify14-doc-digest fail identically at e32e22c without
+      this change (pre-existing, not N-5). NOT VERIFIED: the staging re-test
+      (Gary's push first). Promote N-5 only together with 9a069ca.
 
       FILED 2026-11-01 by the BEV-1 docs commit, as the BEV-1 prompt directed
       ("a ROW for Square modifier nutrition (add-ons) if Phase 1 A5 confirms

@@ -76,6 +76,23 @@ staging-SHA precondition (deployed SHA = local `HEAD`), migration
 Nutrition section render, a modifier recipe with a negative line saves, and
 the routes' role gates hold.
 
+**N-5-SYNC note, 2026-11-03 — the sync timed out on staging; fixed, NOT yet
+pushed or re-tested.** Gary's staging test after the push of `e32e22c`: Sales
+Items → Sync from Square showed "Sync failed — check your connection"; Vercel
+runtime log (Preview) "Task timed out after 60 seconds" on
+`/api/square/sales-items/sync`. Cause: the project default is 300 s (Fluid
+compute), and N-5's `maxDuration = 60` above lowered it. The writes, one
+upsert per variation from `iad1` to Neon `us-west-2`, needed ~80–250 s. **Fix,
+work commit `9a069ca`:** category and sales-item writes batched (unchanged rows
+not written), modifier updates batched, `maxDuration = 300`. Fixture
+`verify-n5-sync` 37/37 on dev `br-broad-wave-a6vpjdw0` (rolled back). **This
+payload now rides with N-5: promote both together, never N-5 without
+`9a069ca`.** Rollback for the fix alone: revert `9a069ca`, but that brings the
+60 s timeout back. Staging re-test after Gary's push: the staging-SHA
+precondition, then Sync from Square completes (read the duration and the
+`[sales-items/sync]` line in the Vercel log), Recipes → Modifiers lists the
+add-ons, and a second sync straight after is fast with `updated=0`.
+
 ## 4dbfa03 — 2026-11-03 — N-1e-UI: label inbox ingredient picker is a searchable combobox
 
 **PROMOTED 2026-11-03 in merge `4dbfa03`**, together with N-1e (entry below,

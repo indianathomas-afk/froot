@@ -5,6 +5,47 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-03 — N-5-SYNC: catalog sync batched; R1 skip unchanged rows, R2 batch modifier updates (Gary)
+
+Ruled by Gary in chat 2026-11-03 at the N-5-SYNC Phase 1 STOP. His words,
+recorded exactly:
+
+> "Go as planned"
+
+That is the whole ruling. **The plan and the two rulings below are Claude's
+Phase 1 recommendations, not Gary's wording.** Phase 1 was a TIER 2 audit
+phase, so it has no artifact (CLAUDE.md § Where documents live); the
+recommendations are restated here so the ruling can be read on its own.
+Work commit `9a069ca`.
+
+- **Cause, measured in Phase 1.** The Vercel project runs Fluid compute with
+  `functionDefaultTimeout: 300`, region `iad1` (read from the Vercel project
+  API, function settings only). So `/api/square/sales-items/sync` had a 300 s
+  limit before N-5, and **N-5's `maxDuration = 60` LOWERED it** (the N-5 entry
+  below says "`maxDuration = 60` on the sync route"; that premise was wrong,
+  and the ruling stands). Under the limit sat one awaited upsert per category
+  and per variation, each a round trip from `iad1` to Neon `us-west-2`
+  (~70 ms, estimated, not measured), so ~1,179 variations came to ~80–250 s.
+- **Plan accepted:** batch the category and sales-item writes (one read,
+  `createMany` for new rows, one `UPDATE … FROM (VALUES …)` per 200 changed
+  rows); keep the fields, the create-only `squareItemId`, the
+  duplicate-variation outcome, the deleted-row sweeps and the
+  stamp-only-on-success rule unchanged; set `maxDuration = 300` as a safety
+  net.
+- **R1 — rows whose synced fields already match are not written.** The one
+  visible change in what the sync writes: `SalesItem.updatedAt` no longer
+  moves on unchanged rows. Nothing in `src/` read it (checked in Phase 1).
+- **R2 — changed modifier lists and modifiers are batch-updated too,**
+  instead of one update per row. Which rows change is N-5's rule, unchanged.
+
+**Claude (implementation):** categories (tens of rows) still update changed
+rows one at a time; the item writes stay outside a transaction, as before; the
+route logs one summary line (created / updated / unchanged, write ms).
+
+**Noted, not ruled:** the `iad1` → `us-west-2` split charges every
+database-heavy route ~70 ms per round trip. Moving the function region is
+Gary's call and is not part of N-5-SYNC.
+
 ## 2026-11-03 — N-5: Square modifiers — sync, modifier recipes, BevSpot modifier import — forks N5-F1–F8 (Gary)
 
 **RATIFIED BY GARY, 2026-11-03, at the N-5 PRE-PUSH-CHECK, as written:**
