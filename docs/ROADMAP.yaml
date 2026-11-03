@@ -17819,6 +17819,13 @@ phases:
     # 20261103010000_n1e_label_inbox (additive, no backfill) rides this push.
     # The "(NOT pushed)" and "is the commit immediately after 218e984" lines
     # above are spent, kept: the docs SHA is 55f092e.
+    # Rider 2026-11-03 (N-1e-UI, TIER 2): inbox picker made searchable; list
+    # scroll fixed — from Gary's staging test 2026-11-03. Work commit 23ea7d3
+    # (ingredient-picker.tsx only: Popover + search combobox replaces the
+    # Select; serves both the inbox row and the review queue card). Docs SHA
+    # is the commit immediately after 23ea7d3 (its own SHA cannot be written
+    # inside itself). Prompt docs/prompts/N-1e-UI.md. verify-n1e 84/84, build
+    # green. NOT pushed when written — Gary runs the push. Status unchanged.
     status: staging
     commits:
       - "218e984"
@@ -17833,6 +17840,14 @@ phases:
       # + the commit immediately after 55f092e: docs(N-1e PRE-PUSH-CHECK) —
       # DECISIONS ratified, pre-push applied = 0 recorded, this row to
       # staging, DEPLOY_LOG entry
+      - "bb26400"
+      # docs(N-1e PRE-PUSH-CHECK): the commit named on the line above;
+      # recorded by N-1e-UI
+      - "23ea7d3"
+      # fix(N-1e-UI): label inbox ingredient picker is a searchable combobox,
+      # 2026-11-03
+      # + the commit immediately after 23ea7d3: docs(N-1e-UI) — this rider,
+      # prompt
     title: "Nutrition — read a label from a pasted link, and batch-read many labels with a review queue"
     notes: >
       BUILT 2026-11-02, TIER 3. Prompt of record: docs/prompts/N-1e.md. Audit
