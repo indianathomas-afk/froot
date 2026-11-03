@@ -2310,8 +2310,8 @@ word.
 | Branch | Applied (`_prisma_migrations.finished_at`) | By |
 |---|---|---|
 | dev `br-broad-wave-a6vpjdw0` | applied 2026-11-03 — `finished_at` NOT read by the session; the evidence is the empty shape diff and the fixture's part 7 printing `neon.branch_id = br-broad-wave-a6vpjdw0` against the new tables | Gary |
-| staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
-| production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
+| staging `br-square-feather-a63z92vz` | applied on Gary's push (the staging Sync from Square — 234 categories, 1,271 sales items, 595 modifiers — and the Recipes → Modifiers tab ran against it before promotion, per the STAMP-3ea8112-FIXTURES prompt) — finished_at not read. (Was: "not yet — on Gary's push" — spent.) | Vercel build |
+| production `br-sparkling-block-a620qvg4` | **2026-11-03 21:54:06.247507 UTC** (13:54:06 PST) — 61 s after the promotion `3ea8112` merge (21:53:05 UTC). Read by Gary in the Neon console, branch id from the server, recorded by STAMP-3ea8112-FIXTURES. (Was: "not yet — at promotion" — spent.) | Vercel build |
 
 **GENERATED AGAINST THE LIVE DEV DATABASE, after a clean baseline** (the diff
 with no `-o` returned `-- This is an empty migration.` before

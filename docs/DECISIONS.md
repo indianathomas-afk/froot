@@ -5,6 +5,38 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-03 — nav1: the Nutrition sidebar links, by role and by module (Gary) — DRAFT, pending ratification at PRE-PUSH-CHECK
+
+**DRAFT.** To be ratified at the next PRE-PUSH-CHECK; this heading reads
+"DRAFT, pending ratification" until then.
+
+Ruled by Gary 2026-11-03 in the pointer message that launched
+STAMP-3ea8112-FIXTURES, answering the RULING NOW in
+`docs/prompts/FIXTURE-TRIAGE_AUDIT.md` § 2. His words, recorded exactly:
+
+> "Menu Nutrition shows for ADMIN, MANAGER and STORE; Import Nutrition,
+> Serving Settings, Label Inbox and Public Menu show for ADMIN only; none of
+> them show when the nutrition module is off."
+
+That is the whole ruling. It sanctions the five sidebar links N-1, N-1e, N-2
+and N-3 added (`/nutrition/menu`, `/nutrition/import`, `/nutrition/settings`,
+`/nutrition/labels`, `/nutrition/publish`) in `scripts/verify-nav1-url-sets.ts`,
+which demands a ruling, not a fix, for any URL a role gains over the pinned
+NAV-1 baseline (precedents: `/help` HELP-1a 2026-09-04, `/calendar` CAL-1 R5
+2026-09-17). STAFF is not named, so STAFF sees none of them. It matches what
+the sidebar already declares (`nutrition.view` / `nutrition.manage` under a
+group gated on `["inventory", "nutrition"]`); nothing in `src/` changed for it.
+
+**Claude (implementation, fixture only):** the earlier sanctions suppress a
+gain for every role; this ruling is per-role, so the five entries are
+role-scoped (`ROLE_SANCTIONED_ADDITIONS`): `/nutrition/menu` appearing for
+STAFF would still fail. Because a sanction can only hide a gain, the fixture
+also checks that each role's nutrition links EQUAL the ruled set whenever the
+module is on, and a new "nutrition module OFF (inventory on)" scenario checks
+that all five vanish for every role. `BASELINE_REV` is unchanged (`10439b3`).
+A mutation run (a scratchpad copy with MANAGER given Import Nutrition and STAFF
+given Menu Nutrition) failed on exactly those roles. Work commit `d4e6df2`.
+
 ## 2026-11-03 — N-5-SYNC: catalog sync batched; R1 skip unchanged rows, R2 batch modifier updates (Gary)
 
 **RATIFIED BY GARY, 2026-11-03, at the N-5-SYNC PRE-PUSH-CHECK, as written:**
