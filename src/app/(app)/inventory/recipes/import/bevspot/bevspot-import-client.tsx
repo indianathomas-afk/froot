@@ -21,11 +21,11 @@ import type { PlanSkip, PlanSummary, SkipReason } from "@/lib/bevspot/plan-impor
 
 type Preview = {
   summary: PlanSummary
-  ready: { kind: "sales" | "sub"; name: string; lineCount: number; recipeRaw: string }[]
+  ready: { kind: "sales" | "sub" | "modifier"; name: string; lineCount: number; recipeRaw: string }[]
   skipped: PlanSkip[]
 }
 
-type Applied = Preview & { created: number; createdSubRecipes: number }
+type Applied = Preview & { created: number; createdSubRecipes: number; createdModifierRecipes?: number }
 
 // Written for a store owner. Order = the order the lists appear in.
 const REASONS: { reason: SkipReason; title: string; help: string }[] = [
@@ -36,8 +36,8 @@ const REASONS: { reason: SkipReason; title: string; help: string }[] = [
   { reason: "BAD_UNIT", title: "Unit doesn't fit", help: "A line's unit can't convert to how Froot counts that ingredient (e.g. fl. oz vs oz (dry))." },
   { reason: "LOOP", title: "Recipes use each other", help: "These recipes would contain themselves." },
   { reason: "INVALID", title: "Rejected by Froot's recipe checks", help: "" },
-  { reason: "NEGATIVE_QTY", title: "Negative amounts", help: "BevSpot uses these for removals. Froot doesn't import them." },
-  { reason: "NOT_IN_SQUARE", title: "Not one of your Square items", help: "BevSpot links these to a Square id Froot doesn't have — usually a modifier. Sync Square items first if you expected them." },
+  { reason: "NEGATIVE_QTY", title: "Negative amounts", help: "BevSpot uses these for removals. Froot imports them only on a Square modifier's recipe (\"No Banana\"), never on a menu item or prep recipe." },
+  { reason: "NOT_IN_SQUARE", title: "Not one of your Square items", help: "BevSpot links these to a Square id that is neither a sales item nor a modifier in Froot. Sync from Square first if you expected them." },
   { reason: "ALREADY_HAS_RECIPE", title: "Already has a recipe", help: "Froot never overwrites a recipe." },
   { reason: "MARKED_NON_RECIPE", title: "Marked \"no recipe\" in Froot", help: "Left as you set them." },
   { reason: "NO_RECIPE", title: "No recipe in BevSpot", help: "" },
@@ -84,6 +84,9 @@ export function BevSpotImportClient() {
   const shown = applied ?? preview
   const readyCount = preview?.summary.ready ?? 0
   const subCount = preview?.summary.readySubRecipes ?? 0
+  // N-5: modifier recipes count toward what an import creates.
+  const modifierCount = preview?.summary.readyModifiers ?? 0
+  const importCount = readyCount + modifierCount
 
   return (
     <div className="max-w-4xl">
@@ -116,8 +119,8 @@ export function BevSpotImportClient() {
           Preview
         </Button>
         {preview && (
-          <Button disabled={readyCount === 0 || busy !== null} onClick={() => setConfirming(true)}>
-            Import {readyCount} recipe{readyCount === 1 ? "" : "s"}
+          <Button disabled={importCount === 0 || busy !== null} onClick={() => setConfirming(true)}>
+            Import {importCount} recipe{importCount === 1 ? "" : "s"}
           </Button>
         )}
       </div>
@@ -147,12 +150,15 @@ export function BevSpotImportClient() {
             {applied ? (
               <p className="text-sm font-medium text-[var(--color-foreground)]">
                 Imported {applied.created} recipe{applied.created === 1 ? "" : "s"}
+                {(applied.createdModifierRecipes ?? 0) > 0 &&
+                  `, ${applied.createdModifierRecipes} modifier recipe${applied.createdModifierRecipes === 1 ? "" : "s"}`}
                 {applied.createdSubRecipes > 0 && ` and ${applied.createdSubRecipes} prep recipe${applied.createdSubRecipes === 1 ? "" : "s"}`}.
                 Fix the items below and import the same file again — recipes already in Froot are left alone.
               </p>
             ) : (
               <p className="text-sm font-medium text-[var(--color-foreground)]">
                 {readyCount} recipe{readyCount === 1 ? "" : "s"} ready
+                {modifierCount > 0 && `, ${modifierCount} modifier recipe${modifierCount === 1 ? "" : "s"}`}
                 {subCount > 0 && ` (plus ${subCount} prep recipe${subCount === 1 ? "" : "s"} they use)`}
                 {REASONS.filter((r) => shown.summary.skippedByReason[r.reason]).map((r) => ` · ${shown.summary.skippedByReason[r.reason]} ${r.title.toLowerCase()}`)}
               </p>
@@ -186,6 +192,7 @@ export function BevSpotImportClient() {
                   <li key={`${r.kind}|${r.name}`}>
                     <span className="font-medium">{r.name}</span>
                     {r.kind === "sub" && <Badge variant="outline" className="ml-2">Prep</Badge>}
+                    {r.kind === "modifier" && <Badge variant="outline" className="ml-2">Modifier</Badge>}
                     <div className="text-xs text-[var(--color-muted-foreground)]">{r.recipeRaw}</div>
                   </li>
                 ))}
@@ -225,7 +232,7 @@ export function BevSpotImportClient() {
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Import {readyCount} recipe{readyCount === 1 ? "" : "s"}?</AlertDialogTitle>
+            <AlertDialogTitle>Import {importCount} recipe{importCount === 1 ? "" : "s"}?</AlertDialogTitle>
             <AlertDialogDescription>
               {subCount > 0 ? `This also adds ${subCount} prep recipe${subCount === 1 ? "" : "s"}. ` : ""}
               The recipes apply to every store. Existing recipes are not changed.

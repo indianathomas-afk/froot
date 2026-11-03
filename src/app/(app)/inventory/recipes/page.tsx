@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { ChefHat } from "lucide-react"
 import Link from "next/link"
-import { computeAllRecipeCosts, costPct, loadCostGraph, recipesUsing } from "@/lib/recipe-cost"
+import { computeAllRecipeCosts, costPct, loadCostGraph, recipeKind, recipesUsing } from "@/lib/recipe-cost"
 import { RecipesClient } from "./recipes-client"
 
 export default async function RecipesPage() {
@@ -42,7 +42,7 @@ export default async function RecipesPage() {
   // UI only — the BevSpot import page and APIs re-check ADMIN themselves.
   const isAdmin = dbUser?.role === "ADMIN" && dbUser.organizationId === org.id
 
-  const [salesItems, graph, stores] = await Promise.all([
+  const [salesItems, graph, stores, modifiers] = await Promise.all([
     prisma.salesItem.findMany({
       where: { organizationId: org.id, isDeleted: false },
       include: { recipe: { select: { id: true } } },
@@ -57,6 +57,19 @@ export default async function RecipesPage() {
       },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
+    }),
+    // N-5: synced Square modifiers (add-ons, swaps, removals).
+    prisma.squareModifier.findMany({
+      where: { organizationId: org.id, isDeleted: false },
+      select: {
+        id: true,
+        name: true,
+        priceCents: true,
+        recipeStatus: true,
+        recipe: { select: { id: true } },
+        modifierList: { select: { name: true } },
+      },
+      orderBy: [{ modifierList: { name: "asc" } }, { ordinal: "asc" }, { name: "asc" }],
     }),
   ])
   const costs = computeAllRecipeCosts(graph)
@@ -77,7 +90,7 @@ export default async function RecipesPage() {
   })
 
   const prepRecipes = [...graph.recipes.values()]
-    .filter((r) => r.salesItemId === null)
+    .filter((r) => recipeKind(r) === "prep")
     .map((r) => {
       const cost = costs.get(r.id)
       const prepared = graph.preparedByRecipeId.get(r.id)
@@ -96,5 +109,28 @@ export default async function RecipesPage() {
     })
     .sort((a, b) => a.name.localeCompare(b.name))
 
-  return <RecipesClient items={items} prepRecipes={prepRecipes} stores={stores} isManager={isManager} isAdmin={isAdmin} />
+  const modifierRows = modifiers.map((m) => {
+    const cost = m.recipe ? costs.get(m.recipe.id) : null
+    return {
+      id: m.id,
+      name: m.name,
+      listName: m.modifierList.name,
+      priceCents: m.priceCents,
+      recipeStatus: m.recipeStatus,
+      recipeId: m.recipe?.id ?? null,
+      cost: cost?.cost ?? null,
+      costError: cost?.error ?? null,
+    }
+  })
+
+  return (
+    <RecipesClient
+      items={items}
+      prepRecipes={prepRecipes}
+      modifiers={modifierRows}
+      stores={stores}
+      isManager={isManager}
+      isAdmin={isAdmin}
+    />
+  )
 }

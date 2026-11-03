@@ -65,7 +65,7 @@ export async function readBevSpotUpload(
 }
 
 export async function planForOrg(organizationId: string, rows: BevRow[]): Promise<ImportPlan> {
-  const [graph, ingredients, salesItems] = await Promise.all([
+  const [graph, ingredients, salesItems, modifiers] = await Promise.all([
     loadCostGraph(organizationId),
     // F5 matches live ingredients only.
     prisma.ingredient.findMany({
@@ -75,6 +75,11 @@ export async function planForOrg(organizationId: string, rows: BevRow[]): Promis
     prisma.salesItem.findMany({
       where: { organizationId, isDeleted: false },
       select: { id: true, squareVariationId: true, displayName: true, recipeStatus: true, recipe: { select: { id: true } } },
+    }),
+    // N-5: live synced modifiers, so their BevSpot rows import as modifier recipes.
+    prisma.squareModifier.findMany({
+      where: { organizationId, isDeleted: false },
+      select: { id: true, squareModifierId: true, name: true, recipeStatus: true, recipe: { select: { id: true } } },
     }),
   ])
   return planBevSpotImport({
@@ -86,6 +91,13 @@ export async function planForOrg(organizationId: string, rows: BevRow[]): Promis
       displayName: s.displayName,
       recipeStatus: s.recipeStatus,
       recipeId: s.recipe?.id ?? null,
+    })),
+    modifiers: modifiers.map((m) => ({
+      id: m.id,
+      squareModifierId: m.squareModifierId,
+      name: m.name,
+      recipeStatus: m.recipeStatus,
+      recipeId: m.recipe?.id ?? null,
     })),
     graph,
   })

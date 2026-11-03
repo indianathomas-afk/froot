@@ -3,6 +3,12 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { requireAdmin, requireModule } from "@/lib/auth"
 import { getSquareClient } from "@/lib/square"
+import {
+  mapModifierCatalog,
+  writeModifierCatalog,
+  type SquareModifierListObject,
+  type SquareModifierObject,
+} from "@/lib/square-modifier-sync"
 
 type SquareCatalogObject = {
   id: string
@@ -13,6 +19,7 @@ type SquareCatalogObject = {
     name?: string
     category_id?: string
     categories?: { id: string }[]
+    modifier_list_info?: { modifier_list_id?: string; enabled?: boolean }[]
     variations?: {
       id: string
       item_variation_data?: {
@@ -22,6 +29,10 @@ type SquareCatalogObject = {
     }[]
   }
 }
+
+// N-5: modifiers add a few hundred writes to an already long sequential sync
+// (docs/prompts/N-5_AUDIT.md § B).
+export const maxDuration = 60
 
 export async function POST() {
   const { orgId } = await auth()
@@ -50,11 +61,14 @@ export async function POST() {
 
   const categoryObjects: SquareCatalogObject[] = []
   const itemObjects: SquareCatalogObject[] = []
+  // N-5: modifier lists ride the same pages; items/categories are unchanged.
+  const modifierListObjects: SquareModifierListObject[] = []
+  const looseModifierObjects: SquareModifierObject[] = []
 
   let cursor: string | undefined
   do {
     const url = new URL(`${client.baseUrl}/v2/catalog/list`)
-    url.searchParams.set("types", "ITEM,CATEGORY")
+    url.searchParams.set("types", "ITEM,CATEGORY,MODIFIER_LIST")
     if (cursor) url.searchParams.set("cursor", cursor)
 
     const res = await fetch(url, { headers: client.headers })
@@ -62,10 +76,13 @@ export async function POST() {
       return NextResponse.json({ error: "Square catalog list failed" }, { status: 502 })
     }
 
-    const data: { objects?: SquareCatalogObject[]; cursor?: string } = await res.json()
+    const data: { objects?: (SquareCatalogObject & SquareModifierListObject & SquareModifierObject)[]; cursor?: string } =
+      await res.json()
     for (const obj of data.objects ?? []) {
       if (obj.type === "CATEGORY") categoryObjects.push(obj)
       else if (obj.type === "ITEM") itemObjects.push(obj)
+      else if (obj.type === "MODIFIER_LIST") modifierListObjects.push(obj)
+      else if (obj.type === "MODIFIER") looseModifierObjects.push(obj)
     }
     cursor = data.cursor
   } while (cursor)
@@ -142,6 +159,12 @@ export async function POST() {
     data: { isDeleted: true },
   })
 
+  // N-5: after every item/variation write above, so their behaviour is untouched.
+  const modifierCounts = await writeModifierCatalog(
+    org.id,
+    mapModifierCatalog(modifierListObjects, looseModifierObjects, itemObjects)
+  )
+
   await prisma.organization.update({
     where: { id: org.id },
     data: { lastCatalogSyncAt: new Date() },
@@ -150,5 +173,7 @@ export async function POST() {
   return NextResponse.json({
     categories: categoryObjects.length,
     salesItems: seenVariationIds.length,
+    modifierLists: modifierCounts.modifierLists,
+    modifiers: modifierCounts.modifiers,
   })
 }

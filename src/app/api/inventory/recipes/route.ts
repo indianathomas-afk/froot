@@ -89,6 +89,18 @@ export async function POST(req: Request) {
     }
   }
 
+  // N-5: a modifier recipe (add-on, swap or removal). One recipe per modifier.
+  if (data.squareModifierId) {
+    const modifier = await prisma.squareModifier.findFirst({
+      where: { id: data.squareModifierId, organizationId: org.id },
+      include: { recipe: { select: { id: true } } },
+    })
+    if (!modifier) return NextResponse.json({ error: "Modifier not found" }, { status: 404 })
+    if (modifier.recipe) {
+      return NextResponse.json({ error: "This modifier already has a recipe" }, { status: 409 })
+    }
+  }
+
   const graph = await loadCostGraph(org.id)
   const validation = validateRecipeLines(graph, candidateFromInput("__candidate__", data))
   if (validation) return NextResponse.json(validation, { status: 422 })
@@ -99,6 +111,7 @@ export async function POST(req: Request) {
         organizationId: org.id,
         name: data.name,
         salesItemId: data.salesItemId ?? null,
+        squareModifierId: data.squareModifierId ?? null,
         yieldQty: data.yieldQty,
         yieldUnit: data.yieldUnit,
         servingSizeQty: data.servingSizeQty ?? null,
@@ -118,6 +131,9 @@ export async function POST(req: Request) {
     })
     if (data.salesItemId) {
       await tx.salesItem.update({ where: { id: data.salesItemId }, data: { recipeStatus: "MAPPED" } })
+    }
+    if (data.squareModifierId) {
+      await tx.squareModifier.update({ where: { id: data.squareModifierId }, data: { recipeStatus: "MAPPED" } })
     }
     return created
   })

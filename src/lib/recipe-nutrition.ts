@@ -162,9 +162,15 @@ export function computeRecipeNutrition(graph: NutritionGraph, recipeId: string, 
   let failed: string | null = null
   let loop: Loop | null = null
 
+  // N-5 (N5-F6): a NEGATIVE line (a modifier's removal or swap-out) adds no
+  // allergens — taking banana out of a drink can't put banana in it. Only
+  // modifier recipes may have one (validateRecipeLines), so item and prep
+  // recipes are unaffected. Values still subtract: totals keep their sign.
+  let addsAllergens = true
+
   // Fold a computed sub-result (sub-recipe or prepared source) into this one.
   const absorb = (sub: RecipeNutrition, factor: number | null): NutrientValues | null => {
-    sub.allergens.forEach((a) => allergens.add(a))
+    if (addsAllergens) sub.allergens.forEach((a) => allergens.add(a))
     sub.foodIngredientIds.forEach((id) => foodIngredientIds.add(id))
     sub.missingIngredientIds.forEach((id) => missingIngredientIds.add(id))
     sub.partialIngredients.forEach((keys, id) => partialIngredients.set(id, keys))
@@ -173,6 +179,7 @@ export function computeRecipeNutrition(graph: NutritionGraph, recipeId: string, 
   }
 
   for (const line of recipe.lines) {
+    addsAllergens = line.amount > 0
     let contribution: NutrientValues | null = null
     let status: LineStatus = "ok"
     let error: string | null = null
@@ -205,7 +212,7 @@ export function computeRecipeNutrition(graph: NutritionGraph, recipeId: string, 
         // (the cost engine's rule, recipe-cost.ts computeRecipeCost).
         const src = graph.recipes.get(ing.preparedFromRecipeId)!
         const srcN = computeRecipeNutrition(graph, src.id, s)
-        ing.allergens.forEach((a) => allergens.add(a))
+        if (addsAllergens) ing.allergens.forEach((a) => allergens.add(a))
         const qty = convert(line.amount, line.unit, ing.reportingUnit)
         if (srcN.error) {
           error = srcN.loop ? loopErrorMessage(srcN.loop) : `"${src.name}" has a nutrition error`
@@ -221,7 +228,7 @@ export function computeRecipeNutrition(graph: NutritionGraph, recipeId: string, 
       } else {
         // Allergens are unioned even from not-food lines: an allergen an admin
         // recorded is never dropped for tidiness.
-        ing.allergens.forEach((a) => allergens.add(a))
+        if (addsAllergens) ing.allergens.forEach((a) => allergens.add(a))
         if (ing.nutritionExempt) {
           status = "exempt"
         } else {

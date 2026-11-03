@@ -10,6 +10,7 @@ import {
   costPct,
   recipesUsing,
   recomputePreparedIngredientCosts,
+  recipeKind,
 } from "@/lib/recipe-cost"
 import { RecipeSchema, candidateFromInput, validateRecipeLines } from "@/lib/recipe-api"
 
@@ -17,7 +18,7 @@ const PatchSchema = RecipeSchema.partial().extend({
   // Marking a sub-recipe countable creates (or reactivates) its linked PREPARED
   // ingredient; unmarking deactivates it (never deletes — counts reference it).
   countable: z.boolean().optional(),
-})
+}).omit({ squareModifierId: true }) // N-5: fixed at creation
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { orgId } = await auth()
@@ -99,6 +100,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const data = PatchSchema.parse(body)
 
   const salesItemId = data.salesItemId !== undefined ? data.salesItemId : existing.salesItemId
+  // N-5: a modifier recipe stays a modifier recipe (validateRecipeLines refuses
+  // a sales item on it), and is never countable (N5-F8).
+  if (existing.squareModifierId && data.countable === true) {
+    return NextResponse.json({ error: "A modifier recipe can't be a countable prep item" }, { status: 422 })
+  }
   if (salesItemId && salesItemId !== existing.salesItemId) {
     const salesItem = await prisma.salesItem.findFirst({
       where: { id: salesItemId, organizationId: org.id },
@@ -114,6 +120,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const merged = {
     name: data.name ?? existing.name,
     salesItemId,
+    squareModifierId: existing.squareModifierId,
     yieldQty: data.yieldQty ?? existing.yieldQty,
     yieldUnit: data.yieldUnit ?? existing.yieldUnit,
     servingSizeQty: data.servingSizeQty !== undefined ? data.servingSizeQty : existing.servingSizeQty,
@@ -170,7 +177,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   })
 
   // Countable toggle → PREPARED ingredient lifecycle.
-  if (data.countable === true && merged.salesItemId === null) {
+  if (data.countable === true && recipeKind(merged) === "prep") {
     if (existing.preparedIngredient) {
       await prisma.ingredient.update({ where: { id: existing.preparedIngredient.id }, data: { isActive: true, isArchived: false } })
     } else {
@@ -265,6 +272,9 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   await prisma.$transaction(async (tx) => {
     if (recipe.salesItemId) {
       await tx.salesItem.update({ where: { id: recipe.salesItemId }, data: { recipeStatus: "UNMAPPED" } })
+    }
+    if (recipe.squareModifierId) {
+      await tx.squareModifier.update({ where: { id: recipe.squareModifierId }, data: { recipeStatus: "UNMAPPED" } })
     }
     await tx.recipe.delete({ where: { id } })
   })

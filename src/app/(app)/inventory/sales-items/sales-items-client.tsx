@@ -130,7 +130,10 @@ function SyncButton({ squareConnected, lastCatalogSyncAt }: { squareConnected: b
         setResult({ ok: false, message: data.error ?? "Sync failed" })
         return
       }
-      setResult({ ok: true, message: `Synced ${data.categories} categories, ${data.salesItems} sales items` })
+      setResult({
+        ok: true,
+        message: `Synced ${data.categories} categories, ${data.salesItems} sales items, ${data.modifiers ?? 0} modifiers`,
+      })
       router.refresh()
     } catch {
       setResult({ ok: false, message: "Sync failed — check your connection" })

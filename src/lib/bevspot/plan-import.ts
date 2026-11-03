@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto"
 import { compatibleUnits } from "@/lib/units"
 import { validateRecipeLines } from "@/lib/recipe-api"
-import type { CostGraph, GraphRecipe } from "@/lib/recipe-cost"
+import { recipeKind, type CostGraph, type GraphRecipe } from "@/lib/recipe-cost"
 import type { BevLine, BevRow } from "./parse-sales-items"
 import { UNIT_MARKER, mapBevSpotQty } from "./units"
 
@@ -28,6 +28,11 @@ import { UNIT_MARKER, mapBevSpotQty } from "./units"
 //     is Archived/Unassigned or its Square id isn't a sales item; F3/F7 only
 //     decide its sales-item attachment. Outside Archived/Unassigned wins;
 //     two definitions left after that skip (F11).
+// N-5 (N5-F4) A row whose Square id is not a sales item but IS a synced
+//     Square modifier imports as that modifier's recipe, under every rule
+//     above (exact match, never overwrite, conflicts skip). Negative lines are
+//     allowed for these rows ONLY — a prep row or a sales row with one still
+//     skips as NEGATIVE_QTY. NOT_IN_SQUARE now means "neither".
 //
 // A recipe is all or nothing: one unresolved line skips it, and a skipped
 // sub-recipe skips everything that uses it, carrying the root cause.
@@ -39,7 +44,7 @@ export type SkipReason =
   | "NO_RECIPE"
   | "PARSE_ERROR"
   | "NO_SQUARE_ID" // not a Square item and not used as a sub-recipe
-  | "NOT_IN_SQUARE" // Square id is not a Froot sales item (F7)
+  | "NOT_IN_SQUARE" // Square id is neither a Froot sales item nor a synced modifier (F7, N-5)
   | "ALREADY_HAS_RECIPE" // F6
   | "MARKED_NON_RECIPE" // sales item set to "no recipe" in Froot (F6)
   | "CONFLICT" // F3
@@ -60,6 +65,15 @@ export type PlanSalesItem = {
   recipeId: string | null
 }
 
+// N-5: a synced Square modifier the importer may attach a recipe to.
+export type PlanModifier = {
+  id: string
+  squareModifierId: string
+  name: string
+  recipeStatus: string
+  recipeId: string | null
+}
+
 export type PlanLine = {
   ingredientId: string | null
   subRecipeId: string | null
@@ -70,9 +84,10 @@ export type PlanLine = {
 
 export type PlanRecipe = {
   id: string
-  kind: "sales" | "sub"
+  kind: "sales" | "sub" | "modifier"
   name: string
   salesItemId: string | null
+  squareModifierId: string | null
   rowNumbers: number[]
   recipeRaw: string
   lines: PlanLine[]
@@ -97,6 +112,8 @@ export type PlanInput = {
   rows: BevRow[]
   ingredients: PlanIngredient[]
   salesItems: PlanSalesItem[]
+  /** N-5: synced, live Square modifiers. Absent = none (BEV-1 behaviour). */
+  modifiers?: PlanModifier[]
   graph: CostGraph // the org's current recipes + ingredients, for the shared validators
   newId?: () => string
 }
@@ -118,9 +135,10 @@ type Failure = { reason: SkipReason; detail: string; names: string[] }
 
 type Node = {
   key: string
-  kind: "sales" | "sub"
+  kind: "sales" | "sub" | "modifier"
   name: string
   salesItemId: string | null
+  squareModifierId: string | null
   rows: BevRow[]
   lines: BevLine[]
   state: "new" | "visiting" | "ok" | "failed"
@@ -155,9 +173,11 @@ export function planBevSpotImport(input: PlanInput): ImportPlan {
     }
   }
   const salesBySquareId = new Map(input.salesItems.map((s) => [s.squareVariationId, s]))
+  const modifiersBySquareId = new Map((input.modifiers ?? []).map((m) => [m.squareModifierId, m]))
   const existingSubsByName = new Map<string, GraphRecipe[]>()
   for (const r of input.graph.recipes.values()) {
-    if (r.salesItemId !== null) continue
+    // N-5: only prep recipes are reusable by name — never a modifier recipe.
+    if (recipeKind(r) !== "prep") continue
     const k = r.name.trim()
     existingSubsByName.set(k, [...(existingSubsByName.get(k) ?? []), r])
   }
@@ -206,19 +226,26 @@ export function planBevSpotImport(input: PlanInput): ImportPlan {
   for (const [squareId, rows] of salesRowsBySquareId) {
     const recipeRows = rows.filter((r) => r.lines !== null)
     const sales = salesBySquareId.get(squareId)
+    // N-5: a sales item wins; otherwise a synced modifier with this id.
+    const modifier = sales ? undefined : modifiersBySquareId.get(squareId)
+    const target = sales
+      ? { kind: "sales" as const, name: sales.displayName, recipeId: sales.recipeId, recipeStatus: sales.recipeStatus }
+      : modifier
+        ? { kind: "modifier" as const, name: modifier.name, recipeId: modifier.recipeId, recipeStatus: modifier.recipeStatus }
+        : null
     const noNode = (reason: SkipReason, detail: string, report = true) => {
       salesSkip.set(squareId, { reason, detail })
-      if (report) skip(reason, rows, detail, sales?.displayName)
+      if (report) skip(reason, rows, detail, target?.name)
     }
-    if (!sales) {
-      noNode("NOT_IN_SQUARE", "this Square item isn't in Froot's sales items (often a modifier)")
+    if (!target) {
+      noNode("NOT_IN_SQUARE", "this Square id isn't one of Froot's sales items or synced modifiers")
       continue
     }
-    if (sales.recipeId) {
+    if (target.recipeId) {
       noNode("ALREADY_HAS_RECIPE", "it already has a recipe in Froot, left as is")
       continue
     }
-    if (sales.recipeStatus === "NON_RECIPE") {
+    if (target.recipeStatus === "NON_RECIPE") {
       noNode("MARKED_NON_RECIPE", "it is marked \"no recipe\" in Froot, left as is")
       continue
     }
@@ -237,16 +264,17 @@ export function planBevSpotImport(input: PlanInput): ImportPlan {
     } else {
       const expanded = [...distinct.values()].filter((g) => !isWrapper(g[0].lines!))
       if (expanded.length !== 1) {
-        noNode("CONFLICT", `BevSpot has ${distinct.size} different recipes for "${sales.displayName}"`)
+        noNode("CONFLICT", `BevSpot has ${distinct.size} different recipes for "${target.name}"`)
         continue
       }
       chosen = expanded[0]
     }
     nodes.set(`sq:${squareId}`, {
       key: `sq:${squareId}`,
-      kind: "sales",
-      name: sales.displayName,
-      salesItemId: sales.id,
+      kind: target.kind,
+      name: target.name,
+      salesItemId: sales?.id ?? null,
+      squareModifierId: modifier?.id ?? null,
       rows: chosen,
       lines: chosen[0].lines!,
       state: "new",
@@ -271,6 +299,7 @@ export function planBevSpotImport(input: PlanInput): ImportPlan {
         kind: "sub",
         name: rows[0].name.trim(),
         salesItemId: null,
+        squareModifierId: null,
         rows,
         lines: rows[0].lines!,
         state: "new",
@@ -284,16 +313,22 @@ export function planBevSpotImport(input: PlanInput): ImportPlan {
     return node
   }
 
-  function resolveLine(line: BevLine): Resolved {
+  // allowNegative: N5-F4 — true only while resolving a modifier's own lines.
+  function resolveLine(line: BevLine, allowNegative: boolean): Resolved {
     const name = line.name.trim()
     const fail = (reason: SkipReason, detail: string, names = [name]): Resolved => ({
       failure: { reason, detail, names },
     })
-    if (line.qty < 0) return fail("NEGATIVE_QTY", `Negative amount: ${line.raw}`)
-    const mapped = mapBevSpotQty(line.qty, line.unitRaw)
-    if (!mapped.ok) return fail("BAD_UNIT", mapped.error)
-    if (mapped.wholePackage) return fail("SUSPECT_QTY", `Whole-package amount: ${line.raw}`)
-    if (mapped.amount <= 0) return fail("BAD_UNIT", `Zero amount: ${line.raw}`)
+    if (line.qty < 0 && !allowNegative) return fail("NEGATIVE_QTY", `Negative amount: ${line.raw}`)
+    // Mapped on the magnitude, so F12's whole-package check and the unit
+    // reading are the same for a removal as for an addition; the sign is put
+    // back on the amount.
+    const sign = line.qty < 0 ? -1 : 1
+    const magnitude = mapBevSpotQty(Math.abs(line.qty), line.unitRaw)
+    if (!magnitude.ok) return fail("BAD_UNIT", magnitude.error)
+    if (magnitude.wholePackage) return fail("SUSPECT_QTY", `Whole-package amount: ${line.raw}`)
+    if (magnitude.amount <= 0) return fail("BAD_UNIT", `Zero amount: ${line.raw}`)
+    const mapped = { ...magnitude, amount: sign * magnitude.amount }
 
     const key = normName(line.name)
 
@@ -384,7 +419,7 @@ export function planBevSpotImport(input: PlanInput): ImportPlan {
     node.state = "visiting"
     const failures: Failure[] = []
     for (const l of node.lines) {
-      const r = resolveLine(l)
+      const r = resolveLine(l, node.kind === "modifier")
       if ("failure" in r) {
         failures.push(r.failure)
         continue
@@ -419,7 +454,7 @@ export function planBevSpotImport(input: PlanInput): ImportPlan {
     }
   }
 
-  for (const node of [...nodes.values()]) if (node.kind === "sales") resolveNode(node)
+  for (const node of [...nodes.values()]) if (node.kind !== "sub") resolveNode(node)
 
   // ── Shared validators over the whole batch (units + loops) ────────────────
   const graph: CostGraph = {
@@ -431,6 +466,7 @@ export function planBevSpotImport(input: PlanInput): ImportPlan {
     id: n.id!,
     name: n.name,
     salesItemId: n.salesItemId,
+    squareModifierId: n.squareModifierId,
     yieldQty: 1,
     yieldUnit: "serving",
     servingSizeQty: null,
@@ -480,7 +516,7 @@ export function planBevSpotImport(input: PlanInput): ImportPlan {
     needed.add(n.key)
     for (const d of n.deps) mark(nodes.get(d)!)
   }
-  for (const n of ok) if (n.kind === "sales") mark(n)
+  for (const n of ok) if (n.kind !== "sub") mark(n)
 
   // Dependency order: depth-first, deps before dependents.
   const toCreate: PlanRecipe[] = []
@@ -494,6 +530,7 @@ export function planBevSpotImport(input: PlanInput): ImportPlan {
       kind: n.kind,
       name: n.name,
       salesItemId: n.salesItemId,
+      squareModifierId: n.squareModifierId,
       rowNumbers: n.rows.map((r) => r.rowNumber),
       recipeRaw: n.rows[0].recipeRaw ?? "",
       lines: n.resolved,
@@ -502,7 +539,7 @@ export function planBevSpotImport(input: PlanInput): ImportPlan {
   for (const n of ok) if (needed.has(n.key)) place(n)
 
   for (const n of nodes.values()) {
-    if (n.kind === "sales" && n.state === "failed") {
+    if (n.kind !== "sub" && n.state === "failed") {
       skip(n.failure!.reason, n.rows, n.failure!.detail, n.name, n.failure!.names)
     }
   }
@@ -525,6 +562,8 @@ export function planBevSpotImport(input: PlanInput): ImportPlan {
 export type PlanSummary = {
   ready: number
   readySubRecipes: number
+  /** N-5: modifier recipes ready to create */
+  readyModifiers: number
   skippedByReason: Partial<Record<SkipReason, number>>
   // Names the owner has to act on, with how many recipes each one blocks.
   actionNames: { reason: SkipReason; name: string; blocks: number }[]
@@ -545,6 +584,7 @@ export function summarizePlan(plan: ImportPlan): PlanSummary {
   return {
     ready: plan.toCreate.filter((r) => r.kind === "sales").length,
     readySubRecipes: plan.toCreate.filter((r) => r.kind === "sub").length,
+    readyModifiers: plan.toCreate.filter((r) => r.kind === "modifier").length,
     skippedByReason,
     actionNames: [...tally.values()].sort((a, b) => b.blocks - a.blocks || a.name.localeCompare(b.name)),
   }
