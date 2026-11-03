@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { requireAdmin, requireModule } from "@/lib/auth"
 import { getSquareClient } from "@/lib/square"
+import { writeSalesItemCatalogIn, type SquareCatalogObject } from "@/lib/square-catalog-sync"
 import {
   mapModifierCatalog,
   writeModifierCatalog,
@@ -10,29 +11,11 @@ import {
   type SquareModifierObject,
 } from "@/lib/square-modifier-sync"
 
-type SquareCatalogObject = {
-  id: string
-  type: string
-  is_deleted?: boolean
-  category_data?: { name?: string }
-  item_data?: {
-    name?: string
-    category_id?: string
-    categories?: { id: string }[]
-    modifier_list_info?: { modifier_list_id?: string; enabled?: boolean }[]
-    variations?: {
-      id: string
-      item_variation_data?: {
-        name?: string
-        price_money?: { amount?: number }
-      }
-    }[]
-  }
-}
-
-// N-5: modifiers add a few hundred writes to an already long sequential sync
-// (docs/prompts/N-5_AUDIT.md § B).
-export const maxDuration = 60
+// N-5-SYNC: back to the project default of 300 s (Fluid compute, Pro).
+// N-5 had set 60, which LOWERED this route's limit — the sync timed out on
+// staging 2026-11-03. The fix is the batched writes in square-catalog-sync.ts;
+// this is the safety net (docs/prompts/N-5-SYNC.md).
+export const maxDuration = 300
 
 export async function POST() {
   const { orgId } = await auth()
@@ -87,77 +70,9 @@ export async function POST() {
     cursor = data.cursor
   } while (cursor)
 
-  const categoryIdMap = new Map<string, string>()
-  const categoryNameMap = new Map<string, string>()
-  for (const obj of categoryObjects) {
-    const name = obj.category_data?.name ?? "Unnamed Category"
-    const row = await prisma.squareCategory.upsert({
-      where: { organizationId_squareCategoryId: { organizationId: org.id, squareCategoryId: obj.id } },
-      create: { organizationId: org.id, squareCategoryId: obj.id, name, isDeleted: !!obj.is_deleted },
-      update: { name, isDeleted: !!obj.is_deleted },
-    })
-    categoryIdMap.set(obj.id, row.id)
-    categoryNameMap.set(obj.id, name)
-  }
-
-  const seenVariationIds: string[] = []
-  for (const obj of itemObjects) {
-    const itemData = obj.item_data ?? {}
-    const squareCategoryId = itemData.categories?.[0]?.id ?? itemData.category_id ?? null
-    const categoryId = squareCategoryId ? (categoryIdMap.get(squareCategoryId) ?? null) : null
-    const menuGroup = squareCategoryId ? (categoryNameMap.get(squareCategoryId) ?? null) : null
-    const itemName = itemData.name ?? "Unnamed Item"
-
-    for (const v of itemData.variations ?? []) {
-      const vd = v.item_variation_data ?? {}
-      const variationName = vd.name ?? "Regular"
-      seenVariationIds.push(v.id)
-
-      await prisma.salesItem.upsert({
-        where: { organizationId_squareVariationId: { organizationId: org.id, squareVariationId: v.id } },
-        create: {
-          organizationId: org.id,
-          squareItemId: obj.id,
-          squareVariationId: v.id,
-          name: itemName,
-          variationName,
-          displayName: `${itemName} (${variationName})`,
-          squareCategoryId: categoryId,
-          menuGroup,
-          priceCents: vd.price_money?.amount ?? null,
-          isDeleted: !!obj.is_deleted,
-        },
-        update: {
-          name: itemName,
-          variationName,
-          displayName: `${itemName} (${variationName})`,
-          squareCategoryId: categoryId,
-          menuGroup,
-          priceCents: vd.price_money?.amount ?? null,
-          isDeleted: !!obj.is_deleted,
-        },
-      })
-    }
-  }
-
-  const seenCategoryIds = [...categoryIdMap.keys()]
-  await prisma.squareCategory.updateMany({
-    where: {
-      organizationId: org.id,
-      isDeleted: false,
-      squareCategoryId: seenCategoryIds.length > 0 ? { notIn: seenCategoryIds } : undefined,
-    },
-    data: { isDeleted: true },
-  })
-
-  await prisma.salesItem.updateMany({
-    where: {
-      organizationId: org.id,
-      isDeleted: false,
-      squareVariationId: seenVariationIds.length > 0 ? { notIn: seenVariationIds } : undefined,
-    },
-    data: { isDeleted: true },
-  })
+  // Categories, sales items and their deleted-row sweeps, batched (N-5-SYNC).
+  const startedAt = Date.now()
+  const catalog = await writeSalesItemCatalogIn(prisma, org.id, categoryObjects, itemObjects)
 
   // N-5: after every item/variation write above, so their behaviour is untouched.
   const modifierCounts = await writeModifierCatalog(
@@ -170,9 +85,14 @@ export async function POST() {
     data: { lastCatalogSyncAt: new Date() },
   })
 
+  console.log(
+    `[sales-items/sync] org=${org.id} items created=${catalog.itemsCreated} updated=${catalog.itemsUpdated} unchanged=${catalog.itemsUnchanged} ` +
+      `categories created=${catalog.categoriesCreated} updated=${catalog.categoriesUpdated} modifiers=${modifierCounts.modifiers} writeMs=${Date.now() - startedAt}`
+  )
+
   return NextResponse.json({
-    categories: categoryObjects.length,
-    salesItems: seenVariationIds.length,
+    categories: catalog.categories,
+    salesItems: catalog.salesItems,
     modifierLists: modifierCounts.modifierLists,
     modifiers: modifierCounts.modifiers,
   })

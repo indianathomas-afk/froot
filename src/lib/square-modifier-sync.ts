@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client"
+import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 
 // ─── Square modifier sync (N-5) ──────────────────────────────────────────────
@@ -139,11 +139,24 @@ export async function writeModifierCatalogIn(
   for (const part of chunks(newLists)) {
     await tx.squareModifierList.createMany({ data: part.map((l) => ({ organizationId, ...l })) })
   }
+  // Changed rows: one UPDATE … FROM (VALUES …) per chunk, not one per row
+  // (N-5-SYNC R2, Gary 2026-11-03). Same rule for which rows change.
+  const changedLists: { id: string; name: string; ordinal: number | null }[] = []
   for (const l of mapped.lists) {
     const row = listByKey.get(l.squareModifierListId)
     if (row && (row.name !== l.name || row.ordinal !== l.ordinal || row.isDeleted)) {
-      await tx.squareModifierList.update({ where: { id: row.id }, data: { name: l.name, ordinal: l.ordinal, isDeleted: false } })
+      changedLists.push({ id: row.id, name: l.name, ordinal: l.ordinal })
     }
+  }
+  for (const part of chunks(changedLists)) {
+    const n = await tx.$executeRaw`
+      UPDATE "SquareModifierList" AS t SET
+        "name" = v."name", "ordinal" = v."ordinal", "isDeleted" = false,
+        "updatedAt" = (NOW() AT TIME ZONE 'UTC')
+      FROM (VALUES ${Prisma.join(part.map((u) => Prisma.sql`(${u.id}::text, ${u.name}::text, ${u.ordinal}::int)`))})
+        AS v("id", "name", "ordinal")
+      WHERE t."id" = v."id" AND t."organizationId" = ${organizationId}`
+    if (n !== part.length) throw new Error(`SquareModifierList batch update touched ${n} rows, expected ${part.length}`)
   }
   const seenListIds = mapped.lists.map((l) => l.squareModifierListId)
   await tx.squareModifierList.updateMany({
@@ -172,6 +185,7 @@ export async function writeModifierCatalogIn(
       data: part.map((m) => ({ organizationId, squareModifierId: m.squareModifierId, ...rowData(m) })),
     })
   }
+  const changedMods: (ReturnType<typeof rowData> & { id: string })[] = []
   for (const m of mapped.modifiers) {
     const row = modByKey.get(m.squareModifierId)
     if (!row) continue
@@ -184,8 +198,23 @@ export async function writeModifierCatalogIn(
       row.ordinal !== d.ordinal ||
       row.onByDefault !== d.onByDefault
     ) {
-      await tx.squareModifier.update({ where: { id: row.id }, data: { ...d, isDeleted: false } })
+      changedMods.push({ id: row.id, ...d })
     }
+  }
+  for (const part of chunks(changedMods)) {
+    const n = await tx.$executeRaw`
+      UPDATE "SquareModifier" AS t SET
+        "modifierListId" = v."modifierListId", "name" = v."name", "priceCents" = v."priceCents",
+        "ordinal" = v."ordinal", "onByDefault" = v."onByDefault", "isDeleted" = false,
+        "updatedAt" = (NOW() AT TIME ZONE 'UTC')
+      FROM (VALUES ${Prisma.join(
+        part.map(
+          (u) =>
+            Prisma.sql`(${u.id}::text, ${u.modifierListId}::text, ${u.name}::text, ${u.priceCents}::int, ${u.ordinal}::int, ${u.onByDefault}::boolean)`
+        )
+      )}) AS v("id", "modifierListId", "name", "priceCents", "ordinal", "onByDefault")
+      WHERE t."id" = v."id" AND t."organizationId" = ${organizationId}`
+    if (n !== part.length) throw new Error(`SquareModifier batch update touched ${n} rows, expected ${part.length}`)
   }
   const seenModIds = mapped.modifiers.map((m) => m.squareModifierId)
   await tx.squareModifier.updateMany({
