@@ -17833,7 +17833,12 @@ phases:
     # 20261102230000_n2_nutrition_serving_settings (additive, no backfill)
     # rides this push. The "(NOT pushed)" and "is the commit immediately after
     # d88ef4d" lines above are spent, kept: the docs SHA is 5400ec2.
-    status: staging
+    # `staging` -> `shipped` 2026-11-02, stamped post-merge 2026-11-02 by the
+    # N-3 docs commit (on `staging`): merge 8c94126 (DEPLOY_LOG entry
+    # `8c94126 — 2026-11-02 — N-2`). The PRE-PUSH-CHECK docs SHA is b87cc09.
+    # Any "NOT pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-11-02
     commits:
       - "d88ef4d"
       # feat(N-2): Nutrition Facts label with selectable serving size —
@@ -17848,8 +17853,23 @@ phases:
       # + the commit immediately after 5400ec2: docs(N-2 PRE-PUSH-CHECK) —
       # DECISIONS ratified, blocker text restored, this row to staging,
       # DEPLOY_LOG entry
+      - "b87cc09"
+      # docs(N-2 PRE-PUSH-CHECK): the commit named on the line above; recorded
+      # by the N-3 docs commit
     title: "Nutrition — Nutrition Facts label with selectable serving size"
     notes: >
+      PROMOTED 2026-11-02 in merge 8c94126 (rider, N-3 docs commit): --no-ff,
+      main 22b8a7f..8c94126, staging fast-forwarded (origin/main =
+      origin/staging = 8c94126, measured). Migration
+      20261102230000_n2_nutrition_serving_settings rides it; its production
+      finished_at is OWED — Gary reads it in the Neon console at the next
+      PRE-PUSH-CHECK. Staging (Gary, as relayed in the N-3 prompt): Liquid
+      Olympian Smoothie (M) — 2 servings per container, 12 fl oz (360 mL),
+      200 / 390 kcal, carbs 51 g 19% / 102 g 37%, fiber 4 g 14% / 9 g 32%,
+      sugars 39 / 79 g, added 19 g 38% / 38 g 76%, protein 2 / 4 g, vitamins
+      "—", Estimated banner — matching hand math. Shipped, not verified in
+      production.
+
       RETITLED 2026-11-02 by the N-2 docs commit (preserve-and-mark); the old
       title was "Nutrition — facts editor + label preview". The blocker
       "BEHIND N-1" was REMOVED from this row by the same commit because it
@@ -17928,16 +17948,57 @@ phases:
   - id: N-3
     track: nutrition
     size: M
-    status: planned
+    # → in_progress 2026-11-02 at the work commit 68571da (NOT pushed). The
+    # docs SHA is the commit immediately after 68571da (its own SHA cannot be
+    # written inside itself).
+    # N-3 PRE-PUSH-CHECK 2026-11-02: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after e73a60c (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-02 N-3 ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written. N-2's
+    # production finished_at recorded (MIGRATIONS, 8c94126 entry). Migration
+    # 20261103000000_n3_public_menu (additive, no backfill) and the app-wide
+    # framing headers ride this push. The "(NOT pushed)" and "is the commit
+    # immediately after 68571da" lines above are spent, kept: the docs SHA is
+    # e73a60c.
+    status: staging
+    commits:
+      - "68571da"
+      # feat(N-3): public nutrition menu — /menu/[slug] link + embed, Verified
+      # sizes only; migration 20261103000000_n3_public_menu; public-menu libs;
+      # /nutrition/publish + NU-11; framing headers app-wide; fixture
+      # verify-n3-public.ts, 2026-11-02
+      # + the commit immediately after 68571da: docs(N-3) — prompt, audit,
+      # DECISIONS draft, MIGRATIONS entry, this row, the 8c94126 stamp
+      - "e73a60c"
+      # docs(N-3): the docs commit named on the line above; recorded by the
+      # N-3 PRE-PUSH-CHECK
+      # + the commit immediately after e73a60c: docs(N-3 PRE-PUSH-CHECK) —
+      # DECISIONS ratified, N-2 production finished_at, this row to staging,
+      # DEPLOY_LOG entry
     title: "Nutrition — public menu page (/menu/[orgSlug], SSR, iframe-embeddable)"
-    blockers:
-      - >
-        BEHIND N-1 — promoted to a blocker entry 2026-08-06, same gate as N-2.
-        N-1 is `planned` with models scaffolded but no UI and no routes, and a
-        public menu page renders the nutrition data those routes would serve.
-        CLEARS WHEN: N-1 ships. In practice this row wants N-2 as well, since a
-        public page with no editor behind it has nothing to publish.
     notes: >
+      BUILT 2026-11-02 (work 68571da, NOT pushed), on Gary's ruling "Accept all
+      leans" (DECISIONS 2026-11-02 N-3, DRAFT; audit docs/prompts/N-3_AUDIT.md;
+      prompt docs/prompts/N-3.md). The public menu is /menu/<slug> (an
+      ADMIN-chosen slug, not the org slug the title names — the title is kept).
+      Only fully Verified, complete sizes show numbers; everything else is
+      "Nutrition coming soon" with no allergens. Off until an ADMIN turns it on
+      at /nutrition/publish. Framing headers added app-wide (R-1(b)): /menu/<…>
+      may be framed by anyone, every other path refuses. Fixture
+      verify-n3-public.ts 47/47 (part 9 on dev, rolled back). Migration
+      20261103000000_n3_public_menu applied to dev only. NOT VERIFIED ON
+      STAGING. Nothing is promoted until Gary confirms it on staging.
+
+      The blocker "BEHIND N-1" was REMOVED from this row by the N-3 docs commit
+      because it cleared: N-1 shipped 2026-11-01 (merge bdbeb47) and N-2
+      shipped 2026-11-02 (merge 8c94126). Its text, kept verbatim: "BEHIND N-1
+      — promoted to a blocker entry 2026-08-06, same gate as N-2. N-1 is
+      `planned` with models scaffolded but no UI and no routes, and a public
+      menu page renders the nutrition data those routes would serve. CLEARS
+      WHEN: N-1 ships. In practice this row wants N-2 as well, since a public
+      page with no editor behind it has nothing to publish."
+
       RIDER 2026-11-01 (BEV-1 docs commit, after Gary's F1). Now: the public
       menu page (no login) shows N-1's computed nutrition and allergens (and
       N-2's published labels), not MenuItem* rows. Once this ships, DEBT-124

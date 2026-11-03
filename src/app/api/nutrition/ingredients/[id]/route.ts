@@ -6,6 +6,7 @@ import { ALLERGENS, NUTRIENT_KEYS, PROOF_ONLY_NUMBERS, nutritionInputError, sort
 import { storedNutritionInput } from "@/lib/nutrition-import"
 import { RESET_TO_ESTIMATED, afterNumbersCleared, allergensChanged, hasProof, numbersChanged, parseSourceUrl } from "@/lib/nutrition-proof"
 import { findOrgIngredient, nutritionAudit, serializeIngredient } from "@/lib/nutrition-record"
+import { invalidatePublicMenu } from "@/lib/public-menu-data"
 
 // GET /api/nutrition/ingredients/[id] — one ingredient's nutrition record,
 // allergens and not-food flag (nutrition.view). PUT replaces all three
@@ -190,5 +191,6 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   })
 
   const updated = await findOrgIngredient(ctx.org.id, ing.id)
+  invalidatePublicMenu(ctx.org.id) // N-3: the public menu shows this; stale-while-revalidate (R-3)
   return NextResponse.json(await serializeIngredient(updated!, ctx.org.id))
 }

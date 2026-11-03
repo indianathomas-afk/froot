@@ -5,6 +5,7 @@ import {
   APPLYABLE, NutritionUploadSchema, parseNutritionCsv, planNutritionForOrg, summarizeNutritionPlan,
 } from "@/lib/nutrition-import"
 import { RESET_TO_ESTIMATED } from "@/lib/nutrition-proof"
+import { invalidatePublicMenu } from "@/lib/public-menu-data"
 
 // POST /api/nutrition/import/apply — { csv, fileName }. RE-PLANS from the
 // uploaded text (never trusts a client-sent plan) and writes the NEW / UPDATE /
@@ -87,5 +88,6 @@ export async function POST(req: Request) {
     { timeout: 30_000 }
   )
 
+  invalidatePublicMenu(ctx.org.id) // N-3: the public menu shows this; stale-while-revalidate (R-3)
   return NextResponse.json({ applied: toWrite.length, rows: plan, summary })
 }

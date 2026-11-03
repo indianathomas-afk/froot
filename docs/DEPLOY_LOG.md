@@ -2,7 +2,107 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-02 — N-2: Nutrition Facts label with selectable serving size
+## UNPROMOTED — 2026-11-02 — N-3: public nutrition menu (/menu/<slug>, link + embed), Verified sizes only
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two N-3 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `68571da`, `e73a60c`, on top of `origin/staging`
+(`8c94126`). **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `68571da` | N-3 work: migration `20261103000000_n3_public_menu`; `schema.prisma` (`PublicMenu`, `PublicMenuCategory`, `PublicMenuHiddenItem`); `src/lib/public-menu.ts` (pure serializer) and `src/lib/public-menu-data.ts` (5-min per-org cache, liveness fresh per request); public page `/menu/[slug]` (+ `?embed=1`); ADMIN page `/nutrition/publish` and route NU-11 `PUT nutrition/publish`; `revalidateTag` on six nutrition write routes; **`next.config.ts` framing headers, app-wide**; `src/proxy.ts` public matcher `/menu(.*)` → `/menu/(.*)`; sidebar entry; PERMISSIONS_INVENTORY SH-5, PG-41, PG-42, NU-11, NV-18; fixture `scripts/verify-n3-public.ts` |
+| `e73a60c` | `docs(N-3)`: prompt of record `docs/prompts/N-3.md`, audit `docs/prompts/N-3_AUDIT.md`, DECISIONS draft, MIGRATIONS entry, row `in_progress`, N-2 stamped `8c94126` (DEPLOY_LOG, MIGRATIONS, ROADMAP `shipped`) |
+| the commit immediately after `e73a60c` | `docs(N-3 PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`; DECISIONS ratified by Gary at this check ("Ratify as written"); N-2 production `finished_at` recorded (MIGRATIONS and the `8c94126` entry) |
+
+**Blast radius: LARGER THAN N-1/N-2, FOR TWO REASONS — THE FIRST PAGE THAT
+SHOWS ORG DATA WITHOUT A LOGIN, AND A RESPONSE-HEADER CHANGE ON EVERY PATH IN
+THE APP.** Additive schema migration (no backfill). No new env var, no cron, no
+Square call. Nothing is public on any branch until an ADMIN turns a menu on.
+
+- **App-wide framing headers (R-1(b), N3-F5) — this is the part that reaches
+  beyond nutrition.** Before N-3 no route sent framing headers. Now every path
+  except `/menu/<…>` sends `X-Frame-Options: DENY` and
+  `Content-Security-Policy: frame-ancestors 'none'`; `/menu/<…>` sends
+  `frame-ancestors *` and no X-Frame-Options. **Anything that framed a Froot
+  page from another origin breaks on this push** — nothing in the repo frames
+  an app route (audit § B); an outside site doing so cannot be seen from here.
+  The app's own outbound iframes (YouTube) are unaffected. The CSP carries only
+  `frame-ancestors`, so it restricts nothing else.
+- **Clerk public matcher tightened:** `/menu(.*)` → `/menu/(.*)`. Bare `/menu`
+  (and `/menus…`) now require sign-in; there is no page at bare `/menu`.
+- **Migration `20261103000000_n3_public_menu`, applied by `prisma migrate
+  deploy` in the Vercel build** — staging on this push, production at
+  promotion. Additive only: three new tables (`PublicMenu` one per org,
+  `enabled` DEFAULT false, slug unique across orgs; `PublicMenuCategory` and
+  `PublicMenuHiddenItem`, both CASCADE with the menu). No existing table
+  altered, nothing dropped. Applied to dev by Gary 2026-11-02 23:06:55 UTC
+  (`br-broad-wave-a6vpjdw0`).
+- **What is new:** `/nutrition/publish` (ADMIN) — on/off, slug, menu groups
+  (none ticked by default), hidden items, disclaimer and cross-contact texts,
+  embed snippets; audited. `/menu/<slug>` — public, read-only; numbers only for
+  Verified, complete sizes, everything else "Nutrition coming soon" with no
+  allergens; 404 when the menu is off or the org's nutrition or inventory
+  module is off (R-2).
+- **What does not change:** no nutrition write changes rules (they only mark
+  the public cache stale). Nothing writes to Square.
+
+**Rollback:** revert `68571da`. That removes the public page, the publish page
+and the framing headers together — **the headers cannot be kept by reverting
+only the menu**; split the revert by hand if they should stay. **The migration
+stays** (additive-only: never drop the tables by hand); rows saved on the
+publish page stay in their tables, unread by the pre-N-3 code. Without a
+deploy: an ADMIN turning the menu off at `/nutrition/publish` 404s it at once
+(liveness is read per request), and switching "nutrition" off for the org
+(Neon console) 404s it too (R-2). The docs commits can stay or go with it.
+
+**Evidence so far: fixtures and build only.** `scripts/verify-n3-public.ts`
+47/47 PASS per the build session, against the applied schema on dev
+`br-broad-wave-a6vpjdw0` (database part rolled back); N-1 40, N-1a 26, N-1b 48,
+N-1c 59, N-1d 42, N-2 53, BEV-1 74 all pass, per the work commit. **Nothing has
+been observed on staging or production**, and the migration has not reached
+either. After the push, in order: the build log shows the migration applied on
+staging; the staging-SHA precondition (deployed SHA = local `HEAD`); then
+Gary's staging pass — the response headers on one `/menu/<slug>` path and one
+app path (`curl -sI`); `/menu/<slug>` 404 while off; the publish page (slug,
+groups, hidden items, texts) and the menu after turning it on; a Verified size
+against an Estimated one ("coming soon", no allergens); the allergen filter;
+the label on tap; `?embed=1` inside an iframe on another origin. Nothing is
+promoted until Gary confirms it on staging.
+
+## 8c94126 — 2026-11-02 — N-2: Nutrition Facts label with selectable serving size
+
+**PROMOTED 2026-11-02 in merge `8c94126`** (`8c9412675fd6ad0fe3e9ebedac99bda7b9fe5779`,
+"Merge branch 'staging'", 2026-11-02 14:43:33 -0800 (Pacific) = 2026-11-02
+22:43:33 UTC), `--no-ff`. First parent `22b8a7f` (prior tip of `main`), second
+parent `b87cc09` (staging tip). **3 commits** in `8c94126^1..8c94126^2` —
+`d88ef4d`, `5400ec2`, `b87cc09` — and **23 files**, read out of `git log` and
+`git diff --shortstat` at this stamp. `main` moved `22b8a7f..8c94126`;
+`staging` fast-forwarded to it (`origin/main` = `origin/staging` = `8c94126`,
+measured by `git rev-parse` at this stamp). Stamped post-merge by N-3
+(2026-11-02), on `staging`; the heading previously read "UNPROMOTED —
+2026-11-02 — N-2: Nutrition Facts label with selectable serving size". The
+"staging only", "NEITHER WAS PUSHED" and "Nothing has been observed on staging
+or production" lines below are spent, kept.
+
+**Migration on production: `20261102230000_n2_nutrition_serving_settings`
+`finished_at` — OWED.** Not yet recorded; Gary runs the read-only query in the
+Neon console (branch id from `current_setting('neon.branch_id', true)`, never a
+typed label) at the next PRE-PUSH-CHECK, and it is written here then.
+**Recorded at the N-3 PRE-PUSH-CHECK (2026-11-02): `finished_at`
+2026-11-02 22:44:23.510952 UTC (14:44:23 PST)** on `br-sparkling-block-a620qvg4`
+(branch id read from the server), measured by Gary in the Neon console — 50 s
+after the 22:43:33 UTC merge. The "OWED" paragraph above is spent, kept.
+
+**Staging evidence (Gary, as relayed in the N-3 prompt):** Liquid Olympian
+Smoothie (M) label — 2 servings per container, 12 fl oz (360 mL), 200 / 390
+kcal, carbs 51 g 19% / 102 g 37%, fiber 4 g 14% / 9 g 32%, sugars 39 / 79 g,
+added 19 g 38% / 38 g 76%, protein 2 / 4 g, vitamins shown "—", Estimated
+banner — matching hand math. Org and Clerk instance as in Gary's staging pass;
+not re-observed by this session.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next

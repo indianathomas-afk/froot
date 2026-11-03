@@ -8,7 +8,7 @@ const isPublicRoute = createRouteMatcher([
 
   "/api/webhooks(.*)",
   "/api/cron(.*)", // authenticates itself via CRON_SECRET (Vercel cron has no session)
-  "/menu(.*)",
+  "/menu/(.*)", // N-3 public nutrition menu — no session; tightened from /menu(.*), which also matched /menus etc.
 ])
 
 export default clerkMiddleware(async (auth, request) => {

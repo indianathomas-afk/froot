@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { requireNutrition } from "@/lib/nutrition-access"
 import { RESET_TO_ESTIMATED, verifyRefusal } from "@/lib/nutrition-proof"
 import { findOrgIngredient, nutritionAudit, serializeIngredient } from "@/lib/nutrition-record"
+import { invalidatePublicMenu } from "@/lib/public-menu-data"
 
 // POST /api/nutrition/ingredients/[id]/verify — { verified: true } marks the
 // record VERIFIED now; { verified: false } returns it to ESTIMATED. ADMIN
@@ -54,5 +55,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const updated = await findOrgIngredient(ctx.org.id, ing.id)
+  invalidatePublicMenu(ctx.org.id) // N-3: the public menu shows this; stale-while-revalidate (R-3)
   return NextResponse.json(await serializeIngredient(updated!, ctx.org.id))
 }

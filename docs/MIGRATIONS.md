@@ -2146,8 +2146,8 @@ returned `-- This is an empty migration.`, and a read-only SELECT on
 | Branch | Applied (`_prisma_migrations.finished_at`) | By |
 |---|---|---|
 | dev `br-broad-wave-a6vpjdw0` | **2026-11-02 21:55:42 UTC** (13:55:42 PST) | Gary |
-| staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
-| production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
+| staging `br-square-feather-a63z92vz` | applied on Gary's push (staging label checks passed before promotion, per the N-3 prompt) — finished_at not read | Vercel build |
+| production `br-sparkling-block-a620qvg4` | **2026-11-02 22:44:23.510952 UTC** (14:44:23 PST) — 50 s after the promotion `8c94126` merge (22:43:33 UTC). Read by Gary in the Neon console, branch id from the server, at the N-3 PRE-PUSH-CHECK. (Was: "rides promotion `8c94126` … NOT yet observed — **finished_at OWED**: Gary reads it in the Neon console at the next PRE-PUSH-CHECK (stamped by N-3)" — spent.) | Vercel build |
 
 **GENERATED AGAINST THE LIVE DEV DATABASE, after a clean baseline.** Before
 `prisma/schema.prisma` was edited, the diff with no `-o` returned `-- This is
@@ -2174,6 +2174,59 @@ nothing.
 `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`
 (baseline, empty) · `npx prisma validate` · `npx prisma format` ·
 `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/20261102230000_n2_nutrition_serving_settings/migration.sql` ·
+`npx prisma generate` · the same diff with no `-o` once more after Gary's
+apply (empty). `npm run build` also runs `prisma generate`. No `migrate
+deploy`, `db execute`, `migrate dev`, `migrate reset` or `migrate resolve` was
+run by the session.
+
+## 2026-11-02 — `20261103000000_n3_public_menu` (N-3)
+
+**APPLIED TO DEV ONLY, by Gary**, after the N-3 Phase 2 STOP and before the
+work commit `68571da` (§ A migration STOPS the session). Staging and production
+get it from the Vercel build on Gary's push and at promotion. The timestamp is
+`20261103000000` although the work was done 2026-11-02 — chosen only to sort
+after N-2's `20261102230000`; it is a name, not a clock reading.
+
+**Dev was checked before the fixture, not taken on its word:** after Gary's
+"Applied to dev", a read-only SELECT returned the `_prisma_migrations` row below
+with `neon.branch_id = br-broad-wave-a6vpjdw0` from the same query, and the
+shape diff against dev returned `-- This is an empty migration.`.
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | **2026-11-02 23:06:55 UTC** (15:06:55 PST) | Gary |
+| staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
+| production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
+
+**GENERATED AGAINST THE LIVE DEV DATABASE, after a clean baseline** (the diff
+with no `-o` returned `-- This is an empty migration.` before
+`prisma/schema.prisma` was edited; datasource host `ep-late-water-a6k53nv2`,
+the dev endpoint). Every statement is generated; nothing is hand-authored, so
+nothing joins § Protected indexes. **Additive only — no backfill, nothing
+dropped, no existing table altered:**
+
+| Statement | Kind |
+|---|---|
+| `CREATE TABLE "PublicMenu"` + unique `organizationId` + unique `slug` + FK to Organization (RESTRICT) | one public menu per org; `enabled` DEFAULT false (N3-F3); slug unique ACROSS orgs, stored lowercase by the route |
+| `CREATE TABLE "PublicMenuCategory"` (PK `publicMenuId, squareCategoryId`) + FKs to PublicMenu (**CASCADE**) and SquareCategory (**CASCADE**) | included menu groups, keyed on the SquareCategory ROW, not the name |
+| `CREATE TABLE "PublicMenuHiddenItem"` (PK `publicMenuId, squareItemId`) + FK to PublicMenu (**CASCADE**) | hidden items by Square item id; no FK (there is no Square item table) |
+
+No row in `PublicMenu` = the menu is off, so nothing is public on any branch
+until an ADMIN saves the publish page with the menu on.
+
+**Fixture:** `scripts/verify-n3-public.ts`, 47 checks, all pass, against the
+applied schema on dev `br-broad-wave-a6vpjdw0`. Its part 9 creates two fixture
+orgs ("N-3 Fixture Org"), a SquareCategory and a PublicMenu; asserts the menu
+is off by default, the slug is unique across orgs (`P2002`), one menu per org
+(`P2002`), an included group is listed once (`P2002`) and must be a real
+SquareCategory row (`P2003`), and that groups and hidden items cascade with the
+menu — inside a transaction that is always rolled back (9i checks nothing
+leaked). 9a asserts the migration file only creates.
+
+**Prisma commands for this migration, verbatim:**
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`
+(baseline, empty) · `npx prisma format` · `npx prisma validate` ·
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/20261103000000_n3_public_menu/migration.sql` ·
 `npx prisma generate` · the same diff with no `-o` once more after Gary's
 apply (empty). `npm run build` also runs `prisma generate`. No `migrate
 deploy`, `db execute`, `migrate dev`, `migrate reset` or `migrate resolve` was
