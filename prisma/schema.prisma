@@ -248,6 +248,7 @@ model Organization {
   nutritionSizeVolumes          NutritionSizeVolume[]
   nutritionItemServings         NutritionItemServing[]
   publicMenu                    PublicMenu?
+  nutritionLabelInboxItems      NutritionLabelInboxItem[]
 }
 
 model User {
@@ -1660,6 +1661,55 @@ model IngredientNutrition {
 enum NutritionStatus {
   ESTIMATED
   VERIFIED
+}
+
+// ─── N-1e: label inbox ───────────────────────────────────────────────────────
+// Rulings: docs/DECISIONS.md 2026-11-02 N-1e (Gary, DRAFT: "Accept all leans");
+// audit docs/prompts/N-1e_AUDIT.md § E. One row per file dropped on (or
+// fetched into) /nutrition/labels, persisted so matches and paid reads survive
+// a closed tab (N1E-F1). The file sits in the private froot-nutrition store
+// under nutrition/{org}/inbox/{id}/ until it is applied (copied into the
+// ingredient's folder, R2) or discarded (deleted); fileUrl is null after both.
+//
+// suggestedIngredientId is never trusted for a write; ingredientId is set only
+// by an ADMIN confirm (N1E-F2). Neither is a foreign key: an ingredient
+// soft-deleted mid-queue is caught at Apply (findOrgIngredient filters
+// deletedAt), not silently nulled. The transcription is NOT copied here —
+// readAuditId points at the AuditLog row that holds it, the one copy N-1c's
+// reuse already reads. No "reading" status: reads are sequential from the open
+// page (N1E-F3), so a closed tab never leaves a row stuck.
+model NutritionLabelInboxItem {
+  id                    String               @id @default(cuid())
+  organizationId        String
+  status                NutritionInboxStatus @default(UPLOADED)
+  fileUrl               String?
+  filePathname          String?
+  fileName              String
+  contentType           String
+  sizeBytes             Int
+  fileHash              String
+  // Set when the file was fetched from a pasted link (deliverable 4).
+  sourceUrl             String?
+  suggestedIngredientId String?
+  ingredientId          String?
+  readAuditId           String?
+  readError             String?
+  uploadedByUserId      String?
+  appliedAt             DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, status, createdAt])
+}
+
+enum NutritionInboxStatus {
+  UPLOADED
+  READ
+  FAILED
+  APPLIED
+  DISCARDED
 }
 
 // ─── N-2: Nutrition Facts label serving settings ─────────────────────────────

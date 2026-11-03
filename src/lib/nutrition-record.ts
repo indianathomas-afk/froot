@@ -83,21 +83,34 @@ export type NutritionAuditAction =
   | "nutrition.label.read.failed"
   | "nutrition.label.read.reused"
   | "nutrition.label.applied"
+  // N-1e: the label inbox (audit § F). Reads of an inbox file use the three
+  // read actions above with entityType INBOX_ENTITY, so they count toward the
+  // same per-org limit (label-read-run.ts).
+  | "nutrition.inbox.uploaded"
+  | "nutrition.inbox.fetched"
+  | "nutrition.inbox.fetch.failed"
+  | "nutrition.inbox.assigned"
+  | "nutrition.inbox.discarded"
+
+/** entityType of an inbox item's audit rows (N-1e). */
+export const INBOX_ENTITY = "NutritionLabelInbox"
+export type NutritionAuditEntity = "Ingredient" | typeof INBOX_ENTITY
 
 export function nutritionAudit(
   tx: Prisma.TransactionClient,
   ctx: Pick<NutritionContext, "org" | "dbUser">,
   action: NutritionAuditAction,
-  ingredientId: string,
-  metadata: Prisma.InputJsonValue
+  entityId: string | null,
+  metadata: Prisma.InputJsonValue,
+  entityType: NutritionAuditEntity = "Ingredient"
 ) {
   return tx.auditLog.create({
     data: {
       organizationId: ctx.org.id,
       userId: ctx.dbUser?.clerkUserId ?? null,
       action,
-      entityType: "Ingredient",
-      entityId: ingredientId,
+      entityType,
+      entityId,
       metadata,
     },
   })

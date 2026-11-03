@@ -82,6 +82,29 @@ export function proofRefusal(ing: { kind: string; nutritionExempt: boolean }): s
   return null
 }
 
+// ─── Attaching a label document: the questions asked first (N-1e) ────────────
+// N1E-F5 (Gary, 2026-11-02, "Accept all leans"): replacing an existing label
+// happens only after an explicit "Replace current label?"; the old file is
+// deleted after the replace succeeds. R4: the inbox queue and "Add from link"
+// ask; the dialog's own Upload/Replace button does not (askReplace false) —
+// the current document is on screen beside it. "Still verified?" (N-1b F3) is
+// asked after the replace question, as before.
+export type AttachQuestion = "CONFIRM_REPLACE" | "CONFIRM_STILL_VERIFIED"
+
+export function attachQuestion(
+  existing: { labelFileUrl: string | null; status: NutritionStatus } | null,
+  answers: { askReplace: boolean; replaceLabel?: boolean; keepVerified?: boolean }
+): AttachQuestion | null {
+  if (answers.askReplace && existing?.labelFileUrl && answers.replaceLabel !== true) return "CONFIRM_REPLACE"
+  if (existing?.status === "VERIFIED" && answers.keepVerified === undefined) return "CONFIRM_STILL_VERIFIED"
+  return null
+}
+
+export const ATTACH_QUESTION_TEXT: Record<AttachQuestion, string> = {
+  CONFIRM_REPLACE: "This ingredient already has a label document. Replace current label?",
+  CONFIRM_STILL_VERIFIED: "This nutrition is verified. Is it still verified with the new proof?",
+}
+
 // ─── What counts as a change (F3) ────────────────────────────────────────────
 // Basis and numbers only. The source NOTE is free text and deliberately absent.
 export function numbersChanged(a: NutritionInput, b: NutritionInput): boolean {

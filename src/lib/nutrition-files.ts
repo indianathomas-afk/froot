@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "crypto"
-import { del, head, issueSignedToken, presignUrl } from "@vercel/blob"
+import { copy, del, head, issueSignedToken, presignUrl, put } from "@vercel/blob"
 
 // N-1b — private label-document service. Mirrors src/lib/hr-files.ts (HR-3)
 // and src/lib/guide-files.ts (HELP-1a) rather than inventing a mechanism:
@@ -60,6 +60,13 @@ export function labelKeyPrefix(orgId: string, ingredientId: string): string {
   return `nutrition/${orgId}/ingredients/${ingredientId}`
 }
 
+/** N-1e: the org's label inbox. A file waits here until it is applied (copied
+ *  into the ingredient's folder — R2) or discarded (deleted). Inbox register
+ *  pins to it, as ingredient register pins to labelKeyPrefix. */
+export function inboxKeyPrefix(orgId: string): string {
+  return `nutrition/${orgId}/inbox`
+}
+
 // Blob pathnames become URL path segments; keep them URL-safe so the presign
 // pathname always round-trips exactly with what was stored (hr-files.ts).
 function safeFileName(name: string): string {
@@ -111,6 +118,15 @@ export function sniffMatches(declared: string, sniffed: string | null): boolean 
   return family(declared) === family(sniffed)
 }
 
+/** A URL-safe, collision-proof pathname under a prefix (random suffix before the extension). */
+export function uniqueLabelPathname(keyPrefix: string, fileName: string): string {
+  const safe = safeFileName(fileName)
+  const suffix = randomBytes(12).toString("base64url")
+  const dot = safe.lastIndexOf(".")
+  const unique = dot > 0 ? `${safe.slice(0, dot)}-${suffix}${safe.slice(dot)}` : `${safe}-${suffix}`
+  return `${keyPrefix}/${unique}`
+}
+
 // Browser-upload leg: a short-lived presigned PUT straight to the store, with
 // the declared type and the cap baked into the signature (hr-files.ts
 // getHrFileUploadUrl). Only call this AFTER the request passed nutrition.manage.
@@ -128,11 +144,7 @@ export async function getLabelUploadUrl({
   validateLabelMeta(contentType, sizeBytes)
   const token = nutritionBlobToken()
 
-  const safe = safeFileName(fileName)
-  const suffix = randomBytes(12).toString("base64url")
-  const dot = safe.lastIndexOf(".")
-  const unique = dot > 0 ? `${safe.slice(0, dot)}-${suffix}${safe.slice(dot)}` : `${safe}-${suffix}`
-  const pathname = `${keyPrefix}/${unique}`
+  const pathname = uniqueLabelPathname(keyPrefix, fileName)
   const validUntil = Date.now() + UPLOAD_URL_TTL_MS
 
   const delegation = await issueSignedToken({
@@ -188,6 +200,48 @@ export async function readLabelBytes(fileUrl: string): Promise<{ bytes: Uint8Arr
   const res = await fetch(info.url, { headers: { authorization: `Bearer ${token}` } })
   if (!res.ok) throw new Error(`Failed to read label blob (${res.status})`)
   return { bytes: new Uint8Array(await res.arrayBuffer()), contentType: info.contentType }
+}
+
+export type StoredLabel = Awaited<ReturnType<typeof readLabelMeta>>
+
+/** The N-1b register check, shared by every way a file arrives (dialog upload,
+ *  inbox upload, a link, an inbox apply): authoritative size, type and hash
+ *  from the stored bytes, then the first-bytes check. A file that fails is
+ *  deleted and the reason thrown as a NutritionFileError. */
+export async function inspectStoredLabel(fileUrl: string): Promise<StoredLabel> {
+  let meta: StoredLabel
+  try {
+    meta = await readLabelMeta(fileUrl)
+    validateLabelMeta(meta.contentType, meta.sizeBytes)
+  } catch (err) {
+    await deleteLabelBlob(fileUrl)
+    if (err instanceof NutritionFileError) throw err
+    throw new NutritionFileError("Uploaded file could not be read", 400)
+  }
+  // Gary, N-1b: "file-type check by first bytes".
+  if (!sniffMatches(meta.contentType, meta.sniffedType)) {
+    await deleteLabelBlob(fileUrl)
+    throw new NutritionFileError("That file's contents don't match its type. Upload a PDF, PNG, JPG, WEBP or HEIC file.", 400)
+  }
+  return meta
+}
+
+/** N-1e: server-side write of bytes fetched from a link (≤ 10 MB, already
+ *  type-checked). The 4.5 MB limit is on Function request/response bodies,
+ *  not on what a Function puts. */
+export async function putLabelBytes(pathname: string, bytes: Uint8Array, contentType: string): Promise<string> {
+  validateLabelMeta(contentType, bytes.byteLength)
+  const res = await put(pathname, Buffer.from(bytes), { access: "private", contentType, token: nutritionBlobToken() })
+  return res.url
+}
+
+/** N-1e R2 (Gary, 2026-11-02, "Accept all leans"): an inbox file becomes an
+ *  ingredient's label document by a copy INSIDE the store into that
+ *  ingredient's folder — the bytes never pass through the Function — so the
+ *  NU-6 namespace pin stays exactly true. The caller deletes the inbox copy. */
+export async function copyLabelBlob(fromUrl: string, toPathname: string, contentType: string): Promise<string> {
+  const res = await copy(fromUrl, toPathname, { access: "private", contentType, token: nutritionBlobToken() })
+  return res.url
 }
 
 /** Store-relative pathname out of a full private blob URL. */
