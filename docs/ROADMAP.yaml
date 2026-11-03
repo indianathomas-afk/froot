@@ -17961,7 +17961,12 @@ phases:
     # framing headers ride this push. The "(NOT pushed)" and "is the commit
     # immediately after 68571da" lines above are spent, kept: the docs SHA is
     # e73a60c.
-    status: staging
+    # `staging` -> `shipped` 2026-11-02, stamped post-merge 2026-11-02 by
+    # STAMP-a00fa1e (on `staging`): merge a00fa1e (DEPLOY_LOG entry
+    # `a00fa1e — 2026-11-02 — N-3`). The PRE-PUSH-CHECK docs SHA is 12bd2b4.
+    # Any "NOT pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-11-02
     commits:
       - "68571da"
       # feat(N-3): public nutrition menu — /menu/[slug] link + embed, Verified
@@ -17976,8 +17981,27 @@ phases:
       # + the commit immediately after e73a60c: docs(N-3 PRE-PUSH-CHECK) —
       # DECISIONS ratified, N-2 production finished_at, this row to staging,
       # DEPLOY_LOG entry
+      - "12bd2b4"
+      # docs(N-3 PRE-PUSH-CHECK): the commit named on the line above; recorded
+      # by STAMP-a00fa1e
     title: "Nutrition — public menu page (/menu/[orgSlug], SSR, iframe-embeddable)"
     notes: >
+      PROMOTED 2026-11-02 in merge a00fa1e (rider, STAMP-a00fa1e): --no-ff,
+      main 8c94126..a00fa1e, staging fast-forwarded (origin/main =
+      origin/staging = a00fa1e, measured). Migration
+      20261103000000_n3_public_menu production finished_at 2026-11-03
+      00:09:51.972546 UTC (16:09:51 PST, 43 s after the merge) on
+      br-sparkling-block-a620qvg4, branch id from the server, read by Gary in
+      the Neon console. Staging (Gary, as relayed in the STAMP-a00fa1e prompt,
+      before promotion): /menu/keva-juice-staging showed Liquid Olympian
+      Smoothie S: 60 cal (Almond Breeze Original, 8 fl oz, Verified), M / Kids
+      / L "coming soon", item allergens "coming soon" (N3-F7), the
+      cross-contact notice under the filter, no prices or ingredients;
+      sign-out/sign-in, Settings and HR pages worked under the new app-wide
+      framing headers. The public menu was left OFF on production. Shipped,
+      not verified in production. The "NOT pushed" and "NOT VERIFIED ON
+      STAGING" lines below are spent, kept.
+
       BUILT 2026-11-02 (work 68571da, NOT pushed), on Gary's ruling "Accept all
       leans" (DECISIONS 2026-11-02 N-3, DRAFT; audit docs/prompts/N-3_AUDIT.md;
       prompt docs/prompts/N-3.md). The public menu is /menu/<slug> (an

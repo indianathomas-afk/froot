@@ -2,7 +2,35 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-02 — N-3: public nutrition menu (/menu/<slug>, link + embed), Verified sizes only
+## a00fa1e — 2026-11-02 — N-3: public nutrition menu (/menu/<slug>, link + embed), Verified sizes only
+
+**PROMOTED 2026-11-02 in merge `a00fa1e`** (`a00fa1ed92f90bb27c3ed28b187ada47e0cabe68`,
+"Merge branch 'staging'", 2026-11-02 16:09:09 -0800 (Pacific) = 2026-11-03
+00:09:09 UTC), `--no-ff`. First parent `8c94126` (prior tip of `main`), second
+parent `12bd2b4` (staging tip). **3 commits** in `a00fa1e^1..a00fa1e^2` —
+`68571da`, `e73a60c`, `12bd2b4` — and **28 files**, read out of `git log` and
+`git diff --shortstat` at this stamp. `main` moved `8c94126..a00fa1e`;
+`staging` fast-forwarded to it (`origin/main` = `origin/staging` = `a00fa1e`,
+measured by `git rev-parse` at this stamp). Stamped post-merge by
+STAMP-a00fa1e (2026-11-02), on `staging`; the heading previously read
+"UNPROMOTED — 2026-11-02 — N-3: public nutrition menu (/menu/<slug>, link +
+embed), Verified sizes only". The "staging only", "NEITHER WAS PUSHED" and
+"Nothing has been observed on staging or production" lines below are spent,
+kept.
+
+**Migration on production: `20261103000000_n3_public_menu` `finished_at`
+2026-11-03 00:09:51.972546 UTC (2026-11-02 16:09:51 PST)** on
+`br-sparkling-block-a620qvg4` (branch id read from the server in the same
+output), measured by Gary in the Neon console — 43 s after the merge.
+
+**Staging evidence (Gary, as relayed in the STAMP-a00fa1e prompt, before
+promotion):** `/menu/keva-juice-staging` showed Liquid Olympian Smoothie
+**S: 60 cal** (Almond Breeze Original, 8 fl oz, Verified); M / Kids / L
+"coming soon"; item allergens "coming soon" (N3-F7); the cross-contact notice
+under the filter; no prices or ingredients. Sign-out/sign-in, Settings and HR
+pages worked under the new app-wide framing headers. Org and Clerk instance as
+in Gary's staging pass; not re-observed by this session. **The public menu was
+left OFF on production.**
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next

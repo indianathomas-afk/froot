@@ -2195,8 +2195,8 @@ shape diff against dev returned `-- This is an empty migration.`.
 | Branch | Applied (`_prisma_migrations.finished_at`) | By |
 |---|---|---|
 | dev `br-broad-wave-a6vpjdw0` | **2026-11-02 23:06:55 UTC** (15:06:55 PST) | Gary |
-| staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
-| production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
+| staging `br-square-feather-a63z92vz` | applied on Gary's push (`/menu/keva-juice-staging` checks passed before promotion, per the STAMP-a00fa1e prompt) — finished_at not read. (Was: "not yet — on Gary's push" — spent.) | Vercel build |
+| production `br-sparkling-block-a620qvg4` | **2026-11-03 00:09:51.972546 UTC** (2026-11-02 16:09:51 PST) — 43 s after the promotion `a00fa1e` merge (00:09:09 UTC). Read by Gary in the Neon console, branch id from the server in the same output, recorded by STAMP-a00fa1e. (Was: "not yet — at promotion" — spent.) | Vercel build |
 
 **GENERATED AGAINST THE LIVE DEV DATABASE, after a clean baseline** (the diff
 with no `-o` returned `-- This is an empty migration.` before
