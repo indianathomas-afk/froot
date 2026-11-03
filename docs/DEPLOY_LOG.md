@@ -2,6 +2,80 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-03 — N-5: Square modifiers — sync, modifier recipes, BevSpot modifier import
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+
+**Payload: two N-5 commits plus this check's own.** Verified by `git log
+@{u}..` at this check: exactly `a9ff45e`, `4ad86a5`, on top of `origin/staging`
+(`3945425`). **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `a9ff45e` | N-5 work: migration `20261103020000_n5_square_modifiers`; `schema.prisma` (`SquareModifierList`, `SquareModifier`, `SquareItemModifierList`, `Recipe.squareModifierId`); `src/lib/square-modifier-sync.ts` called from `api/square/sales-items/sync`; `recipeKind()` in `recipe-cost.ts` at every prep/item site; negative lines on modifier recipes only (`recipe-api.ts`); Modifiers tab on `/inventory/recipes` + `api/inventory/modifiers/bulk`; Modifiers section on Menu Nutrition; BevSpot planner/apply import modifier rows; PERMISSIONS_INVENTORY PG-21, PG-36, IV-2, SQ-6; fixture `scripts/verify-n5-modifiers.ts` |
+| `4ad86a5` | `docs(N-5)`: prompt of record `docs/prompts/N-5.md`, audit `docs/prompts/N-5_AUDIT.md`, read-only production SQL `docs/prompts/N-5_PROD_QUERY.sql`, DECISIONS draft, MIGRATIONS entry, row `in_progress`, N-5b filed |
+| the commit immediately after `4ad86a5` | `docs(N-5 PRE-PUSH-CHECK)`: this entry, row SHAs, row to `staging`; DECISIONS ratified by Gary at this check ("Ratify as written") |
+
+**Blast radius: INVENTORY + NUTRITION, AND IT CHANGES THE SHARED "SYNC FROM
+SQUARE" ROUTE AND THE PREP/ITEM TEST USED ACROSS RECIPES.** Additive schema
+migration (no backfill). No new Square scope, no new Square endpoint (modifier
+lists come from the same `GET /v2/catalog/list` pages already walked), nothing
+writes to Square. No new env var, no cron, no `next.config.ts` /
+`src/proxy.ts` change.
+
+- **Migration `20261103020000_n5_square_modifiers`, applied by `prisma migrate
+  deploy` in the Vercel build** — staging on this push, production at
+  promotion. Three new tables (`SquareModifierList`, `SquareModifier`,
+  `SquareItemModifierList`) and one nullable unique column on `Recipe`
+  (`squareModifierId`, FK SET NULL). New FKs to `Organization` are **ON DELETE
+  RESTRICT** — an org with synced modifiers cannot be hard-deleted until they
+  are gone. Nothing dropped, no existing column altered. **Not measured on
+  staging or production at this check** — no `applied = 0` reading was taken;
+  per MIGRATIONS.md both read "not yet".
+- **"Sync from Square" (`api/square/sales-items/sync`) now also writes modifier
+  rows,** batched in one transaction AFTER the unchanged item/variation
+  writes, with `maxDuration = 60`. If the modifier write fails the route
+  errors after items were already written and `lastCatalogSyncAt` is not
+  stamped. The audit could not observe a live modifier payload — **the first
+  staging sync is the first proof.**
+- **`recipeKind()` replaces "salesItemId null = prep" at every site** (cost,
+  nutrition, counts, recipe lists, duplicate, BevSpot planner). A modifier
+  recipe is never a sub-recipe line, never countable, never duplicated onto a
+  menu item (422). Negative lines are accepted on modifier recipes only.
+- **BevSpot import:** a row whose Square id is a synced modifier imports as
+  that modifier's recipe under BEV-1's rules; apply marks modifiers MAPPED in
+  the same transaction. Exact-name sub-recipe reuse considers prep recipes
+  only (`src/lib/bevspot/plan-import.ts:180`, confirmed read-only at this
+  check). Only provable on production — staging's catalog has different ids.
+
+- **What is new on screen:** Modifiers tab on `/inventory/recipes` (bulk "Mark
+  non-recipe"); modifier recipe editing with signed cost; a Modifiers section
+  under the items table on Menu Nutrition — signed, plainly rounded deltas,
+  "may add" allergens from positive lines only, Cost column only for
+  `inventory.costs.view`. **Not on the public menu** (N5-F5).
+- **What does not change:** sales usage / theoretical inventory ignore order
+  modifiers until N-5b. Existing item and prep recipes cost and label as
+  before.
+
+**Rollback:** revert `a9ff45e`. The migration is additive and stays applied;
+the reverted code ignores the new tables and column. Any modifier recipes
+created in the meantime remain as rows and would then read as prep recipes
+(their `squareModifierId` is invisible to the old code) — delete them, or roll
+forward instead of back, if any were made. The docs commits can stay.
+
+**Evidence so far: fixture and build only.** Per the work commit:
+`verify-n5-modifiers` 51/51 against the applied schema on dev
+`br-broad-wave-a6vpjdw0` (part 7 rolled back); BEV-1, N-1, N-1a, N-1b, N-1c,
+N-1d, N-1e, N-2, N-3 fixtures re-run, all pass. `npm run build` re-run green at
+this check. **Nothing has been observed on staging.** After the push: the
+staging-SHA precondition (deployed SHA = local `HEAD`), migration
+`finished_at` on staging read in the Neon console, then Gary's staging pass —
+"Sync from Square" brings in modifier lists, the Modifiers tab and Menu
+Nutrition section render, a modifier recipe with a negative line saves, and
+the routes' role gates hold.
+
 ## 4dbfa03 — 2026-11-03 — N-1e-UI: label inbox ingredient picker is a searchable combobox
 
 **PROMOTED 2026-11-03 in merge `4dbfa03`**, together with N-1e (entry below,

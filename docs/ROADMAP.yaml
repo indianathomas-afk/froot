@@ -18162,7 +18162,21 @@ phases:
     # → in_progress 2026-11-03 at the work commit a9ff45e (NOT pushed). The
     # docs SHA is the commit immediately after a9ff45e (its own SHA cannot be
     # written inside itself).
-    status: in_progress
+    # N-5 PRE-PUSH-CHECK 2026-11-03: in_progress -> staging (WORKFLOW.md
+    # session rule 4), recorded in the commit immediately after 4ad86a5 (its
+    # own SHA cannot be written inside itself). NOT pushed when the check ran —
+    # Gary runs the push. DECISIONS 2026-11-03 N-5 ratified by Gary at this
+    # check: "Ratify as written". DEPLOY_LOG UNPROMOTED entry written.
+    # Confirmed read-only at this check: BevSpot exact-name sub-recipe reuse
+    # (F6 / BEV-1b) considers prep recipes only —
+    # src/lib/bevspot/plan-import.ts:180 skips any recipe whose recipeKind()
+    # is not "prep"; the graph comes from loadCostGraph (include, all
+    # scalars, so squareModifierId is loaded). No pre-push applied
+    # measurement on staging/production was taken at this check. Migration
+    # 20261103020000_n5_square_modifiers (additive, no backfill) rides this
+    # push. The "(NOT pushed)" and "is the commit immediately after a9ff45e"
+    # lines above are spent, kept: the docs SHA is 4ad86a5.
+    status: staging
     commits:
       - "a9ff45e"
       # feat(N-5): Square modifiers — sync, modifier recipes, BevSpot modifier
@@ -18170,12 +18184,17 @@ phases:
       # verify-n5-modifiers.ts, 2026-11-03
       # + the commit immediately after a9ff45e: docs(N-5) — prompt, audit,
       # production query, DECISIONS draft, MIGRATIONS entry, this row, N-5b
+      - "4ad86a5"
+      # docs(N-5) — the docs commit named above
+      # + the commit immediately after 4ad86a5: docs(N-5 PRE-PUSH-CHECK) —
+      # DECISIONS ratified, DEPLOY_LOG entry, this row to staging
     title: "Nutrition — Square modifiers (add-ons)"
     notes: >
       BUILT 2026-11-03, TIER 3. Prompt of record: docs/prompts/N-5.md. Audit
       docs/prompts/N-5_AUDIT.md; read-only production SQL
       docs/prompts/N-5_PROD_QUERY.sql. Rulings: docs/DECISIONS.md 2026-11-03
-      N-5 (Gary: "Accept all leans" — N5-F1–F8), DRAFT until PRE-PUSH-CHECK.
+      N-5 (Gary: "Accept all leans" — N5-F1–F8), DRAFT until PRE-PUSH-CHECK
+      [ratified at the N-5 PRE-PUSH-CHECK 2026-11-03: "Ratify as written"].
       No new Square scope (ITEMS_READ covers modifier lists; Froot still never
       writes Square). Migration 20261103020000_n5_square_modifiers (additive:
       SquareModifierList, SquareModifier, SquareItemModifierList, nullable
