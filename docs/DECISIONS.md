@@ -5,6 +5,41 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-03 — BUG-19 (SYNCSTATE): labor / schedule refresh claim is ON CONFLICT DO NOTHING; TIER 3; sales double-fetch filed (Gary) — DRAFT
+
+**DRAFT — ruled by Gary in chat 2026-11-03 at the STAMP-745a1ee-SYNCSTATE
+Phase 1 STOP; to be ratified at PRE-PUSH-CHECK.** His words, recorded exactly:
+
+> "Go, as planned"
+
+That is the whole ruling. It was his answer to the question "Go ahead with
+Phase 2 as planned, treating the session as TIER 3 with no migration?", chosen
+over the alternative offered, "Include sales fix too". **Everything below is
+Claude's Phase 1 plan, not Gary's wording** — he accepted it as a set. The audit
+he ruled on is `docs/prompts/SYNCSTATE_AUDIT.md`.
+
+- **The fix:** `claimSync` / `claimScheduleSync` (`src/lib/labor-dashboard.ts`)
+  replace `create()` + bare `catch` with `createMany({ skipDuplicates: true })`
+  read by count — `claimScheduleSlot`'s shape. The conditional `updateMany`
+  claim stays first and unchanged.
+- **No change to the cooldowns** (15 min actuals, 30 min schedule — earlier
+  rulings), to what is fetched or written, or to what the dashboard shows. No
+  schema, no migration.
+- **TIER 3** (row writes on the Square sync path), up from the prompt's
+  TIER 2; no migration STOP applies.
+- **Fixture depth:** the claim functions are exported and exercised directly; a
+  claim winner is counted as the Square refresh. The `after()` loop is not
+  harnessed.
+- **The sales double-fetch** (summary + sales each run `syncSalesForStore`) is
+  NOT fixed here — filed as its own row (BUG-20). Gary, later in the same
+  session, recorded exactly: "File the sales double-fetch (summary and sales
+  each run syncSalesForStore for the same store and day) as its own ROADMAP
+  row, planned, not built in this session."
+
+**Claude (implementation):** the fixture reads a child process's real
+stdout/stderr for the "no prisma:error" checks, because the in-process console
+tap failed its positive control (see `scripts/verify-syncstate.ts` header).
+
 ## 2026-11-03 — REGION-1: functions run in pdx1, set in vercel.json; Blob stores stay put — REGION-F1–F3 (Gary)
 
 **RATIFIED BY GARY, 2026-11-03, at the REGION-1 PRE-PUSH-CHECK, as written:**

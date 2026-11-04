@@ -4418,6 +4418,7 @@ phases:
       code changed. All checks passed (dev br-broad-wave-a6vpjdw0). Cause of record:
       docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 3.
       Docs SHA 59d5596; the PRE-PUSH-CHECK is the commit immediately after it.
+      Promoted in 745a1ee (2026-11-03, main 3ea8112..745a1ee; the PRE-PUSH-CHECK was 85a5b42).
 
       ── EMAIL BLOCKER RESOLVED 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
       PREPENDED TO NOTES RATHER THAN MARKED ON A BLOCKER ENTRY, by Gary's F5
@@ -8525,6 +8526,7 @@ phases:
       dates 2026-10-23 LA / 2026-10-24 Denver). 51 passed, 0 failed. Cause of record:
       docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 4.
       Docs SHA 59d5596; the PRE-PUSH-CHECK is the commit immediately after it.
+      Promoted in 745a1ee (2026-11-03, main 3ea8112..745a1ee; the PRE-PUSH-CHECK was 85a5b42).
 
       ── STAGING EVIDENCE 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
       EDITED. ── Status stays `staging`; this records evidence and does not
@@ -19027,6 +19029,7 @@ phases:
       Result: PASS — every role's URL set is identical (6 scenarios). Cause of record:
       docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 2.
       Docs SHA 59d5596; the PRE-PUSH-CHECK is the commit immediately after it.
+      Promoted in 745a1ee (2026-11-03, main 3ea8112..745a1ee; the PRE-PUSH-CHECK was 85a5b42).
       Ruling RATIFIED by Gary 2026-11-03 at the STAMP-3ea8112-FIXTURES PRE-PUSH-CHECK, as written
       ("Ratify as written"); the "DRAFT until PRE-PUSH-CHECK" above is spent, kept.
 
@@ -19283,6 +19286,7 @@ phases:
       per the session prompt. verify-eng1-engagement: All checks passed (dev br-broad-wave-a6vpjdw0).
       Cause of record: docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 1. Not deployed: rides the next push/promotion.
       Docs SHA 59d5596; the PRE-PUSH-CHECK is the commit immediately after it.
+      Promoted in 745a1ee (2026-11-03, main 3ea8112..745a1ee; the PRE-PUSH-CHECK was 85a5b42).
 
       CLOSED 2026-08-30. PROMOTED TO PRODUCTION 2026-08-30 in merge `8c25084`
       ("Promote ENG-1: engagement tracking — staff, managers, store devices").
@@ -23869,6 +23873,7 @@ phases:
       derived (next ISO week's Monday, Pacific, 1-7 days ahead). 54/54 passed (dev br-broad-wave-a6vpjdw0).
       Cause of record: docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 5.
       Docs SHA 59d5596; the PRE-PUSH-CHECK is the commit immediately after it.
+      Promoted in 745a1ee (2026-11-03, main 3ea8112..745a1ee; the PRE-PUSH-CHECK was 85a5b42).
 
       ── PROMOTED 2026-10-27 in merge cf717ca (rider prepended 2026-10-28 by
       PROMOTE-DOCS NOTIFY-14; nothing below is edited). ──
@@ -24000,7 +24005,12 @@ phases:
     # -> staging 2026-11-03 at the REGION-1 PRE-PUSH-CHECK (the commit
     # immediately after ab4acd4), for Gary's push of 3592ee0 + ab4acd4 + it.
     # Still NOT pushed when this check ran; Claude never pushes.
-    status: staging
+    # `staging` -> `shipped` 2026-11-03, stamped post-merge 2026-11-03 by
+    # STAMP-745a1ee-SYNCSTATE (on `staging`): merge 745a1ee (DEPLOY_LOG entry
+    # `745a1ee — 2026-11-03 — REGION-1`). The REGION-1 PRE-PUSH-CHECK docs SHA
+    # is 82fe451. Any "NOT pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-11-03
     title: "Run Vercel functions in pdx1, next to the Neon database (us-west-2)"
     commits:
       - "3592ee0"
@@ -24037,6 +24047,20 @@ phases:
       PRE-PUSH-CHECK 2026-11-03: DECISIONS REGION-F1–F3 RATIFIED by Gary,
       "Ratify as written" (the DRAFT note above is spent, kept). DEPLOY_LOG
       UNPROMOTED entry written. Docs audit clean; build green.
+      PROMOTED 2026-11-03 in merge 745a1ee (rider, STAMP-745a1ee-SYNCSTATE):
+      --no-ff, 2026-11-03 19:53:34 PST = 2026-11-04 03:53:34 UTC, main
+      3ea8112..745a1ee, 6 commits / 14 files (with STAMP-3ea8112-FIXTURES),
+      staging fast-forwarded; no migration. PRE-PUSH-CHECK docs SHA 82fe451.
+      EVIDENCE (Gary, Vercel runtime logs, relayed in the session prompt):
+      staging pdx1 unchanged-sync writeMs 1,159 then 604 (iad1: 2,544); warm
+      staging dashboard loads summary 109 ms, sales 196 ms, labor budget
+      102 ms, coverage 222–260 ms, comms 108 ms (production iad1 same day
+      ~0.6–1.5 s); first loads per store still ~1 s (Square fetches).
+      Production unchanged-sync writeMs 898 (iad1: 4,624); first-load
+      dashboard routes 0.8–1.3 s; warm production loads not yet captured.
+      PRODUCTION REGION NOT VISUALLY CONFIRMED in the Vercel UI — pdx1 there
+      is INFERRED from the writeMs drop, not observed. The "NOT VERIFIED:
+      everything deployed" line above is spent for staging, kept.
 
 
 bugs:
@@ -25918,6 +25942,83 @@ bugs:
       changes production's Inspector hours for every midnight-crossing card.
       Display only: labor %, cost and attendance are not affected (they anchor
       a card to its start day). RELATED: BUG-17, OVL-S5.
+
+  - id: BUG-19
+    # -> in_progress 2026-11-03 at the work commit 4ac82d0 (NOT pushed). The
+    # docs SHA is the commit immediately after 4ac82d0 (its own SHA cannot be
+    # written inside itself).
+    status: in_progress
+    title: >
+      Dashboard labor / schedule refresh claim printed a "Unique constraint
+      failed on (storeId)" prisma:error on nearly every load
+    commits:
+      - "4ac82d0"
+      # fix(BUG-19): claimSync / claimScheduleSync use createMany
+      # skipDuplicates read by count; fixture verify-syncstate.ts, 2026-11-03
+      # + the commit immediately after 4ac82d0: docs(STAMP-745a1ee-SYNCSTATE)
+      # — this row, BUG-20, the 745a1ee stamp, DECISIONS draft, prompt, audit
+    notes: >
+      BUILT 2026-11-03 on staging, NOT pushed. TIER 3 (row writes on the
+      Square sync path; up from the prompt's TIER 2), no migration. Prompt of
+      record: docs/prompts/STAMP-745a1ee-SYNCSTATE.md; audit
+      docs/prompts/SYNCSTATE_AUDIT.md. Ruling: DECISIONS 2026-11-03 BUG-19
+      (Gary: "Go, as planned"), DRAFT until PRE-PUSH-CHECK. THE ID was
+      confirmed free (BUG-18 was the highest). SEEN (Vercel runtime logs,
+      staging and production, 2026-11-03, per the session prompt): pairs of
+      prisma:error "Invalid prisma.squareLaborSyncState.create() … Unique
+      constraint failed on the fields: (storeId)" and the same for
+      squareScheduleSyncState, from /api/dashboard/summary and
+      /api/dashboard/sales, on nearly every load. CAUSE (audit § A–B): the
+      claim's create() fallback in src/lib/labor-dashboard.ts ran on EVERY
+      load inside the cooldown, not only on the first-ever race, and a caught
+      P2002 still logs under log: ["error"]. NOT A DUPLICATE SQUARE FETCH: the
+      conditional updateMany claim was already single-flight per store; the
+      loser never called Square. FIX: createMany({ skipDuplicates: true })
+      read by count — claimScheduleSlot's shape. Cooldowns (15 / 30 min),
+      fetches, writes and the dashboard unchanged; both claim functions
+      exported for the fixture. EVIDENCE (dev br-broad-wave-a6vpjdw0):
+      verify-syncstate 19 passed, 0 failed (positive control A2 proves the
+      error-line detector sees a caught P2002; Z1 zero error lines across
+      concurrent first-load, inside-window, after-window and two-store
+      claims); against the OLD file 18 passed, 1 failed (Z1 only). All 67
+      scripts/verify-*.ts green. NOT VERIFIED: anything deployed — after
+      Gary's push, the staging-SHA precondition, then the dashboard on two
+      stores with Vercel logs showing no "Unique constraint failed" line.
+      The real duplicated Square fetch is the sales sync: BUG-20.
+
+  - id: BUG-20
+    status: planned
+    title: >
+      Dashboard summary and sales each run syncSalesForStore for the same
+      store-day — a duplicated Square orders fetch on every parallel load
+    notes: >
+      FILED 2026-11-03 by STAMP-745a1ee-SYNCSTATE, from its audit's § E
+      (docs/prompts/SYNCSTATE_AUDIT.md). PLANNED, NOT BUILT — Gary declined
+      folding it into that session ("Go, as planned", chosen over "Include
+      sales fix too"; DECISIONS 2026-11-03 BUG-19, DRAFT), then in the same
+      session: "File the sales double-fetch (summary and sales each run
+      syncSalesForStore for the same store and day) as its own ROADMAP row,
+      planned, not built in this session." THE ID was confirmed free: BUG-18 was the highest bug
+      id and BUG-19 is that session's fix; BUG-19/BUG-20 appeared nowhere else.
+      SEEN (from code, at 745a1ee): /api/dashboard/summary (route.ts ~85-115)
+      and /api/dashboard/sales (route.ts ~220-240) load in parallel and each
+      decide independently to call syncSalesForStore(org, store, today,
+      today) — INLINE when today has no SalesPeriodCache row (first load of
+      the day), in after() when the row is stale. Both then POST
+      /v2/orders/search for the same store-day. BUG-7's guarded write keeps
+      the DATA correct (the older fetch is discarded), and the log line
+      `[sales-sync] … discarded 1 superseded by a newer fetch` is that second
+      fetch being thrown away. COST: LIVE but small — on a first load of the
+      day BOTH inline syncs sit in the response path, the likeliest share of
+      the ~1 s first-load figure measured after REGION-1 (DEPLOY_LOG 745a1ee);
+      otherwise doubled Square request volume, no wrong numbers. DIRECTION,
+      NOT A PLAN: single-flight per store-day, the claim pattern BUG-19 cleaned
+      up (conditional update on a "started" instant, others serve the cache).
+      SalesPeriodCache.syncedAt records the instant Square was READ, not a
+      start, so it is not obviously reusable as a claim token — the fix MAY
+      NEED A COLUMN (then TIER 3 + migration STOP). Audit first. RELATED:
+      BUG-1 (step 4, after()), BUG-6 (client re-fetch), BUG-7, BUG-19,
+      REGION-1.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.

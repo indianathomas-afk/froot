@@ -2,7 +2,41 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-03 — REGION-1: Vercel functions run in pdx1, next to Neon us-west-2
+## 745a1ee — 2026-11-03 — REGION-1: Vercel functions run in pdx1, next to Neon us-west-2
+
+**PROMOTED 2026-11-03 in merge `745a1ee`** (`745a1ee7ff512be61c694f569e39170583c29155`,
+"Merge branch 'staging'", 2026-11-03 19:53:34 -0800 (Pacific, PST) = 2026-11-04
+03:53:34 UTC), `--no-ff`, together with STAMP-3ea8112-FIXTURES (the next entry
+down). First parent `3ea8112` (prior tip of `main`), second parent `82fe451`
+(staging tip). **6 commits** in `745a1ee^1..745a1ee^2` — STAMP-3ea8112-FIXTURES
+`d4e6df2`, `59d5596`, `85a5b42`, REGION-1 `3592ee0`, `ab4acd4`, `82fe451` — and
+**14 files**, read out of `git log` and `git diff --shortstat` at this stamp.
+`main` moved `3ea8112..745a1ee`; `staging` fast-forwarded to it. Measured by
+`git rev-parse` at this stamp: `origin/main` = `origin/staging` = `745a1ee`. No
+migration. Stamped post-merge by STAMP-745a1ee-SYNCSTATE (2026-11-03), on
+`staging`; the heading previously read "UNPROMOTED — 2026-11-03 — REGION-1:
+Vercel functions run in pdx1, next to Neon us-west-2". The "staging only",
+"NEITHER WAS PUSHED", "Until promotion, staging runs pdx1 and production iad1"
+and "Evidence so far: build only … Nothing has been observed on any deployment"
+lines below are spent, kept.
+
+**Evidence (Gary, Vercel runtime logs, as relayed in the STAMP-745a1ee-SYNCSTATE
+prompt).** `writeMs` is the `[sales-items/sync]` database-write time of a sync
+in which every row was unchanged.
+
+- **Before (iad1):** staging unchanged re-run `writeMs` 2,544 (the REGION-1
+  audit's figure). Production dashboard routes the same day ~0.6–1.5 s —
+  summary 1.1–1.5 s, sales 0.8–1.2 s, labor budget 0.75–1.3 s, coverage
+  0.95–1.3 s, comms 0.6–0.9 s.
+- **After, staging (pdx1):** two unchanged syncs, `writeMs` **1,159** then
+  **604**. Warm dashboard loads: summary 109 ms, sales 196 ms, labor budget
+  102 ms, coverage 222–260 ms, comms 108 ms. First loads per store stayed ~1 s
+  (they include Square fetches).
+- **After, production:** unchanged sync `writeMs` **898**. First-load dashboard
+  routes 0.8–1.3 s (Square fetches). Warm production loads not yet captured.
+- **Production's function region was NOT visually confirmed** in the Vercel UI.
+  pdx1 on production is INFERRED from the `writeMs` drop (4,624 → 898), not
+  observed. Recorded that way on purpose.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
@@ -47,7 +81,20 @@ confirm `pdx1` on the deployment's Functions view or a request's details —
 **NOT the `region` on a runtime log line, which is the edge region (sfo1)** —
 then re-run the unchanged sales-items sync and compare.
 
-## UNPROMOTED — 2026-11-03 — STAMP-3ea8112-FIXTURES: eng1 records 18 more pages; four fixture fixes
+## 745a1ee — 2026-11-03 — STAMP-3ea8112-FIXTURES: eng1 records 18 more pages; four fixture fixes
+
+**PROMOTED 2026-11-03 in merge `745a1ee`** (2026-11-03 19:53:34 -0800 PST =
+2026-11-04 03:53:34 UTC), `--no-ff`, together with REGION-1 — merge facts in
+the REGION-1 entry above: 6 commits, 14 files, `main` `3ea8112..745a1ee`. This
+entry's three commits are `d4e6df2`, `59d5596`, `85a5b42`. No migration.
+**eng1 is live on production from this promotion:** the 18 pages are recorded
+under their own route from the `745a1ee` production deployment on; earlier rows
+stay `/other` (not backfilled). Not observed on `/staff/engagement` by this
+stamp. Stamped post-merge by STAMP-745a1ee-SYNCSTATE (2026-11-03), on
+`staging`; the heading previously read "UNPROMOTED — 2026-11-03 —
+STAMP-3ea8112-FIXTURES: eng1 records 18 more pages; four fixture fixes". The
+"staging only", "NEITHER WAS PUSHED" and "Nothing has been observed on staging"
+lines below are spent, kept.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next
