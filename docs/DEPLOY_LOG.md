@@ -2,7 +2,35 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-03 — BUG-19: labor / schedule refresh claim no longer prints a prisma:error on every dashboard load
+## 9933ad5 — 2026-11-03 — BUG-19: labor / schedule refresh claim no longer prints a prisma:error on every dashboard load
+
+**PROMOTED 2026-11-03 in merge `9933ad5`** (`9933ad596c5f89c1a98fa357f2d03ae2b10405c4`,
+"Merge branch 'staging'", 2026-11-03 20:37:02 -0800 (Pacific, PST) = 2026-11-04
+04:37:02 UTC), `--no-ff`. First parent `745a1ee` (prior tip of `main`), second
+parent `ef05e0e` (staging tip). **3 commits** in `9933ad5^1..9933ad5^2` —
+`4ac82d0` (fix), `b459ffb` (docs), `ef05e0e` (PRE-PUSH-CHECK) — and **7 files**
+(848 insertions, 25 deletions), read out of `git log` and `git diff --shortstat`
+at this stamp. `main` moved `745a1ee..9933ad5`; `staging` fast-forwarded to it.
+Measured by `git rev-parse` at this stamp: `origin/main` = `origin/staging` =
+`9933ad5`. No migration. Stamped post-merge by BUG-20 (2026-11-03), on
+`staging`; the heading previously read "UNPROMOTED — 2026-11-03 — BUG-19: …".
+The "Staging only, NOT pushed at writing" and "Evidence so far: dev and build
+only … Nothing observed on any deployment" lines below are spent, kept.
+
+**Staging evidence (Gary, Vercel runtime logs, Preview, relayed in chat
+2026-11-03).** Window 20:32–20:33 PST (04:32–04:33 UTC 2026-11-04), two stores:
+**no "Unique constraint failed" lines**; one `[labor-actuals]` and one
+`[labor-schedule]` per store per load. Dashboard timings: summary **1380 /
+806 ms** and sales **577 / 787 ms** on first loads, **77 / 55 ms** warm.
+**Timing note:** that window is 4–5 minutes BEFORE the merge commit (20:37:02
+PST). It is evidence from the staging deployment of `ef05e0e` (committed
+20:26:06 PST), and `git diff ef05e0e 9933ad5` is empty — identical tree — so it
+stands for the promoted code. This stamp did not run the staging-SHA
+precondition; which deployment served those requests is as relayed, not
+re-checked here.
+
+**Production evidence: OWED.** Gary did not relay production logs for this
+promotion; no production observation of BUG-19 is recorded.
 
 **Staging only, NOT pushed at writing.** Work commit `4ac82d0`; docs `b459ffb`
 (745a1ee stamp, BUG-19 / BUG-20 rows, DECISIONS draft); PRE-PUSH-CHECK docs

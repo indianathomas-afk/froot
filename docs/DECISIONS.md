@@ -5,6 +5,55 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-03 — BUG-20: don't build the sales dedupe yet — measure first; comparison-day duplicate filed (Gary) — DRAFT
+
+**DRAFT — ruled by Gary in chat 2026-11-03 at the BUG-20 Phase 1 STOP; to be
+ratified at PRE-PUSH-CHECK.** His words, recorded exactly:
+
+> "F1: Don't build the owner-plus-fallback fix now. Re-scope this session to
+> measurement: add one timing log line to syncSalesForStore (and the
+> fill-missing-days path) that splits Square time from database time, per
+> call, with the route that called it. No change to what is fetched, stored or
+> shown.
+> Keep BUG-20 open as planned, with the audit's findings in its notes; we'll
+> decide the fix after a day of production timings.
+> File the second duplicate (both routes filling the same comparison day) as
+> its own row, planned.
+> Quote the staging log lines I pasted (20:32–20:33 PST: summary 1380/806 ms
+> and sales 577/787 ms on first loads, 77/55 ms warm, no Unique constraint
+> lines).
+> Staging order-webhook subscription: unknown — record it as unknown.
+> Still do Part 2, the 9933ad5 stamp.
+> Record these in DECISIONS in my words as a DRAFT, then build, commit and
+> stop."
+
+The audit he ruled on is `docs/prompts/BUG-20_AUDIT.md`. Its recommendation was
+the "owner-plus-fallback" option ((a+), § D). **It is a recommendation that
+Gary declined to build now, not a ruling**, and nothing in that audit is
+ratified by this entry.
+
+**Claude's implementation choices inside the ruling** (his words above set the
+scope; these are mine, open to correction at the check):
+
+- **The line:** `[sales-sync] timing caller= store= window= outcome= pages=
+  orders= squareMs= writeMs= totalMs= wrote=`, one per `syncSalesForStore`
+  call. `squareMs` is the orders-search request plus body read, summed over
+  pages. It excludes token refresh, which `totalMs` includes. `writeMs` is the
+  whole guarded `writeSalesCache` transaction.
+- **A throwing sync also logs** (`outcome=error`, `writeMs=-`), because a slow
+  Square failure is the case worth seeing. The existing "discarded …
+  superseded" line is unchanged and still separate.
+- **`caller` is a required argument** on `syncSalesForStore` and
+  `ensureSalesCached`, so an unlabelled call site fails the build. The labels
+  name the route and the path inside it (`dashboard/summary:today`,
+  `:today-bg`, `:month`, `:comparison`, …). The fill-missing-days path logs as
+  `<caller>:gap-fill`.
+- **"Every route that called it" reached 21 call sites in 12 files**, five more
+  than the audit's caller table listed (four inventory reports and
+  `lib/expected-inventory`). The required argument surfaced them.
+- Work commit `5f99682`; BUG-20 stays `planned` with it cited as measurement
+  only; the comparison-day duplicate is **BUG-21**, planned.
+
 ## 2026-11-03 — BUG-19 (SYNCSTATE): labor / schedule refresh claim is ON CONFLICT DO NOTHING; TIER 3; sales double-fetch filed (Gary)
 
 **RATIFIED BY GARY, 2026-11-03, at the STAMP-745a1ee-SYNCSTATE PRE-PUSH-CHECK,

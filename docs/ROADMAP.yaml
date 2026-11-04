@@ -25951,7 +25951,12 @@ bugs:
     # commit immediately after b459ffb), for Gary's push of 4ac82d0 + b459ffb
     # + it. DECISIONS BUG-19 ratified there ("Ratify as written"); the "DRAFT
     # until PRE-PUSH-CHECK" in the notes below is spent, kept.
-    status: staging
+    # `staging` -> `shipped` 2026-11-03, stamped post-merge 2026-11-03 by
+    # BUG-20 (on `staging`): merge 9933ad5 (DEPLOY_LOG entry `9933ad5 —
+    # 2026-11-03 — BUG-19`). The PRE-PUSH-CHECK docs SHA is ef05e0e. Any "NOT
+    # pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-11-03
     title: >
       Dashboard labor / schedule refresh claim printed a "Unique constraint
       failed on (storeId)" prisma:error on nearly every load
@@ -25993,12 +25998,34 @@ bugs:
       Gary's push, the staging-SHA precondition, then the dashboard on two
       stores with Vercel logs showing no "Unique constraint failed" line.
       The real duplicated Square fetch is the sales sync: BUG-20.
+      PROMOTED 2026-11-03 in merge 9933ad5 (rider, BUG-20 session): --no-ff,
+      2026-11-03 20:37:02 PST = 2026-11-04 04:37:02 UTC, main
+      745a1ee..9933ad5, 3 commits (4ac82d0, b459ffb, ef05e0e) / 7 files,
+      staging fast-forwarded; no migration. STAGING EVIDENCE (Gary, Vercel
+      runtime logs, Preview, 20:32–20:33 PST, two stores, relayed in chat): no
+      "Unique constraint failed" lines; one [labor-actuals] and one
+      [labor-schedule] per store per load; dashboard summary 1380 / 806 ms and
+      sales 577 / 787 ms on first loads, 77 / 55 ms warm. That window predates
+      the merge by 4–5 min — it is the staging deployment of ef05e0e, whose
+      tree is identical to 9933ad5. PRODUCTION EVIDENCE: OWED (not relayed).
+      The "NOT VERIFIED: anything deployed" line above is spent for staging,
+      kept.
 
   - id: BUG-20
+    # Stays `planned` 2026-11-03 by Gary's ruling at the BUG-20 Phase 1 STOP
+    # ("Keep BUG-20 open as planned … we'll decide the fix after a day of
+    # production timings"). The session was re-scoped to MEASUREMENT; the
+    # commit below is that timing line, not the fix.
     status: planned
     title: >
       Dashboard summary and sales each run syncSalesForStore for the same
       store-day — a duplicated Square orders fetch on every parallel load
+    commits:
+      - "5f99682"
+      # feat(BUG-20): sales-sync timing line — Square vs DB time per call,
+      # with caller (MEASUREMENT ONLY, not the fix). NOT pushed at writing.
+      # + the commit immediately after 5f99682: docs(BUG-20) — this rider,
+      # BUG-21, the 9933ad5 stamp, DECISIONS draft, prompt, audit
     notes: >
       FILED 2026-11-03 by STAMP-745a1ee-SYNCSTATE, from its audit's § E
       (docs/prompts/SYNCSTATE_AUDIT.md). PLANNED, NOT BUILT — Gary declined
@@ -26027,6 +26054,91 @@ bugs:
       NEED A COLUMN (then TIER 3 + migration STOP). Audit first. RELATED:
       BUG-1 (step 4, after()), BUG-6 (client re-fetch), BUG-7, BUG-19,
       REGION-1.
+      ── AUDITED 2026-11-03 (BUG-20 session, TIER 3; prompt
+      docs/prompts/BUG-20.md, audit docs/prompts/BUG-20_AUDIT.md). APPENDED
+      BELOW; THE TEXT ABOVE IS UNEDITED. ── FINDINGS: (1) CONFIRMED from code:
+      on mount the Sales Performance card and the summary fetch in parallel;
+      with the default "today" selection both call syncSalesForStore(today) —
+      inline when today has no row, in after() when the row is >15 min old;
+      BUG-6 poll re-entries can add more after() syncs (3 × 2 s per card).
+      (2) THE LATENCY HYPOTHESIS IS WEAK: the two syncs are PARALLEL in
+      separate requests, so each route already waits for one Square read;
+      the route that loses a dedupe still waits for the winner's read. A fix
+      saves one orders search per load and the "superseded" line, likely not
+      first-load time. (3) STAGING AND PRODUCTION DIFFER: Vercel runs crons on
+      production only; the 03:00 PST sales-reconcile writes today's row (zero
+      sales) for every linked store, so production never takes the inline
+      path — its duplicate is the after() pair, and its logged route times
+      exclude after() work. Staging (no cron) takes the inline path on every
+      first load per store per day. (4) LIKELIER FIRST-LOAD COSTS: a serial
+      month gap-fill Square search inside summary (ensureSalesCached
+      mStart..today) when days are missing, and cold start; unmeasured.
+      (5) BUG-7 CONSTRAINTS on any fix: syncedAt must stay "Square read at"
+      (the webhook skip depends on it); no placeholder SalesPeriodCache row
+      (row existence = cached; zeros would read as sales); newest-fetch-wins
+      stays the only arbiter of what is stored. A claim column on
+      SalesPeriodCache cannot work — on a first load the row does not exist.
+      OPTIONS (audit § D): (a) one owner without fallback — rejected, shows
+      empty on staging first loads; (a+) summary owns, sales polls the cache
+      up to N ms then falls back, and its after() re-reads syncedAt and skips
+      — no new state (the audit's lean); (b) real claim — needs a new
+      SalesSyncState table + migration (in-process memory is unreliable
+      across routes; a pg advisory lock holds a pooled connection across the
+      Square call); (c) client sequencing — slows the sales card on every
+      warm load. STAGING TIMINGS (Gary, Vercel logs, Preview, 2026-11-03
+      20:32–20:33 PST): summary 1380 / 806 ms and sales 577 / 787 ms on first
+      loads, 77 / 55 ms warm, no "Unique constraint failed" lines.
+      RULED (Gary, 2026-11-03; DECISIONS 2026-11-03 BUG-20, DRAFT): don't
+      build the fix now; re-scope to measurement; decide after a day of
+      production timings. MEASUREMENT BUILT in 5f99682: one line per
+      syncSalesForStore call — `[sales-sync] timing caller= store= window=
+      outcome= pages= orders= squareMs= writeMs= totalMs= wrote=` — with
+      `caller` a required argument (21 call sites in 12 caller files labelled;
+      the commit message says "20", which is a miscount) and the
+      fill-missing-days path logging as `<caller>:gap-fill`. Nothing fetched,
+      stored or shown changed. EVIDENCE (dev): scripts/verify-bug20.ts 22
+      passed (Square stubbed and counted); against the pre-BUG-20 file 15
+      fail / 7 pass (only the unchanged-data and unchanged-error checks
+      pass); all 68 scripts/verify-*.ts green; build green. AUDIT CORRECTION:
+      the audit's § A caller table missed five ensureSalesCached callers
+      outside the dashboard — inventory reports cogs, item-sales,
+      profitability, variance, and lib/expected-inventory (expected on-hand,
+      weekly usage). It grepped syncSalesForStore, not ensureSalesCached —
+      CLAUDE.md § Verifying a guard covers every path, again. The required
+      argument found them at build. None shares a page load with the
+      dashboard pair, so the audit's conclusions stand. UNKNOWN: whether the
+      "Froot Staging" Square app has an order-webhook subscription (Gary:
+      "unknown — record it as unknown"). NOT VERIFIED: anything deployed —
+      after Gary's push, the staging-SHA precondition, then the dashboard
+      with Vercel logs showing `[sales-sync] timing` lines carrying
+      caller=dashboard/summary:today and dashboard/sales:today. A comparison-day
+      duplicate the audit also found is filed separately as BUG-21.
+
+  - id: BUG-21
+    status: planned
+    title: >
+      Dashboard summary and sales both gap-fill the same comparison day
+      (same weekday last year) — a second duplicated Square orders search on
+      stores without a backfill
+    notes: >
+      FILED 2026-11-03 by the BUG-20 session, from its audit's § A
+      (docs/prompts/BUG-20_AUDIT.md), on Gary's ruling: "File the second
+      duplicate (both routes filling the same comparison day) as its own row,
+      planned." THE ID was confirmed free: BUG-20 was the highest bug id and
+      BUG-21 appeared nowhere in docs/ or src/. SEEN (from code, at 9933ad5):
+      /api/dashboard/summary calls ensureSalesCached(today-364) for its
+      last-year comparison (route.ts:118). /api/dashboard/sales, with the
+      default compare=same_weekday_last_year and a today-only selection,
+      resolves compStart = compEnd = today-364 (route.ts:68) and calls
+      ensureSalesCached on that same day (route.ts:246). The two requests load
+      in parallel, so when that day has no SalesPeriodCache row both run a
+      Square orders search for it; BUG-7's guard keeps the data correct.
+      COST: LATENT — trigger: a store with no backfill for the comparison day
+      (once per store per calendar day; never on a backfilled store). Doubled
+      Square volume on that load, no wrong numbers. Measurable now: BUG-20's
+      timing line logs these as caller=dashboard/summary:comparison:gap-fill
+      and dashboard/sales:comparison:gap-fill. DIRECTION, NOT A PLAN: likely
+      decided together with BUG-20's fix. RELATED: BUG-7, BUG-20.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
