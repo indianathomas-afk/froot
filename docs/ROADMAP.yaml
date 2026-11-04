@@ -4410,6 +4410,15 @@ phases:
     commits: [61eea85]
     title: "Compliance rollup dashboard — live-computed, /hr/compliance, real /staff column"
     notes: >
+      ── FIXTURE FIX 2026-11-03 (STAMP-3ea8112-FIXTURES, work commit d4e6df2; rider prepended, nothing below is edited). ──
+      verify-hr8-compliance was red since 2026-08-15: it still asserted pre-R1/R2 behaviour. Fixture-only:
+      s2 docA (all required acked, no record) is in-progress with recordMissing (R1, 32205a4); s3 docB (record
+      on v1, current v2) is complete with signedOnEarlierVersion (R2, 457a57f); pct, rollup, store and
+      manager-scope numbers recomputed (s2 0, s3 25, store A 50, store B 25, needs-resign 0, scope 3/6). No
+      code changed. All checks passed (dev br-broad-wave-a6vpjdw0). Cause of record:
+      docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 3.
+      Docs SHA 59d5596; the PRE-PUSH-CHECK is the commit immediately after it.
+
       ── EMAIL BLOCKER RESOLVED 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
       PREPENDED TO NOTES RATHER THAN MARKED ON A BLOCKER ENTRY, by Gary's F5
       ruling (2026-09-20), BECAUSE THIS ROW HAS NO `blockers:` ARRAY — its email
@@ -8508,6 +8517,15 @@ phases:
         and read; a pay-confidential member shows no raise dates to a manager
         (view-source search for the date); phone width; Milestones off → 404.
     notes: >
+      ── FIXTURE FIX 2026-11-03 (STAMP-3ea8112-FIXTURES, work commit d4e6df2; rider prepended, nothing below is edited). ──
+      verify-ms5 C14b went red 2026-11-01 (DST end): the raise was placed ten days before a split hour
+      computed on today's offsets, so Ana's and Cara's raise dates collapsed onto the same day. Fixture-only:
+      the raise gets its own Denver/LA split instant on its own date (RAISE_AT). NOT A LEAK — the pay-access
+      MANAGER's CSV row for Cara carries no raise or cooldown date (probed on dev br-broad-wave-a6vpjdw0, raise
+      dates 2026-10-23 LA / 2026-10-24 Denver). 51 passed, 0 failed. Cause of record:
+      docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 4.
+      Docs SHA 59d5596; the PRE-PUSH-CHECK is the commit immediately after it.
+
       ── STAGING EVIDENCE 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
       EDITED. ── Status stays `staging`; this records evidence and does not
       promote. On staging 80af7e2 (= local HEAD), org
@@ -18176,7 +18194,14 @@ phases:
     # 20261103020000_n5_square_modifiers (additive, no backfill) rides this
     # push. The "(NOT pushed)" and "is the commit immediately after a9ff45e"
     # lines above are spent, kept: the docs SHA is 4ad86a5.
-    status: staging
+    # `staging` -> `shipped` 2026-11-03, stamped post-merge 2026-11-03 by
+    # STAMP-3ea8112-FIXTURES (on `staging`): merge 3ea8112 (DEPLOY_LOG entry
+    # `3ea8112 — 2026-11-03 — N-5`, which carries the N-5-SYNC note). The N-5
+    # PRE-PUSH-CHECK docs SHA is e32e22c and the N-5-SYNC PRE-PUSH-CHECK docs
+    # SHA is 0b48da3. Any "NOT pushed" / "staging" comment above is spent,
+    # kept.
+    status: shipped
+    shipped: 2026-11-03
     commits:
       - "a9ff45e"
       # feat(N-5): Square modifiers — sync, modifier recipes, BevSpot modifier
@@ -18196,8 +18221,37 @@ phases:
       # docs(N-5-SYNC) — the docs commit named above
       # + the commit immediately after 2556904: docs(N-5-SYNC PRE-PUSH-CHECK)
       # — DECISIONS N-5-SYNC ratified ("Ratify as written"), these SHAs
+      - "e32e22c"
+      # docs(N-5 PRE-PUSH-CHECK): the "commit immediately after 4ad86a5"
+      # named above; recorded by STAMP-3ea8112-FIXTURES
+      - "0b48da3"
+      # docs(N-5-SYNC PRE-PUSH-CHECK): the "commit immediately after 2556904"
+      # named above; recorded by STAMP-3ea8112-FIXTURES
     title: "Nutrition — Square modifiers (add-ons)"
     notes: >
+      PROMOTED 2026-11-03 in merge 3ea8112 (rider, STAMP-3ea8112-FIXTURES):
+      --no-ff, main 4dbfa03..3ea8112, 7 commits / 35 files (3945425, N-5
+      a9ff45e 4ad86a5 e32e22c, N-5-SYNC 9a069ca 2556904 0b48da3), staging
+      fast-forwarded (origin/main = origin/staging = 3ea8112 — measured).
+      Migration 20261103020000_n5_square_modifiers production finished_at
+      2026-11-03 21:54:06.247507 UTC (13:54:06 PST, 61 s after the merge) on
+      br-sparkling-block-a620qvg4, branch id from the server, read by Gary in
+      the Neon console. Staging (Gary, as relayed, before promotion): Sync
+      from Square completed with no timeout — 234 categories, 1,271 sales
+      items, 595 modifiers; Recipes -> Modifiers listed add-ons grouped by
+      Square list. Production (Gary, as relayed, after promotion): the same
+      sync counts; BevSpot preview (Las Brisas file) 31 recipes ready + 127
+      modifier recipes (+6 prep), "not one of your Square items" down to 240
+      (from ~491); Gary applied 158. Spot checks: "No Banana (add 2oz juice)"
+      = Bananas -1.6 oz (dry) with negative cost; "Add Peanut Butter (1 scoop
+      Blended in)" = Peanut Butter +1 oz (dry); Menu Nutrition -> Modifiers
+      showed signed calories. New To-fix item: "Pitaya (Dragon Fruit)" name
+      matches more than one thing (1 recipe, hand fix later). Not named in
+      that evidence: the routes' role gates, a second sync with updated=0.
+      The "NOT VERIFIED HERE" / "NOT VERIFIED: the staging re-test" lines
+      below are spent, kept. The five red fixtures the N-5-SYNC rider names
+      are fixed by STAMP-3ea8112-FIXTURES (riders on ENG-1, NAV-1, HR-8, MS-5,
+      NOTIFY-14).
       BUILT 2026-11-03, TIER 3. Prompt of record: docs/prompts/N-5.md. Audit
       docs/prompts/N-5_AUDIT.md; read-only production SQL
       docs/prompts/N-5_PROD_QUERY.sql. Rulings: docs/DECISIONS.md 2026-11-03
@@ -18964,6 +19018,18 @@ phases:
     commits: ["a005cba", "16f6f6b", "e6149f8"]
     title: "Sidebar restructured into collapsible groups + Daily Tasks button on the dashboard header"
     notes: >
+      ── FIXTURE FIX 2026-11-03 (STAMP-3ea8112-FIXTURES, work commit d4e6df2; rider prepended, nothing below is edited). ──
+      verify-nav1-url-sets was red from N-1 (70baf2f, 2026-11-01): five Nutrition links were gained with no
+      sanction. Fixture-only fix on Gary's nav1 ruling (docs/DECISIONS.md 2026-11-03, DRAFT until
+      PRE-PUSH-CHECK): Menu Nutrition for ADMIN, MANAGER, STORE; Import Nutrition, Serving Settings, Label
+      Inbox, Public Menu for ADMIN only; none with the nutrition module off. Role-scoped sanctions, an
+      exact-set check per role, and a new "nutrition module OFF" scenario; BASELINE_REV unchanged (10439b3).
+      Result: PASS — every role's URL set is identical (6 scenarios). Cause of record:
+      docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 2.
+      Docs SHA 59d5596; the PRE-PUSH-CHECK is the commit immediately after it.
+      Ruling RATIFIED by Gary 2026-11-03 at the STAMP-3ea8112-FIXTURES PRE-PUSH-CHECK, as written
+      ("Ratify as written"); the "DRAFT until PRE-PUSH-CHECK" above is spent, kept.
+
       CLOSED 2026-08-30 BY THE ENG-1 CLOSEOUT, not by a NAV-1 session — this row
       was left at in_progress when NAV-1 was promoted and was found stale while
       closing ENG-1. PROMOTED TO PRODUCTION 2026-08-30 in merge `e6149f8`
@@ -19207,6 +19273,17 @@ phases:
     commits: ["f1e9833", "e2ed2d0", "8c25084"]
     title: "Engagement tracking — last activity, daily page rollups, coarse location, ADMIN-only view"
     notes: >
+      ── FIXTURE FIX 2026-11-03 (STAMP-3ea8112-FIXTURES, work commit d4e6df2; rider prepended, nothing below is edited). ──
+      eng1 check 26 had been red since 2026-09-04 (HELP-1a): 18 pages shipped with no ROUTE_PATTERNS entry
+      (Help x4, /calendar, /settings/notifications, /staff/milestones + /report, BevSpot import, every
+      Nutrition page incl. /nutrition/labels and /nutrition/publish, /menu/[slug],
+      /print/nutrition-label/[salesItemId]) and were recorded as /other. CODE fix in src/lib/engagement.ts:
+      the 18 entries added — changes what the engagement report records FROM 2026-11-03 ON; rows already
+      written as /other are NOT backfilled (cannot be recovered). Gary approved in planning chat 2026-11-03,
+      per the session prompt. verify-eng1-engagement: All checks passed (dev br-broad-wave-a6vpjdw0).
+      Cause of record: docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 1. Not deployed: rides the next push/promotion.
+      Docs SHA 59d5596; the PRE-PUSH-CHECK is the commit immediately after it.
+
       CLOSED 2026-08-30. PROMOTED TO PRODUCTION 2026-08-30 in merge `8c25084`
       ("Promote ENG-1: engagement tracking — staff, managers, store devices").
       Verified before this row was touched, the check the PERM-8 closeout
@@ -23786,6 +23863,13 @@ phases:
       - "DEBT-106: a departed ADMIN still matches the recipient query and gets the org-wide digest every period, as with pace alerts. Not fixed here."
       - "A manager whose store assignments change between the snapshot and a retry (12 h window) gets the snapshot's view. The view is never wider than what they could see at snapshot time."
     notes: >
+      ── FIXTURE FIX 2026-11-03 (STAMP-3ea8112-FIXTURES, work commit d4e6df2; rider prepended, nothing below is edited). ──
+      verify-notify14-doc-digest §7 went red the week of 2026-11-02: the hard-coded Monday 2026-11-02 became
+      the real week, so the weekly duplicate guard correctly saw §5's send. Fixture-only: the test Monday is
+      derived (next ISO week's Monday, Pacific, 1-7 days ahead). 54/54 passed (dev br-broad-wave-a6vpjdw0).
+      Cause of record: docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 5.
+      Docs SHA 59d5596; the PRE-PUSH-CHECK is the commit immediately after it.
+
       ── PROMOTED 2026-10-27 in merge cf717ca (rider prepended 2026-10-28 by
       PROMOTE-DOCS NOTIFY-14; nothing below is edited). ──
       OBSERVED, STAGING: _prisma_migrations on br-square-feather-a63z92vz shows
@@ -23906,6 +23990,53 @@ phases:
       repeats the old doubled Pack rendering. No other merged Category/GL
       rendering exists — the PO detail "· GL" (po-detail-client.tsx:474) is an
       invoice adjustment's own GL, not an ingredient category.
+
+  - id: REGION-1
+    track: platform
+    size: S
+    # -> in_progress 2026-11-03 at the work commit 3592ee0 (NOT pushed). The
+    # docs SHA is the commit immediately after 3592ee0 (its own SHA cannot be
+    # written inside itself).
+    # -> staging 2026-11-03 at the REGION-1 PRE-PUSH-CHECK (the commit
+    # immediately after ab4acd4), for Gary's push of 3592ee0 + ab4acd4 + it.
+    # Still NOT pushed when this check ran; Claude never pushes.
+    status: staging
+    title: "Run Vercel functions in pdx1, next to the Neon database (us-west-2)"
+    commits:
+      - "3592ee0"
+      # chore(REGION-1): "regions": ["pdx1"] in vercel.json, 2026-11-03
+      # + the commit immediately after 3592ee0: docs(REGION-1) — this row,
+      # DECISIONS draft, prompt, audit
+      - "ab4acd4"
+      # docs(REGION-1) — the docs SHA above, added at the PRE-PUSH-CHECK
+      # + the commit immediately after ab4acd4: docs(REGION-1 PRE-PUSH-CHECK)
+      # — ruling ratified, these SHAs, status staging, DEPLOY_LOG entry
+    notes: >
+      BUILT 2026-11-03 on staging, NOT pushed. TIER 2, deployment config only.
+      Prompt of record: docs/prompts/REGION-1.md; audit
+      docs/prompts/REGION-1_AUDIT.md. Rulings: DECISIONS 2026-11-03 REGION-1
+      (Gary: "Go as planned" — REGION-F1–F3), DRAFT until PRE-PUSH-CHECK.
+      Raised by N-5-SYNC's "noted, not ruled" line: the project ran functions
+      in iad1 (project setting; deployments 3ea8112 and 0b48da3 both
+      regions ["iad1"], read from the Vercel API) while every Neon endpoint is
+      us-west-2. Change: one key, "regions": ["pdx1"], in vercel.json, which
+      per Vercel's docs overrides the project's Function Region (left at iad1,
+      inert). No src/, schema or env change; no preferredRegion existed;
+      routing middleware is global. Blob stores not moved (F3): froot-hr,
+      froot-nutrition, froot-blob-staging iad1; froot-blob, froot-guide sfo1.
+      BASELINE (derived, not measured — CDN request start to the route's
+      summary log line; logs carry no duration field): sales-items sync
+      production ~8.2 s (writeMs 4,624, 2026-11-03 22:38 UTC); staging first
+      sync ~10.5 s (writeMs 5,340), unchanged re-run ~5.8 s (writeMs 2,544).
+      Page routes have no baseline from the CLI; the audit gives Gary the
+      Observability steps. LOG TRAP: the `region` on a runtime log line is the
+      edge region (sfo1), not the function region — check pdx1 on the
+      deployment's Functions view or request details, not the log line.
+      NOT VERIFIED: everything deployed — staging gets pdx1 on Gary's push,
+      production on promotion; the test plan is in the session report.
+      PRE-PUSH-CHECK 2026-11-03: DECISIONS REGION-F1–F3 RATIFIED by Gary,
+      "Ratify as written" (the DRAFT note above is spent, kept). DEPLOY_LOG
+      UNPROMOTED entry written. Docs audit clean; build green.
 
 
 bugs:

@@ -2,7 +2,135 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-03 — N-5: Square modifiers — sync, modifier recipes, BevSpot modifier import
+## UNPROMOTED — 2026-11-03 — REGION-1: Vercel functions run in pdx1, next to Neon us-west-2
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+ROADMAP row `REGION-1`, set to `status: staging` at this check. Rulings:
+DECISIONS 2026-11-03 REGION-F1–F3, ratified by Gary at this check: "Ratify as
+written".
+
+**Payload: two commits plus this check's own.** Verified by `git log @{u}..`
+at this check: exactly `3592ee0`, `ab4acd4`. **NEITHER WAS PUSHED WHEN THIS
+CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `3592ee0` | Work: `"regions": ["pdx1"]` added to `vercel.json` (one line) |
+| `ab4acd4` | `docs(REGION-1)`: ROADMAP row, DECISIONS draft, prompt + audit of record |
+| the commit immediately after `ab4acd4` | `docs(REGION-1 PRE-PUSH-CHECK)`: ruling ratified, row SHAs + `status: staging`, this entry |
+
+**Blast radius: EVERY FUNCTION, one config key.** No `src/`, migration, schema,
+env var, cron, Square call or permission change. But the key moves every
+function — pages, API routes, crons — from iad1 to pdx1 (AWS us-west-2, the
+region of all three Neon endpoints) on each deployment built from `3592ee0`
+on: staging at Gary's push, production at promotion. Until promotion, staging
+runs pdx1 and production iad1. `vercel.json` overrides the project's Function
+Region setting, which stays iad1 and is inert while the key exists. Routing
+middleware (`src/proxy.ts`) is global and unaffected. Blob stores do not move
+(F3): `froot-hr`, `froot-nutrition`, `froot-blob-staging` stay iad1 and now
+take a cross-country hop on uploads, `head()` and cache misses; `froot-blob`,
+`froot-guide` are sfo1 and get closer.
+
+**Rollback:** revert `3592ee0`. Changing the dashboard Function Region does
+NOT work as a rollback while the key is in `vercel.json` — the file wins. The
+docs commits can stay.
+
+**Evidence so far: build only.** `npm run build` green at this check. **Nothing
+has been observed on any deployment.** Baseline (derived, not measured; iad1;
+`docs/prompts/REGION-1_AUDIT.md`): sales-items sync, staging unchanged re-run
+≈ 5.8 s, `writeMs` 2,544 (2026-11-03 21:51 UTC); production ≈ 8.2 s, `writeMs`
+4,624 (22:38 UTC). Page-route "before" numbers come from Observability and must
+be read BEFORE the push. After the push: the staging-SHA precondition, then
+confirm `pdx1` on the deployment's Functions view or a request's details —
+**NOT the `region` on a runtime log line, which is the edge region (sfo1)** —
+then re-run the unchanged sales-items sync and compare.
+
+## UNPROMOTED — 2026-11-03 — STAMP-3ea8112-FIXTURES: eng1 records 18 more pages; four fixture fixes
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+No ROADMAP row of its own: riders on ENG-1, NAV-1, HR-8, MS-5 and NOTIFY-14,
+all five left `shipped` (Gary, at this check, 2026-11-03: "Riders only, no
+status flip").
+
+**Payload: two commits plus this check's own.** Verified by `git log @{u}..`
+at this check: exactly `d4e6df2`, `59d5596`, on top of `origin/staging`
+(`3ea8112`). **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `d4e6df2` | Work: `src/lib/engagement.ts` (`ROUTE_PATTERNS` +18) and four fixtures — `verify-nav1-url-sets`, `verify-hr8-compliance`, `verify-ms5`, `verify-notify14-doc-digest` |
+| `59d5596` | `docs(STAMP-3ea8112-FIXTURES)`: the `3ea8112` N-5 promotion stamp, fixture riders, nav1 ruling DRAFT, audit + prompt of record |
+| the commit immediately after `59d5596` | `docs(STAMP-3ea8112-FIXTURES PRE-PUSH-CHECK)`: nav1 ruling ratified, rider SHAs, this entry |
+
+**Blast radius: ONE LIBRARY CONSTANT, the engagement report only.** No
+migration, no schema, no route, no env var, no cron, no Square call, no
+permission change. `ROUTE_PATTERNS` gains the 18 pages shipped since HELP-1a
+(2026-09-04) without an entry — `/calendar`, `/help`, `/help/[slug]`,
+`/my/help`, `/my/help/[slug]`, `/settings/notifications`, `/staff/milestones`,
+`/staff/milestones/report`, `/inventory/recipes/import/bevspot`, the seven
+`/nutrition/*` pages, `/menu/[slug]`, `/print/nutrition-label/[salesItemId]`.
+Visits to them, which were recorded as `/other`, are recorded under their own
+route **from deploy on**. Rows already written as `/other` are **NOT
+backfilled** and cannot be recovered. What the ADMIN-only `/staff/engagement`
+view shows changes accordingly; who can see it does not. Approved by Gary in
+planning chat 2026-11-03 (per the session prompt). The four fixture changes and
+the nav1 ruling change nothing in `src/` (nav1: sidebar already matched).
+
+**Rollback:** revert `d4e6df2`. Those 18 pages go back to `/other`; rows
+written in the meantime under their own route stay as written. The fixtures go
+back to red. The docs commits can stay.
+
+**Evidence so far: fixtures and build only, on dev.** Per the work commit, all
+66 `scripts/verify-*.ts` green on dev `br-broad-wave-a6vpjdw0`, 2026-11-03;
+`verify-eng1-engagement` and `verify-nav1-url-sets` re-run at this check (see
+its report). `npm run build` re-run green at this check. **Nothing has been
+observed on staging.** After the push: the staging-SHA precondition, then visit
+e.g. `/help` and `/nutrition/menu` and see them under their own route, not
+`/other`, on `/staff/engagement` (name the org id and instance).
+
+## 3ea8112 — 2026-11-03 — N-5: Square modifiers — sync, modifier recipes, BevSpot modifier import
+
+**PROMOTED 2026-11-03 in merge `3ea8112`** (`3ea81128fed75f35903bced085286ad09025db89`,
+"Merge branch 'staging'", 2026-11-03 13:53:05 -0800 (Pacific) = 2026-11-03
+21:53:05 UTC), `--no-ff`, together with the N-5-SYNC fix (note at the end of
+this entry). First parent `4dbfa03` (prior tip of `main`), second parent
+`0b48da3` (staging tip). **7 commits** in `3ea8112^1..3ea8112^2` — `3945425`
+(the 4dbfa03 stamp), N-5 `a9ff45e`, `4ad86a5`, `e32e22c`, N-5-SYNC `9a069ca`,
+`2556904`, `0b48da3` — and **35 files**, read out of `git log` and `git diff
+--shortstat` at this stamp. `main` moved `4dbfa03..3ea8112`; `staging`
+fast-forwarded to it. Measured by `git rev-parse` at this stamp:
+`origin/main` = `origin/staging` = `3ea8112`. Stamped post-merge by
+STAMP-3ea8112-FIXTURES (2026-11-03), on `staging`; the heading previously read
+"UNPROMOTED — 2026-11-03 — N-5: Square modifiers — sync, modifier recipes,
+BevSpot modifier import". The "staging only", "NEITHER WAS PUSHED", "Not
+measured on staging or production", "Nothing has been observed on staging" and
+"NOT yet pushed or re-tested" lines below are spent, kept.
+
+**Migration on production: `20261103020000_n5_square_modifiers` `finished_at`
+2026-11-03 21:54:06.247507 UTC (13:54:06 PST)** on
+`br-sparkling-block-a620qvg4` (branch id read from the server), measured by
+Gary in the Neon console — 61 s after the merge.
+
+**Staging evidence (Gary, as relayed in the STAMP-3ea8112-FIXTURES prompt,
+before promotion):** Sync from Square completed, no timeout — 234 categories,
+1,271 sales items, 595 modifiers; Recipes → Modifiers listed the add-ons
+grouped by Square list. Not named in that evidence (so not claimed here): the
+sync duration, the `[sales-items/sync]` log line, a second sync with
+`updated=0`, and the role-gate checks.
+
+**Production evidence (Gary, as relayed, after promotion):** Sync from Square
+completed — 234 categories, 1,271 sales items, 595 modifiers. BevSpot preview
+(Las Brisas file): 31 recipes ready + 127 modifier recipes (+6 prep); "not one
+of your Square items" down to 240 (from ~491). Gary applied **158**. Spot
+checks: "No Banana (add 2oz juice)" = Bananas −1.6 oz (dry) with negative
+cost; "Add Peanut Butter (1 scoop Blended in)" = Peanut Butter +1 oz (dry);
+Menu Nutrition → Modifiers showed signed calories. New To-fix item: "Pitaya
+(Dragon Fruit)" name matches more than one thing (1 recipe, hand fix later).
+Org and Clerk instance as in Gary's passes; not re-observed by this session.
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
 promotion, after the merge — as a normal `staging` commit that rides the next

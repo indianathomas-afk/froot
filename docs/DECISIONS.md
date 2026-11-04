@@ -5,6 +5,76 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-03 — REGION-1: functions run in pdx1, set in vercel.json; Blob stores stay put — REGION-F1–F3 (Gary)
+
+**RATIFIED BY GARY, 2026-11-03, at the REGION-1 PRE-PUSH-CHECK, as written:**
+"Ratify as written". The "DRAFT" paragraph below is spent, kept; the heading's
+"— DRAFT" suffix was removed at this check.
+
+**DRAFT — ruled by Gary in chat 2026-11-03 at the REGION-1 Phase 1 STOP; to be
+ratified at PRE-PUSH-CHECK.** His words, recorded exactly:
+
+> "Go as planned"
+
+That is the whole ruling. **The plan and the three forks below are chat's
+leans and Claude's Phase 1 plan, not Gary's wording** — he accepted them as a
+set. The audit he ruled on is `docs/prompts/REGION-1_AUDIT.md`. Work commit
+`3592ee0`.
+
+- **REGION-F1 — pdx1 for all functions, Preview and Production.** pdx1 is AWS
+  us-west-2, the region of all three Neon endpoints (dev, staging,
+  production). Before: every deployment `regions: ["iad1"]`, from the project
+  setting alone.
+- **REGION-F2 — set in `vercel.json` (`"regions": ["pdx1"]`), tracked in
+  git.** Vercel's docs: the `vercel.json` value "overrides the Vercel Function
+  Region in Project Settings", so the dashboard setting (still iad1) is inert
+  while the key exists. Rollback is reverting the commit, not the dashboard.
+- **REGION-F3 — Blob stores stay where they are.** A store's region cannot be
+  changed, only migrated. For the record: `froot-hr`, `froot-nutrition`,
+  `froot-blob-staging` are iad1 (one cross-country hop now on uploads,
+  `head()` and cache misses); `froot-blob` and `froot-guide` are sfo1 (closer
+  now). The docs read describe latency only, no cost or access difference.
+
+**Claude (implementation):** the one key, nothing else — no per-route
+`preferredRegion` existed to remove (on Vercel it applies only to edge
+routes, and Froot has none); routing middleware is global and unaffected.
+
+## 2026-11-03 — nav1: the Nutrition sidebar links, by role and by module (Gary)
+
+**RATIFIED BY GARY, 2026-11-03, at the STAMP-3ea8112-FIXTURES PRE-PUSH-CHECK, as written:**
+"Ratify as written"
+
+**DRAFT.** To be ratified at the next PRE-PUSH-CHECK; this heading reads
+"DRAFT, pending ratification" until then. *(Superseded by the ratification
+line above; the heading's DRAFT suffix was removed at that check.)*
+
+Ruled by Gary 2026-11-03 in the pointer message that launched
+STAMP-3ea8112-FIXTURES, answering the RULING NOW in
+`docs/prompts/FIXTURE-TRIAGE_AUDIT.md` § 2. His words, recorded exactly:
+
+> "Menu Nutrition shows for ADMIN, MANAGER and STORE; Import Nutrition,
+> Serving Settings, Label Inbox and Public Menu show for ADMIN only; none of
+> them show when the nutrition module is off."
+
+That is the whole ruling. It sanctions the five sidebar links N-1, N-1e, N-2
+and N-3 added (`/nutrition/menu`, `/nutrition/import`, `/nutrition/settings`,
+`/nutrition/labels`, `/nutrition/publish`) in `scripts/verify-nav1-url-sets.ts`,
+which demands a ruling, not a fix, for any URL a role gains over the pinned
+NAV-1 baseline (precedents: `/help` HELP-1a 2026-09-04, `/calendar` CAL-1 R5
+2026-09-17). STAFF is not named, so STAFF sees none of them. It matches what
+the sidebar already declares (`nutrition.view` / `nutrition.manage` under a
+group gated on `["inventory", "nutrition"]`); nothing in `src/` changed for it.
+
+**Claude (implementation, fixture only):** the earlier sanctions suppress a
+gain for every role; this ruling is per-role, so the five entries are
+role-scoped (`ROLE_SANCTIONED_ADDITIONS`): `/nutrition/menu` appearing for
+STAFF would still fail. Because a sanction can only hide a gain, the fixture
+also checks that each role's nutrition links EQUAL the ruled set whenever the
+module is on, and a new "nutrition module OFF (inventory on)" scenario checks
+that all five vanish for every role. `BASELINE_REV` is unchanged (`10439b3`).
+A mutation run (a scratchpad copy with MANAGER given Import Nutrition and STAFF
+given Menu Nutrition) failed on exactly those roles. Work commit `d4e6df2`.
+
 ## 2026-11-03 — N-5-SYNC: catalog sync batched; R1 skip unchanged rows, R2 batch modifier updates (Gary)
 
 **RATIFIED BY GARY, 2026-11-03, at the N-5-SYNC PRE-PUSH-CHECK, as written:**
