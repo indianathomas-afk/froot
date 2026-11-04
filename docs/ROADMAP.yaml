@@ -23991,6 +23991,43 @@ phases:
       rendering exists — the PO detail "· GL" (po-detail-client.tsx:474) is an
       invoice adjustment's own GL, not an ingredient category.
 
+  - id: REGION-1
+    track: platform
+    size: S
+    # -> in_progress 2026-11-03 at the work commit 3592ee0 (NOT pushed). The
+    # docs SHA is the commit immediately after 3592ee0 (its own SHA cannot be
+    # written inside itself).
+    status: in_progress
+    title: "Run Vercel functions in pdx1, next to the Neon database (us-west-2)"
+    commits:
+      - "3592ee0"
+      # chore(REGION-1): "regions": ["pdx1"] in vercel.json, 2026-11-03
+      # + the commit immediately after 3592ee0: docs(REGION-1) — this row,
+      # DECISIONS draft, prompt, audit
+    notes: >
+      BUILT 2026-11-03 on staging, NOT pushed. TIER 2, deployment config only.
+      Prompt of record: docs/prompts/REGION-1.md; audit
+      docs/prompts/REGION-1_AUDIT.md. Rulings: DECISIONS 2026-11-03 REGION-1
+      (Gary: "Go as planned" — REGION-F1–F3), DRAFT until PRE-PUSH-CHECK.
+      Raised by N-5-SYNC's "noted, not ruled" line: the project ran functions
+      in iad1 (project setting; deployments 3ea8112 and 0b48da3 both
+      regions ["iad1"], read from the Vercel API) while every Neon endpoint is
+      us-west-2. Change: one key, "regions": ["pdx1"], in vercel.json, which
+      per Vercel's docs overrides the project's Function Region (left at iad1,
+      inert). No src/, schema or env change; no preferredRegion existed;
+      routing middleware is global. Blob stores not moved (F3): froot-hr,
+      froot-nutrition, froot-blob-staging iad1; froot-blob, froot-guide sfo1.
+      BASELINE (derived, not measured — CDN request start to the route's
+      summary log line; logs carry no duration field): sales-items sync
+      production ~8.2 s (writeMs 4,624, 2026-11-03 22:38 UTC); staging first
+      sync ~10.5 s (writeMs 5,340), unchanged re-run ~5.8 s (writeMs 2,544).
+      Page routes have no baseline from the CLI; the audit gives Gary the
+      Observability steps. LOG TRAP: the `region` on a runtime log line is the
+      edge region (sfo1), not the function region — check pdx1 on the
+      deployment's Functions view or request details, not the log line.
+      NOT VERIFIED: everything deployed — staging gets pdx1 on Gary's push,
+      production on promotion; the test plan is in the session report.
+
 
 bugs:
   - id: BUG-1

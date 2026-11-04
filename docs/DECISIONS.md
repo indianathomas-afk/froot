@@ -5,6 +5,36 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-03 — REGION-1: functions run in pdx1, set in vercel.json; Blob stores stay put — REGION-F1–F3 (Gary) — DRAFT
+
+**DRAFT — ruled by Gary in chat 2026-11-03 at the REGION-1 Phase 1 STOP; to be
+ratified at PRE-PUSH-CHECK.** His words, recorded exactly:
+
+> "Go as planned"
+
+That is the whole ruling. **The plan and the three forks below are chat's
+leans and Claude's Phase 1 plan, not Gary's wording** — he accepted them as a
+set. The audit he ruled on is `docs/prompts/REGION-1_AUDIT.md`. Work commit
+`3592ee0`.
+
+- **REGION-F1 — pdx1 for all functions, Preview and Production.** pdx1 is AWS
+  us-west-2, the region of all three Neon endpoints (dev, staging,
+  production). Before: every deployment `regions: ["iad1"]`, from the project
+  setting alone.
+- **REGION-F2 — set in `vercel.json` (`"regions": ["pdx1"]`), tracked in
+  git.** Vercel's docs: the `vercel.json` value "overrides the Vercel Function
+  Region in Project Settings", so the dashboard setting (still iad1) is inert
+  while the key exists. Rollback is reverting the commit, not the dashboard.
+- **REGION-F3 — Blob stores stay where they are.** A store's region cannot be
+  changed, only migrated. For the record: `froot-hr`, `froot-nutrition`,
+  `froot-blob-staging` are iad1 (one cross-country hop now on uploads,
+  `head()` and cache misses); `froot-blob` and `froot-guide` are sfo1 (closer
+  now). The docs read describe latency only, no cost or access difference.
+
+**Claude (implementation):** the one key, nothing else — no per-route
+`preferredRegion` existed to remove (on Vercel it applies only to edge
+routes, and Froot has none); routing middleware is global and unaffected.
+
 ## 2026-11-03 — nav1: the Nutrition sidebar links, by role and by module (Gary)
 
 **RATIFIED BY GARY, 2026-11-03, at the STAMP-3ea8112-FIXTURES PRE-PUSH-CHECK, as written:**
