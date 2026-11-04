@@ -23997,13 +23997,20 @@ phases:
     # -> in_progress 2026-11-03 at the work commit 3592ee0 (NOT pushed). The
     # docs SHA is the commit immediately after 3592ee0 (its own SHA cannot be
     # written inside itself).
-    status: in_progress
+    # -> staging 2026-11-03 at the REGION-1 PRE-PUSH-CHECK (the commit
+    # immediately after ab4acd4), for Gary's push of 3592ee0 + ab4acd4 + it.
+    # Still NOT pushed when this check ran; Claude never pushes.
+    status: staging
     title: "Run Vercel functions in pdx1, next to the Neon database (us-west-2)"
     commits:
       - "3592ee0"
       # chore(REGION-1): "regions": ["pdx1"] in vercel.json, 2026-11-03
       # + the commit immediately after 3592ee0: docs(REGION-1) — this row,
       # DECISIONS draft, prompt, audit
+      - "ab4acd4"
+      # docs(REGION-1) — the docs SHA above, added at the PRE-PUSH-CHECK
+      # + the commit immediately after ab4acd4: docs(REGION-1 PRE-PUSH-CHECK)
+      # — ruling ratified, these SHAs, status staging, DEPLOY_LOG entry
     notes: >
       BUILT 2026-11-03 on staging, NOT pushed. TIER 2, deployment config only.
       Prompt of record: docs/prompts/REGION-1.md; audit
@@ -24027,6 +24034,9 @@ phases:
       deployment's Functions view or request details, not the log line.
       NOT VERIFIED: everything deployed — staging gets pdx1 on Gary's push,
       production on promotion; the test plan is in the session report.
+      PRE-PUSH-CHECK 2026-11-03: DECISIONS REGION-F1–F3 RATIFIED by Gary,
+      "Ratify as written" (the DRAFT note above is spent, kept). DEPLOY_LOG
+      UNPROMOTED entry written. Docs audit clean; build green.
 
 
 bugs:

@@ -2,6 +2,51 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-03 — REGION-1: Vercel functions run in pdx1, next to Neon us-west-2
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+ROADMAP row `REGION-1`, set to `status: staging` at this check. Rulings:
+DECISIONS 2026-11-03 REGION-F1–F3, ratified by Gary at this check: "Ratify as
+written".
+
+**Payload: two commits plus this check's own.** Verified by `git log @{u}..`
+at this check: exactly `3592ee0`, `ab4acd4`. **NEITHER WAS PUSHED WHEN THIS
+CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `3592ee0` | Work: `"regions": ["pdx1"]` added to `vercel.json` (one line) |
+| `ab4acd4` | `docs(REGION-1)`: ROADMAP row, DECISIONS draft, prompt + audit of record |
+| the commit immediately after `ab4acd4` | `docs(REGION-1 PRE-PUSH-CHECK)`: ruling ratified, row SHAs + `status: staging`, this entry |
+
+**Blast radius: EVERY FUNCTION, one config key.** No `src/`, migration, schema,
+env var, cron, Square call or permission change. But the key moves every
+function — pages, API routes, crons — from iad1 to pdx1 (AWS us-west-2, the
+region of all three Neon endpoints) on each deployment built from `3592ee0`
+on: staging at Gary's push, production at promotion. Until promotion, staging
+runs pdx1 and production iad1. `vercel.json` overrides the project's Function
+Region setting, which stays iad1 and is inert while the key exists. Routing
+middleware (`src/proxy.ts`) is global and unaffected. Blob stores do not move
+(F3): `froot-hr`, `froot-nutrition`, `froot-blob-staging` stay iad1 and now
+take a cross-country hop on uploads, `head()` and cache misses; `froot-blob`,
+`froot-guide` are sfo1 and get closer.
+
+**Rollback:** revert `3592ee0`. Changing the dashboard Function Region does
+NOT work as a rollback while the key is in `vercel.json` — the file wins. The
+docs commits can stay.
+
+**Evidence so far: build only.** `npm run build` green at this check. **Nothing
+has been observed on any deployment.** Baseline (derived, not measured; iad1;
+`docs/prompts/REGION-1_AUDIT.md`): sales-items sync, staging unchanged re-run
+≈ 5.8 s, `writeMs` 2,544 (2026-11-03 21:51 UTC); production ≈ 8.2 s, `writeMs`
+4,624 (22:38 UTC). Page-route "before" numbers come from Observability and must
+be read BEFORE the push. After the push: the staging-SHA precondition, then
+confirm `pdx1` on the deployment's Functions view or a request's details —
+**NOT the `region` on a runtime log line, which is the edge region (sfo1)** —
+then re-run the unchanged sales-items sync and compare.
+
 ## UNPROMOTED — 2026-11-03 — STAMP-3ea8112-FIXTURES: eng1 records 18 more pages; four fixture fixes
 
 **Status: staging only, not on `main`.** Stamp this heading with the merge SHA at

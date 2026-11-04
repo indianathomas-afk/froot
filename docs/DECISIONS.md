@@ -5,7 +5,11 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-03 — REGION-1: functions run in pdx1, set in vercel.json; Blob stores stay put — REGION-F1–F3 (Gary) — DRAFT
+## 2026-11-03 — REGION-1: functions run in pdx1, set in vercel.json; Blob stores stay put — REGION-F1–F3 (Gary)
+
+**RATIFIED BY GARY, 2026-11-03, at the REGION-1 PRE-PUSH-CHECK, as written:**
+"Ratify as written". The "DRAFT" paragraph below is spent, kept; the heading's
+"— DRAFT" suffix was removed at this check.
 
 **DRAFT — ruled by Gary in chat 2026-11-03 at the REGION-1 Phase 1 STOP; to be
 ratified at PRE-PUSH-CHECK.** His words, recorded exactly:
