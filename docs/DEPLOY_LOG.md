@@ -2,6 +2,50 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-04 — N-5b: add-on (modifier) recipes counted in theoretical inventory usage
+
+**Status: staging only, not on `main`. NOT pushed at writing.** Work commit
+`835a847`; docs commit immediately after it (this entry, N-5b row,
+BUG-22 / N-5c / N-5d rows, BUG-20 and BUG-21 riders, DECISIONS draft,
+MIGRATIONS entry, audit, prompt, and the `6d2cb1f` production-evidence stamp
+below). TIER 3. Rulings: DECISIONS 2026-11-04 N-5b (DRAFT until
+PRE-PUSH-CHECK).
+
+**Migration `20261104010000_n5b_sales_modifier_cache` rides this push** —
+additive: `SalesModifierCache` (new) and `SalesPeriodCache.modifiersCaptured
+BOOLEAN NOT NULL DEFAULT false`. Dev `br-broad-wave-a6vpjdw0` applied by Gary
+2026-11-04 18:49:26 UTC (10:49:26 PST); staging on push, production at
+promotion (Vercel build).
+
+**What changed.** `src/lib/sales-sync.ts` reads each order line's
+`modifiers[]` and stores Σ (line qty × modifier qty) per store × day × Square
+modifier id (missing quantity = 1; quantity 0 writes nothing; `returns[]` is
+never read). The rows are written inside `writeSalesCache`'s BUG-7 guarded
+transaction, delete-then-insert for the days the sync won — replaced on every
+sync, never appended. `src/lib/modifier-usage.ts` turns them into ingredient
+usage through each add-on's recipe (signed; on-by-default add-ons and
+NON_RECIPE skipped; no-recipe add-ons skipped and counted). Used by expected
+on-hand, weekly usage → pars, low-stock alerts, the order guide, and the
+variance report (with add-ons in its hover). The expected-inventory and
+variance pages say how many add-ons sold have no recipe and how many days have
+no add-on data. Profitability is unchanged.
+
+**Blast radius.** Every sales-sync path (dashboard, webhook, reconcile cron,
+manual sync, backfill, report gap-fills) writes one more table per won day.
+Usage numbers change only where add-on recipes exist — **production has 0
+add-on recipes linked** (Gary, query A, 2026-11-04), so no production number
+moves at promotion; the new "N days have no add-on data" notice will show on
+windows reaching before promotion. Rollback: revert `835a847`; the table and
+column stay (additive, nothing reads them).
+
+**Evidence: dev and build only.** `scripts/verify-n5b-modifier-usage.ts`
+36/36 on dev (Square stubbed), including three identical syncs → identical
+rows and usage; all 69 `scripts/verify-*.ts` green; build green. **Nothing
+observed on any deployment.** Owed after Gary's push: the staging-SHA
+precondition, then a staging sync and the expected / variance pages. After
+promotion: the one-time 28-day backfill (R1) — Inventory → Reports, last 28
+days, "Sync sales for this range", once per linked store.
+
 ## 6d2cb1f — 2026-11-03 — BUG-20: sales-sync timing line (Square vs DB time per call, with caller) — measurement only
 
 **PROMOTED 2026-11-03 in merge `6d2cb1f`** (`6d2cb1fdab2b38aca2915e1358050e848ff265b7`,
@@ -23,6 +67,34 @@ staging — the staging-SHA precondition, then Vercel logs showing `[sales-sync]
 timing` lines with `caller=dashboard/summary:today` and
 `caller=dashboard/sales:today`; production — a day of timing lines, which is
 what BUG-20's fix decision waits on.
+
+**PRODUCTION EVIDENCE, 2026-11-04 morning — stamped by the N-5b session, on
+`staging`, from Vercel production function logs pasted by Gary** (times as
+Vercel showed them, Pacific = PST on 11-04; 06:44–06:54 PST = 14:44–14:54
+UTC). A selection of lines, not a full day — so absence of a line below is
+not evidence of absence. The "Evidence: none observed at this stamp" paragraph
+above is spent for production, kept.
+
+- **Dashboard loads are warm in production.** Two first loads (store
+  `cmqvygq1m000004kzon5wkwf9` at 06:54:07, `cmqvygque000004l7hj2me30o` at
+  06:54:19): `api/dashboard/summary` 99 / 100 ms, `api/dashboard/sales`
+  137 / 96 ms. No `:today` inline sync in the lines — the 03:00 reconcile had
+  already written today's row, as the BUG-20 audit predicted for production.
+- **The BUG-20 duplicate is the after() pair, and BOTH write.** For
+  `cmqvygque000004l7hj2me30o`: `caller=dashboard/sales:today-bg` (squareMs=146
+  writeMs=20 totalMs=167 wrote=1/1) and `caller=dashboard/summary:today-bg`
+  (squareMs=144 writeMs=38 totalMs=183 wrote=1/1), 20 ms apart. Neither was
+  discarded: two Square reads and two writes for one store-day, outside the
+  response path.
+- **Webhook bursts re-read the whole day 2–3 times.** `caller=webhooks/square`,
+  `cmqvygq1m000004kzon5wkwf9`: 2 syncs at 06:44:54.35 / .38; `cmqvygr36000004l4xoeetr02`:
+  3 syncs at 06:47:38.02 / .05 / .19 — every one `pages=1 orders=1
+  wrote=1/1`; one more at 06:53:33.09 (orders=2). squareMs 168–223, writeMs
+  21–55, totalMs 191–252. Filed as BUG-22 (Gary, 2026-11-04).
+- **Not sales:** the slowest lines in the paste are `api/dashboard/comms`
+  1095 ms and `api/labor/coverage` 851 ms (store `cmqvygq1m000004kzon5wkwf9`,
+  06:54:09); comms was 61 ms on the next store. No `outcome=error` and no
+  "discarded … superseded" line appear in the lines pasted.
 
 **Staging only, NOT pushed at writing.** Work commit `5f99682`; docs `7c563b8`
 (BUG-20 measurement rider, BUG-21 filed, 9933ad5 stamp, DECISIONS draft, prompt,
