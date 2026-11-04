@@ -12,6 +12,7 @@ import {
 } from "@/lib/reports"
 import { ensureSalesCached } from "@/lib/sales-sync"
 import { expandRecipeToIngredients, loadCostGraph } from "@/lib/recipe-cost"
+import { modifierUsageForWindow } from "@/lib/modifier-usage"
 
 // GET /api/inventory/reports/variance?storeId=&beginCountId=&endCountId=
 // Per ingredient over ONE inventory period:
@@ -20,6 +21,8 @@ import { expandRecipeToIngredients, loadCostGraph } from "@/lib/recipe-cost"
 //          explained movement, so what remains is sales usage + shrink)
 //   sold = Σ (quantitySold + manual VarianceAdjustment deltas) × recipe
 //          amounts, sub-recipes AND prepared items expanded
+//          + Σ order-line add-ons × modifier recipe amounts (N-5b; signed, so
+//          a "No X" removal subtracts; on-by-default add-ons skipped, R5)
 //   variance = sold − used, so NEGATIVE means product left the shelf that
 //   sales don't explain (over-portioning, unrecorded loss/comps, missing
 //   delivery, mapping mistake) and positive means the opposite direction
@@ -109,6 +112,20 @@ export async function GET(req: Request) {
     }
   }
 
+  // N-5b: order-line add-ons through their modifier recipes, same
+  // (theoretical) mode, with per-add-on contributions for the hover (R7).
+  const mods = await modifierUsageForWindow(ctx.org.id, storeId, window.start, window.end, graph, "theoretical")
+  for (const [ingredientId, qty] of mods.usage) {
+    soldQty.set(ingredientId, (soldQty.get(ingredientId) ?? 0) + qty)
+    const list = soldContributions.get(ingredientId) ?? []
+    for (const c of mods.contributions.get(ingredientId) ?? []) {
+      // `modifier:` prefix: a Square modifier id, never a SalesItem id.
+      list.push({ salesItemId: `modifier:${c.squareModifierId}`, displayName: `${c.name} (add-on)`, qtySold: c.qtySold, qty: c.qty })
+    }
+    soldContributions.set(ingredientId, list)
+  }
+  expansionProblems.push(...mods.expansionProblems)
+
   // Purchases per ingredient in reporting units.
   const purchasedQty = new Map<string, number>()
   const purchasedValue = new Map<string, number>()
@@ -168,7 +185,9 @@ export async function GET(req: Request) {
       adjustmentsByType: adj,
       usedQty,
       theoreticalQty,
-      soldContributions: (soldContributions.get(id) ?? []).sort((a, b) => b.qty - a.qty),
+      // By size, sign ignored, so a removal's negative contribution is not
+      // pushed below the hover's 12-line cut by every positive one.
+      soldContributions: (soldContributions.get(id) ?? []).sort((a, b) => Math.abs(b.qty) - Math.abs(a.qty)),
       varianceQty,
       varianceValue: varianceQty * costPerUnit,
       costPerUnit,
@@ -192,5 +211,7 @@ export async function GET(req: Request) {
       .sort((a, b) => a.displayName.localeCompare(b.displayName)),
     expansionProblems,
     unmappedSoldCount,
+    unmappedModifierSoldCount: mods.unmappedModifierSoldCount,
+    modifierDataMissingDays: mods.modifierDataMissingDays,
   })
 }
