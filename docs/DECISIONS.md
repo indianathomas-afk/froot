@@ -5,6 +5,22 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-04 — BUG-22: won't build now; reopen on 2+ pages or Square time over 800 ms (Gary)
+
+**Ruled by Gary, 2026-11-04, after the N-5b promotion (`274c1f7`).** His
+words, recorded exactly:
+
+> BUG-22: Won't build now. 11-04 production webhook lines (11:18–11:20, the
+> start of the lunch rush) showed every sync at 1 page and 230–310 ms of
+> Square time, with one spike to 549 ms. Bursts of up to 5 syncs in a few
+> seconds are harmless because each one replaces the day. Reopen if any
+> store's sync shows 2+ pages or Square time over 800 ms.
+
+This answers the precondition BUG-22 was filed with ("Check afternoon logs
+before building", the N-5b entry below). The production lines it cites were
+read by Gary; this session did not observe them. ROADMAP BUG-22 carries a
+dated rider pointing here.
+
 ## 2026-11-04 — N-5b: add-on (modifier) usage counted forward + 28-day backfill; refunds a gap; BUG-22 filed (Gary)
 
 **RATIFIED BY GARY, 2026-11-04, at the N-5b PRE-PUSH-CHECK, as written:**

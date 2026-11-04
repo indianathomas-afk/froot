@@ -18333,7 +18333,13 @@ phases:
     # the "NOT pushed" / "NOT PUSHED" claims here and in the notes are spent,
     # kept. DECISIONS N-5b ratified there ("Ratify as written"); the "DRAFT
     # until PRE-PUSH-CHECK" in the notes below is spent, kept.
-    status: staging
+    # `staging` -> `shipped` 2026-11-04, stamped post-merge 2026-11-04 by
+    # DOCS-N5b-promotion-and-BUG-22 (on `staging`, R1): merge 274c1f7
+    # (DEPLOY_LOG entry `274c1f7 — 2026-11-04 — N-5b`). The PRE-PUSH-CHECK
+    # docs SHA ("the commit immediately after 1bc285e") is 4681854. Any "NOT
+    # pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-11-04
     commits:
       # feat(N-5b): work commit — migration, sync, helper, consumers, fixture
       - "835a847"
@@ -18342,8 +18348,35 @@ phases:
       - "1bc285e"
       # + the commit immediately after 1bc285e: docs(PRE-PUSH-CHECK) —
       # DECISIONS ratified, this row's docs SHA and status flip
+      - "4681854"
+      # docs(PRE-PUSH-CHECK): the "commit immediately after 1bc285e" named
+      # above; recorded by DOCS-N5b-promotion-and-BUG-22
+      - "3d55efe"
+      # docs(N-5b): production add-on recipes imported 11-04 (Gary); N-5f
+      # filed; MODLINK audit
     title: "Inventory — count Square order modifiers in theoretical usage"
+    open:
+      - >
+        VARIANCE-HOVER VERIFICATION IS OWED. R7's add-ons in the variance
+        report hover have not been observed on any deployment; it waits on two
+        finalized counts, which Gary will do (2026-11-04).
+      - >
+        THE BACKFILL WAS RUN BY GARY, NOT OBSERVED HERE. After promotion he ran
+        "Sync now" on Inventory → Reports for every store, 10/05/2026–
+        11/04/2026 (2026-11-04), which covers R1's one-time 28-day backfill.
+        No resulting usage number has been read back by a session.
     notes: >
+      PROMOTED 2026-11-04 in merge 274c1f7 (rider, post-merge stamp by
+      DOCS-N5b-promotion-and-BUG-22): --no-ff, 2026-11-04 13:54:37 PST =
+      21:54:37 UTC, parents 6d2cb1f / 3d55efe, main 6d2cb1f..274c1f7, 5
+      commits (2d891ea, 835a847, 1bc285e, 4681854, 3d55efe) / 16 files,
+      staging fast-forwarded (origin/main = origin/staging = 274c1f7 —
+      measured at this stamp). Migration
+      20261104010000_n5b_sales_modifier_cache is in the range (applies via
+      the Vercel build; production finished_at not read by this stamp).
+      Gary then ran "Sync now" for every store, 10/05/2026–11/04/2026. The
+      "NOT PUSHED" and BLOCKERS text below is spent, kept; what remains is
+      in `open:`. ── PRIOR TEXT BELOW, UNEDITED. ──
       BUILT 2026-11-04, TIER 3, NOT PUSHED. Prompt of record:
       docs/prompts/N-5b-modifier-usage.md. Audit docs/prompts/N-5b_AUDIT.md.
       Rulings: docs/DECISIONS.md 2026-11-04 N-5b (DRAFT until PRE-PUSH-CHECK)
@@ -26297,11 +26330,31 @@ bugs:
       11-04 lines pasted (a selection, not a full day).
 
   - id: BUG-22
-    status: planned
+    # planned -> withdrawn 2026-11-04 by DOCS-N5b-promotion-and-BUG-22, on
+    # Gary's ruling "Won't build now" (DECISIONS 2026-11-04 BUG-22). There is
+    # no "won't build" value: PhaseStatus (src/lib/roadmap.ts) is planned |
+    # in_progress | staging | shipped | verified | withdrawn, and `withdrawn`
+    # is the value the board already uses for "not done, not outstanding"
+    # (BEV-0, the 2026-08-19 redeploy row). Its documented sense "retracted"
+    # fits imperfectly — the bug is real, just not worth building now — and
+    # the ruling carries a reopen trigger (notes rider). No `commits`, by the
+    # withdrawn convention: nothing was fixed.
+    status: withdrawn
     title: >
       Square order-webhook bursts re-read the whole store-day 2–3 times within
       ~200 ms — every sync reads Square and every one writes
     notes: >
+      WON'T BUILD NOW — ruled by Gary 2026-11-04 (rider; docs/DECISIONS.md
+      2026-11-04 "BUG-22: won't build now"). His words, exactly: "BUG-22:
+      Won't build now. 11-04 production webhook lines (11:18–11:20, the start
+      of the lunch rush) showed every sync at 1 page and 230–310 ms of Square
+      time, with one spike to 549 ms. Bursts of up to 5 syncs in a few
+      seconds are harmless because each one replaces the day. Reopen if any
+      store's sync shows 2+ pages or Square time over 800 ms." This answers
+      the PRECONDITION below (check the afternoon logs before building). The
+      lines were read by Gary; no session observed them. REOPEN TRIGGER: any
+      store's sync at 2+ pages, or Square time over 800 ms. ── PRIOR TEXT
+      BELOW, UNEDITED. ──
       FILED 2026-11-04 by the N-5b session, on Gary's ruling (DECISIONS
       2026-11-04 N-5b, DRAFT): "File BUG-22 as planned: webhook bursts re-read
       the whole day. Check afternoon logs before building." THE ID was
