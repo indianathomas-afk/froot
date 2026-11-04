@@ -5,6 +5,79 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-04 — N-5b: add-on (modifier) usage counted forward + 28-day backfill; refunds a gap; BUG-22 filed (Gary)
+
+**RATIFIED BY GARY, 2026-11-04, at the N-5b PRE-PUSH-CHECK, as written:**
+"Ratify as written". The "DRAFT" paragraph below is spent, kept; the
+heading's "— DRAFT" suffix was removed at this check.
+
+**DRAFT — ruled by Gary in chat 2026-11-04 at the N-5b audit STOP; to be
+ratified at PRE-PUSH-CHECK.** His words, recorded exactly:
+
+> "S: File BUG-22 as planned: webhook bursts re-read the whole day. Check
+> afternoon logs before building. Stamp 6d2cb1f with the 11-04 morning
+> production lines (pasted below).
+> R1: Count forward from ship day, and do a one-time 28-day backfill. R1b yes:
+> older days should say they have no add-on data.
+> R2: Sales only. Log refunds as a gap.
+> R3: Skip add-ons with no recipe and show how many sold.
+> R4: Missing quantity counts as 1.
+> R6: Usage only. Add-on cost in profitability is a separate row for later.
+> R7: Yes, show add-ons on the variance hover."
+
+**Not ruled in that message, asked again at the migration STOP:**
+
+- **R5** (default-on modifiers that carry a recipe — count normally, or not).
+  The audit's lean was "count it like any other modifier"; that is a
+  recommendation, not a ruling, until Gary answers.
+- **The 11-04 morning production lines.** The message says "pasted below";
+  no lines followed it. The `6d2cb1f` stamp waits for them.
+
+**Answered at the migration STOP, 2026-11-04 (Gary, in chat, with "go" after
+applying the migration to dev).** His words, recorded exactly:
+
+> "R5: Skip default-on add-ons. Their ingredients are already in the drink
+> recipe, and removals come through the “No X” add-ons. Production query A
+> (br-sparkling-block-a620qvg4, 2026-11-04): 595 add-ons, 0 with a recipe, 15
+> on by default, 0 on by default with a recipe, so nothing is affected today.
+> Note in the report that production has 0 add-on recipes linked."
+
+R5 overrides the audit's lean ("count it like any other modifier"). The
+second message again ended at "11-04 morning production lines for the 6d2cb1f
+stamp:" with no lines after it; the stamp still waits for them. (Spent: Gary
+pasted the lines in a third message the same day; they are stamped on the
+`6d2cb1f` DEPLOY_LOG entry.)
+
+**BUG-20 / BUG-21 status, ruled 2026-11-04 (Gary, in chat, during the build).**
+His words, recorded exactly:
+
+> "Ruling: BUG-20 and BUG-21 stay planned, no status change. The 11-04
+> production logs showed the duplicate fetch runs in the background and costs
+> one extra Square call, not customer wait."
+
+The audit he ruled on is `docs/prompts/N-5b_AUDIT.md`. Its leans on R1b, R2,
+R3, R4, R6 and R7 match his answers above; R1 (backfill size) and S are his
+own.
+
+**Added 2026-11-04, after the N-5b PRE-PUSH-CHECK (`4681854`) and before
+Gary's push (Gary, in chat).** His words, recorded exactly:
+
+> "I hadn't imported the BevSpot add-on recipes on 11-03; I only ran the
+> preview. I imported them on production 11-04 (Las Brisas file, 158
+> recipes). Production now shows 127 add-ons with a recipe and 3 on by
+> default with a recipe: Mocha, Acai, Add Vanilla Sweet Cream Swirl
+> (br-sparkling-block-a620qvg4). Square sets on-by-default per drink but
+> Froot keeps one flag per add-on, so those 3 may undercount on drinks where
+> they're optional. Ship N-5b as built. N-5e isn't needed."
+
+This makes two earlier statements spent, kept: "0 with a recipe … 0 on by
+default with a recipe, so nothing is affected today" (query A, in the R5
+answer above) and the `3ea8112` DEPLOY_LOG line "Gary applied 158" as a
+2026-11-03 event. It answers the open question investigated in
+`docs/prompts/N-5b_MODLINK_AUDIT.md` (that audit's H1 family: the 11-03
+figure was the preview). R5 stands as ruled; the per-drink setting is filed
+as N-5f. N-5e (the add-on import audit) is not to be run.
+
 ## 2026-11-03 — BUG-20: don't build the sales dedupe yet — measure first; comparison-day duplicate filed (Gary)
 
 **RATIFIED BY GARY, 2026-11-03, at the BUG-20 PRE-PUSH-CHECK, as written:**

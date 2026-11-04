@@ -18324,9 +18324,58 @@ phases:
   - id: N-5b
     track: nutrition
     size: M
-    status: planned
+    # planned -> in_progress 2026-11-04 at the work commit 835a847 (NOT
+    # pushed). The docs SHA is the commit immediately after 835a847 (its own
+    # SHA cannot be written inside itself).
+    # in_progress -> staging 2026-11-04 at the N-5b PRE-PUSH-CHECK (the commit
+    # immediately after 1bc285e). Gary had already pushed 835a847 + 1bc285e
+    # (origin/staging = 1bc285e, 2026-11-04 11:19:42 PST = 19:19:42 UTC), so
+    # the "NOT pushed" / "NOT PUSHED" claims here and in the notes are spent,
+    # kept. DECISIONS N-5b ratified there ("Ratify as written"); the "DRAFT
+    # until PRE-PUSH-CHECK" in the notes below is spent, kept.
+    status: staging
+    commits:
+      # feat(N-5b): work commit — migration, sync, helper, consumers, fixture
+      - "835a847"
+      # docs(N-5b): row, DECISIONS draft, DEPLOY_LOG UNPROMOTED, MIGRATIONS,
+      # BUG-22 / N-5c / N-5d, prompt + audit
+      - "1bc285e"
+      # + the commit immediately after 1bc285e: docs(PRE-PUSH-CHECK) —
+      # DECISIONS ratified, this row's docs SHA and status flip
     title: "Inventory — count Square order modifiers in theoretical usage"
     notes: >
+      BUILT 2026-11-04, TIER 3, NOT PUSHED. Prompt of record:
+      docs/prompts/N-5b-modifier-usage.md. Audit docs/prompts/N-5b_AUDIT.md.
+      Rulings: docs/DECISIONS.md 2026-11-04 N-5b (DRAFT until PRE-PUSH-CHECK)
+      — R1 forward from ship day + one-time 28-day backfill; R1b days before
+      N-5b say they have no add-on data; R2 sales only, refunds a gap (N-5c);
+      R3 skip add-ons with no recipe and count them; R4 missing quantity = 1;
+      R5 skip on-by-default add-ons; R6 usage only, profitability add-on cost
+      is N-5d; R7 add-ons in the variance hover. WHAT: migration
+      20261104010000_n5b_sales_modifier_cache (SalesModifierCache +
+      SalesPeriodCache.modifiersCaptured; applied to dev by Gary 2026-11-04
+      18:49:26 UTC); sales-sync.ts reads line modifiers and writes them in
+      writeSalesCache's BUG-7 guarded transaction, delete-then-insert per won
+      store-day (replace, never append); src/lib/modifier-usage.ts is the one
+      helper used by salesUsageForWindow (expected on-hand, weekly usage →
+      pars, alerts, order guide; consumption mode) and the variance report
+      (theoretical mode). EVIDENCE (dev br-broad-wave-a6vpjdw0):
+      scripts/verify-n5b-modifier-usage.ts 36/36 (Square stubbed), incl. three
+      identical syncs sequential then a concurrent burst → identical rows and
+      usage; against the pre-N-5b sales-sync.ts 19 fail / 17 pass (M3, M7 and
+      M6's identity checks pass vacuously there); all 69 scripts/verify-*.ts
+      green; build green. PRODUCTION HAS 0 ADD-ON RECIPES LINKED (Gary, query
+      A, br-sparkling-block-a620qvg4, 2026-11-04: 595 add-ons, 0 with a
+      recipe, 15 on by default, 0 on by default with a recipe) — so no
+      production usage number changes until add-on recipes exist, and the
+      N-5 evidence "127 modifier recipes … Gary applied 158" does not match
+      it (open question, not investigated here; the apply route does set
+      Recipe.squareModifierId, apply/route.ts:44). BLOCKERS: Gary's push;
+      the staging-SHA precondition, then a staging sync and the
+      expected/variance pages; after promotion, the R1 one-time 28-day
+      backfill — Inventory → Reports, last 28 days, "Sync sales for this
+      range", once per linked store (≈8 Square calls per store at ≈140
+      orders/day). ── FILING TEXT BELOW, UNEDITED. ──
       FILED 2026-11-03 by the N-5 docs commit, on Gary's ruling N5-F1
       ("Accept all leans": sales usage in N-5b). NOT SCOPED as a prompt yet.
       What the N-5 audit found (docs/prompts/N-5_AUDIT.md § C): theoretical
@@ -18345,6 +18394,65 @@ phases:
       never silently undercounted); and a ruling on a default-on modifier
       removed by the buyer, which Square sends as quantity 0. Its own
       migration. Needs no new scope (ORDERS_READ is held). Behind N-5.
+
+  - id: N-5c
+    track: nutrition
+    size: M
+    status: planned
+    title: "Inventory — refunds (Square return orders) are not subtracted from theoretical usage"
+    notes: >
+      FILED 2026-11-04 by the N-5b session, on Gary's ruling R2 (DECISIONS
+      2026-11-04 N-5b, DRAFT): "Sales only. Log refunds as a gap." THE GAP:
+      src/lib/sales-sync.ts reads order line_items only and never reads
+      `returns[]` (return_line_items / return_modifiers), on any order, and
+      skips orders with no tenders. So no refund reaches SalesLineCache or
+      SalesModifierCache, and none reaches usage — items AND add-ons alike
+      (N-5b keeps the two consistent on purpose). The reconcile cron's header
+      (src/app/api/cron/sales-reconcile/route.ts:8-9) says it absorbs "late
+      refunds"; nothing in the sync reads refund data, so at most it absorbs
+      an edited order's new totals. UNVERIFIED (docs/prompts/N-5b_AUDIT.md
+      § 8): whether a return-only order carries tenders, and whether
+      total_money nets returns — Square's Order / OrderReturnLineItem /
+      refunds-guide pages did not render for the N-5b session. Audit first
+      against a real staging refund. Needs no new scope.
+
+  - id: N-5d
+    track: nutrition
+    size: S
+    status: planned
+    title: "Inventory — add-on (modifier) cost in the profitability report"
+    notes: >
+      FILED 2026-11-04 by the N-5b session, on Gary's ruling R6 (DECISIONS
+      2026-11-04 N-5b, DRAFT): "Usage only. Add-on cost in profitability is a
+      separate row for later." TODAY:
+      src/app/api/inventory/reports/profitability/route.ts costs each sold
+      variation by its own recipe × qty sold; add-ons sold with it are
+      uncosted, so an item's cost % understates by its add-ons. N-5b's
+      SalesModifierCache (store × day × Square modifier id, quantity = Σ line
+      qty × modifier qty) has the quantities; it does not record WHICH item
+      each add-on was sold on, so attributing add-on cost to an item needs a
+      design decision (or a parent-variation column). Behind N-5b.
+
+  - id: N-5f
+    track: nutrition
+    size: M
+    status: planned
+    title: "Inventory — use Square's per-drink on-by-default add-on setting"
+    notes: >
+      FILED 2026-11-04 by the docs commit after the N-5b PRE-PUSH-CHECK
+      (4681854), on Gary's instruction: "use Square's per-drink on-by-default
+      setting." His words (DECISIONS 2026-11-04 N-5b, added after the check):
+      "Square sets on-by-default per drink but Froot keeps one flag per
+      add-on, so those 3 may undercount on drinks where they're optional."
+      The 3 are Mocha, Acai, Add Vanilla Sweet Cream Swirl — on by default
+      with a recipe on production br-sparkling-block-a620qvg4 (Gary,
+      2026-11-04). TODAY: N-5b's R5 skips an on-by-default add-on everywhere
+      (src/lib/modifier-usage.ts), because its ingredients are in the drink
+      recipe; on a drink where Square has it optional, a sale of it is not
+      in the drink recipe and goes uncounted. NOT SCOPED, not audited — where
+      Square carries the per-item setting, and what the sync and the
+      SquareModifier model would need to hold it, is the audit's first job.
+      ITEMS_READ is held; no new scope expected. Behind N-5b.
 
   - id: N-6
     track: nutrition
@@ -26021,6 +26129,10 @@ bugs:
     # NOT flipped to `staging`: the template's flip would say the bug's fix is
     # on staging, and only the measurement is. DECISIONS BUG-20 ratified there
     # ("Ratify as written"); the "DRAFT" in the notes below is spent, kept.
+    # 5f99682 + 7c563b8 + 20e0237 PROMOTED 2026-11-03 in merge 6d2cb1f
+    # (DEPLOY_LOG entry `6d2cb1f — 2026-11-03 — BUG-20`), stamped post-merge on
+    # `staging`. Status still `planned`: the measurement shipped, the fix did
+    # not. Any "NOT pushed" comment above is spent, kept.
     status: planned
     title: >
       Dashboard summary and sales each run syncSalesForStore for the same
@@ -26130,6 +26242,27 @@ bugs:
       5f99682 commit message, is a miscount. The "15 fail / 7 pass" split
       against the pre-BUG-20 file sums to 22 and was never re-run at this
       check — treat it as unverified.
+      MEASUREMENT PROMOTED 2026-11-03 in merge 6d2cb1f (rider, post-merge
+      stamp): --no-ff, 2026-11-03 21:41:49 PST = 2026-11-04 05:41:49 UTC, main
+      9933ad5..6d2cb1f, 3 commits (5f99682, 7c563b8, 20e0237) / 19 files,
+      staging fast-forwarded; no migration. The timing line is now live in
+      production; the dedupe fix is not built. EVIDENCE: none observed at
+      this stamp. Owed: staging timing lines (after the staging-SHA
+      precondition), then a day of production timings — the input the fix
+      decision waits on.
+      ── RIDER 2026-11-04 (N-5b session; APPENDED, TEXT ABOVE UNEDITED). ──
+      PRODUCTION EVIDENCE (Vercel logs, 2026-11-04 06:44–06:54 PST, a
+      selection pasted by Gary; stamped on the 6d2cb1f DEPLOY_LOG entry):
+      dashboard loads warm (summary 99/100 ms, sales 137/96 ms; no :today
+      inline sync — the 03:00 reconcile had written the row). The duplicate
+      is the after() pair: dashboard/sales:today-bg and
+      dashboard/summary:today-bg for store cmqvygque000004l7hj2me30o, 20 ms
+      apart, squareMs 146/144, BOTH wrote=1/1 — two Square reads and two
+      writes per store-day, off the response path. RULED (Gary, 2026-11-04;
+      DECISIONS 2026-11-04 N-5b, DRAFT): "BUG-20 and BUG-21 stay planned, no
+      status change. The 11-04 production logs showed the duplicate fetch
+      runs in the background and costs one extra Square call, not customer
+      wait." Staging timing lines are still owed.
 
   - id: BUG-21
     status: planned
@@ -26156,6 +26289,40 @@ bugs:
       timing line logs these as caller=dashboard/summary:comparison:gap-fill
       and dashboard/sales:comparison:gap-fill. DIRECTION, NOT A PLAN: likely
       decided together with BUG-20's fix. RELATED: BUG-7, BUG-20.
+      ── RIDER 2026-11-04 (N-5b session; APPENDED, TEXT ABOVE UNEDITED). ──
+      RULED (Gary, 2026-11-04; DECISIONS 2026-11-04 N-5b, DRAFT): "BUG-20 and
+      BUG-21 stay planned, no status change. The 11-04 production logs showed
+      the duplicate fetch runs in the background and costs one extra Square
+      call, not customer wait." No comparison-day gap-fill line appears in the
+      11-04 lines pasted (a selection, not a full day).
+
+  - id: BUG-22
+    status: planned
+    title: >
+      Square order-webhook bursts re-read the whole store-day 2–3 times within
+      ~200 ms — every sync reads Square and every one writes
+    notes: >
+      FILED 2026-11-04 by the N-5b session, on Gary's ruling (DECISIONS
+      2026-11-04 N-5b, DRAFT): "File BUG-22 as planned: webhook bursts re-read
+      the whole day. Check afternoon logs before building." THE ID was
+      confirmed free (no BUG-22 in docs/, src/ or scripts/). SEEN (production
+      Vercel logs, 2026-11-04 06:44–06:47 PST, pasted by Gary; stamped on the
+      6d2cb1f DEPLOY_LOG entry): caller=webhooks/square, store
+      cmqvygq1m000004kzon5wkwf9 — 2 syncs 30 ms apart; store
+      cmqvygr36000004l4xoeetr02 — 3 syncs within 170 ms; every one pages=1
+      orders=1 wrote=1/1, squareMs 168–223, writeMs 21–55. WHY (from code,
+      src/app/api/webhooks/square/route.ts processEvent): each event re-reads
+      the order's whole local day, and the skip check (cached.syncedAt >=
+      eventAt) cannot fire for events that arrive before the first of them
+      has finished its Square read — so near-simultaneous events each sync.
+      BUG-7's guard keeps the DATA correct (each newer read replaces the day;
+      N-5b's SalesModifierCache rides the same guard, proven by
+      scripts/verify-n5b-modifier-usage.ts M6). COST: LATENT — no wrong
+      numbers; extra Square reads and DB writes per order, outside any
+      response path (after()). DIRECTION, NOT A PLAN: likely decided with
+      BUG-20's single-flight question. PRECONDITION (Gary): check the
+      afternoon production logs before building. RELATED: BUG-7, BUG-20,
+      BUG-21.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.

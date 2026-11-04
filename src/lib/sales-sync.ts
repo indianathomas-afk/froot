@@ -7,7 +7,8 @@ import type { Organization, Store } from "@prisma/client"
 // ─── Square sales sync ────────────────────────────────────────────────────────
 // Pulls PAID orders (has a tender; OPEN or COMPLETED) in the created_at window
 // for one store and aggregates them into SalesPeriodCache (daily), SalesLineCache
-// (daily × variation), and SalesHourlyCache (daily × hour). Dates/hours are
+// (daily × variation), SalesHourlyCache (daily × hour), and — since N-5b —
+// SalesModifierCache (daily × order-line modifier). Dates/hours are
 // bucketed by each order's created_at in the STORE's timezone — matching how
 // Square's Sales Summary counts a sale (when it's paid, on the day it opened).
 //
@@ -24,11 +25,21 @@ import type { Organization, Store } from "@prisma/client"
 
 type SquareMoney = { amount?: number; currency?: string } | null | undefined
 
+// N-5b: an order line's modifiers (add-ons, swaps, "No X" removals). Square's
+// modifier quantity is PER UNIT OF THE LINE ("total_price_money is the
+// modifier's base_price_money multiplied by the line item's quantity"), and a
+// default-on modifier the buyer removed arrives as quantity "0".
+type SquareLineItemModifier = {
+  catalog_object_id?: string
+  quantity?: string
+}
+
 type SquareLineItem = {
   catalog_object_id?: string
   quantity?: string
   gross_sales_money?: SquareMoney
   total_money?: SquareMoney
+  modifiers?: SquareLineItemModifier[]
 }
 
 type SquareOrder = {
@@ -111,6 +122,8 @@ export type SalesSyncResult = {
 export type DayAgg = { gross: number; net: number; tax: number; tip: number; discount: number; orders: number; unconfirmed: number }
 export type HourAgg = { net: number; orders: number }
 export type LineAgg = { qty: number; gross: number }
+/** N-5b: Σ (line quantity × modifier quantity) for one modifier on one day. */
+export type ModifierAgg = { qty: number }
 
 export function emptyDayAgg(): DayAgg {
   return { gross: 0, net: 0, tax: 0, tip: 0, discount: 0, orders: 0, unconfirmed: 0 }
@@ -148,7 +161,12 @@ export async function writeSalesCache(
   dateStrs: string[],
   byDay: Map<string, DayAgg>,
   byHour: Map<string, HourAgg>,
-  byLine: Map<string, LineAgg>
+  byLine: Map<string, LineAgg>,
+  // N-5b: `${date}|${squareModifierId}` → quantity. OMITTED (undefined) means
+  // this writer did not read modifiers, so the day is NOT marked
+  // modifiersCaptured — only a caller that actually aggregated modifiers may
+  // claim the day has add-on data. An empty Map means "read them, none sold".
+  byModifier?: Map<string, ModifierAgg>
 ): Promise<{ written: string[]; discarded: string[] }> {
   // Sorted so every writer takes its row locks in the same order. Unsorted, two
   // writers whose spillover dates differ could take them in opposite orders and
@@ -156,6 +174,7 @@ export async function writeSalesCache(
   // ON CONFLICT would reject outright ("cannot affect row a second time").
   const ordered = [...dateStrs].sort()
   if (ordered.length === 0) return { written: [], discarded: [] }
+  const modifiersCaptured = byModifier !== undefined
 
   const values = ordered.map((dateStr) => {
     const day = byDay.get(dateStr) ?? emptyDayAgg()
@@ -167,14 +186,15 @@ export async function writeSalesCache(
     // would otherwise stamp insert time and defeat the whole point.
     return Prisma.sql`(${randomUUID()}, ${org.id}, ${store.id}, ${dateStr}::date,
       ${day.gross}, ${day.net}, ${day.unconfirmed}, ${day.tax}, ${day.tip},
-      ${day.discount}, ${day.orders}, ${fetchStartedAt})`
+      ${day.discount}, ${day.orders}, ${fetchStartedAt}, ${modifiersCaptured})`
   })
 
   return prisma.$transaction(async (tx) => {
     const won = await tx.$queryRaw<{ date: Date }[]>`
       INSERT INTO "SalesPeriodCache" (
         "id", "organizationId", "storeId", "date", "grossSales", "netSales",
-        "unconfirmedNet", "taxTotal", "tipTotal", "discountTotal", "orderCount", "syncedAt"
+        "unconfirmedNet", "taxTotal", "tipTotal", "discountTotal", "orderCount", "syncedAt",
+        "modifiersCaptured"
       )
       VALUES ${Prisma.join(values)}
       ON CONFLICT ("storeId", "date") DO UPDATE SET
@@ -185,7 +205,8 @@ export async function writeSalesCache(
         "tipTotal"       = EXCLUDED."tipTotal",
         "discountTotal"  = EXCLUDED."discountTotal",
         "orderCount"     = EXCLUDED."orderCount",
-        "syncedAt"       = EXCLUDED."syncedAt"
+        "syncedAt"       = EXCLUDED."syncedAt",
+        "modifiersCaptured" = EXCLUDED."modifiersCaptured"
       WHERE "SalesPeriodCache"."syncedAt" < EXCLUDED."syncedAt"
       RETURNING "date"
     `
@@ -207,6 +228,15 @@ export async function writeSalesCache(
     // an upsert alone would leave those rows behind as phantoms.
     await tx.salesHourlyCache.deleteMany({ where: { storeId: store.id, date: { in: wonDates } } })
     await tx.salesLineCache.deleteMany({ where: { storeId: store.id, date: { in: wonDates } } })
+    // N-5b: modifier rows are REPLACED per won store-day, never appended — the
+    // same delete-then-insert under the period-row lock as the line rows. Every
+    // sync re-reads the whole day from Square, so the rows it writes are the
+    // day's complete truth; a burst of syncs for one day (2–3 within 200 ms on
+    // production, 2026-11-04) therefore leaves exactly one set. Deleted even
+    // when this writer did not read modifiers: its won day is then marked
+    // modifiersCaptured=false, and rows from an older read must not sit beside
+    // that flag looking current.
+    await tx.salesModifierCache.deleteMany({ where: { storeId: store.id, date: { in: wonDates } } })
 
     const hourRows = [...byHour.entries()]
       .map(([key, v]) => {
@@ -242,6 +272,25 @@ export async function writeSalesCache(
           squareVariationId: r.variationId,
           quantitySold: r.v.qty,
           grossSales: r.v.gross,
+        })),
+      })
+    }
+
+    const modifierRows = [...(byModifier ?? new Map<string, ModifierAgg>()).entries()]
+      .map(([key, v]) => {
+        const [dateStr, squareModifierId] = key.split("|")
+        return { dateStr, squareModifierId, v }
+      })
+      // quantity 0 (a removed default-on modifier) carries no usage — no row.
+      .filter((r) => writtenSet.has(r.dateStr) && r.v.qty !== 0)
+    if (modifierRows.length > 0) {
+      await tx.salesModifierCache.createMany({
+        data: modifierRows.map((r) => ({
+          organizationId: org.id,
+          storeId: store.id,
+          date: dbDate(r.dateStr),
+          squareModifierId: r.squareModifierId,
+          quantity: r.v.qty,
         })),
       })
     }
@@ -350,6 +399,7 @@ async function syncSalesForStoreTimed(
   const byDay = new Map<string, DayAgg>()
   const byHour = new Map<string, HourAgg>() // `${date}|${hour}`
   const byLine = new Map<string, LineAgg>() // `${date}|${variationId}`
+  const byModifier = new Map<string, ModifierAgg>() // `${date}|${squareModifierId}` (N-5b)
 
   let cursor: string | undefined
   let orderCount = 0
@@ -443,10 +493,23 @@ async function syncSalesForStoreTimed(
       byHour.set(hourKey, h)
 
       for (const line of order.line_items ?? []) {
+        const lineQty = Number(line.quantity ?? "1") || 0
+        // N-5b: modifiers count even on a line with no catalog id (a custom
+        // amount can still carry a catalog add-on). Usage = line quantity ×
+        // modifier quantity; a missing modifier quantity counts as 1 (R4, Gary
+        // 2026-11-04). Sales only — `returns[]` is never read (R2).
+        for (const mod of line.modifiers ?? []) {
+          if (!mod.catalog_object_id) continue
+          const modKey = `${dateStr}|${mod.catalog_object_id}`
+          const m = byModifier.get(modKey) ?? { qty: 0 }
+          m.qty += lineQty * (Number(mod.quantity ?? "1") || 0)
+          byModifier.set(modKey, m)
+        }
+
         if (!line.catalog_object_id) continue
         const lineKey = `${dateStr}|${line.catalog_object_id}`
         const agg = byLine.get(lineKey) ?? { qty: 0, gross: 0 }
-        agg.qty += Number(line.quantity ?? "1") || 0
+        agg.qty += lineQty
         agg.gross += dollars(line.gross_sales_money ?? line.total_money)
         byLine.set(lineKey, agg)
       }
@@ -472,7 +535,8 @@ async function syncSalesForStoreTimed(
     [...dates],
     byDay,
     byHour,
-    byLine
+    byLine,
+    byModifier
   )
   timing.writeMs = Date.now() - tWrite
   timing.wrote = written.length

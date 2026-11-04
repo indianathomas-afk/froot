@@ -2344,3 +2344,49 @@ is additive.
 the same diff with no `-o` after Gary's apply (empty) · `npx prisma generate`.
 `npm run build` also runs `prisma generate`. No `migrate deploy`, `db execute`,
 `migrate dev`, `migrate reset` or `migrate resolve` was run by the session.
+
+## 2026-11-04 — `20261104010000_n5b_sales_modifier_cache` (N-5b)
+
+**APPLIED TO DEV ONLY, by Gary**, at the N-5b migration STOP and before the
+work commit (§ A migration STOPS the session). Staging and production get it
+from the Vercel build on Gary's push and at promotion. The timestamp is
+`20261104010000` — chosen only to sort after N-5's `20261103020000`; it is a
+name, not a clock reading.
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | **2026-11-04 18:49:26.220683 UTC** (10:49:26 PST) — read by the session from `_prisma_migrations` in the same query as `current_setting('neon.branch_id', true)` | Gary |
+| staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
+| production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
+
+After Gary's "go", the shape diff against the dev datasource (host
+`ep-late-water-a6k53nv2`; `env | grep -c DATABASE_URL` printed `0`) returned
+`-- This is an empty migration.` **No baseline empty diff was taken BEFORE
+`schema.prisma` was edited** (N-5 took one); the generated file contains only
+the N-5b statements below, which is the evidence that dev had no other drift.
+Every statement is generated; nothing is hand-authored, so nothing joins
+§ Protected indexes. **Additive only — nothing dropped, no backfill; the one
+existing table touched gains a NOT NULL column with a default:**
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "SalesPeriodCache" ADD COLUMN "modifiersCaptured" BOOLEAN NOT NULL DEFAULT false` | R1b: every existing row reads false = "cached before N-5b, no add-on data"; every N-5b sync sets true inside the BUG-7 guarded upsert |
+| `CREATE TABLE "SalesModifierCache"` + unique `(storeId, date, squareModifierId)` + index `(storeId, date)` + FKs to Organization (RESTRICT) and Store (CASCADE) | per store-day Σ (line qty × modifier qty); replaced per won store-day inside `writeSalesCache`, never appended |
+
+No `SalesModifierCache` rows exist on any branch until a sync runs on the new
+code. Gary's ruled one-time 28-day backfill (R1) is a re-sync of each linked
+store's last 28 days ("Sync sales for this range", Inventory → Reports) after
+promotion.
+
+**Fixture:** `scripts/verify-n5b-modifier-usage.ts`, 36 checks, all pass,
+against the applied schema on dev `br-broad-wave-a6vpjdw0` (Square stubbed;
+throwaway "ZZ N-5b Fixture" org + store, deleted). S1 asserts the migration
+file is additive.
+
+**Prisma commands for this migration, verbatim:** `npx prisma format` ·
+`npx prisma validate` ·
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/20261104010000_n5b_sales_modifier_cache/migration.sql` ·
+`npx prisma generate` (after Gary's apply) · the same diff with no `-o` after
+the apply (empty). `npm run build` also runs `prisma generate`. No
+`migrate deploy`, `db execute`, `migrate dev`, `migrate reset` or
+`migrate resolve` was run by the session.

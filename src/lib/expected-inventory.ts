@@ -12,6 +12,7 @@ import {
 } from "@/lib/reports"
 import { ensureSalesCached } from "@/lib/sales-sync"
 import { expandRecipeToIngredients, loadCostGraph } from "@/lib/recipe-cost"
+import { modifierUsageForWindow } from "@/lib/modifier-usage"
 
 // ─── Expected inventory engine (Phase I-7) ────────────────────────────────────
 // Perpetual on-hand per ingredient, in reporting units, starting from the last
@@ -65,6 +66,10 @@ export type ExpectedInventoryResult = {
   missingSalesDays: number
   /** sold items with no recipe mapping — their depletion is invisible */
   unmappedSoldCount: number
+  /** N-5b: distinct add-ons sold with no recipe — their usage is invisible (R3) */
+  unmappedModifierSoldCount: number
+  /** N-5b: cached days since the count synced before add-ons were recorded (R1b) */
+  modifierDataMissingDays: number
   /** recipes that failed to expand (loop / unit mismatch) */
   expansionProblems: { salesItemId: string; displayName: string }[]
   rows: ExpectedInventoryRow[]
@@ -92,12 +97,14 @@ async function salesUsageForWindow(
 ): Promise<{
   usage: Map<string, number>
   unmappedSoldCount: number
+  unmappedModifierSoldCount: number
+  modifierDataMissingDays: number
   expansionProblems: { salesItemId: string; displayName: string }[]
 }> {
   const usage = new Map<string, number>()
   const expansionProblems: { salesItemId: string; displayName: string }[] = []
   let unmappedSoldCount = 0
-  if (start > end) return { usage, unmappedSoldCount, expansionProblems }
+  if (start > end) return { usage, unmappedSoldCount, unmappedModifierSoldCount: 0, modifierDataMissingDays: 0, expansionProblems }
 
   const [salesLines, salesItems, graph] = await Promise.all([
     prisma.salesLineCache.findMany({ where: { storeId, date: { gte: dbDate(start), lte: dbDate(end) } } }),
@@ -129,7 +136,20 @@ async function salesUsageForWindow(
       usage.set(ingredientId, (usage.get(ingredientId) ?? 0) + qty)
     }
   }
-  return { usage, unmappedSoldCount, expansionProblems }
+
+  // N-5b: order-line add-ons, through their modifier recipes, same mode.
+  const mods = await modifierUsageForWindow(org.id, storeId, start, end, graph, "consumption")
+  for (const [ingredientId, qty] of mods.usage) {
+    usage.set(ingredientId, (usage.get(ingredientId) ?? 0) + qty)
+  }
+  expansionProblems.push(...mods.expansionProblems)
+  return {
+    usage,
+    unmappedSoldCount,
+    unmappedModifierSoldCount: mods.unmappedModifierSoldCount,
+    modifierDataMissingDays: mods.modifierDataMissingDays,
+    expansionProblems,
+  }
 }
 
 export async function computeExpectedInventory(org: Organization, store: Store): Promise<ExpectedInventoryResult> {
@@ -150,6 +170,8 @@ export async function computeExpectedInventory(org: Organization, store: Store):
       salesDataComplete: false,
       missingSalesDays: 0,
       unmappedSoldCount: 0,
+      unmappedModifierSoldCount: 0,
+      modifierDataMissingDays: 0,
       expansionProblems: [],
       rows: [],
     }
@@ -259,6 +281,8 @@ export async function computeExpectedInventory(org: Organization, store: Store):
     salesDataComplete,
     missingSalesDays,
     unmappedSoldCount: sales.unmappedSoldCount,
+    unmappedModifierSoldCount: sales.unmappedModifierSoldCount,
+    modifierDataMissingDays: sales.modifierDataMissingDays,
     expansionProblems: sales.expansionProblems,
     rows,
   }

@@ -199,6 +199,7 @@ model Organization {
   salesPeriodCaches             SalesPeriodCache[]
   salesLineCaches               SalesLineCache[]
   salesHourlyCaches             SalesHourlyCache[]
+  salesModifierCaches           SalesModifierCache[]
   storeMonthlyGoals             StoreMonthlyGoal[]
   goalPlans                     GoalPlan[]
   recipes                       Recipe[]
@@ -375,6 +376,7 @@ model Store {
   salesPeriodCaches         SalesPeriodCache[]
   salesLineCaches           SalesLineCache[]
   salesHourlyCaches         SalesHourlyCache[]
+  salesModifierCaches       SalesModifierCache[]
   monthlyGoals              StoreMonthlyGoal[]
   goalPlans                 GoalPlan[]
   dailyGoals                DailyGoal[]
@@ -1976,18 +1978,22 @@ model InventoryCountCorrection {
 // re-sync replaces the covered days wholesale.
 
 model SalesPeriodCache {
-  id             String   @id @default(cuid())
-  organizationId String
-  storeId        String
-  date           DateTime @db.Date
-  grossSales     Float    @default(0) // total collected: incl. tax + tips, after discounts
-  netSales       Float    @default(0) // sales metric: gross − tax − tips (excludes tax & tips)
-  unconfirmedNet Float    @default(0) // portion of netSales from paid-but-OPEN orders (not yet confirmed in the POS)
-  taxTotal       Float    @default(0)
-  tipTotal       Float    @default(0)
-  discountTotal  Float    @default(0)
-  orderCount     Int      @default(0)
-  syncedAt       DateTime @default(now())
+  id                String   @id @default(cuid())
+  organizationId    String
+  storeId           String
+  date              DateTime @db.Date
+  grossSales        Float    @default(0) // total collected: incl. tax + tips, after discounts
+  netSales          Float    @default(0) // sales metric: gross − tax − tips (excludes tax & tips)
+  unconfirmedNet    Float    @default(0) // portion of netSales from paid-but-OPEN orders (not yet confirmed in the POS)
+  taxTotal          Float    @default(0)
+  tipTotal          Float    @default(0)
+  discountTotal     Float    @default(0)
+  orderCount        Int      @default(0)
+  syncedAt          DateTime @default(now())
+  // N-5b (R1b, Gary 2026-11-04): true once a sync that records order-line
+  // modifiers has written this day. false = cached before N-5b — the day has
+  // NO add-on data, which usage must say rather than read as "none sold".
+  modifiersCaptured Boolean  @default(false)
 
   organization Organization @relation(fields: [organizationId], references: [id])
   store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -2011,6 +2017,29 @@ model SalesLineCache {
   store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, date, squareVariationId])
+  @@index([storeId, date])
+}
+
+// N-5b: Square order-line modifiers (add-ons, swaps, removals) per store-day.
+// quantity = Σ (line quantity × modifier quantity) — Square's modifier
+// quantity is per unit of the line; a missing quantity counts as 1 (R4) and a
+// removed default-on modifier (quantity 0) writes nothing. Raw Square fact:
+// the modifier → recipe mapping happens at read time, like SalesLineCache.
+// Written ONLY inside writeSalesCache's BUG-7 guarded transaction, delete then
+// insert for the days that sync won — replaced per store-day on every sync,
+// never appended. Sales only; refunds are not subtracted (R2).
+model SalesModifierCache {
+  id               String   @id @default(cuid())
+  organizationId   String
+  storeId          String
+  date             DateTime @db.Date
+  squareModifierId String
+  quantity         Float    @default(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  store        Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, date, squareModifierId])
   @@index([storeId, date])
 }
 

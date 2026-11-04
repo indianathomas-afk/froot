@@ -99,6 +99,8 @@ type VarianceData = {
   salesItemOptions: { id: string; displayName: string }[]
   expansionProblems: { salesItemId: string; displayName: string }[]
   unmappedSoldCount: number
+  unmappedModifierSoldCount: number
+  modifierDataMissingDays: number
 }
 
 type ProfitabilityRow = {
@@ -1217,6 +1219,19 @@ function VarianceTab({ data, storeId, onChanged }: { data: VarianceData; storeId
           {data.unmappedSoldCount} sold item{data.unmappedSoldCount === 1 ? "" : "s"} in this period {data.unmappedSoldCount === 1 ? "has" : "have"} no recipe —
           their ingredient usage is missing from &ldquo;Sold&rdquo;.{" "}
           <Link href="/inventory/recipes" className="underline font-medium">Map them in Recipes →</Link>
+        </div>
+      )}
+      {data.unmappedModifierSoldCount > 0 && (
+        <div className="text-sm bg-[var(--color-warning-bg)] text-[var(--color-warning-text)] rounded-md px-3 py-2">
+          {data.unmappedModifierSoldCount} add-on{data.unmappedModifierSoldCount === 1 ? "" : "s"} sold in this period {data.unmappedModifierSoldCount === 1 ? "has" : "have"} no recipe —
+          their ingredient usage is missing from &ldquo;Sold&rdquo;.{" "}
+          <Link href="/inventory/recipes" className="underline font-medium">Map them in Recipes →</Link>
+        </div>
+      )}
+      {data.modifierDataMissingDays > 0 && (
+        <div className="text-sm bg-[var(--color-warning-bg)] text-[var(--color-warning-text)] rounded-md px-3 py-2">
+          {data.modifierDataMissingDays} day{data.modifierDataMissingDays === 1 ? "" : "s"} in this period {data.modifierDataMissingDays === 1 ? "has" : "have"} no add-on data
+          (synced before add-ons were recorded) — add-on usage on {data.modifierDataMissingDays === 1 ? "that day" : "those days"} is missing from &ldquo;Sold&rdquo;.
         </div>
       )}
       {data.expansionProblems.length > 0 && (

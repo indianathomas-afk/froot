@@ -38,6 +38,8 @@ type ExpectedResult = {
   salesDataComplete: boolean
   missingSalesDays: number
   unmappedSoldCount: number
+  unmappedModifierSoldCount: number
+  modifierDataMissingDays: number
   expansionProblems: { salesItemId: string; displayName: string }[]
   rows: Row[]
 }
@@ -158,7 +160,12 @@ export function ExpectedClient({ stores }: { stores: { id: string; name: string 
             </span>
           </div>
 
-          {(data.isStale || !data.salesDataComplete || data.unmappedSoldCount > 0 || data.expansionProblems.length > 0) && (
+          {(data.isStale ||
+            !data.salesDataComplete ||
+            data.unmappedSoldCount > 0 ||
+            data.unmappedModifierSoldCount > 0 ||
+            data.modifierDataMissingDays > 0 ||
+            data.expansionProblems.length > 0) && (
             <div className="mb-4 space-y-2">
               {data.isStale && (
                 <div className="flex items-center gap-2 text-sm rounded-md border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 px-3 py-2 text-[var(--color-foreground)]">
@@ -184,6 +191,26 @@ export function ExpectedClient({ stores }: { stores: { id: string; name: string 
                   <Link href="/inventory/recipes" className="font-medium text-[var(--color-primary)] hover:underline">
                     Map recipes
                   </Link>
+                </div>
+              )}
+              {data.unmappedModifierSoldCount > 0 && (
+                <div className="flex items-center gap-2 text-sm rounded-md border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 px-3 py-2 text-[var(--color-foreground)]">
+                  <AlertTriangle className="h-4 w-4 text-[var(--color-warning)] shrink-0" />
+                  {data.unmappedModifierSoldCount} add-on{data.unmappedModifierSoldCount === 1 ? "" : "s"} sold since the
+                  count {data.unmappedModifierSoldCount === 1 ? "has" : "have"} no recipe — their usage isn&apos;t
+                  reflected here.{" "}
+                  <Link href="/inventory/recipes" className="font-medium text-[var(--color-primary)] hover:underline">
+                    Map recipes
+                  </Link>
+                </div>
+              )}
+              {data.modifierDataMissingDays > 0 && (
+                <div className="flex items-center gap-2 text-sm rounded-md border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 px-3 py-2 text-[var(--color-foreground)]">
+                  <AlertTriangle className="h-4 w-4 text-[var(--color-warning)] shrink-0" />
+                  {data.modifierDataMissingDays} day{data.modifierDataMissingDays === 1 ? "" : "s"} since the count{" "}
+                  {data.modifierDataMissingDays === 1 ? "has" : "have"} no add-on data (synced before add-ons were
+                  recorded) — add-on usage on {data.modifierDataMissingDays === 1 ? "that day" : "those days"} isn&apos;t
+                  reflected here.
                 </div>
               )}
               {data.expansionProblems.length > 0 && (
