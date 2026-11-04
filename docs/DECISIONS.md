@@ -5,10 +5,14 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-03 — nav1: the Nutrition sidebar links, by role and by module (Gary) — DRAFT, pending ratification at PRE-PUSH-CHECK
+## 2026-11-03 — nav1: the Nutrition sidebar links, by role and by module (Gary)
+
+**RATIFIED BY GARY, 2026-11-03, at the STAMP-3ea8112-FIXTURES PRE-PUSH-CHECK, as written:**
+"Ratify as written"
 
 **DRAFT.** To be ratified at the next PRE-PUSH-CHECK; this heading reads
-"DRAFT, pending ratification" until then.
+"DRAFT, pending ratification" until then. *(Superseded by the ratification
+line above; the heading's DRAFT suffix was removed at that check.)*
 
 Ruled by Gary 2026-11-03 in the pointer message that launched
 STAMP-3ea8112-FIXTURES, answering the RULING NOW in

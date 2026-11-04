@@ -2,6 +2,51 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-03 — STAMP-3ea8112-FIXTURES: eng1 records 18 more pages; four fixture fixes
+
+**Status: staging only, not on `main`.** Stamp this heading with the merge SHA at
+promotion, after the merge — as a normal `staging` commit that rides the next
+promotion (R1, CLAUDE.md § Git Rules, 2026-10-24; never committed on `main`).
+No ROADMAP row of its own: riders on ENG-1, NAV-1, HR-8, MS-5 and NOTIFY-14,
+all five left `shipped` (Gary, at this check, 2026-11-03: "Riders only, no
+status flip").
+
+**Payload: two commits plus this check's own.** Verified by `git log @{u}..`
+at this check: exactly `d4e6df2`, `59d5596`, on top of `origin/staging`
+(`3ea8112`). **NEITHER WAS PUSHED WHEN THIS CHECK RAN.** Claude never pushes.
+
+| Commit | What it is |
+|---|---|
+| `d4e6df2` | Work: `src/lib/engagement.ts` (`ROUTE_PATTERNS` +18) and four fixtures — `verify-nav1-url-sets`, `verify-hr8-compliance`, `verify-ms5`, `verify-notify14-doc-digest` |
+| `59d5596` | `docs(STAMP-3ea8112-FIXTURES)`: the `3ea8112` N-5 promotion stamp, fixture riders, nav1 ruling DRAFT, audit + prompt of record |
+| the commit immediately after `59d5596` | `docs(STAMP-3ea8112-FIXTURES PRE-PUSH-CHECK)`: nav1 ruling ratified, rider SHAs, this entry |
+
+**Blast radius: ONE LIBRARY CONSTANT, the engagement report only.** No
+migration, no schema, no route, no env var, no cron, no Square call, no
+permission change. `ROUTE_PATTERNS` gains the 18 pages shipped since HELP-1a
+(2026-09-04) without an entry — `/calendar`, `/help`, `/help/[slug]`,
+`/my/help`, `/my/help/[slug]`, `/settings/notifications`, `/staff/milestones`,
+`/staff/milestones/report`, `/inventory/recipes/import/bevspot`, the seven
+`/nutrition/*` pages, `/menu/[slug]`, `/print/nutrition-label/[salesItemId]`.
+Visits to them, which were recorded as `/other`, are recorded under their own
+route **from deploy on**. Rows already written as `/other` are **NOT
+backfilled** and cannot be recovered. What the ADMIN-only `/staff/engagement`
+view shows changes accordingly; who can see it does not. Approved by Gary in
+planning chat 2026-11-03 (per the session prompt). The four fixture changes and
+the nav1 ruling change nothing in `src/` (nav1: sidebar already matched).
+
+**Rollback:** revert `d4e6df2`. Those 18 pages go back to `/other`; rows
+written in the meantime under their own route stay as written. The fixtures go
+back to red. The docs commits can stay.
+
+**Evidence so far: fixtures and build only, on dev.** Per the work commit, all
+66 `scripts/verify-*.ts` green on dev `br-broad-wave-a6vpjdw0`, 2026-11-03;
+`verify-eng1-engagement` and `verify-nav1-url-sets` re-run at this check (see
+its report). `npm run build` re-run green at this check. **Nothing has been
+observed on staging.** After the push: the staging-SHA precondition, then visit
+e.g. `/help` and `/nutrition/menu` and see them under their own route, not
+`/other`, on `/staff/engagement` (name the org id and instance).
+
 ## 3ea8112 — 2026-11-03 — N-5: Square modifiers — sync, modifier recipes, BevSpot modifier import
 
 **PROMOTED 2026-11-03 in merge `3ea8112`** (`3ea81128fed75f35903bced085286ad09025db89`,

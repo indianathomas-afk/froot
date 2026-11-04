@@ -4417,6 +4417,7 @@ phases:
       manager-scope numbers recomputed (s2 0, s3 25, store A 50, store B 25, needs-resign 0, scope 3/6). No
       code changed. All checks passed (dev br-broad-wave-a6vpjdw0). Cause of record:
       docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 3.
+      Docs SHA 59d5596; the PRE-PUSH-CHECK is the commit immediately after it.
 
       ── EMAIL BLOCKER RESOLVED 2026-09-20. PREPENDED; NOTHING BELOW IS EDITED. ──
       PREPENDED TO NOTES RATHER THAN MARKED ON A BLOCKER ENTRY, by Gary's F5
@@ -8523,6 +8524,7 @@ phases:
       MANAGER's CSV row for Cara carries no raise or cooldown date (probed on dev br-broad-wave-a6vpjdw0, raise
       dates 2026-10-23 LA / 2026-10-24 Denver). 51 passed, 0 failed. Cause of record:
       docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 4.
+      Docs SHA 59d5596; the PRE-PUSH-CHECK is the commit immediately after it.
 
       ── STAGING EVIDENCE 2026-10-19 (Gary). PREPENDED; NOTHING BELOW IS
       EDITED. ── Status stays `staging`; this records evidence and does not
@@ -19024,6 +19026,9 @@ phases:
       exact-set check per role, and a new "nutrition module OFF" scenario; BASELINE_REV unchanged (10439b3).
       Result: PASS — every role's URL set is identical (6 scenarios). Cause of record:
       docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 2.
+      Docs SHA 59d5596; the PRE-PUSH-CHECK is the commit immediately after it.
+      Ruling RATIFIED by Gary 2026-11-03 at the STAMP-3ea8112-FIXTURES PRE-PUSH-CHECK, as written
+      ("Ratify as written"); the "DRAFT until PRE-PUSH-CHECK" above is spent, kept.
 
       CLOSED 2026-08-30 BY THE ENG-1 CLOSEOUT, not by a NAV-1 session — this row
       was left at in_progress when NAV-1 was promoted and was found stale while
@@ -19277,6 +19282,7 @@ phases:
       written as /other are NOT backfilled (cannot be recovered). Gary approved in planning chat 2026-11-03,
       per the session prompt. verify-eng1-engagement: All checks passed (dev br-broad-wave-a6vpjdw0).
       Cause of record: docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 1. Not deployed: rides the next push/promotion.
+      Docs SHA 59d5596; the PRE-PUSH-CHECK is the commit immediately after it.
 
       CLOSED 2026-08-30. PROMOTED TO PRODUCTION 2026-08-30 in merge `8c25084`
       ("Promote ENG-1: engagement tracking — staff, managers, store devices").
@@ -23862,6 +23868,7 @@ phases:
       the real week, so the weekly duplicate guard correctly saw §5's send. Fixture-only: the test Monday is
       derived (next ISO week's Monday, Pacific, 1-7 days ahead). 54/54 passed (dev br-broad-wave-a6vpjdw0).
       Cause of record: docs/prompts/FIXTURE-TRIAGE_AUDIT.md § 5.
+      Docs SHA 59d5596; the PRE-PUSH-CHECK is the commit immediately after it.
 
       ── PROMOTED 2026-10-27 in merge cf717ca (rider prepended 2026-10-28 by
       PROMOTE-DOCS NOTIFY-14; nothing below is edited). ──
