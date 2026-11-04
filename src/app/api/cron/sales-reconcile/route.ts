@@ -39,7 +39,7 @@ export async function GET(req: Request) {
       const today = localDateStr(new Date(), store.timezone)
       const start = addDaysStr(today, -(RECONCILE_DAYS - 1))
       try {
-        const r = await syncSalesForStore(org, store, start, today)
+        const r = await syncSalesForStore(org, store, start, today, "cron/sales-reconcile")
         results.push({ org: org.id, store: store.id, days: r.days, orders: r.orders })
       } catch (e) {
         const msg = e instanceof Error ? e.message : "sync failed"

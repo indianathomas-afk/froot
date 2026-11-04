@@ -75,7 +75,7 @@ export async function POST(req: Request) {
     const chunkEndCandidate = addDaysStr(chunkStart, CHUNK_DAYS - 1)
     const chunkEnd = chunkEndCandidate < forceEnd ? chunkEndCandidate : forceEnd
     try {
-      const result = await syncSalesForStore(ctx.org, store, chunkStart, chunkEnd)
+      const result = await syncSalesForStore(ctx.org, store, chunkStart, chunkEnd, "forecasting/backfill:force")
       const nextCursor = addDaysStr(chunkEnd, 1)
       const done = nextCursor > forceEnd
       const coveredDays = Math.round((dbDate(chunkEnd).getTime() - dbDate(rangeStart).getTime()) / 86400000) + 1
@@ -113,7 +113,7 @@ export async function POST(req: Request) {
   const chunkEnd = chunkEndCandidate < rangeEnd ? chunkEndCandidate : rangeEnd
 
   try {
-    const result = await syncSalesForStore(ctx.org, store, chunkStart, chunkEnd)
+    const result = await syncSalesForStore(ctx.org, store, chunkStart, chunkEnd, "forecasting/backfill:gap-fill")
     const remaining = missing.filter((d) => d < chunkStart || d > chunkEnd).length
     return NextResponse.json({
       done: remaining === 0,

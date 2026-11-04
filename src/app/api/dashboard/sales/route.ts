@@ -224,7 +224,7 @@ export async function GET(req: Request) {
       })
       if (!todayRow) {
         // First-ever load for this store/day: nothing cached — sync inline.
-        await syncSalesForStore(org, store, today, today)
+        await syncSalesForStore(org, store, today, today, "dashboard/sales:today")
       } else if (Date.now() - todayRow.syncedAt.getTime() > STALE_MS) {
         // BUG-1 step 4: stale-but-present refreshes AFTER the response so the
         // chart serves cached data immediately (webhooks + cron stay primary).
@@ -233,7 +233,7 @@ export async function GET(req: Request) {
         after(async () => {
           const tSync = Date.now()
           try {
-            await syncSalesForStore(org, store, today, today)
+            await syncSalesForStore(org, store, today, today, "dashboard/sales:today-bg")
             // BUG-6 evidence line — see the summary route's twin.
             console.log(`[api/dashboard/sales] background refresh ${Date.now() - tSync}ms store=${storeId}`)
           } catch (err) {
@@ -242,8 +242,8 @@ export async function GET(req: Request) {
         })
       }
     }
-    await ensureSalesCached(org, store, start, end)
-    await ensureSalesCached(org, store, compStart, compEnd)
+    await ensureSalesCached(org, store, start, end, "dashboard/sales:selection")
+    await ensureSalesCached(org, store, compStart, compEnd, "dashboard/sales:comparison")
   } catch (err) {
     // Square being down never blanks the card — serve what's cached.
     console.error(`[api/dashboard/sales] sales sync failed (serving cache) store=${storeId}:`, err)

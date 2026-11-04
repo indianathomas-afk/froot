@@ -45,7 +45,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await syncSalesForStore(ctx.org, store, startDate, endDate)
+    const result = await syncSalesForStore(ctx.org, store, startDate, endDate, "square/sales/sync")
     return NextResponse.json(result)
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Sync failed"

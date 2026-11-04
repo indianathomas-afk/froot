@@ -27,7 +27,7 @@ export async function GET(req: Request) {
   if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404 })
 
   try {
-    await ensureSalesCached(ctx.org, store, from, to)
+    await ensureSalesCached(ctx.org, store, from, to, "inventory/reports/item-sales")
   } catch {
     // non-fatal — report renders from whatever is cached
   }

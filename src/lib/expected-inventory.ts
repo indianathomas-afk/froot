@@ -163,7 +163,7 @@ export async function computeExpectedInventory(org: Organization, store: Store):
   const salesEnd = localDateStr(now, tz)
 
   try {
-    if (salesStart <= salesEnd) await ensureSalesCached(org, store, salesStart, salesEnd)
+    if (salesStart <= salesEnd) await ensureSalesCached(org, store, salesStart, salesEnd, "lib/expected-inventory:expected")
   } catch {
     // non-fatal — degraded mode is flagged via missingSalesDays below
   }
@@ -330,7 +330,7 @@ export async function computeWeeklyUsage(org: Organization, store: Store): Promi
   const startDate = new Date(now.getTime() - (USAGE_LOOKBACK_DAYS - 1) * 86_400_000)
   const start = localDateStr(startDate, store.timezone)
   try {
-    await ensureSalesCached(org, store, start, end)
+    await ensureSalesCached(org, store, start, end, "lib/expected-inventory:weekly-usage")
   } catch {
     // degrade to whatever is cached
   }
