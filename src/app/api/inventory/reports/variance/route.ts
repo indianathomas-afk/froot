@@ -51,7 +51,7 @@ export async function GET(req: Request) {
   const periodKey = `${beginCountId}_${endCountId}`
 
   try {
-    if (window.start <= window.end) await ensureSalesCached(ctx.org, store, window.start, window.end)
+    if (window.start <= window.end) await ensureSalesCached(ctx.org, store, window.start, window.end, "inventory/reports/variance")
   } catch {
     // non-fatal — report renders from whatever is cached
   }

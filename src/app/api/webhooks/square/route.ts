@@ -118,7 +118,7 @@ async function processEvent(locationId: string, orderAt: Date, eventAt: Date): P
     })
     if (cached && cached.syncedAt >= eventAt) return
 
-    await syncSalesForStore(store.organization, store, dateStr, dateStr)
+    await syncSalesForStore(store.organization, store, dateStr, dateStr, "webhooks/square")
   } catch (e) {
     const msg = e instanceof Error ? e.message : "processing failed"
     console.error(`[webhooks:square] location=${locationId}: ${msg}`)

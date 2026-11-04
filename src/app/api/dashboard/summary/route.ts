@@ -93,7 +93,7 @@ export async function GET(req: Request) {
       if (!todayRow) {
         // First-ever load for this store/day: nothing cached to serve — sync
         // inline so the card has data.
-        await syncSalesForStore(org, store, today, today)
+        await syncSalesForStore(org, store, today, today, "dashboard/summary:today")
       } else if (Date.now() - todayRow.syncedAt.getTime() > STALE_MS) {
         // BUG-1 step 4: stale-but-present refreshes AFTER the response. The
         // card renders cached numbers immediately instead of hanging on a
@@ -105,7 +105,7 @@ export async function GET(req: Request) {
         after(async () => {
           const tSync = Date.now()
           try {
-            await syncSalesForStore(org, store, today, today)
+            await syncSalesForStore(org, store, today, today, "dashboard/summary:today-bg")
             // BUG-6 evidence line: how long the deferred refresh actually
             // takes, which is what the client's poll window has to cover.
             console.log(`[api/dashboard/summary] background refresh ${Date.now() - tSync}ms store=${storeId}`)
@@ -114,8 +114,8 @@ export async function GET(req: Request) {
           }
         })
       }
-      await ensureSalesCached(org, store, mStart, today)
-      await ensureSalesCached(org, store, comparisonDate, comparisonDate)
+      await ensureSalesCached(org, store, mStart, today, "dashboard/summary:month")
+      await ensureSalesCached(org, store, comparisonDate, comparisonDate, "dashboard/summary:comparison")
     } catch (err) {
       // Square being down never blanks the dashboard — serve what's cached.
       console.error(`[api/dashboard/summary] sales sync failed (serving cache) store=${storeId}:`, err)

@@ -250,12 +250,79 @@ export async function writeSalesCache(
   })
 }
 
+// BUG-20 (measurement, Gary 2026-11-03): one timing line per sync, so a day of
+// production logs can say how much of a dashboard first load is Square and how
+// much is the database. `caller` names the route and the path inside it — e.g.
+// `dashboard/summary:today`, `dashboard/summary:month:gap-fill` — and is
+// REQUIRED so that a new call site cannot sync without saying where it came
+// from (the build fails instead). Logging only: nothing fetched, stored or
+// shown depends on it.
+//
+//   squareMs — the orders search, all pages, wall clock (excludes token refresh)
+//   writeMs  — writeSalesCache, the whole guarded transaction
+//   totalMs  — the whole call, including token refresh and aggregation
+// A sync that throws still logs, with outcome=error and the time spent so far,
+// because a slow Square failure is exactly the case worth seeing.
+function logSyncTiming(t: {
+  caller: string
+  storeId: string
+  startDate: string
+  endDate: string
+  outcome: "ok" | "error"
+  pages: number
+  orders: number
+  squareMs: number | null
+  writeMs: number | null
+  totalMs: number
+  wrote: number | null
+  dates: number | null
+}): void {
+  const ms = (v: number | null) => (v === null ? "-" : String(v))
+  console.log(
+    `[sales-sync] timing caller=${t.caller} store=${t.storeId} window=${t.startDate}..${t.endDate} ` +
+      `outcome=${t.outcome} pages=${t.pages} orders=${t.orders} ` +
+      `squareMs=${ms(t.squareMs)} writeMs=${ms(t.writeMs)} totalMs=${t.totalMs} ` +
+      `wrote=${t.wrote === null ? "-" : `${t.wrote}/${t.dates}`}`
+  )
+}
+
 // startDate/endDate: inclusive yyyy-mm-dd in the store's local calendar.
 export async function syncSalesForStore(
   org: Organization,
   store: Store,
   startDate: string,
-  endDate: string
+  endDate: string,
+  caller: string
+): Promise<SalesSyncResult> {
+  const tStart = Date.now()
+  const timing = {
+    caller,
+    storeId: store.id,
+    startDate,
+    endDate,
+    outcome: "error" as "ok" | "error",
+    pages: 0,
+    orders: 0,
+    squareMs: null as number | null,
+    writeMs: null as number | null,
+    wrote: null as number | null,
+    dates: null as number | null,
+  }
+  try {
+    const result = await syncSalesForStoreTimed(org, store, startDate, endDate, timing)
+    timing.outcome = "ok"
+    return result
+  } finally {
+    logSyncTiming({ ...timing, totalMs: Date.now() - tStart })
+  }
+}
+
+async function syncSalesForStoreTimed(
+  org: Organization,
+  store: Store,
+  startDate: string,
+  endDate: string,
+  timing: { pages: number; orders: number; squareMs: number | null; writeMs: number | null; wrote: number | null; dates: number | null }
 ): Promise<SalesSyncResult> {
   if (!store.squareLocationId) throw new Error("STORE_NOT_LINKED")
 
@@ -287,7 +354,11 @@ export async function syncSalesForStore(
   let cursor: string | undefined
   let orderCount = 0
 
+  let squareMs = 0
   do {
+    // BUG-20: Square time is the request + body read per page, summed — not
+    // the aggregation loop below, which is local CPU.
+    const tPage = Date.now()
     const res = await fetch(`${client.baseUrl}/v2/orders/search`, {
       method: "POST",
       headers: client.headers,
@@ -319,10 +390,15 @@ export async function syncSalesForStore(
 
     if (!res.ok) {
       const text = await res.text()
+      timing.pages += 1
+      timing.squareMs = squareMs + (Date.now() - tPage)
       throw new Error(`SQUARE_SEARCH_ORDERS_FAILED:${res.status}:${text.slice(0, 300)}`)
     }
 
     const data = (await res.json()) as { orders?: SquareOrder[]; cursor?: string }
+    squareMs += Date.now() - tPage
+    timing.pages += 1
+    timing.squareMs = squareMs
     for (const order of data.orders ?? []) {
       if (!order.created_at) continue
       // Count a sale only once it's PAID (has a tender). Skips unpaid open tabs
@@ -377,6 +453,7 @@ export async function syncSalesForStore(
 
       orderCount += 1
     }
+    timing.orders = orderCount
     cursor = data.cursor
   } while (cursor)
 
@@ -387,6 +464,7 @@ export async function syncSalesForStore(
   // BUG-7: the write is guarded — a day whose stored syncedAt is newer than
   // this sync's fetchStartedAt is left alone rather than overwritten, and two
   // concurrent syncs can no longer collide. See writeSalesCache.
+  const tWrite = Date.now()
   const { written, discarded } = await writeSalesCache(
     org,
     store,
@@ -396,6 +474,9 @@ export async function syncSalesForStore(
     byHour,
     byLine
   )
+  timing.writeMs = Date.now() - tWrite
+  timing.wrote = written.length
+  timing.dates = dates.size
 
   if (discarded.length > 0) {
     // Not an error and not a retry case: a newer read of Square already wrote
@@ -430,11 +511,16 @@ export async function getSyncedThrough(storeId: string): Promise<string | null> 
 
 // Ensure the cache covers [startDate, endDate] — syncs only the missing tail
 // (cheap gap-fill used by reports before reading the cache).
+//
+// BUG-20: `caller` names the route and which window (e.g. `dashboard/summary:month`);
+// the sync it triggers logs as `<caller>:gap-fill`, so a fill of missing days is
+// distinguishable in the timing line from a deliberate refresh of today.
 export async function ensureSalesCached(
   org: Organization,
   store: Store,
   startDate: string,
-  endDate: string
+  endDate: string,
+  caller: string
 ): Promise<void> {
   if (!store.squareLocationId || !org.squareAccessToken) return
   const cached = await prisma.salesPeriodCache.findMany({
@@ -445,5 +531,5 @@ export async function ensureSalesCached(
   const missing = eachDateStr(startDate, endDate).filter((d) => !have.has(d))
   if (missing.length === 0) return
   // One contiguous fetch across the missing span keeps Square calls simple.
-  await syncSalesForStore(org, store, missing[0], missing[missing.length - 1])
+  await syncSalesForStore(org, store, missing[0], missing[missing.length - 1], `${caller}:gap-fill`)
 }

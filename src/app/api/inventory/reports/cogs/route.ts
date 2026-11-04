@@ -64,7 +64,7 @@ export async function GET(req: Request) {
     // Gap-fill the sales cache on demand; a failed sync (Square down, not
     // linked) still renders the report with sales = cached-only.
     try {
-      if (window.start <= window.end) await ensureSalesCached(ctx.org, store, window.start, window.end)
+      if (window.start <= window.end) await ensureSalesCached(ctx.org, store, window.start, window.end, "inventory/reports/cogs")
     } catch {
       // non-fatal — report renders from whatever is cached
     }

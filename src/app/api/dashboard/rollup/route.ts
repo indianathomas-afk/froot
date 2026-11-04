@@ -110,9 +110,9 @@ export async function GET(req: Request) {
           select: { syncedAt: true },
         })
         if (!todayRow || Date.now() - todayRow.syncedAt.getTime() > STALE_MS) {
-          await syncSalesForStore(org, store, today, today)
+          await syncSalesForStore(org, store, today, today, "dashboard/rollup:today")
         }
-        await ensureSalesCached(org, store, mStart, today)
+        await ensureSalesCached(org, store, mStart, today, "dashboard/rollup:month")
       } catch {
         // Square being down never blanks the rollup — serve what's cached.
       }
