@@ -46,6 +46,25 @@ precondition, then a staging sync and the expected / variance pages. After
 promotion: the one-time 28-day backfill (R1) — Inventory → Reports, last 28
 days, "Sync sales for this range", once per linked store.
 
+**PRODUCTION ADD-ON RECIPES, 2026-11-04 — added before Gary's push, after the
+PRE-PUSH-CHECK (`4681854`).** Gary's words, recorded exactly:
+
+> "I hadn't imported the BevSpot add-on recipes on 11-03; I only ran the
+> preview. I imported them on production 11-04 (Las Brisas file, 158
+> recipes). Production now shows 127 add-ons with a recipe and 3 on by
+> default with a recipe: Mocha, Acai, Add Vanilla Sweet Cream Swirl
+> (br-sparkling-block-a620qvg4). Square sets on-by-default per drink but
+> Froot keeps one flag per add-on, so those 3 may undercount on drinks where
+> they're optional. Ship N-5b as built. N-5e isn't needed."
+
+So the "**production has 0 add-on recipes linked** … no production number
+moves at promotion" sentence in Blast radius above is spent, kept: at
+promotion, usage changes wherever those 127 add-ons sold. The three
+on-by-default add-ons with a recipe are skipped (R5) and may undercount
+where a drink offers them as optional — filed as N-5f. The open question is
+closed in `docs/prompts/N-5b_MODLINK_AUDIT.md`'s terms: 11-03 was the
+preview.
+
 ## 6d2cb1f — 2026-11-03 — BUG-20: sales-sync timing line (Square vs DB time per call, with caller) — measurement only
 
 **PROMOTED 2026-11-03 in merge `6d2cb1f`** (`6d2cb1fdab2b38aca2915e1358050e848ff265b7`,

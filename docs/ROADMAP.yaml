@@ -18433,6 +18433,27 @@ phases:
       each add-on was sold on, so attributing add-on cost to an item needs a
       design decision (or a parent-variation column). Behind N-5b.
 
+  - id: N-5f
+    track: nutrition
+    size: M
+    status: planned
+    title: "Inventory — use Square's per-drink on-by-default add-on setting"
+    notes: >
+      FILED 2026-11-04 by the docs commit after the N-5b PRE-PUSH-CHECK
+      (4681854), on Gary's instruction: "use Square's per-drink on-by-default
+      setting." His words (DECISIONS 2026-11-04 N-5b, added after the check):
+      "Square sets on-by-default per drink but Froot keeps one flag per
+      add-on, so those 3 may undercount on drinks where they're optional."
+      The 3 are Mocha, Acai, Add Vanilla Sweet Cream Swirl — on by default
+      with a recipe on production br-sparkling-block-a620qvg4 (Gary,
+      2026-11-04). TODAY: N-5b's R5 skips an on-by-default add-on everywhere
+      (src/lib/modifier-usage.ts), because its ingredients are in the drink
+      recipe; on a drink where Square has it optional, a sale of it is not
+      in the drink recipe and goes uncounted. NOT SCOPED, not audited — where
+      Square carries the per-item setting, and what the sync and the
+      SquareModifier model would need to hold it, is the audit's first job.
+      ITEMS_READ is held; no new scope expected. Behind N-5b.
+
   - id: N-6
     track: nutrition
     size: L

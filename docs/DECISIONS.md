@@ -59,6 +59,25 @@ The audit he ruled on is `docs/prompts/N-5b_AUDIT.md`. Its leans on R1b, R2,
 R3, R4, R6 and R7 match his answers above; R1 (backfill size) and S are his
 own.
 
+**Added 2026-11-04, after the N-5b PRE-PUSH-CHECK (`4681854`) and before
+Gary's push (Gary, in chat).** His words, recorded exactly:
+
+> "I hadn't imported the BevSpot add-on recipes on 11-03; I only ran the
+> preview. I imported them on production 11-04 (Las Brisas file, 158
+> recipes). Production now shows 127 add-ons with a recipe and 3 on by
+> default with a recipe: Mocha, Acai, Add Vanilla Sweet Cream Swirl
+> (br-sparkling-block-a620qvg4). Square sets on-by-default per drink but
+> Froot keeps one flag per add-on, so those 3 may undercount on drinks where
+> they're optional. Ship N-5b as built. N-5e isn't needed."
+
+This makes two earlier statements spent, kept: "0 with a recipe … 0 on by
+default with a recipe, so nothing is affected today" (query A, in the R5
+answer above) and the `3ea8112` DEPLOY_LOG line "Gary applied 158" as a
+2026-11-03 event. It answers the open question investigated in
+`docs/prompts/N-5b_MODLINK_AUDIT.md` (that audit's H1 family: the 11-03
+figure was the preview). R5 stands as ruled; the per-drink setting is filed
+as N-5f. N-5e (the add-on import audit) is not to be run.
+
 ## 2026-11-03 — BUG-20: don't build the sales dedupe yet — measure first; comparison-day duplicate filed (Gary)
 
 **RATIFIED BY GARY, 2026-11-03, at the BUG-20 PRE-PUSH-CHECK, as written:**
