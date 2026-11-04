@@ -2,7 +2,27 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-03 — BUG-20: sales-sync timing line (Square vs DB time per call, with caller) — measurement only
+## 6d2cb1f — 2026-11-03 — BUG-20: sales-sync timing line (Square vs DB time per call, with caller) — measurement only
+
+**PROMOTED 2026-11-03 in merge `6d2cb1f`** (`6d2cb1fdab2b38aca2915e1358050e848ff265b7`,
+"Merge branch 'staging'", 2026-11-03 21:41:49 -0800 (Pacific, PST) = 2026-11-04
+05:41:49 UTC), `--no-ff`. First parent `9933ad5` (prior tip of `main`), second
+parent `20e0237` (staging tip). **3 commits** in `6d2cb1f^1..6d2cb1f^2` —
+`5f99682` (timing line), `7c563b8` (docs), `20e0237` (PRE-PUSH-CHECK) — and
+**19 files** (1063 insertions, 26 deletions), read out of `git log` and `git
+diff --shortstat` at this stamp. `main` moved `9933ad5..6d2cb1f`; `staging`
+fast-forwarded to it. Measured by `git rev-parse` after `git fetch` at this
+stamp: `origin/main` = `origin/staging` = `6d2cb1f`. No migration (no `prisma/`
+change in the range). Stamped post-merge 2026-11-03 by the BUG-20 PRE-PUSH-CHECK
+session, on `staging`; the heading previously read "UNPROMOTED — 2026-11-03 —
+BUG-20: …". The "Staging only, NOT pushed at writing" line below is spent, kept.
+BUG-20 stays `planned`: this promoted the measurement, not the dedupe fix.
+
+**Evidence: none observed at this stamp, staging or production.** Owed:
+staging — the staging-SHA precondition, then Vercel logs showing `[sales-sync]
+timing` lines with `caller=dashboard/summary:today` and
+`caller=dashboard/sales:today`; production — a day of timing lines, which is
+what BUG-20's fix decision waits on.
 
 **Staging only, NOT pushed at writing.** Work commit `5f99682`; docs `7c563b8`
 (BUG-20 measurement rider, BUG-21 filed, 9933ad5 stamp, DECISIONS draft, prompt,

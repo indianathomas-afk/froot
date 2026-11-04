@@ -26021,6 +26021,10 @@ bugs:
     # NOT flipped to `staging`: the template's flip would say the bug's fix is
     # on staging, and only the measurement is. DECISIONS BUG-20 ratified there
     # ("Ratify as written"); the "DRAFT" in the notes below is spent, kept.
+    # 5f99682 + 7c563b8 + 20e0237 PROMOTED 2026-11-03 in merge 6d2cb1f
+    # (DEPLOY_LOG entry `6d2cb1f — 2026-11-03 — BUG-20`), stamped post-merge on
+    # `staging`. Status still `planned`: the measurement shipped, the fix did
+    # not. Any "NOT pushed" comment above is spent, kept.
     status: planned
     title: >
       Dashboard summary and sales each run syncSalesForStore for the same
@@ -26130,6 +26134,14 @@ bugs:
       5f99682 commit message, is a miscount. The "15 fail / 7 pass" split
       against the pre-BUG-20 file sums to 22 and was never re-run at this
       check — treat it as unverified.
+      MEASUREMENT PROMOTED 2026-11-03 in merge 6d2cb1f (rider, post-merge
+      stamp): --no-ff, 2026-11-03 21:41:49 PST = 2026-11-04 05:41:49 UTC, main
+      9933ad5..6d2cb1f, 3 commits (5f99682, 7c563b8, 20e0237) / 19 files,
+      staging fast-forwarded; no migration. The timing line is now live in
+      production; the dedupe fix is not built. EVIDENCE: none observed at
+      this stamp. Owed: staging timing lines (after the staging-SHA
+      precondition), then a day of production timings — the input the fix
+      decision waits on.
 
   - id: BUG-21
     status: planned
