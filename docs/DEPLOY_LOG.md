@@ -2,6 +2,38 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-03 — BUG-19: labor / schedule refresh claim no longer prints a prisma:error on every dashboard load
+
+**Staging only, NOT pushed at writing.** Work commit `4ac82d0`; docs `b459ffb`
+(745a1ee stamp, BUG-19 / BUG-20 rows, DECISIONS draft); PRE-PUSH-CHECK docs
+commit immediately after `b459ffb` (this entry, BUG-19 → `staging`, DECISIONS
+ratified). TIER 3 (row writes on the Square sync path), **no migration**, no
+env var, no schema. Ruling: DECISIONS 2026-11-03 BUG-19, ratified by Gary at
+this check ("Ratify as written").
+
+**What changed.** `claimSync` / `claimScheduleSync` in
+`src/lib/labor-dashboard.ts`: the `create()` + bare `catch` fallback behind the
+conditional `updateMany` claim is now `createMany({ skipDuplicates: true })`
+read by count (`claimScheduleSlot`'s shape). The fallback ran on every load
+inside the cooldown, and a caught P2002 still logged under `log: ["error"]` —
+hence the "Unique constraint failed on the fields: (`storeId`)" pairs for
+`squareLaborSyncState` / `squareScheduleSyncState` from `/api/dashboard/summary`
+and `/api/dashboard/sales`. Single-flight, cooldowns (15 / 30 min), Square
+fetches, writes and what the dashboard shows are unchanged. A genuine DB error
+now reaches the per-store catch instead of reading as "lost the claim".
+
+**Blast radius.** Two functions on the dashboard's labor / schedule refresh
+path. Rollback: revert `4ac82d0`; the only effect of reverting is the log noise
+returning.
+
+**Evidence so far: dev and build only.** `scripts/verify-syncstate.ts` on dev
+(`br-broad-wave-a6vpjdw0`): 19 passed, 0 failed at the work commit, and 18 / 1
+against the OLD file (only Z1, the no-prisma:error check, failing). Re-run at
+this check as part of Step 3. `npm run build` green. **Nothing observed on any
+deployment.** Owed after Gary's push: the staging-SHA precondition, then the
+dashboard on two stores with Vercel runtime logs showing no "Unique constraint
+failed" line. BUG-20 (the sales double-fetch) is filed, not fixed.
+
 ## 745a1ee — 2026-11-03 — REGION-1: Vercel functions run in pdx1, next to Neon us-west-2
 
 **PROMOTED 2026-11-03 in merge `745a1ee`** (`745a1ee7ff512be61c694f569e39170583c29155`,

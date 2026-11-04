@@ -25947,7 +25947,11 @@ bugs:
     # -> in_progress 2026-11-03 at the work commit 4ac82d0 (NOT pushed). The
     # docs SHA is the commit immediately after 4ac82d0 (its own SHA cannot be
     # written inside itself).
-    status: in_progress
+    # -> staging 2026-11-03 at the STAMP-745a1ee-SYNCSTATE PRE-PUSH-CHECK (the
+    # commit immediately after b459ffb), for Gary's push of 4ac82d0 + b459ffb
+    # + it. DECISIONS BUG-19 ratified there ("Ratify as written"); the "DRAFT
+    # until PRE-PUSH-CHECK" in the notes below is spent, kept.
+    status: staging
     title: >
       Dashboard labor / schedule refresh claim printed a "Unique constraint
       failed on (storeId)" prisma:error on nearly every load
@@ -25957,6 +25961,10 @@ bugs:
       # skipDuplicates read by count; fixture verify-syncstate.ts, 2026-11-03
       # + the commit immediately after 4ac82d0: docs(STAMP-745a1ee-SYNCSTATE)
       # — this row, BUG-20, the 745a1ee stamp, DECISIONS draft, prompt, audit
+      - "b459ffb"
+      # docs(STAMP-745a1ee-SYNCSTATE) — the commit named above
+      # + the commit immediately after b459ffb: docs(PRE-PUSH-CHECK) — status
+      # staging, DECISIONS ratified, DEPLOY_LOG UNPROMOTED entry
     notes: >
       BUILT 2026-11-03 on staging, NOT pushed. TIER 3 (row writes on the
       Square sync path; up from the prompt's TIER 2), no migration. Prompt of
