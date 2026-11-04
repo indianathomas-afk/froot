@@ -26016,6 +26016,11 @@ bugs:
     # ("Keep BUG-20 open as planned … we'll decide the fix after a day of
     # production timings"). The session was re-scoped to MEASUREMENT; the
     # commit below is that timing line, not the fix.
+    # Still `planned` at the BUG-20 PRE-PUSH-CHECK 2026-11-03 (the commit
+    # immediately after 7c563b8), for Gary's push of 5f99682 + 7c563b8 + it.
+    # NOT flipped to `staging`: the template's flip would say the bug's fix is
+    # on staging, and only the measurement is. DECISIONS BUG-20 ratified there
+    # ("Ratify as written"); the "DRAFT" in the notes below is spent, kept.
     status: planned
     title: >
       Dashboard summary and sales each run syncSalesForStore for the same
@@ -26026,6 +26031,10 @@ bugs:
       # with caller (MEASUREMENT ONLY, not the fix). NOT pushed at writing.
       # + the commit immediately after 5f99682: docs(BUG-20) — this rider,
       # BUG-21, the 9933ad5 stamp, DECISIONS draft, prompt, audit
+      - "7c563b8"
+      # docs(BUG-20) — the commit named above
+      # + the commit immediately after 7c563b8: docs(PRE-PUSH-CHECK) — DECISIONS
+      # ratified, DEPLOY_LOG UNPROMOTED entry, this row's SHAs
     notes: >
       FILED 2026-11-03 by STAMP-745a1ee-SYNCSTATE, from its audit's § E
       (docs/prompts/SYNCSTATE_AUDIT.md). PLANNED, NOT BUILT — Gary declined
@@ -26113,6 +26122,14 @@ bugs:
       with Vercel logs showing `[sales-sync] timing` lines carrying
       caller=dashboard/summary:today and dashboard/sales:today. A comparison-day
       duplicate the audit also found is filed separately as BUG-21.
+      ── CORRECTED 2026-11-03 at the BUG-20 PRE-PUSH-CHECK (Gary: "append the
+      dated correction … leaving the original text in place"). APPENDED; THE
+      TEXT ABOVE IS UNEDITED. ── scripts/verify-bug20.ts has 21 checks, not
+      22; re-run at this check on dev: 21 passed, 0 failed, exit 0 ("BUG-20:
+      all timing-line checks passed."). The "22 passed" above, and in the
+      5f99682 commit message, is a miscount. The "15 fail / 7 pass" split
+      against the pre-BUG-20 file sums to 22 and was never re-run at this
+      check — treat it as unverified.
 
   - id: BUG-21
     status: planned

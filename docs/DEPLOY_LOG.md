@@ -2,6 +2,49 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-03 — BUG-20: sales-sync timing line (Square vs DB time per call, with caller) — measurement only
+
+**Staging only, NOT pushed at writing.** Work commit `5f99682`; docs `7c563b8`
+(BUG-20 measurement rider, BUG-21 filed, 9933ad5 stamp, DECISIONS draft, prompt,
+audit); PRE-PUSH-CHECK docs commit immediately after `7c563b8` (this entry,
+BUG-20 row SHAs, DECISIONS ratified). TIER 3 session, **no migration**, no env
+var, no schema. Ruling: DECISIONS 2026-11-03 BUG-20, ratified by Gary at this
+check ("Ratify as written").
+
+**What changed.** `src/lib/sales-sync.ts`: one log line per
+`syncSalesForStore` call — `[sales-sync] timing caller= store= window= outcome=
+pages= orders= squareMs= writeMs= totalMs= wrote=`. `squareMs` is the
+orders-search request plus body read, summed over pages (token refresh
+excluded; `totalMs` includes it). `writeMs` is the guarded `writeSalesCache`
+transaction. A throwing sync still logs (`outcome=error`, `writeMs=-`). `caller`
+is a REQUIRED argument on `syncSalesForStore` and `ensureSalesCached`; the
+fill-missing-days path logs as `<caller>:gap-fill`. **21 call sites in 12
+caller files** labelled (counted by grep at this check; the work commit's
+message says "20 … across 13 files", a miscount the BUG-20 row already notes).
+**Nothing fetched, stored, returned or shown changed**; the existing "discarded
+… superseded" line is unchanged. BUG-20 itself stays `planned` — this is not
+the dedupe fix.
+
+**Blast radius.** Log output on every sales-sync path (dashboard summary /
+sales / rollup, Square order webhook, sales-reconcile cron, manual sync,
+forecasting backfill, four inventory reports, expected inventory) plus a
+signature change those 12 files absorb. One extra Vercel log line per sync
+call. Rollback: revert `5f99682`; the only effect is the timing line going
+away.
+
+**Evidence so far: dev and build only.** `scripts/verify-bug20.ts` (Square
+stubbed and counted, dev DB): **21 passed, 0 failed, re-run at this check**
+(exit 0; "BUG-20: all timing-line checks passed."). The fixture has 21 checks;
+the work commit and the BUG-20 row record "22 passed" and "15 fail / 7 pass"
+against the pre-BUG-20 `sales-sync.ts` — 22 is a miscount, and the 15 / 7
+split was not re-run here.
+**Nothing observed on any deployment.** Owed after Gary's push: the
+staging-SHA precondition, then the dashboard with Vercel runtime logs showing
+`[sales-sync] timing` lines with `caller=dashboard/summary:today` and
+`caller=dashboard/sales:today`. Then a day of production timings, which is
+what BUG-20's fix decision waits on. Staging's order-webhook subscription:
+unknown (Gary). BUG-21 (comparison-day duplicate) is filed, not fixed.
+
 ## 9933ad5 — 2026-11-03 — BUG-19: labor / schedule refresh claim no longer prints a prisma:error on every dashboard load
 
 **PROMOTED 2026-11-03 in merge `9933ad5`** (`9933ad596c5f89c1a98fa357f2d03ae2b10405c4`,

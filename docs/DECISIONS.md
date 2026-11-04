@@ -5,7 +5,12 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-03 — BUG-20: don't build the sales dedupe yet — measure first; comparison-day duplicate filed (Gary) — DRAFT
+## 2026-11-03 — BUG-20: don't build the sales dedupe yet — measure first; comparison-day duplicate filed (Gary)
+
+**RATIFIED BY GARY, 2026-11-03, at the BUG-20 PRE-PUSH-CHECK, as written:**
+"Ratify as written". The entry he ratified includes the implementation
+choices listed below as Claude's (the question he answered said so). The "DRAFT" paragraph below is spent, kept; the
+heading's "— DRAFT" suffix was removed at this check.
 
 **DRAFT — ruled by Gary in chat 2026-11-03 at the BUG-20 Phase 1 STOP; to be
 ratified at PRE-PUSH-CHECK.** His words, recorded exactly:
