@@ -158,28 +158,44 @@ async function resolveLaborTargets(organizationId: string, storeIds: string[]): 
 /// ONE STATEMENT, NEVER CHECK-THEN-ACT — BUG-7's shape. The conditional
 /// updateMany takes the row lock and re-evaluates against the COMMITTED value, so
 /// two concurrent dashboard loads cannot both win: the loser sees count 0. The
-/// create() branch covers a store that has never synced at all, where there is no
-/// row to update; its unique violation on storeId is the same race resolved the
-/// same way, by losing quietly.
+/// insert branch covers a store that has never synced at all, where there is no
+/// row to update; two first loads racing on it are resolved by the unique
+/// storeId, and the loser's insert affects 0 rows.
+///
+/// INSERT ... ON CONFLICT DO NOTHING, READ BY COUNT — NOT create() + catch P2002
+/// (SYNCSTATE, 2026-11-03). That branch used to be a create() inside a bare
+/// catch. It was reached on EVERY load inside the cooldown, not only on the
+/// first-ever race — the row exists, the updateMany WHERE is false, so the code
+/// fell through to create() — and a caught P2002 still prints a prisma:error
+/// line (log: ["error"], src/lib/prisma.ts). Hence a "Unique constraint failed"
+/// pair in the Vercel logs on nearly every dashboard load, for an outcome that
+/// was correct. claimScheduleSlot (src/lib/notifications/schedule.ts) is the
+/// precedent and gives the same reason. Side effect, deliberately kept: a
+/// genuine DB error now throws into the caller's per-store catch instead of
+/// being swallowed as "lost the claim".
 ///
 /// A FAILED SYNC STILL HOLDS THE CLAIM. lastSyncStartedAt is stamped before the
 /// fetch and is not rolled back on error, so a store whose Square calls are
 /// failing retries once per cooldown rather than on every dashboard load. That is
 /// the difference between a degraded store and a sync storm (DEBT-69).
-async function claimSync(organizationId: string, storeId: string, now: Date): Promise<boolean> {
+///
+/// Exported for scripts/verify-syncstate.ts, so the fixture runs this SQL and not
+/// a copy of it (sales-sync.ts's precedent). The dashboard routes call it only
+/// through scheduleLaborRefresh.
+export async function claimSync(organizationId: string, storeId: string, now: Date): Promise<boolean> {
   const cutoff = new Date(now.getTime() - SYNC_COOLDOWN_MS)
   const claimed = await prisma.squareLaborSyncState.updateMany({
     where: { storeId, OR: [{ lastSyncStartedAt: null }, { lastSyncStartedAt: { lt: cutoff } }] },
     data: { lastSyncStartedAt: now },
   })
   if (claimed.count > 0) return true
-  try {
-    await prisma.squareLaborSyncState.create({ data: { organizationId, storeId, lastSyncStartedAt: now } })
-    return true
-  } catch {
-    // The row exists and is inside its cooldown — another load owns this window.
-    return false
-  }
+  // count 0 = the row exists and is inside its cooldown (another load owns this
+  // window), or a concurrent first load inserted it a moment ago.
+  const { count } = await prisma.squareLaborSyncState.createMany({
+    data: [{ organizationId, storeId, lastSyncStartedAt: now }],
+    skipDuplicates: true,
+  })
+  return count === 1
 }
 
 /// Refreshes TODAY ONLY, after the response, for at most MAX_SYNCS_PER_LOAD
@@ -253,27 +269,32 @@ const MAX_SCHEDULE_SYNCS_PER_LOAD = 2
 /// The debounce, as a DATABASE CLAIM rather than a timer — claimSync's shape
 /// against SquareScheduleSyncState. One conditional statement, never
 /// check-then-act: the updateMany takes the row lock and re-evaluates against
-/// the COMMITTED value, so two concurrent loads cannot both win. The create()
-/// branch covers a store that has never synced; its unique violation on storeId
-/// is the same race resolved the same way, by losing quietly.
+/// the COMMITTED value, so two concurrent loads cannot both win. The insert
+/// branch covers a store that has never synced; two first loads racing on it
+/// are resolved by the unique storeId, and the loser's insert affects 0 rows.
+///
+/// ON CONFLICT DO NOTHING, READ BY COUNT — not create() + catch P2002, for
+/// exactly claimSync's reason (SYNCSTATE, 2026-11-03): the old create() was
+/// reached on every load inside the cooldown and printed a prisma:error each
+/// time for a correct outcome.
 ///
 /// A FAILED SYNC STILL HOLDS THE CLAIM — lastSyncStartedAt is stamped before the
 /// fetch and is not rolled back on error, so a failing store retries once per
 /// cooldown instead of on every load. Degraded store, not sync storm (DEBT-69).
-async function claimScheduleSync(organizationId: string, storeId: string, now: Date): Promise<boolean> {
+///
+/// Exported for scripts/verify-syncstate.ts only, as claimSync is.
+export async function claimScheduleSync(organizationId: string, storeId: string, now: Date): Promise<boolean> {
   const cutoff = new Date(now.getTime() - SCHEDULE_SYNC_COOLDOWN_MS)
   const claimed = await prisma.squareScheduleSyncState.updateMany({
     where: { storeId, OR: [{ lastSyncStartedAt: null }, { lastSyncStartedAt: { lt: cutoff } }] },
     data: { lastSyncStartedAt: now },
   })
   if (claimed.count > 0) return true
-  try {
-    await prisma.squareScheduleSyncState.create({ data: { organizationId, storeId, lastSyncStartedAt: now } })
-    return true
-  } catch {
-    // The row exists and is inside its cooldown — another load owns this window.
-    return false
-  }
+  const { count } = await prisma.squareScheduleSyncState.createMany({
+    data: [{ organizationId, storeId, lastSyncStartedAt: now }],
+    skipDuplicates: true,
+  })
+  return count === 1
 }
 
 /// Refreshes the CARD HORIZON — three days back, four weeks forward — after the
