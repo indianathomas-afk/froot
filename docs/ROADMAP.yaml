@@ -18327,10 +18327,21 @@ phases:
     # planned -> in_progress 2026-11-04 at the work commit 835a847 (NOT
     # pushed). The docs SHA is the commit immediately after 835a847 (its own
     # SHA cannot be written inside itself).
-    status: in_progress
+    # in_progress -> staging 2026-11-04 at the N-5b PRE-PUSH-CHECK (the commit
+    # immediately after 1bc285e). Gary had already pushed 835a847 + 1bc285e
+    # (origin/staging = 1bc285e, 2026-11-04 11:19:42 PST = 19:19:42 UTC), so
+    # the "NOT pushed" / "NOT PUSHED" claims here and in the notes are spent,
+    # kept. DECISIONS N-5b ratified there ("Ratify as written"); the "DRAFT
+    # until PRE-PUSH-CHECK" in the notes below is spent, kept.
+    status: staging
     commits:
       # feat(N-5b): work commit — migration, sync, helper, consumers, fixture
       - "835a847"
+      # docs(N-5b): row, DECISIONS draft, DEPLOY_LOG UNPROMOTED, MIGRATIONS,
+      # BUG-22 / N-5c / N-5d, prompt + audit
+      - "1bc285e"
+      # + the commit immediately after 1bc285e: docs(PRE-PUSH-CHECK) —
+      # DECISIONS ratified, this row's docs SHA and status flip
     title: "Inventory — count Square order modifiers in theoretical usage"
     notes: >
       BUILT 2026-11-04, TIER 3, NOT PUSHED. Prompt of record:

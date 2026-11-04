@@ -5,7 +5,11 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-04 — N-5b: add-on (modifier) usage counted forward + 28-day backfill; refunds a gap; BUG-22 filed — DRAFT (Gary)
+## 2026-11-04 — N-5b: add-on (modifier) usage counted forward + 28-day backfill; refunds a gap; BUG-22 filed (Gary)
+
+**RATIFIED BY GARY, 2026-11-04, at the N-5b PRE-PUSH-CHECK, as written:**
+"Ratify as written". The "DRAFT" paragraph below is spent, kept; the
+heading's "— DRAFT" suffix was removed at this check.
 
 **DRAFT — ruled by Gary in chat 2026-11-04 at the N-5b audit STOP; to be
 ratified at PRE-PUSH-CHECK.** His words, recorded exactly:
