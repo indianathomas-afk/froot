@@ -2,6 +2,61 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-05 — DEBT-125: baseline squash of prisma/migrations into `0_init` (closes BUG-25)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit `1c85892`
+plus this docs commit, both on local `staging`. TIER 3: this touches the
+migration ledger of every branch. **DO NOT PUSH `1c85892` UNTIL STAGING
+CARRIES THE `0_init` INSERT** (MIGRATIONS.md § 2a). The push runs `vercel-build`
+→ `prisma migrate deploy`, and on an unmarked branch that tries to run
+`0_init` and fails "already exists". No data is lost, but every later deploy
+is blocked (P3009) until the recovery below.
+
+**What ships.** 86 migration folders moved by `git mv` to
+`prisma/migrations_archive/` (R1). `prisma/migrations/0_init/migration.sql`:
+the generated schema (130 tables) plus the 8 hand-written objects (R3), with
+sha256 `0e7d39aa0030e9c7adf485a92e7adc3f5038580a521b2ef707b9b6a752e4c717`. 8
+`verify-*` fixtures and 3 `src/lib` comments re-pointed to the archive. New
+pure fixture `scripts/verify-debt125.ts`. **No schema change to any
+database**: `0_init` never runs on dev, staging or production. They are only
+marked.
+
+**Already done in the console (Gary, 2026-11-05, before the build):**
+- Staging `br-square-feather-a63z92vz` got `receivedAt TIMESTAMP(3)` on
+  `PurchaseOrder` and `PurchaseOrderLine` (`ADD COLUMN IF NOT EXISTS`;
+  DEBT-125 R4). Dev and production already had them.
+- Full-column fingerprint afterwards, the same on all three branches: 1356
+  columns, `6b6bdfe6cbc90ee531e105bbd0ad0343`.
+
+**Still owed (Gary).** Phase 3 rehearsal (A: fresh deploy to an empty
+`squash_test` database plus an empty diff; B: a `squash-rehearsal` branch
+from dev, INSERT, deploy with nothing to apply), then PRE-PUSH-CHECK, then
+cutover:
+1. **Staging:** INSERT on `br-square-feather` → read-only query confirms the
+   row → push → build log shows `migrate deploy` with no pending migrations →
+   smoke test.
+2. **Production:** INSERT on `br-sparkling-block` → confirm → `--no-ff`
+   promotion → build log.
+3. **Dev:** INSERT on `br-broad-wave`. Dev must be marked before ANY local
+   `migrate deploy` from a checkout that contains `1c85892`.
+
+The INSERT is in MIGRATIONS.md § 2a, with its checksum filled in and no
+branch literal.
+
+**Recovery if a push lands before its INSERT (F3, console; never a local
+`migrate resolve`).** On that branch, in the Neon SQL Editor:
+
+```sql
+UPDATE "_prisma_migrations" SET rolled_back_at = now()
+WHERE migration_name = '0_init' AND finished_at IS NULL AND rolled_back_at IS NULL
+RETURNING current_setting('neon.branch_id', true) AS neon_branch_id,
+          id, migration_name, rolled_back_at;
+```
+
+The UPDATE should return exactly one row. Zero rows means there was no failed
+`0_init` row to clear. Then run the § 2a INSERT, then redeploy (Vercel →
+Redeploy).
+
 ## f24b18e — 2026-11-04 — BUG-23: template Delete on a template with history is a 409 + Archive, not a 500
 
 **PROMOTED 2026-11-04 in merge `f24b18e`** ("Merge branch 'staging'"). First

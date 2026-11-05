@@ -43,22 +43,35 @@ SHADOW_DATABASE_URL="<shadow branch connection string>"
 (Production/staging URLs live only in Vercel env vars, where they already are.)
 
 ## 2. One-time baseline (squash history into one init migration)
+
+> ✅ **DONE 2026-11-05 by DEBT-125 (closes BUG-25). Built in work commit
+> `1c85892`. Branches are marked at cutover; see § 2a "After the squash" for
+> what was built and how each branch is marked.** This section is kept as the
+> plan it was. Where it differs from what was done, § 2a wins, and the
+> differences are marked inline below (F4 of the DEBT-125 audit):
+> - The old folders were **archived** with `git mv` into
+>   `prisma/migrations_archive/` (R1), not `rm -rf`'d.
+> - The flag is `--to-schema`. `--to-schema-datamodel` is not a Prisma 7.8 flag.
+> - The ledger is **not** reset: Gary's F1 ruling keeps the 86 old rows on
+>   every branch.
+> - Marking is a Neon-console INSERT (R2), not a local `migrate resolve`.
+
 Existing DBs already have every table, but the migrations folder doesn't reflect
 that. Rebuild it as a single migration, then tell each DB "you already have this."
 
 ```bash
 cd ~/Claude_Projects/Froot/froot
-rm -rf prisma/migrations/2026*            # old migrations stay in git history
+rm -rf prisma/migrations/2026*            # SUPERSEDED (R1): DEBT-125 used git mv into prisma/migrations_archive/
 mkdir -p prisma/migrations/0_init
 npx prisma migrate diff --from-empty \
-  --to-schema-datamodel prisma/schema.prisma \
+  --to-schema prisma/schema.prisma \
   --script > prisma/migrations/0_init/migration.sql
 ```
 
 > ⚠️ **After regenerating `0_init`, re-append every object in the "Protected
-> indexes" table by hand — seven at time of writing (three partial indexes and
-> four CHECK constraints) — or the baseline is wrong.** `--to-schema-datamodel`
-> generates from the schema, which cannot express any of them. **Count them out
+> indexes" table by hand — eight when DEBT-125 counted them, 2026-11-05 (three
+> partial indexes and five CHECK constraints) — or the baseline is wrong.**
+> `--to-schema` generates from the schema, which cannot express any of them. **Count them out
 > of that table, not out of this sentence**, which said "both" from when there
 > were two until DOC-3 made it five (2026-08-24), and "five" until L-4a found
 > NOTIFY-12's CHECK missing and added its own (2026-10-30).
@@ -71,7 +84,8 @@ npx prisma migrate diff --from-empty \
 > `preview/staging` and `production` all have `Task.estimatedTimeMinutes` as
 > `double precision`; `prisma/schema.prisma:311` says `Float?`; and the only
 > migration that ever creates the column,
-> `prisma/migrations/20260627002005_init/migration.sql:132`, says **`INTEGER`**.
+> `prisma/migrations_archive/20260627002005_init/migration.sql:132` (archived by
+> DEBT-125), says **`INTEGER`**.
 > No migration alters it afterwards. The schema and the live databases agree
 > with each other and **the LEDGER is the one that is wrong** — whatever changed
 > the type reached production. Consistent with a `db push` from before that
@@ -79,7 +93,7 @@ npx prisma migrate diff --from-empty \
 > migration altering the type would refute it. None exists.
 >
 > Why it belongs on THIS step specifically, and it is the same shape as Hazard 1
-> below: `--to-schema-datamodel` generates from `schema.prisma`, so the
+> below: `--to-schema` generates from `schema.prisma`, so the
 > regenerated `0_init` will say `DOUBLE PRECISION` — matching the live databases
 > and **erasing the evidence that the ledger ever disagreed**. The squash is
 > simultaneously the operation that would have surfaced this and the operation
@@ -90,27 +104,96 @@ npx prisma migrate diff --from-empty \
 > instance rather than the only one — anything else from the same `db push` era
 > would have exactly the same signature. Every environment is fine today only
 > because none of them was built from these migrations.
+>
+> **Done by DEBT-125, 2026-11-05.** Before the build, a full-column fingerprint
+> (name, type, precision, nullability, default) of every `public` column was
+> compared across all three branches. It found one real difference: staging
+> lacked `receivedAt` on `PurchaseOrder` and `PurchaseOrderLine`. Gary added
+> both by console ALTER (DEBT-125 R4). After that all three matched: 1356
+> columns, which is `0_init`'s 1,348 plus `_prisma_migrations`' 8.
+> `estimatedTimeMinutes` is `DOUBLE PRECISION` in `0_init`, matching the live
+> branches.
 
-Reset migration bookkeeping on EACH existing DB (prod, staging, dev).
-In the Neon SQL editor per branch (touches only Prisma's ledger table, no data):
+**SUPERSEDED by DEBT-125 (F1, R2).** The ledger reset (`DELETE FROM
+"_prisma_migrations"`), the three local `migrate resolve --applied 0_init`
+commands, and the "commit and ship" block that followed them were NOT done.
+They are removed here so nobody runs them. The old rows stay, and marking is
+the console INSERT in § 2a.
+
+## 2a. After the squash (DEBT-125, 2026-11-05)
+
+**What is in the repo now (work commit `1c85892`):**
+- `prisma/migrations/` holds `0_init/` and `migration_lock.toml`, nothing else.
+  New migrations go here, next to `0_init`.
+- `prisma/migrations_archive/` holds the 86 old folders (`20260627002005_init`
+  … `20261104020000_tpl3_task_retired_at`), unchanged, with a README. **History
+  only. Never move a folder back:** its SQL would run again on top of `0_init`.
+  Prisma never reads the archive. The `verify-*` fixtures read it as text.
+- `0_init/migration.sql`:
+  - **PART 1** is the unedited `migrate diff --from-empty --to-schema` output:
+    130 tables, all 20 BUG-25 tables included.
+  - **PART 2** is the 8 § Protected-indexes objects, hand-written, each copied
+    verbatim from its archived migration and commented with it (R3).
+  - **sha256 `0e7d39aa0030e9c7adf485a92e7adc3f5038580a521b2ef707b9b6a752e4c717`.**
+    This is the checksum every branch is marked with, so **`0_init` is never
+    edited again**. `scripts/verify-debt125.ts` pins it.
+
+**The ledger.** Every branch keeps its 86 old rows (Gary, F1).
+`migrate deploy` ignores rows whose folders are gone. `migrate status` lists
+them as divergence, and `migrate dev` would offer a reset, which is why
+`migrate dev` is never run (§ 3). A branch is "on the squash" once it also has
+one `0_init` row, written by this console INSERT (R2). Run it on each branch
+in the Neon SQL Editor, picking the branch in the dropdown; there is no branch
+literal (CLAUDE.md R4):
+
 ```sql
-DELETE FROM "_prisma_migrations";
+INSERT INTO "_prisma_migrations"
+  (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
+SELECT gen_random_uuid()::text,
+       '0e7d39aa0030e9c7adf485a92e7adc3f5038580a521b2ef707b9b6a752e4c717',
+       now(), '0_init', NULL, NULL, now(), 1
+WHERE NOT EXISTS (SELECT 1 FROM "_prisma_migrations"
+                  WHERE migration_name = '0_init' AND rolled_back_at IS NULL)
+RETURNING current_setting('neon.branch_id', true) AS neon_branch_id,
+          id, migration_name, checksum, finished_at;
 ```
 
-Then mark the baseline as already-applied on each (per branch URL):
-```bash
-DATABASE_URL="<prod-url>"    npx prisma migrate resolve --applied 0_init
-DATABASE_URL="<staging-url>" npx prisma migrate resolve --applied 0_init
-DATABASE_URL="<dev-url>"     npx prisma migrate resolve --applied 0_init
+The INSERT returns one row the first time and zero rows if the branch is
+already marked. `applied_steps_count = 1, logs = NULL` is the shape every
+deploy-applied row on all three branches has (§ 7 `row_shapes`).
+
+**ORDER IS EVERYTHING: a branch's INSERT runs BEFORE that branch's database
+sees the squash.** On an unmarked branch, `migrate deploy` tries to run
+`0_init`. That fails with "already exists" and leaves a failed `0_init` row,
+which blocks every later deploy (P3009). No data is touched. **Recovery (F3,
+console, not `migrate resolve`):**
+
+```sql
+UPDATE "_prisma_migrations" SET rolled_back_at = now()
+WHERE migration_name = '0_init' AND finished_at IS NULL AND rolled_back_at IS NULL
+RETURNING current_setting('neon.branch_id', true) AS neon_branch_id,
+          id, migration_name, rolled_back_at;
 ```
 
-Commit and ship:
-```bash
-git add prisma/migrations && git commit -m "Baseline migrations (squash to 0_init)"
-git push origin staging
-# verify the Vercel staging build passes (migrate deploy should say 'No pending migrations')
-# then merge staging → main
-```
+Then run the INSERT, then redeploy.
+
+**Where `0_init` reaches a database, and so what must be marked first:**
+- **staging and production:** the Vercel build (`vercel-build` runs `prisma
+  migrate deploy`) on the push or promotion that carries `1c85892`.
+- **dev:** ANY local `npx prisma migrate deploy` from a checkout that
+  contains `1c85892`, including CLAUDE.md's step 3 for the next schema
+  change. Dev was due last in the DEBT-125 prompt's cutover. Until dev is
+  marked, nobody runs `migrate deploy` against dev from this checkout.
+- **Local commands that set a URL must set `DATABASE_URL_UNPOOLED`, not
+  `DATABASE_URL`.** `prisma.config.ts` connects with `DATABASE_URL_UNPOOLED`
+  first, and `.env` sets it to dev. dotenv never overrides a variable already
+  set on the command line, so `DATABASE_URL_UNPOOLED="<url>" npx prisma …`
+  reaches `<url>`. But `DATABASE_URL="<url>" npx prisma …` silently reaches
+  **dev**. Confirm the `Datasource "db"` line names the intended database
+  every time.
+
+**Per-branch status:** see the ledger entry "2026-11-05 — `0_init`" at the end
+of this file.
 
 ## 3. The new normal (every schema change)
 
@@ -126,10 +209,14 @@ git push origin staging
 > pooled `DATABASE_URL` (`src/lib/prisma.ts`). Proof on deploy: the build log's
 > `Datasource "db"` line must show a host **without** `-pooler`.
 
-> `prisma migrate dev` is currently broken here: the baseline squash (step 2)
-> was never done, so shadow-DB replay of the old migration history fails with
-> P3018 (and `.env` has no `SHADOW_DATABASE_URL`). Until the baseline lands,
-> hand-author migrations instead:
+> **`prisma migrate dev` is never run, by anyone (Gary, DEBT-125 F1,
+> 2026-11-05).** The squash replaced the history it couldn't replay, but every
+> branch keeps its 86 archived-name ledger rows. `migrate dev` reads those as
+> "applied to the database but missing from the migrations directory" and
+> offers to RESET the database. `.env` also has no `SHADOW_DATABASE_URL`.
+> Migrations are hand-authored with the flow below. (This note used to say
+> "currently broken … until the baseline lands". It was corrected by
+> DEBT-125, F4.)
 
 ```bash
 # 1. edit prisma/schema.prisma
@@ -137,9 +224,12 @@ git push origin staging
 #    (timestamp format YYYYMMDDHHMMSS):
 npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma \
   --script -o prisma/migrations/<timestamp>_<name>/migration.sql
-# 3. review the SQL, apply it, and record it in the migrations ledger:
-npx prisma db execute --file prisma/migrations/<timestamp>_<name>/migration.sql
-npx prisma migrate resolve --applied <timestamp>_<name>
+# 3. GARY applies it to dev (CLAUDE.md § Database, ruled 2026-10-16):
+#    `env | grep -c DATABASE_URL` must print 0, then:
+npx prisma migrate deploy      # Datasource host must be the dev endpoint
+#    (Corrected by DEBT-125 F4: this step used to be `db execute` + `migrate
+#    resolve`, which CLAUDE.md now forbids except as a workaround Gary
+#    approves case by case.)
 # 4. regenerate the client:
 npx prisma generate
 # 5. commit the migration folder WITH the code that uses it
@@ -147,12 +237,14 @@ npx prisma generate
 # 7. test on staging → merge to main → same SQL runs on prod
 ```
 
-Once the baseline squash is done and `SHADOW_DATABASE_URL` is set, steps 2–4
-collapse back to `npx prisma migrate dev --name <name>`.
+This flow is permanent. The old line here said that after the squash steps
+2–4 "collapse back to `npx prisma migrate dev`". F1 ended that: `migrate dev`
+is never run (above). A new migration folder goes in `prisma/migrations/`, next
+to `0_init`, and sorts after it.
 
 Rules:
 - Never `db push` against staging or prod again.
-- Never run `migrate dev` against staging or prod (it's the dev-only command).
+- Never run `migrate dev`, on any branch (DEBT-125 F1).
 - A migration file, once pushed, is immutable — fix mistakes with a new migration.
 
 ---
@@ -180,6 +272,13 @@ adds the fourth. Both rows are appended at the bottom.)
 | `NotificationRecipientPick_one_target_check` (**CHECK**, not an index) | `NotificationRecipientPick` | `("userId" IS NULL) <> ("contactId" IS NULL)` — exactly one target per pick | `20261023200000_notify12_recipients` |
 | `LaborAssignment_minutes_check` (**CHECK**, not an index) | `LaborAssignment` | `"startMinutes" >= 0 AND "startMinutes" < "endMinutes" AND "endMinutes" <= 1440` — no overnight, no zero-length, inside one day | `20261030200242_l4a_labor_assignment` |
 | `IngredientNutrition_basis_together` (**CHECK**, not an index) | `IngredientNutrition` | `("basisAmount" IS NULL) = ("basisUnit" IS NULL)` — a proof-only record has neither, a numbered one has both | `20261102220000_n1d_proof_only_nutrition` |
+
+**Since DEBT-125 (2026-11-05), all eight also live in
+`prisma/migrations/0_init/migration.sql` PART 2.** The Origin column names
+folders now under `prisma/migrations_archive/`. A NEW protected object goes in
+its own new migration and gets a row here. It is never appended to `0_init`,
+which is frozen by its checksum (§ 2a). Hazard 1 now applies only if `0_init`
+is ever regenerated.
 
 **The DOC-3 row's table needs no `@@map` warning and that is worth stating,
 because the two rows above it do.** `hrdoc_link_shape` sits on `HrDocument`,
@@ -218,7 +317,8 @@ CHECK.
 
 ### Hazard 1 — the baseline squash silently drops them
 
-§2 rebuilds `0_init` with `migrate diff --from-empty --to-schema-datamodel`,
+§2 rebuilds `0_init` with `migrate diff --from-empty --to-schema` (the old
+`--to-schema-datamodel` flag no longer exists),
 which generates **from the schema**. The schema cannot express any of them, so
 the regenerated baseline will **omit all eight**. Any database later built from
 `0_init` — a fresh environment, a rebuilt Neon branch — comes up with **no
@@ -2437,3 +2537,50 @@ truncated by `tail`) · the same diff with no `-o` after the apply (empty).
 `npm run build` also runs `prisma generate`. No `migrate deploy`,
 `db execute`, `migrate dev`, `migrate reset` or `migrate resolve` was run by
 the session.
+
+## 2026-11-05 — `0_init` (DEBT-125 baseline squash; closes BUG-25)
+
+**BUILT, NOT APPLIED OR MARKED ANYWHERE YET.** Work commit `1c85892` on
+`staging`, not pushed. See § 2a for what was built, the marking INSERT, and the
+recovery UPDATE.
+
+| Branch | `0_init` row (`_prisma_migrations`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | not yet. Mark with the § 2a INSERT before any local `migrate deploy` | Gary, console |
+| staging `br-square-feather-a63z92vz` | not yet. INSERT BEFORE the push that carries `1c85892` | Gary, console |
+| production `br-sparkling-block-a620qvg4` | not yet. INSERT BEFORE the promotion that carries `1c85892` | Gary, console |
+
+**Archive.** The 86 entries above this one name migrations that now live in
+`prisma/migrations_archive/<name>/`. Their verbatim command lines
+(`-o prisma/migrations/<name>/…`) are kept as they were run and are not
+rewritten. Read `prisma/migrations/` in them as `prisma/migrations_archive/`.
+The count is **86**, not the 87 the DEBT-125 prompt said.
+
+**Before the build (2026-11-05, Gary in the Neon console):**
+- § 7 B of `docs/prompts/DEBT-125_AUDIT.md` was run on all three branches:
+  86 ledger rows each, latest `20261104020000_tpl3_task_retired_at`, 0
+  open-failed rows, tpl3 checksum `943b2b39…9704` (proving the sha256
+  checksum formula), exactly the 3 partial indexes and 5 CHECKs, no
+  triggers, functions, views or sequences, `plpgsql` only, PostgreSQL 18.6.
+- **Staging drift repaired:** `receivedAt TIMESTAMP(3)` (nullable, no
+  default) was missing on `PurchaseOrder` and `PurchaseOrderLine`. Gary
+  added both with `ADD COLUMN IF NOT EXISTS` on `br-square-feather`
+  (DEBT-125 R4). No migration: neither table was ever created by one.
+- Full-column fingerprint afterwards, the same on all three branches: 1356
+  columns, `6b6bdfe6cbc90ee531e105bbd0ad0343`.
+
+**Fixture:** `scripts/verify-debt125.ts`, pure, all checks pass. A mutation
+run (one CHECK deleted from `0_init`) failed 3 checks as it should, and the
+file was restored byte-identical.
+
+**Prisma commands the session ran, verbatim:**
+- `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`
+  (gate on dev; empty)
+- `npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script -o <scratchpad>/0_init.regen.sql`
+  (byte-identical to the Phase 1 candidate)
+- `npx prisma validate`
+- `npm run build`, which runs `prisma generate`
+
+**Not run:** Phase 2 step 4's `--from-migrations` diff (F2). The session ran no
+`migrate deploy`, `migrate dev`, `migrate reset`, `migrate resolve` or
+`db execute`.

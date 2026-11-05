@@ -984,7 +984,8 @@ Multi-tenant caveat: until Meta App Review grants Advanced Access for `instagram
 Schema is at `prisma/schema.prisma`. Schema changes ship as migration files committed with the code — see `docs/MIGRATIONS.md` for the full policy and history.
 
 **Do not use `npx prisma db push`** — retired after the 2026-07-06 staging drift incident.
-**`npx prisma migrate dev` is currently broken** — the baseline squash was never done, so shadow-DB replay fails with P3018 (and `.env` has no `SHADOW_DATABASE_URL`).
+**`npx prisma migrate dev` IS NEVER RUN — by a session or by Gary (Gary, DEBT-125 F1, 2026-11-05).** Every branch keeps its 86 archived-name `_prisma_migrations` rows, and `migrate dev` reads them as drift and offers to RESET the database. (This line used to say "currently broken — the baseline squash was never done". DEBT-125 did the squash.)
+**`prisma/migrations/` starts at `0_init` (DEBT-125).** The old 86 folders are in `prisma/migrations_archive/`: history only, never moved back, never deleted. `0_init` is frozen by its checksum, so it is never edited. New migrations go in `prisma/migrations/` beside it. **A branch must be marked with the `0_init` INSERT (`docs/MIGRATIONS.md` § 2a) before any `migrate deploy` reaches it.** A local command that sets a URL must set `DATABASE_URL_UNPOOLED`, not `DATABASE_URL`: `prisma.config.ts` reads `DATABASE_URL_UNPOOLED` first, and `.env` points it at dev.
 
 **CLAUDE CODE NEVER RUNS A MIGRATION. `npx prisma migrate diff` is the ONLY prisma command a session may run against a database** — it reads, writes a file, and changes nothing. **Never `migrate dev`, never `migrate deploy`, never `migrate reset`, never `db execute`.** Step 3 of the flow below is GARY'S, by running npx prisma migrate deploy from froot/ (see step 3); the session stops after step 2 with the SQL generated and reviewed, and says in its report that step 3 is owed. **It does not commit yet — see § A migration STOPS the session, below.**
 

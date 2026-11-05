@@ -5,6 +5,60 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-05 — DEBT-125: baseline squash — archive, console marking, hand-written objects, staging catch-up (R1–R4) — DRAFT
+
+**DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** R1–R3 are the DEBT-125
+session prompt's draft rulings. R4 is Claude's wording of the audit's F6
+ruling. Gary approved applying R4 but has not given its wording, so none of
+R4 is quoted as his. The F1–F4 rulings ARE his words (quoted below). Audit:
+`docs/prompts/DEBT-125_AUDIT.md`. Work commit `1c85892`.
+
+- **R1 — Old migrations are archived, never deleted.** All 86 folders moved to
+  `prisma/migrations_archive/` (README: history only, never applied again).
+  Prisma never reads that folder.
+- **R2 — Staging and production are marked as having `0_init` by a
+  Neon-console INSERT into `_prisma_migrations`, run BEFORE the push that
+  carries the squash.** Never by a local connection. The INSERT's checksum is
+  the sha256 of the committed `0_init/migration.sql`,
+  `0e7d39aa0030e9c7adf485a92e7adc3f5038580a521b2ef707b9b6a752e4c717`.
+- **R3 — Objects the schema can't express are hand-written at the end of
+  `0_init`, each commented with its source.** There are 8: 3 partial unique
+  indexes and 5 CHECKs, listed in MIGRATIONS.md § Protected indexes.
+  `scripts/verify-debt125.ts` checks each one against its archived source,
+  verbatim.
+- **R4 — Staging got the two missing `receivedAt` columns
+  (`PurchaseOrder`, `PurchaseOrderLine`, nullable `TIMESTAMP(3)`, no
+  default) by console ALTER before the squash. No migration was written for
+  them.** Measured 2026-11-05: dev and production had them; staging didn't.
+  No migration ever created either table (BUG-25), so the columns reached
+  dev and production outside the migration history. Gary ran both `ADD
+  COLUMN IF NOT EXISTS` statements on `br-square-feather`. Afterwards the
+  full-column fingerprint matched on all three branches: 1356 columns, hash
+  `6b6bdfe6cbc90ee531e105bbd0ad0343`. Gary's words on applying it: "Start
+  Phase 2 with F1–F4 and R4 applied."
+
+**GARY'S RULINGS ON THE AUDIT'S FINDINGS, 2026-11-05, in chat** (his words):
+
+> "Rulings: F1 keep the old ledger rows on every branch including dev; add a
+> CLAUDE.md line that migrate dev is never run. F2 skip Phase 2 step 4;
+> Phase 3 A proves it. F3 use the console UPDATE recovery from audit §6. F4
+> fix in Phase 2."
+
+What each one settles (Claude's summary):
+
+- **F1.** Each branch keeps its 86 old ledger rows. `migrate deploy` ignores
+  them, but `migrate status` reports them as divergence and `migrate dev`
+  would offer to reset the database. So `migrate dev` is never run, and
+  MIGRATIONS.md §2's `DELETE FROM "_prisma_migrations"` is superseded.
+- **F2.** `--from-migrations` was not run: it would create a shadow database
+  on dev. Phase 3 A (deploy to an empty `squash_test`, then diff) proves the
+  same thing.
+- **F3.** If a push ever lands before its branch's INSERT, the failed
+  `0_init` row is cleared with the console `UPDATE … SET rolled_back_at =
+  now()` (DEPLOY_LOG 2026-11-05), not a local `migrate resolve --rolled-back`.
+- **F4.** MIGRATIONS.md §2/§3 and CLAUDE.md § Database were corrected in the
+  DEBT-125 docs commit.
+
 ## 2026-11-05 — BUG-25: no TaskAttachment-only fix; the 20 uncreated tables wait for the §2 baseline squash — DRAFT
 
 **DRAFT — to be ratified by Gary.** Nothing below is ratified yet. The ruling
