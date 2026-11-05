@@ -190,7 +190,7 @@ check("8b. the label is the engine's totals scaled, no second calculation: 200 c
 check("8c. no allergens recorded → no Contains line", label(buildLabel(item(T), perItem)).contains, null)
 
 // ─── 9. The migration file is additive ────────────────────────────────────────
-const sql = readFileSync("prisma/migrations/20261102230000_n2_nutrition_serving_settings/migration.sql", "utf8")
+const sql = readFileSync("prisma/migrations_archive/20261102230000_n2_nutrition_serving_settings/migration.sql", "utf8")
 check("9a. nothing is dropped (additive only)", /DROP (COLUMN|TABLE|CONSTRAINT|INDEX)/i.test(sql), false)
 check("9b. it adds the org column and both tables", ["\"nutritionServingFlOz\"", "CREATE TABLE \"NutritionSizeVolume\"", "CREATE TABLE \"NutritionItemServing\""].map((s) => sql.includes(s)), [true, true, true])
 

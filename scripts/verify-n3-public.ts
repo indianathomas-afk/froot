@@ -214,7 +214,7 @@ check("8c. suggested set leaves Archived / Retail / Shirts / Bouquets / Services
   [false, false, false, false, false, false, true, true])
 
 // ─── 9. The migration file, and the APPLIED schema (dev), rolled back ─────────
-const sql = readFileSync("prisma/migrations/20261103000000_n3_public_menu/migration.sql", "utf8")
+const sql = readFileSync("prisma/migrations_archive/20261103000000_n3_public_menu/migration.sql", "utf8")
 check("9a. the migration only adds: three CREATE TABLEs, no DROP, no ALTER COLUMN",
   [["\"PublicMenu\"", "\"PublicMenuCategory\"", "\"PublicMenuHiddenItem\""].map((t) => sql.includes(`CREATE TABLE ${t}`)), /DROP|ALTER COLUMN/i.test(sql)], [[true, true, true], false])
 

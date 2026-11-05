@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma"
 
 // HR-20. The starter training taxonomy every org begins with.
 //
-// MUST MATCH prisma/migrations/20260810194426_hr20_training_category_entity
+// MUST MATCH prisma/migrations_archive/20260810194426_hr20_training_category_entity
 // EXACTLY — same six names, same colours, same sortOrder. That migration
 // seeded these for orgs that would otherwise have ended at zero categories;
 // this constant does the same job for orgs created afterwards. The SQL is

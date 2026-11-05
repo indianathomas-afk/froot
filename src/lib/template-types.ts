@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma"
 
 // TPL-1b. The starter taxonomy every org begins with.
 //
-// MUST MATCH prisma/migrations/20260808103000_tpl1a_template_type_entity
+// MUST MATCH prisma/migrations_archive/20260808103000_tpl1a_template_type_entity
 // EXACTLY — same four names, same colours, same sortOrder. That migration
 // seeded these for orgs that would otherwise have ended at zero types; this
 // constant does the same job for orgs created afterwards. The SQL is frozen and
