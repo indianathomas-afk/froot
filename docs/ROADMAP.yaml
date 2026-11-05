@@ -36723,12 +36723,26 @@ debt:
       is its own ruling. RELATED: N-1, N-3, BEV-1.
 
   - id: DEBT-125
-    status: in_progress
+    # in_progress -> staging 2026-11-05 at the DEBT-125 PRE-PUSH-CHECK (the
+    # commit immediately after 98532a3). Not yet pushed at the check
+    # (origin/staging = 2b0a33e). DECISIONS DEBT-125 R1-R4 ratified there
+    # ("Ratify as written"); the notes' "carries R1-R4 as DRAFT" and
+    # "STILL OWED: PRE-PUSH-CHECK" are spent, kept. THE PUSH STILL WAITS ON
+    # THE STAGING 0_init INSERT (MIGRATIONS.md § 2a): `staging` here means the
+    # check passed, and the code is ready for staging once the INSERT is in.
+    status: staging
     title: >
       Do the MIGRATIONS.md §2 baseline squash — 20 tables have no CREATE TABLE
       in any migration, so prisma/migrations cannot build a database
     commits:
+      # DEBT-125: work commit — 86 folders archived, 0_init, verify-debt125
       - 1c85892
+      # docs(DEBT-125): the commit immediately after 1c85892 — this row,
+      # DECISIONS R1-R4 draft, DEPLOY_LOG UNPROMOTED, MIGRATIONS § 2a,
+      # CLAUDE.md, prompt + audit
+      - "b72883e"
+      # docs(DEBT-125): Phase 3 rehearsal passed; dev marked with 0_init
+      - "98532a3"
     notes: >
       PHASE 3 PASSED, DEV MARKED, 2026-11-05 (Gary, as he reported it in
       chat; evidence in DEPLOY_LOG's DEBT-125 entry). A: an empty

@@ -5,7 +5,13 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-05 — DEBT-125: baseline squash — archive, console marking, hand-written objects, staging catch-up (R1–R4) — DRAFT
+## 2026-11-05 — DEBT-125: baseline squash — archive, console marking, hand-written objects, staging catch-up (R1–R4)
+
+**RATIFIED BY GARY, 2026-11-05, at the DEBT-125 PRE-PUSH-CHECK, as written:**
+"Ratify as written". This covers R1–R4 as a whole, R4's Claude wording
+included, which is now ratified as his. The F1–F4 quote below already was
+his words. The "DRAFT" paragraph below is spent, kept; the heading's
+"— DRAFT" suffix was removed at this check.
 
 **DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** R1–R3 are the DEBT-125
 session prompt's draft rulings. R4 is Claude's wording of the audit's F6
