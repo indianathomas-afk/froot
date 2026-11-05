@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { denyUnlessTemplatesManage } from "../access"
 import { archiveCalendarEventsForTemplates } from "../archive-cascade"
+import { TEMPLATE_HAS_HISTORY_MESSAGE, deleteTemplateUnlessHistory } from "../history"
 import { resolveTemplateType } from "../template-type"
 import { SectionConflict, pruneEmptySections, sectionsFromTasks, syncTemplateSections, type IncomingSection } from "../sections"
 import { syncTemplateTasks } from "../task-sync"
@@ -244,6 +245,16 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   const template = await prisma.template.findFirst({ where: { id, organizationId: org.id } })
   if (!template) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  await prisma.template.delete({ where: { id } })
-  return NextResponse.json({ ok: true })
+  // BUG-23 (R3, R4): no history → hard delete, as before. History → 409 with
+  // the archive instruction; the form shows `error` verbatim. The FK-violation
+  // catch (P2003, or the adapter's raw 23001 — see history.ts) lives in
+  // deleteTemplateUnlessHistory(), so a missed FK is a 409, never a 500. Anything else is still a 500, logged.
+  try {
+    const result = await deleteTemplateUnlessHistory(id)
+    if (!result.ok) return NextResponse.json({ error: TEMPLATE_HAS_HISTORY_MESSAGE }, { status: 409 })
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error("Failed to delete template", err)
+    return NextResponse.json({ error: "Failed to delete template" }, { status: 500 })
+  }
 }

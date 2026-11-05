@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import { TemplateForm } from "../../template-form"
+import { templateHasHistory } from "@/app/api/templates/history"
 
 export default async function EditTemplatePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -56,6 +57,10 @@ export default async function EditTemplatePage({ params }: { params: Promise<{ i
   ])
   if (!template) return notFound()
 
+  // BUG-23 (R1, R2): decides whether the form offers Archive or Delete. After
+  // the org-scoped load above, so it only ever runs on this org's template.
+  const hasHistory = await templateHasHistory(template.id)
+
   const scheduled = template.calendarEvents[0] ?? null
 
   return (
@@ -63,6 +68,7 @@ export default async function EditTemplatePage({ params }: { params: Promise<{ i
       initialData={template}
       stores={stores}
       calendarEnabled={org.calendarEnabled}
+      hasHistory={hasHistory}
       scheduledEvent={
         scheduled
           ? {
