@@ -2,7 +2,38 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-04 — BUG-23: template Delete on a template with history is a 409 + Archive, not a 500
+## f24b18e — 2026-11-04 — BUG-23: template Delete on a template with history is a 409 + Archive, not a 500
+
+**PROMOTED 2026-11-04 in merge `f24b18e`** ("Merge branch 'staging'"). First
+parent `a9ee8fb` (prior tip of `main`), second parent `ced65fc` (staging tip,
+the BUG-23 PRE-PUSH-CHECK). **5 commits** in `a9ee8fb..f24b18e` besides the
+merge: `b9b7389` (work), `87723dc` (docs), `db7e3f1` (409 text fix),
+`1b598c6` (Gary's rulings; BUG-24, BUG-25 filed), `ced65fc` (PRE-PUSH-CHECK).
+No migration. Measured at this stamp by `git log` after `git fetch`:
+`staging` = `origin/staging` = `main` = `origin/main` = `f24b18e`. Rollback:
+`git revert -m 1 f24b18e`. Stamped post-merge 2026-11-04 on `staging`
+(PROMOTE-DOCS_2026-11-04_BUG-23); the heading previously read "UNPROMOTED —
+2026-11-04 — BUG-23: …". The "Staging only, not on `main`. NOT pushed at
+writing" line below is spent, kept.
+
+**Staging evidence (Gary, in chat, 2026-11-04, before promotion).** The
+template "Overdue Test" showed Archive, archived into the Archived tab, and
+the Archived tab offered Unarchive. The throwaway-template delete step was
+**not run on staging**, and neither was the optional two-tab stale case.
+
+**Production evidence (Gary, 2026-11-04, after promotion, www.usefroot.com).**
+He was asked two questions and answered by choosing one of the offered
+answers. These are the answers he chose, word for word:
+- "On www.usefroot.com, did a template with history (for example the Opener
+  Checklist) show Archive where Delete used to be?" — Gary: "Yes, showed
+  Archive".
+- "On www.usefroot.com, did a brand-new throwaway template show Delete, and
+  did it delete cleanly?" — Gary: "Yes, deleted cleanly".
+The production throwaway delete is therefore the first observation of the
+no-history path in a browser on any deployed environment. Not recorded: the
+Clerk org id these were taken under (§ Browser Evidence), the throwaway
+template's name or id, and which history template he checked. Not observed
+anywhere: the two-tab stale case (409 with no raw 500).
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit `b9b7389`;
 docs commit is the one after it. No migration, no env var.
