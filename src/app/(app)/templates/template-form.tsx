@@ -69,6 +69,11 @@ interface TemplateFormProps {
   /** CAL-2. The active CalendarEvent already scheduling this template, if any.
    *  Read from the TEMPLATE ROW server-side, never inferred from form state. */
   scheduledEvent?: { id: string; recurrence: string; startDate: string } | null
+  /** BUG-23 (R1, R2). True when anything RESTRICT-references this template or
+   *  its tasks (api/templates/history.ts) — computed server-side on the edit
+   *  page. Swaps Delete for Archive. The route refuses a delete on its own
+   *  (R4), so this decides the BUTTON, not what is allowed. */
+  hasHistory?: boolean
   initialData?: {
     id: string
     name: string
@@ -81,6 +86,8 @@ interface TemplateFormProps {
     startOffsetHours: number | null
     endOffsetHours: number | null
     appliesTo?: string
+    // BUG-23: an archived template with history shows no Archive button.
+    isArchived?: boolean
     tasks: Task[]
     // CHK-1: the template's Section rows. Optional so /templates/new can omit
     // it — a template being created has none yet, and POST creates them from
@@ -1000,6 +1007,7 @@ export function TemplateForm({
   stores = [],
   calendarEnabled = false,
   scheduledEvent = null,
+  hasHistory = false,
 }: TemplateFormProps) {
   const router = useRouter()
   const isEdit = !!initialData
@@ -1009,6 +1017,35 @@ export function TemplateForm({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [archiving, setArchiving] = useState(false)
+
+  // BUG-23 (R2). Archive in place of Delete on a template with history — the
+  // existing PATCH { isArchived: true } path, which also runs CAL-2's calendar
+  // cascade. Unsaved form edits are NOT saved by this; the confirm dialog is
+  // the archive, nothing else.
+  async function handleArchive() {
+    setArchiving(true)
+    setSaveError(null)
+    try {
+      const res = await writeFetch(`/api/templates/${initialData!.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isArchived: true }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        setSaveError(body?.error ?? "Failed to archive template. Please try again.")
+        return
+      }
+      setSavedAndLeaving(true)
+      router.push("/templates")
+      router.refresh()
+    } catch (err) {
+      setSaveError(err instanceof SessionExpiredError ? err.message : "Failed to archive template. Please check your connection and try again.")
+    } finally {
+      setArchiving(false)
+    }
+  }
 
   async function handleDelete() {
     setDeleting(true)
@@ -1685,7 +1722,32 @@ export function TemplateForm({
               )}
             </>
           )}
-          {isEdit && (
+          {/* BUG-23 (R2): a template with history is archived, never deleted —
+              the route would 409 anyway (R4). Already archived: no button. */}
+          {isEdit && hasHistory && !initialData?.isArchived && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" disabled={archiving}>
+                  {archiving ? "Archiving..." : "Archive"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Archive this template?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    It stops generating new checklists. Past checklists are kept.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleArchive} disabled={archiving}>
+                    {archiving ? "Archiving..." : "Yes, Archive Template"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+          {isEdit && !hasHistory && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm" disabled={deleting}>

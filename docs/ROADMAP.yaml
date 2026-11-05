@@ -26477,7 +26477,28 @@ bugs:
       BUG-21.
 
   - id: BUG-23
-    status: planned
+    # planned -> in_progress 2026-11-04 at the work commit b9b7389 (NOT
+    # pushed). The docs SHA is the commit immediately after b9b7389 (its own
+    # SHA cannot be written inside itself). R1-R4 are DRAFT in DECISIONS.md
+    # until Gary ratifies them at PRE-PUSH-CHECK.
+    # in_progress -> staging 2026-11-04 at the BUG-23 PRE-PUSH-CHECK (the
+    # commit immediately after 1b598c6). Not yet pushed at the check
+    # (origin/staging = a9ee8fb). DECISIONS BUG-23 ratified there ("Ratify as
+    # written"); the "DRAFT ... until Gary ratifies" comment above and the
+    # "DRAFT until PRE-PUSH-CHECK" note below are spent, kept.
+    status: staging
+    commits:
+      # fix(BUG-23): work commit — history guard, 409, Archive swap, fixture
+      - "b9b7389"
+      # docs(BUG-23): the commit immediately after b9b7389 — this row,
+      # DECISIONS draft, DEPLOY_LOG UNPROMOTED, prompt
+      - "87723dc"
+      # fix(BUG-23): 409 text true for calendar-only templates (Gary's ruling 1)
+      - "db7e3f1"
+      # docs(BUG-23): Gary's two rulings; files BUG-24 and BUG-25
+      - "1b598c6"
+      # + the commit immediately after 1b598c6: docs(PRE-PUSH-CHECK) —
+      # DECISIONS ratified, this row's docs SHAs and status flip
     title: >
       Deleting a template that has completion history fails with an
       unhandled 500 — DELETE /api/templates/[id] has no guard and no
@@ -26515,6 +26536,152 @@ bugs:
       the two named above are the ones this audit checked, not a census.
 
       Untouched by TPL-3 (e5d6804): the DELETE handler was not edited.
+
+      BUILT 2026-11-04, work commit b9b7389 (TIER 2), on draft rulings R1-R4
+      (docs/DECISIONS.md, DRAFT until PRE-PUSH-CHECK) — option (a) with (c)'s
+      button swap: a template with history shows ARCHIVE in place of Delete,
+      and the route refuses a delete on its own with a 409. A template with no
+      history still hard-deletes. Delete never quietly archives.
+
+      THE CENSUS THE ROW ASKED FOR, read from prisma/migrations SQL. RESTRICT
+      onto Template / Task / Section from outside the template: Checklist.
+      templateId, CalendarEvent.templateId (CAL-2 — the row named two, there
+      are four), TaskLog.taskId, TaskLog.sectionId. Task.sectionId is RESTRICT
+      but intra-template (both rows cascade off the same delete). CASCADE:
+      Task, Section, TemplateStoreAssignment, TaskAttachment. SET NULL:
+      TeamMessage.postedToTemplateId. templateHasHistory()
+      (src/app/api/templates/history.ts) checks all four RESTRICT paths, one
+      exists-style read each.
+
+      MEASURED, AND IT CHANGED THE BUILD: a P2003 catch would NOT have caught
+      this. Under @prisma/adapter-neon a RESTRICT violation (SQLSTATE 23001)
+      arrives as a DriverAdapterError with cause.code "23001", not a P2003
+      PrismaClientKnownRequestError — dev br-broad-wave-a6vpjdw0, fixture B5,
+      which was written expecting P2003 and failed. The backstop matches P2003
+      or a raw postgres 23001/23503.
+
+      ARCHIVE IS A REAL SUBSTITUTE (audit 2, plan-changer did not fire): bulk
+      and single generate (api/checklists), day-close materialise, the
+      store-view picker and schedulable-templates all filter
+      `isActive: true, isArchived: false`; calendar-materialize skips an
+      archived template's events, and the archive PATCH already archives them
+      (CAL-2 cascade).
+
+      FIXTURE scripts/verify-bug23.ts — 30/30 on dev br-broad-wave-a6vpjdw0:
+      no-history delete removes the row and its cascades; a Checklist, a lone
+      TaskLog on a retired task, and a lone CalendarEvent each make the helper
+      true and the delete refuse with the row intact; archiving drops the
+      template from the materialise query and keeps its past checklist.
+
+      NOT YET DONE: staging test (Gary, after PRE-PUSH-CHECK and push — the
+      three steps in docs/prompts/BUG-23.md). Not observed in a browser by
+      the session: the edit page needs a Clerk sign-in.
+
+      GARY'S RULINGS AT THE PRE-PUSH-CHECK, 2026-11-04, on the two open
+      questions (his words): "(1) calendar-only templates get Archive —
+      agreed, but change the 409 text so it's true for both cases: 'This
+      template is used by past checklists or calendar events — archive it
+      instead.'" Built in fix commit db7e3f1 (fixes b9b7389); fixture B4
+      updated, 30/30 on dev br-broad-wave-a6vpjdw0. "(2) archived-with-history
+      shows no button — agreed if /templates' Archived view can unarchive
+      it" — confirmed YES from code: the Archived tab's rows carry checkboxes
+      (templates-client.tsx:418) and the bulk bar shows Unarchive in that view
+      (:368-372), sending { ids, isArchived: false } to PATCH /api/templates
+      (route.ts:58-63). Read from code, not observed in a browser. Two rows
+      filed on his instruction: BUG-24 (adapter FK-error gap) and BUG-25
+      (TaskAttachment has no migration).
+
+  - id: BUG-24
+    status: planned
+    title: >
+      Under the Neon driver adapter a RESTRICT foreign-key violation is a raw
+      DriverAdapterError (SQLSTATE 23001), not a P2003 — sweep every delete
+      that can hit one
+    notes: >
+      FILED 2026-11-04 by the BUG-23 session, on Gary's instruction ("file
+      two ROWs: the adapter gap (sweep every P2003-only catch for
+      23001/23503)"). The ID was confirmed free: BUG-23 was the highest, and
+      BUG-24 appears nowhere in docs/, src/ or scripts/.
+
+      THE MEASUREMENT (dev br-broad-wave-a6vpjdw0, 2026-11-04, BUG-23
+      fixture B5 and a probe): deleting a Template referenced by a Checklist
+      throws `DriverAdapterError` with `cause: { kind: "postgres", code:
+      "23001" }` and no `.code` of its own. 23001 is restrict_violation —
+      what Postgres raises for an ON DELETE RESTRICT FK. An INSERT with a
+      dangling FK raises 23503 instead, and THAT one the adapter does map to
+      P2003 (scripts/verify-n3-public.ts check 9f expects "P2003" and
+      passes). So the gap is specific to RESTRICT on delete/update.
+
+      ALREADY KNOWN ONCE, LEFT DELIBERATELY: src/app/api/template-types/[id]/
+      route.ts:127-135 measured the same DriverAdapterError on 2026-08-08 and
+      chose not to catch it (the pre-check makes the race rare, and a bare
+      DriverAdapterError catch would swallow every other DB failure). BUG-23's
+      matcher (isForeignKeyViolation in src/app/api/templates/history.ts)
+      avoids that objection by matching cause.kind + cause.code, not the
+      class.
+
+      CENSUS AT FILING, so the sweep starts from facts: there are NO
+      P2003-only catches in src/ besides BUG-23's own (grep for P2003,
+      PrismaClientKnownRequestError, 23001, 23503, DriverAdapterError). Every
+      other error-code sniff in src/ is P2002 (unique), which the adapter
+      maps. So "sweep every P2003-only catch" finds nothing as worded; the
+      real surface is every `.delete` / `.deleteMany` (and any update of a
+      referenced key) on a model that is the TARGET of a RESTRICT FK, with
+      or without a catch — those 500 on a blocked delete. Enumerate the
+      RESTRICT FKs from prisma/migrations SQL, then every delete site of each
+      target model (CLAUDE.md § Verifying a guard covers every path — search
+      the model, not the error code).
+
+      WHAT IT NEEDS: (1) that enumeration; (2) a shared matcher (lift
+      isForeignKeyViolation out of api/templates/history.ts to src/lib) and a
+      per-site ruling — pre-check + 409, or catch-only; (3) a fixture that
+      asserts the raw error shape, so an adapter upgrade that starts mapping
+      23001 is noticed rather than silently changing behaviour.
+
+      COST OF DOING NOTHING: LATENT. Trigger: an operator deletes a record
+      that history still RESTRICT-references, on a delete path with no
+      pre-check — an unexplained 500 and a retry that fails the same way
+      (BUG-23's exact shape).
+
+  - id: BUG-25
+    status: planned
+    title: >
+      TaskAttachment appears in no migration — check whether a database built
+      from prisma/migrations alone lacks the table
+    notes: >
+      FILED 2026-11-04 by the BUG-23 session, on Gary's instruction ("file
+      ... TaskAttachment having no migration (investigate whether a fresh DB
+      from migrations lacks the table)"). The ID was confirmed free.
+
+      THE FINDING, AND ITS LIMIT: `grep -rln TaskAttachment
+      prisma/migrations` returns nothing — no CREATE TABLE, no FK
+      constraint, under any migration. schema.prisma declares the model
+      (TaskAttachment, taskId @unique, Task relation onDelete: Cascade), and
+      dev br-broad-wave-a6vpjdw0 evidently has the table: the edit page and
+      the templates PATCH include `attachment` on every load, and BUG-23's
+      fixture ran against dev with no error. NOT measured: whether staging or
+      production have it (they must, or every template edit would fail), how
+      it got there (likely the retired `db push` era, before the migration
+      baseline), and what FK action the live constraint actually has — the
+      Cascade in schema.prisma is unverified against any SQL.
+
+      WHAT IT NEEDS: (1) build a scratch database from prisma/migrations
+      alone and check for the table — Gary's call how, given CLAUDE.md
+      forbids `migrate dev` / `migrate reset` / `db execute` for sessions;
+      `migrate diff --from-migrations ... --to-schema prisma/schema.prisma`
+      may answer it with no database at all, if a shadow DB can be supplied;
+      (2) read the live constraint on each branch (Neon console, Gary) —
+      `pg_constraint` for "TaskAttachment_taskId_fkey"; (3) if missing from
+      the migrations, a baselined additive migration (CREATE TABLE IF NOT
+      EXISTS + constraint) marked applied on the existing branches —
+      TIER 3, a migration STOPS the session. Check for other models in the
+      same state while there (schema models with no CREATE TABLE in any
+      migration).
+
+      COST OF DOING NOTHING: LATENT. Trigger: any database built from the
+      migrations — a fresh Neon branch replayed from scratch, a new
+      environment, or the baseline squash `migrate dev` is waiting on — gets
+      no TaskAttachment table, and every template edit and save then fails.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
