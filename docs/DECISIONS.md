@@ -5,7 +5,11 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-04 — TPL-3: deleted template tasks with history are retired, not kept — DRAFT
+## 2026-11-04 — TPL-3: deleted template tasks with history are retired, not kept
+
+**RATIFIED BY GARY, 2026-11-04, at the TPL-3 PRE-PUSH-CHECK, as written:**
+"Ratify as written". The "DRAFT" paragraph below is spent, kept; the
+heading's "— DRAFT" suffix was removed at this check.
 
 **DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** Nothing below is
 ratified yet.

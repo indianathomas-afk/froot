@@ -1287,12 +1287,22 @@ phases:
     # SHA cannot be written inside itself). Filed and built in one session:
     # the session prompt (docs/prompts/TPL-1.md) proposed the id TPL-1, which
     # was taken, so this phase is TPL-3.
-    status: in_progress
+    # in_progress -> staging 2026-11-04 at the TPL-3 PRE-PUSH-CHECK (the
+    # commit immediately after 6155ada). Not yet pushed at the check
+    # (origin/staging = 2e2f8b0). DECISIONS TPL-3 ratified there ("Ratify as
+    # written"); the "DRAFT until PRE-PUSH-CHECK" open item below is spent,
+    # kept.
+    status: staging
     commits:
       # feat(TPL-3): work commit — migration, task-sync, readers, form, fixture
       - "e5d6804"
       # + the commit immediately after e5d6804: docs(TPL-3) — this row,
       # DECISIONS draft, MIGRATIONS, DEPLOY_LOG UNPROMOTED, audit, prompt
+      - "6d7280a"
+      # docs(BUG-23): files BUG-23; adds the BUG-23 rider to this row
+      - "6155ada"
+      # + the commit immediately after 6155ada: docs(PRE-PUSH-CHECK) —
+      # DECISIONS ratified, this row's docs SHA and status flip
     title: "Deleted template tasks with completion history are retired, not silently kept"
     open:
       - >
