@@ -21,7 +21,10 @@ docs commit is the one after it. No migration, no env var.
 - **Staging test owed (Gary):** a history template reads Archive and lands
   under Archived; a never-run throwaway reads Delete and deletes; optional
   two-tab stale case shows no raw 500.
-- **Rollback.** `git revert b9b7389`; nothing in the database changes.
+- **Amended 2026-11-04 (Gary's ruling):** the 409 text is now "This
+  template is used by past checklists or calendar events — archive it
+  instead." (`db7e3f1`); the quote in the first bullet is the original.
+- **Rollback.** `git revert db7e3f1 b9b7389`; nothing in the database changes.
 
 ## 6a6e2af — 2026-11-04 — TPL-3: deleted template tasks with history are retired, not silently kept
 

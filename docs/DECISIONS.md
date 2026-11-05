@@ -7,6 +7,23 @@ decisions too.)
 
 ## 2026-11-04 — BUG-23: a template with history is archived, never deleted; DELETE answers 409 — DRAFT
 
+**GARY'S RULINGS, 2026-11-04, at the BUG-23 PRE-PUSH-CHECK, on the two
+choices flagged below** (his words):
+
+- "(1) calendar-only templates get Archive — agreed, but change the 409 text
+  so it's true for both cases: 'This template is used by past checklists or
+  calendar events — archive it instead.'" Built in `db7e3f1` (fixes
+  `b9b7389`). The R4 text below, and the third Claude bullet calling the old
+  copy "left as the prompt gave it", are superseded by this; kept as written.
+- "(2) archived-with-history shows no button — agreed if /templates'
+  Archived view can unarchive it". It can: Archived-tab rows have checkboxes
+  (`templates-client.tsx:418`) and the bulk bar offers Unarchive in that view
+  (`:368-372`), which sends `isArchived: false` to `PATCH /api/templates`
+  (`route.ts:58-63`). Confirmed by reading code, not in a browser.
+
+The heading keeps "— DRAFT": these rulings settle the two flagged choices,
+and nothing in them ratifies R1–R4 as a whole.
+
 **DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** Nothing below is
 ratified yet.
 
