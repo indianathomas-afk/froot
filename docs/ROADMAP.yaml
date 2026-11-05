@@ -36730,6 +36730,23 @@ debt:
     commits:
       - 1c85892
     notes: >
+      PHASE 3 PASSED, DEV MARKED, 2026-11-05 (Gary, as he reported it in
+      chat; evidence in DEPLOY_LOG's DEBT-125 entry). A: an empty
+      `squash_test` database on dev took `migrate deploy` (0_init only), and
+      the diff was empty. Its fingerprint (131 tables, 1356 columns, 316
+      indexes; column, index, constraint and enum hashes) matches the live
+      branches. B: `squash-rehearsal` (br-spring-salad-a6uy5xsy, a copy of
+      dev) took the INSERT, and `migrate deploy` then reported "No pending
+      migrations to apply" with the 86 old rows still present. Dev
+      br-broad-wave-a6vpjdw0 was marked right after B, by Gary's ruling,
+      replacing the prompt's "dev last": 0_init id
+      ad30c396-8451-4f30-8109-158b65b16dff, and a local `migrate deploy`
+      found nothing pending. STILL OWED: PRE-PUSH-CHECK; the staging INSERT
+      BEFORE the push; then the production INSERT BEFORE the `--no-ff`
+      promotion. STAGING AND PRODUCTION ARE NOT MARKED. BUG-25's condition
+      (a fresh deploy creates TaskAttachment) is met by A. BUG-25 closes
+      with this row at cutover.
+
       IN PROGRESS 2026-11-05: PHASE 2 BUILT, COMMITTED ON STAGING, NOT PUSHED.
       1c85892 moves all 86 migration folders into prisma/migrations_archive/
       (README: history only, never deleted) and adds prisma/migrations/0_init:

@@ -28,7 +28,40 @@ marked.
 - Full-column fingerprint afterwards, the same on all three branches: 1356
   columns, `6b6bdfe6cbc90ee531e105bbd0ad0343`.
 
-**Still owed (Gary).** Phase 3 rehearsal (A: fresh deploy to an empty
+**PHASE 3 REHEARSAL: PASSED (Gary, 2026-11-05, as he reported it in chat).**
+- **A, fresh build.** Database `squash_test`, created empty on dev:
+  - `migrate deploy` applied `0_init` only.
+  - `migrate diff --from-config-datasource --to-schema` was empty.
+  - Fingerprint: 131 tables (130 + `_prisma_migrations`), 1356 columns, 316
+    indexes.
+  - Hashes: columns `6b6bdfe6cbc90ee531e105bbd0ad0343`, indexes
+    `3c96b6ffbe7d69dbb39e29536ef7ab93`, constraints
+    `8ca5a0447b90eb9fa8be4c7fecc285b3`, enums
+    `8ad7581fd8b08278d09a9f4146a4826c`. All four match the live branches.
+  - **This closes BUG-25's condition:** a fresh `migrate deploy` on an empty
+    database built the whole schema, TaskAttachment included.
+- **B, marking.** Branch `squash-rehearsal` (`br-spring-salad-a6uy5xsy`, a
+  copy of dev):
+  - The § 2a INSERT wrote `0_init`, with checksum `0e7d39aa…c4717` and 1
+    step. The ledger went to 87 rows: 86 old plus `0_init`.
+  - `migrate deploy` against `ep-orange-feather` reported "No pending
+    migrations to apply". This proves `migrate deploy` accepts the 86
+    archived-name rows (audit § 5).
+- Both test databases were deleted afterwards.
+
+**DEV MARKED (Gary, 2026-11-05), right after Phase 3 B.** The INSERT on
+`br-broad-wave-a6vpjdw0` returned `0_init` id
+`ad30c396-8451-4f30-8109-158b65b16dff`. Then a local `migrate deploy` against
+`ep-late-water`: "1 migration found in prisma/migrations / No pending
+migrations to apply." Gary's ruling on the order, in his words: "Ruling on dev
+order: marked dev right after Phase 3 B, as you recommended." This replaces
+the prompt's "dev last". Dev no longer blocks local `migrate deploy`.
+
+**STAGING AND PRODUCTION ARE NOT MARKED YET.** The do-not-push line above still
+holds.
+
+**Still owed (Gary).** *(Rider 2026-11-05: Phase 3 and item 3, dev, are DONE;
+see above. Items 1–2 are still owed.)* Phase 3 rehearsal (A: fresh deploy to an empty
 `squash_test` database plus an empty diff; B: a `squash-rehearsal` branch
 from dev, INSERT, deploy with nothing to apply), then PRE-PUSH-CHECK, then
 cutover:

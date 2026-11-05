@@ -2540,13 +2540,13 @@ the session.
 
 ## 2026-11-05 — `0_init` (DEBT-125 baseline squash; closes BUG-25)
 
-**BUILT, NOT APPLIED OR MARKED ANYWHERE YET.** Work commit `1c85892` on
+**BUILT. MARKED ON DEV ONLY (2026-11-05); staging and production NOT marked.** Phase 3 rehearsal passed (DEPLOY_LOG). Work commit `1c85892` on
 `staging`, not pushed. See § 2a for what was built, the marking INSERT, and the
 recovery UPDATE.
 
 | Branch | `0_init` row (`_prisma_migrations`) | By |
 |---|---|---|
-| dev `br-broad-wave-a6vpjdw0` | not yet. Mark with the § 2a INSERT before any local `migrate deploy` | Gary, console |
+| dev `br-broad-wave-a6vpjdw0` | **MARKED 2026-11-05**, right after Phase 3 B (Gary's ruling). id `ad30c396-8451-4f30-8109-158b65b16dff`. A local `migrate deploy` after it found nothing pending. `finished_at` not recorded | Gary, console |
 | staging `br-square-feather-a63z92vz` | not yet. INSERT BEFORE the push that carries `1c85892` | Gary, console |
 | production `br-sparkling-block-a620qvg4` | not yet. INSERT BEFORE the promotion that carries `1c85892` | Gary, console |
 
