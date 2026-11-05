@@ -4,6 +4,7 @@ import { denyUnlessTemplatesManage } from "../access"
 import { archiveCalendarEventsForTemplates } from "../archive-cascade"
 import { resolveTemplateType } from "../template-type"
 import { SectionConflict, pruneEmptySections, sectionsFromTasks, syncTemplateSections, type IncomingSection } from "../sections"
+import { syncTemplateTasks } from "../task-sync"
 import { NextResponse } from "next/server"
 import { OPERATIONAL_PHASES, isOperationalPhase, normalizePhase } from "@/lib/phases"
 
@@ -144,23 +145,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!resolved.ok) return resolved.response
 
   try {
-    const existingTaskIds = new Set(
-      (await prisma.task.findMany({ where: { templateId: id }, select: { id: true } })).map((t) => t.id)
-    )
-    const incomingIds = new Set(incomingTasks.map((t) => t.id).filter((tid): tid is string => !!tid && existingTaskIds.has(tid)))
-    const idsToDelete = [...existingTaskIds].filter((tid) => !incomingIds.has(tid))
-
-    // Tasks with completion history (TaskLog) can't be deleted (RESTRICT FK) — leave them in place.
-    const blockedIds = new Set(
-      idsToDelete.length
-        ? (await prisma.taskLog.findMany({ where: { taskId: { in: idsToDelete } }, select: { taskId: true }, distinct: ["taskId"] })).map((l) => l.taskId)
-        : []
-    )
-    const safeToDelete = idsToDelete.filter((tid) => !blockedIds.has(tid))
-
-    const toUpdate = incomingTasks.filter((t) => t.id && existingTaskIds.has(t.id))
-    const toCreate = incomingTasks.filter((t) => !t.id || !existingTaskIds.has(t.id))
-
+    // TPL-3: the delete / retire / update / create diff lives in
+    // api/templates/task-sync.ts, where scripts/verify-tpl3.ts can run it. It
+    // replaced a silent skip — see that file's header.
+    //
     // CHK-1: `sectionId` alongside `sectionName` on every task write. The
     // string is the legacy mirror and stays written (TPL-1a's shape); the id is
     // what the read sites join on.
@@ -186,12 +174,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const synced = await syncTemplateSections(tx, id, incomingSections)
       if (!synced.ok) throw new SectionConflict(synced.error)
 
-      if (safeToDelete.length) {
-        await tx.task.deleteMany({ where: { id: { in: safeToDelete } } })
-      }
-      for (const t of toUpdate) {
-        await tx.task.update({ where: { id: t.id! }, data: taskData(t, synced.byName) })
-      }
+      const { retired, deleted } = await syncTemplateTasks(tx, id, incomingTasks, (t) => taskData(t, synced.byName))
       await tx.templateStoreAssignment.deleteMany({ where: { templateId: id } })
 
       await tx.template.update({
@@ -208,7 +191,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           // this handler just resolved a type for.
           typeId: resolved.type.id,
           appliesTo: appliesTo ?? "all",
-          tasks: toCreate.length ? { create: toCreate.map((t) => taskData(t, synced.byName)) } : undefined,
+          // TPL-3: new tasks are created by syncTemplateTasks above.
           storeAssignments: storeIds?.length
             ? { create: (storeIds as string[]).map((sid: string) => ({ storeId: sid })) }
             : undefined,
@@ -219,20 +202,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       // tasks have moved off it. See api/templates/sections.ts.
       await pruneEmptySections(tx, id)
 
-      return tx.template.findUniqueOrThrow({
+      const row = await tx.template.findUniqueOrThrow({
         where: { id },
         // CHK-1: `orderBy` is NEW. The form maps pending attachments onto
         // `response.tasks[idx]` by position (template-form.tsx handleSave) and
         // this include had no ordering at all, so that mapping held by luck.
+        //
+        // TPL-3: and LIVE ONLY. The previously-skipped tasks kept their old
+        // orderIndex and sorted into the middle of this list, shifting every
+        // position after them. The form now matches by orderIndex as well.
         include: {
-          tasks: { include: { attachment: true }, orderBy: { orderIndex: "asc" } },
+          tasks: { where: { retiredAt: null }, include: { attachment: true }, orderBy: { orderIndex: "asc" } },
           sections: { orderBy: { sortOrder: "asc" } },
           storeAssignments: true,
         },
       })
+      return { row, retired, deleted }
     })
 
-    return NextResponse.json(updated)
+    return NextResponse.json({ ...updated.row, retiredCount: updated.retired, deletedCount: updated.deleted })
   } catch (err) {
     if (err instanceof SectionConflict) {
       return NextResponse.json({ error: err.message }, { status: 400 })

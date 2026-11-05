@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { Plus, Eye, Pencil, Copy, Archive, CheckCircle, Tags } from "lucide-react"
+import { Plus, Eye, Pencil, Copy, Archive, CheckCircle, Tags, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { normalizePhase } from "@/lib/phases"
 import { badgePreset } from "@/lib/badge-presets"
@@ -90,7 +90,14 @@ function scheduleLine(t: Template): string | null {
   return `Scheduled: ${ev.recurrence} from ${when}`
 }
 
-export default function TemplatesClient() {
+export default function TemplatesClient({ retiredNotice = null }: { retiredNotice?: number | null }) {
+  // TPL-3 (F3): one line after a template save that retired tasks. Shown once;
+  // dismissing it also drops `?retired=` from the URL so a reload is quiet.
+  const [retiredShown, setRetiredShown] = useState(retiredNotice)
+  function dismissRetired() {
+    setRetiredShown(null)
+    try { window.history.replaceState(null, "", "/templates") } catch { /* cosmetic */ }
+  }
   const [templates, setTemplates] = useState<Template[]>([])
   const [types, setTypes] = useState<TemplateType[]>([])
   const [loading, setLoading] = useState(true)
@@ -236,6 +243,21 @@ export default function TemplatesClient() {
 
   return (
     <div>
+      {retiredShown != null && (
+        <div role="status" className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-[#0081f2]/30 bg-[#0081f2]/10 px-4 py-3 text-sm text-[var(--color-foreground)]">
+          <span>
+            {retiredShown} task{retiredShown !== 1 ? "s" : ""} retired — completion history kept
+          </span>
+          <button
+            type="button"
+            onClick={dismissRetired}
+            aria-label="Dismiss"
+            className="inline-flex h-11 w-11 items-center justify-center rounded hover:bg-[var(--color-accent)]"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Checklist Templates</h1>

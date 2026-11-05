@@ -1279,6 +1279,85 @@ phases:
       docs/prompts/TYPE-1_AUDIT.md, which is the map of every read and write
       site and is the reason this row can be scoped without re-auditing.
 
+  - id: TPL-3
+    track: platform
+    size: M
+    # planned -> in_progress 2026-11-04 at the work commit e5d6804 (NOT
+    # pushed). The docs SHA is the commit immediately after e5d6804 (its own
+    # SHA cannot be written inside itself). Filed and built in one session:
+    # the session prompt (docs/prompts/TPL-1.md) proposed the id TPL-1, which
+    # was taken, so this phase is TPL-3.
+    # in_progress -> staging 2026-11-04 at the TPL-3 PRE-PUSH-CHECK (the
+    # commit immediately after 6155ada). Not yet pushed at the check
+    # (origin/staging = 2e2f8b0). DECISIONS TPL-3 ratified there ("Ratify as
+    # written"); the "DRAFT until PRE-PUSH-CHECK" open item below is spent,
+    # kept.
+    status: staging
+    commits:
+      # feat(TPL-3): work commit — migration, task-sync, readers, form, fixture
+      - "e5d6804"
+      # + the commit immediately after e5d6804: docs(TPL-3) — this row,
+      # DECISIONS draft, MIGRATIONS, DEPLOY_LOG UNPROMOTED, audit, prompt
+      - "6d7280a"
+      # docs(BUG-23): files BUG-23; adds the BUG-23 rider to this row
+      - "6155ada"
+      # + the commit immediately after 6155ada: docs(PRE-PUSH-CHECK) —
+      # DECISIONS ratified, this row's docs SHA and status flip
+    title: "Deleted template tasks with completion history are retired, not silently kept"
+    open:
+      - >
+        STAGING TEST OWED (Gary, after push; staging-SHA precondition first).
+        Edit a daily template that has history and delete 3 tasks. Save:
+        /templates should show "3 tasks retired — completion history kept".
+        Reopen: the 3 tasks are gone. Run the next checklist materialise and
+        confirm they are absent. Open an old completed checklist and confirm
+        they still show.
+      - >
+        DECISIONS 2026-11-04 TPL-3 is a DRAFT until PRE-PUSH-CHECK.
+    notes: >
+      THE BUG (Gary, production, Opener Checklist). On /templates/[id]/edit he
+      deleted tasks 48, 49 and 50 and saved; the page saved and the tasks were
+      still there. PATCH /api/templates/[id] put every removed task that had a
+      TaskLog (TaskLog.task is RESTRICT) into a `blockedIds` set that nothing
+      read, left it live, and returned 200. Any task a store had ever ticked
+      could never be deleted, and nothing said so. Daily templates hit it on
+      every task. Second defect on the same path: the form mapped pending
+      attachments onto the response by position, and the response still held
+      the skipped tasks, so a new task's attachment could land on the wrong
+      task. (On staging the response was already ordered by orderIndex —
+      CHK-1 — so only the extra rows were left; the prompt read main.)
+
+      WHAT SHIPPED. F1: Task.retiredAt (migration
+      20261104020000_tpl3_task_retired_at, one additive nullable column). A
+      removed task with history is retired; one without is still hard-deleted.
+      The diff lives in src/app/api/templates/task-sync.ts, inside the
+      transaction. R2 (a): an incoming id naming a retired task un-retires it.
+      F2: seven template readers filter `retiredAt: null` (GET /api/templates,
+      which Duplicate copies from; edit, view and print pages; export; the
+      store-view picker; the PATCH response). Checklists read tasks LIVE (no
+      snapshot), so the eight checklist readers go through
+      src/lib/checklist-tasks.ts — R1: a task is on a checklist if it is live,
+      was ticked on it, or was retired after the checklist finished. Left
+      unfiltered on purpose: section pruning, by-id task lookups, milestones,
+      reports. F3: PATCH returns retiredCount / deletedCount; the form goes to
+      /templates?retired=N, which shows the one line. Attachments now match by
+      orderIndex (src/app/(app)/templates/attachment-match.ts).
+
+      EVIDENCE: dev and build only. scripts/verify-tpl3.ts 42/42 on dev
+      br-broad-wave-a6vpjdw0 after Gary applied the migration (retire vs
+      delete, TaskLog intact, live reads, fresh / open / past checklist views,
+      attachment mapping incl. the old-response regression, reader source
+      coverage, re-save and stale-tab). verify-chk15.ts 28/28 (it reads
+      touched sources). Build green. NOTHING OBSERVED IN A BROWSER OR ON ANY
+      DEPLOYMENT.
+
+      KNOWN LIMITS, NOT FIXED. Task has no createdAt, so a task added after a
+      past checklist still shows on it (pre-existing). DELETE
+      /api/templates/[id] 500s on any template with history (RESTRICT on
+      TaskLog.task and Checklist.template, no try/catch) — pre-existing,
+      offered as a row, not filed. (Rider 2026-11-04: FILED as BUG-23
+      on Gary's instruction; "not filed" is spent, kept.) Audit: docs/prompts/TPL-3_AUDIT.md.
+
   - id: X-1
     track: platform
     size: S
@@ -18333,7 +18412,13 @@ phases:
     # the "NOT pushed" / "NOT PUSHED" claims here and in the notes are spent,
     # kept. DECISIONS N-5b ratified there ("Ratify as written"); the "DRAFT
     # until PRE-PUSH-CHECK" in the notes below is spent, kept.
-    status: staging
+    # `staging` -> `shipped` 2026-11-04, stamped post-merge 2026-11-04 by
+    # DOCS-N5b-promotion-and-BUG-22 (on `staging`, R1): merge 274c1f7
+    # (DEPLOY_LOG entry `274c1f7 — 2026-11-04 — N-5b`). The PRE-PUSH-CHECK
+    # docs SHA ("the commit immediately after 1bc285e") is 4681854. Any "NOT
+    # pushed" / "staging" comment above is spent, kept.
+    status: shipped
+    shipped: 2026-11-04
     commits:
       # feat(N-5b): work commit — migration, sync, helper, consumers, fixture
       - "835a847"
@@ -18342,8 +18427,35 @@ phases:
       - "1bc285e"
       # + the commit immediately after 1bc285e: docs(PRE-PUSH-CHECK) —
       # DECISIONS ratified, this row's docs SHA and status flip
+      - "4681854"
+      # docs(PRE-PUSH-CHECK): the "commit immediately after 1bc285e" named
+      # above; recorded by DOCS-N5b-promotion-and-BUG-22
+      - "3d55efe"
+      # docs(N-5b): production add-on recipes imported 11-04 (Gary); N-5f
+      # filed; MODLINK audit
     title: "Inventory — count Square order modifiers in theoretical usage"
+    open:
+      - >
+        VARIANCE-HOVER VERIFICATION IS OWED. R7's add-ons in the variance
+        report hover have not been observed on any deployment; it waits on two
+        finalized counts, which Gary will do (2026-11-04).
+      - >
+        THE BACKFILL WAS RUN BY GARY, NOT OBSERVED HERE. After promotion he ran
+        "Sync now" on Inventory → Reports for every store, 10/05/2026–
+        11/04/2026 (2026-11-04), which covers R1's one-time 28-day backfill.
+        No resulting usage number has been read back by a session.
     notes: >
+      PROMOTED 2026-11-04 in merge 274c1f7 (rider, post-merge stamp by
+      DOCS-N5b-promotion-and-BUG-22): --no-ff, 2026-11-04 13:54:37 PST =
+      21:54:37 UTC, parents 6d2cb1f / 3d55efe, main 6d2cb1f..274c1f7, 5
+      commits (2d891ea, 835a847, 1bc285e, 4681854, 3d55efe) / 16 files,
+      staging fast-forwarded (origin/main = origin/staging = 274c1f7 —
+      measured at this stamp). Migration
+      20261104010000_n5b_sales_modifier_cache is in the range (applies via
+      the Vercel build; production finished_at not read by this stamp).
+      Gary then ran "Sync now" for every store, 10/05/2026–11/04/2026. The
+      "NOT PUSHED" and BLOCKERS text below is spent, kept; what remains is
+      in `open:`. ── PRIOR TEXT BELOW, UNEDITED. ──
       BUILT 2026-11-04, TIER 3, NOT PUSHED. Prompt of record:
       docs/prompts/N-5b-modifier-usage.md. Audit docs/prompts/N-5b_AUDIT.md.
       Rulings: docs/DECISIONS.md 2026-11-04 N-5b (DRAFT until PRE-PUSH-CHECK)
@@ -26297,11 +26409,31 @@ bugs:
       11-04 lines pasted (a selection, not a full day).
 
   - id: BUG-22
-    status: planned
+    # planned -> withdrawn 2026-11-04 by DOCS-N5b-promotion-and-BUG-22, on
+    # Gary's ruling "Won't build now" (DECISIONS 2026-11-04 BUG-22). There is
+    # no "won't build" value: PhaseStatus (src/lib/roadmap.ts) is planned |
+    # in_progress | staging | shipped | verified | withdrawn, and `withdrawn`
+    # is the value the board already uses for "not done, not outstanding"
+    # (BEV-0, the 2026-08-19 redeploy row). Its documented sense "retracted"
+    # fits imperfectly — the bug is real, just not worth building now — and
+    # the ruling carries a reopen trigger (notes rider). No `commits`, by the
+    # withdrawn convention: nothing was fixed.
+    status: withdrawn
     title: >
       Square order-webhook bursts re-read the whole store-day 2–3 times within
       ~200 ms — every sync reads Square and every one writes
     notes: >
+      WON'T BUILD NOW — ruled by Gary 2026-11-04 (rider; docs/DECISIONS.md
+      2026-11-04 "BUG-22: won't build now"). His words, exactly: "BUG-22:
+      Won't build now. 11-04 production webhook lines (11:18–11:20, the start
+      of the lunch rush) showed every sync at 1 page and 230–310 ms of Square
+      time, with one spike to 549 ms. Bursts of up to 5 syncs in a few
+      seconds are harmless because each one replaces the day. Reopen if any
+      store's sync shows 2+ pages or Square time over 800 ms." This answers
+      the PRECONDITION below (check the afternoon logs before building). The
+      lines were read by Gary; no session observed them. REOPEN TRIGGER: any
+      store's sync at 2+ pages, or Square time over 800 ms. ── PRIOR TEXT
+      BELOW, UNEDITED. ──
       FILED 2026-11-04 by the N-5b session, on Gary's ruling (DECISIONS
       2026-11-04 N-5b, DRAFT): "File BUG-22 as planned: webhook bursts re-read
       the whole day. Check afternoon logs before building." THE ID was
@@ -26323,6 +26455,46 @@ bugs:
       BUG-20's single-flight question. PRECONDITION (Gary): check the
       afternoon production logs before building. RELATED: BUG-7, BUG-20,
       BUG-21.
+
+  - id: BUG-23
+    status: planned
+    title: >
+      Deleting a template that has completion history fails with an
+      unhandled 500 — DELETE /api/templates/[id] has no guard and no
+      try/catch over two RESTRICT foreign keys
+    notes: >
+      FILED 2026-11-04 by the TPL-3 session, on Gary's instruction ("Yes,
+      file the template DELETE 500 as a ROW"). Found in the TPL-3 Phase 1
+      audit (docs/prompts/TPL-3_AUDIT.md §6), where it was offered as a row and
+      not built. The ID was confirmed free (no BUG-23 in docs/, src/ or
+      scripts/).
+
+      THE DEFECT, DERIVED FROM CODE, NOT REPRODUCED. DELETE
+      /api/templates/[id] calls `prisma.template.delete({ where: { id } })`
+      with no pre-check and no try/catch. Task rows cascade from Template,
+      but "TaskLog_taskId_fkey" and "Checklist_templateId_fkey" are both ON
+      DELETE RESTRICT (read from prisma/migrations). So any template that
+      has ever produced a checklist, or had a task ticked, makes the delete
+      throw, and the route answers with an unhandled 500. The form's Delete
+      button (template-form.tsx handleDelete, behind its AlertDialog) reaches
+      it and shows the generic "Failed to delete template. Please try
+      again." — a retry fails the same way, and nothing says why. Same root
+      as TPL-3: history is RESTRICT, and the write path did not plan for it.
+      Not measured: how many production templates have history (likely
+      every daily template in use).
+
+      WHAT IT NEEDS — A RULING, NOT A ONE-LINER. Options for Gary: (a)
+      refuse with a 409 that says "This template has completion history —
+      archive it instead", and offer Archive (the working path today, which
+      already cascades onto the calendar per CAL-2); (b) turn Delete into
+      Archive for a template with history; (c) hide Delete on such templates.
+      Hard-deleting history is not an option (TaskLog and past checklists
+      are the compliance record). Whatever is chosen, enumerate every
+      RESTRICT relation onto Template, Task and Section before claiming the
+      route is covered (CLAUDE.md § Verifying a guard covers every path) —
+      the two named above are the ones this audit checked, not a census.
+
+      Untouched by TPL-3 (e5d6804): the DELETE handler was not edited.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.

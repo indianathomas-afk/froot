@@ -2,7 +2,71 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-04 — N-5b: add-on (modifier) recipes counted in theoretical inventory usage
+## UNPROMOTED — 2026-11-04 — TPL-3: deleted template tasks with history are retired, not silently kept
+
+**Status: staging only, not on `main`. NOT pushed at writing.** Work commit
+`e5d6804`; docs commit immediately after it (this entry, TPL-3 row, DECISIONS
+draft, MIGRATIONS entry, audit, prompt). TIER 3. Rulings: DECISIONS
+2026-11-04 TPL-3 (DRAFT until PRE-PUSH-CHECK).
+
+**Migration `20261104020000_tpl3_task_retired_at` rides this push** —
+additive: `Task.retiredAt TIMESTAMP(3)`, nullable, no default. Dev
+`br-broad-wave-a6vpjdw0` applied by Gary 2026-11-05 00:57:03 UTC
+(2026-11-04 16:57:03 PST); staging on push, production at promotion (Vercel
+build).
+
+**What changed.** PATCH `/api/templates/[id]` no longer silently keeps a
+removed task that has TaskLog history: it sets `retiredAt` (the row stays, so
+history keeps resolving it) and still hard-deletes a task with no history
+(`src/app/api/templates/task-sync.ts`). The response carries `retiredCount` /
+`deletedCount`; the form redirects to `/templates?retired=N`, which shows "N
+tasks retired — completion history kept". Template reads (list, Duplicate,
+edit, view, print, export, store-view picker) show live tasks only. The eight
+checklist surfaces (execution, print, list, dashboard, submit, day close,
+task-log, photo upload) use `src/lib/checklist-tasks.ts`: today's open
+checklist drops a retired task unless it was already ticked; past checklists
+keep showing it. Pending attachments now match the saved task by
+`orderIndex`.
+
+**Blast radius.** Every template save; every checklist read and the two
+`completionRate` writers (submit, day close). Before promotion nothing is
+retired anywhere, so every row reads NULL and every surface behaves exactly
+as before until someone deletes a task with history. Rollback: revert
+`e5d6804`; the column stays (additive). Any task retired before the revert
+would reappear as live, which is the pre-TPL-3 behaviour.
+
+**Evidence: dev and build only.** `scripts/verify-tpl3.ts` 42/42 on dev;
+`scripts/verify-chk15.ts` 28/28; build green. **Nothing observed in a browser
+or on any deployment.** Owed after Gary's push: the staging-SHA precondition,
+then the TPL-3 row's staging test (delete 3 tasks on a daily template with
+history, save, reopen, materialise, open an old completed checklist).
+
+## 274c1f7 — 2026-11-04 — N-5b: add-on (modifier) recipes counted in theoretical inventory usage
+
+**PROMOTED 2026-11-04 in merge `274c1f7`** (`274c1f731ee5ea0151cb8f7cdf4d4d805e03810b`,
+"Merge branch 'staging'", 2026-11-04 13:54:37 -0800 (Pacific, PST) = 2026-11-04
+21:54:37 UTC), `--no-ff`. First parent `6d2cb1f` (prior tip of `main`), second
+parent `3d55efe` (staging tip). **5 commits** in `274c1f7^1..274c1f7^2` —
+`2d891ea` (BUG-20 stamp), `835a847` (work), `1bc285e` (docs), `4681854`
+(PRE-PUSH-CHECK), `3d55efe` (production add-on recipes) — and **16 files**
+(1625 insertions, 25 deletions), read out of `git log` and `git diff
+--shortstat` at this stamp. `main` moved `6d2cb1f..274c1f7` (Gary's `git push
+origin main` output); `staging` fast-forwarded to it and was pushed. Measured
+by `git rev-parse` after `git fetch` at this stamp: `origin/main` =
+`origin/staging` = `274c1f7`. **Migration `20261104010000_n5b_sales_modifier_cache`
+is in the range** and applies to production via `prisma migrate deploy` in the
+Vercel build. Stamped post-merge 2026-11-04 on `staging` (R1); the heading
+previously read "UNPROMOTED — 2026-11-04 — N-5b: …". The "staging only, not on
+`main`. NOT pushed at writing" line below is spent, kept.
+
+**Backfill run (Gary, 2026-11-04, after promotion):** "Sync now" on Inventory →
+Reports for every store, range 10/05/2026–11/04/2026, to backfill add-on
+sales. That covers the "one-time 28-day backfill (R1)" owed below, with a
+wider window (31 days). Not independently observed by this stamp.
+
+**Evidence: none observed by this stamp beyond Gary's report above.** Owed:
+the variance-report hover with add-ons, which waits on two finalized counts
+(Gary will do the counts).
 
 **Status: staging only, not on `main`. NOT pushed at writing.** Work commit
 `835a847`; docs commit immediately after it (this entry, N-5b row,

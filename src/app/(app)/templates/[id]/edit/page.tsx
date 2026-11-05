@@ -23,7 +23,7 @@ export default async function EditTemplatePage({ params }: { params: Promise<{ i
       // tasks — it is the ids in this list that let a rename be a rename when
       // the form posts back (api/templates/sections.ts).
       include: {
-        tasks: { orderBy: { orderIndex: "asc" } },
+        tasks: { where: { retiredAt: null }, orderBy: { orderIndex: "asc" } }, // TPL-3: retired tasks never reappear in the form
         sections: { select: { id: true, name: true, sortOrder: true }, orderBy: { sortOrder: "asc" } },
         storeAssignments: true,
         // CAL-2: an active event already scheduling this template, so the

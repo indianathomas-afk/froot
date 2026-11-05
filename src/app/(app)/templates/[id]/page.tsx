@@ -18,7 +18,7 @@ export default async function TemplateViewPage({ params }: { params: Promise<{ i
     where: { id, organizationId: org.id },
     include: {
       // CHK-1: headings and their order come from the joined Section.
-      tasks: { orderBy: { orderIndex: "asc" }, include: { section: { select: { name: true, sortOrder: true } } } },
+      tasks: { where: { retiredAt: null }, orderBy: { orderIndex: "asc" }, include: { section: { select: { name: true, sortOrder: true } } } },
       // TPL-2 step (2): the type is read from the joined row, not the legacy
       // `type` string. Null here is a template with no TemplateType — only a
       // TPL-1a-window import or the seed script produces one — and it falls

@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { tasksForChecklist } from "@/lib/checklist-tasks"
 import { getUserStoreScope } from "@/lib/auth"
 import { resolveTaskLogStaff } from "@/lib/task-log-staff"
 import { NextResponse } from "next/server"
@@ -15,7 +16,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const checklist = await prisma.checklist.findFirst({
     where: { id, organizationId: org.id },
     // CHK-3: the template's task ids, for the ownership check below.
-    include: { template: { select: { tasks: { select: { id: true } } } } },
+    // TPL-3: `retiredAt` and the logged ids feed tasksForChecklist below, so a
+    // retired task can be neither ticked nor refused-to-untick wrongly.
+    include: {
+      template: { select: { tasks: { select: { id: true, retiredAt: true } } } },
+      taskLogs: { select: { taskId: true } },
+    },
   })
   if (!checklist) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
@@ -48,7 +54,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // tasks done. The S1 comment below records that this was known and left; this
   // is the refusal. The other end is the distinct-and-valid count in
   // api/checklists/[id]/submit/route.ts — either half alone leaves the hole open.
-  if (!checklist.template.tasks.some((t) => t.id === taskId)) {
+  //
+  // TPL-3 (R1): "belongs" means the checklist's own task set. A retired task
+  // that was already ticked here stays in it (and so can be unticked); one that
+  // was not cannot be newly logged.
+  const ownTasks = tasksForChecklist(checklist.template.tasks, {
+    completedAt: checklist.completedAt,
+    closedAt: checklist.closedAt,
+    loggedTaskIds: checklist.taskLogs.map((l) => l.taskId),
+  })
+  if (!ownTasks.some((t) => t.id === taskId)) {
     return NextResponse.json({ error: "That task does not belong to this checklist" }, { status: 400 })
   }
 

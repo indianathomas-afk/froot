@@ -2390,3 +2390,41 @@ file is additive.
 the apply (empty). `npm run build` also runs `prisma generate`. No
 `migrate deploy`, `db execute`, `migrate dev`, `migrate reset` or
 `migrate resolve` was run by the session.
+
+## 2026-11-04 — `20261104020000_tpl3_task_retired_at` (TPL-3)
+
+**APPLIED TO DEV ONLY, by Gary**, at the TPL-3 migration STOP and before the
+work commit (§ A migration STOPS the session). Staging and production get it
+from the Vercel build on Gary's push and at promotion. The timestamp is
+`20261104020000` — chosen only to sort after N-5b's `20261104010000`; it is a
+name, not a clock reading.
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | **2026-11-05 00:57:03.600728 UTC** (2026-11-04 16:57:03 PST) — read by the session from `_prisma_migrations` in the same query as `current_setting('neon.branch_id', true)` | Gary |
+| staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
+| production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
+
+The diff against the dev datasource (`env | grep -c DATABASE_URL` printed `0`)
+generated exactly one statement, which is the evidence dev had no other drift.
+No baseline empty diff was taken before `schema.prisma` was edited. After the
+apply, the same diff with no `-o` returned `-- This is an empty migration.`
+Generated, not hand-authored, so nothing joins § Protected indexes.
+**Additive only — nothing dropped, no backfill, no default:**
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "Task" ADD COLUMN "retiredAt" TIMESTAMP(3)` | nullable; every existing row reads NULL = live, which is exactly what each was before TPL-3. Set by PATCH `/api/templates/[id]` when a removed task has TaskLog history |
+
+**Fixture:** `scripts/verify-tpl3.ts`, 42 checks, all pass, against the
+applied schema on dev `br-broad-wave-a6vpjdw0` (throwaway `fixture-tpl3-*`
+org, deleted; leftover count asserted 0).
+
+**Prisma commands for this migration, verbatim:** `npx prisma format` ·
+`npx prisma validate` ·
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/20261104020000_tpl3_task_retired_at/migration.sql` ·
+`npx prisma generate` (after Gary's apply, twice — the first output was
+truncated by `tail`) · the same diff with no `-o` after the apply (empty).
+`npm run build` also runs `prisma generate`. No `migrate deploy`,
+`db execute`, `migrate dev`, `migrate reset` or `migrate resolve` was run by
+the session.

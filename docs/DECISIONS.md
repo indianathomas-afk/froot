@@ -5,6 +5,70 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-04 — TPL-3: deleted template tasks with history are retired, not kept
+
+**RATIFIED BY GARY, 2026-11-04, at the TPL-3 PRE-PUSH-CHECK, as written:**
+"Ratify as written". The "DRAFT" paragraph below is spent, kept; the
+heading's "— DRAFT" suffix was removed at this check.
+
+**DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** Nothing below is
+ratified yet.
+
+**F1–F3 are the session prompt's draft rulings** (`docs/prompts/TPL-1.md`,
+"Draft rulings (Gary ratifies at PRE-PUSH-CHECK)"). They are recorded as
+built, not as Gary's words:
+
+- **F1.** `Task.retiredAt DateTime?`. A deleted task with TaskLog history gets
+  `retiredAt = now()` instead of being skipped. A deleted task with no history
+  is still hard-deleted.
+- **F2.** Retired tasks are excluded from every template read and every
+  checklist generated after the save. Completed history (TaskLog, reports,
+  past checklists) still resolves the retired task by id and displays it.
+- **F3.** The PATCH response reports `retiredCount` and `deletedCount`. The
+  form shows one line after save. **Built as a flash on `/templates`**
+  ("N tasks retired — completion history kept"), which the prompt left to the
+  session ("whichever the code makes simplest") — audit §4.
+- Filter with `retiredAt: null`, never a `not:` form.
+
+**R1 and R2 came from the Phase 1 audit** (`docs/prompts/TPL-3_AUDIT.md` §3,
+§5). At the audit STOP the session asked "Do you accept R1 (the checklist
+visibility rule) and R2a (un-retire on a stale id) as recommended?" Gary
+answered, exactly:
+
+> "Yes, go Phase 2"
+
+- **R1 — which tasks a checklist shows.** Checklists read template tasks live
+  (no snapshot), so F2 needs a rule. A task is on a checklist when it is live,
+  OR it has a TaskLog on that checklist, OR the checklist finished
+  (`completedAt ?? closedAt`) before the task was retired. Today's open
+  checklist loses retired tasks unless they were already ticked today; every
+  past checklist shows what was live when it finished. One helper,
+  `src/lib/checklist-tasks.ts`.
+- **R2 (a) — a stale tab.** A save naming a retired task's id un-retires it
+  (one row, continuous history), rather than creating a duplicate or dropping
+  it.
+
+**Claude implementation choices (for the record).** The task diff moved into
+`src/app/api/templates/task-sync.ts` so the fixture runs the route's code; the
+TaskLog history check now runs inside the transaction. New tasks are created
+there too, instead of by the nested `create` on `template.update`.
+
+## 2026-11-04 — BUG-22: won't build now; reopen on 2+ pages or Square time over 800 ms (Gary)
+
+**Ruled by Gary, 2026-11-04, after the N-5b promotion (`274c1f7`).** His
+words, recorded exactly:
+
+> BUG-22: Won't build now. 11-04 production webhook lines (11:18–11:20, the
+> start of the lunch rush) showed every sync at 1 page and 230–310 ms of
+> Square time, with one spike to 549 ms. Bursts of up to 5 syncs in a few
+> seconds are harmless because each one replaces the day. Reopen if any
+> store's sync shows 2+ pages or Square time over 800 ms.
+
+This answers the precondition BUG-22 was filed with ("Check afternoon logs
+before building", the N-5b entry below). The production lines it cites were
+read by Gary; this session did not observe them. ROADMAP BUG-22 carries a
+dated rider pointing here.
+
 ## 2026-11-04 — N-5b: add-on (modifier) usage counted forward + 28-day backfill; refunds a gap; BUG-22 filed (Gary)
 
 **RATIFIED BY GARY, 2026-11-04, at the N-5b PRE-PUSH-CHECK, as written:**

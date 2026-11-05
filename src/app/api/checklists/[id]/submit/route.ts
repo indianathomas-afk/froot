@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { tasksForChecklist } from "@/lib/checklist-tasks"
 import { getUserStoreScope } from "@/lib/auth"
 import { isLateCompletion } from "@/lib/checklist-lifecycle"
 import { NextResponse } from "next/server"
@@ -89,7 +90,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // counting a set costs nothing and stops depending on that.
   // The other end of the fix is the ownership check in
   // api/checklists/[id]/task-log/route.ts; the day-close job counts the same way.
-  const templateTaskIds = new Set(checklist.template.tasks.map((t) => t.id))
+  // TPL-3 (R1): the checklist's own task set, not the raw template list — a
+  // retired task counts here only if it was ticked on this checklist
+  // (src/lib/checklist-tasks.ts). Day close computes the rate the same way.
+  const checklistTasks = tasksForChecklist(checklist.template.tasks, {
+    completedAt: checklist.completedAt,
+    closedAt: checklist.closedAt,
+    loggedTaskIds: checklist.taskLogs.map((l) => l.taskId),
+  })
+  const templateTaskIds = new Set(checklistTasks.map((t) => t.id))
   const doneTaskIds = new Set(
     checklist.taskLogs.filter((l) => templateTaskIds.has(l.taskId)).map((l) => l.taskId)
   )
@@ -97,7 +106,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const completedTasks = doneTaskIds.size
   const completionRate = totalTasks > 0 ? completedTasks / totalTasks : 0
 
-  const criticalTasks = checklist.template.tasks.filter((t) => t.isCritical)
+  const criticalTasks = checklistTasks.filter((t) => t.isCritical)
   const allCriticalDone = criticalTasks.every((t) => doneTaskIds.has(t.id))
 
   const status = completionRate === 1

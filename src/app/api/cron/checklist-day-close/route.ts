@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { tasksForChecklist } from "@/lib/checklist-tasks"
 import { NextResponse } from "next/server"
 import { dbDate, localDateStr } from "@/lib/reports"
 import { dayCloseJudgesChecklist } from "@/lib/calendar"
@@ -249,7 +250,9 @@ export async function GET(req: Request) {
             // closing site can ask the same question the materialisation site
             // asks. Under DEBT-61 bulk generate creates a Weekly row every day,
             // so this is where most non-Daily fiction was actually written.
-            template: { select: { frequency: true, tasks: { select: { id: true } } } },
+            template: { select: { frequency: true, tasks: { select: { id: true, retiredAt: true } } } },
+            // TPL-3 (R1): needed by tasksForChecklist below.
+            completedAt: true,
             // CAL-2, ruling 4. The select is explicit, so the gate's second
             // half does not arrive for free — this line IS the widening.
             calendarOccurrenceId: true,
@@ -314,7 +317,14 @@ export async function GET(req: Request) {
           // DISTINCT logs whose task belongs to this template. Counting raw log
           // rows is the integrity hole this session closes; see
           // api/checklists/[id]/submit/route.ts.
-          const taskIds = new Set(c.template.tasks.map((t) => t.id))
+          // TPL-3 (R1): the same task set submit counts — src/lib/checklist-tasks.ts.
+          const taskIds = new Set(
+            tasksForChecklist(c.template.tasks, {
+              completedAt: c.completedAt,
+              closedAt: c.closedAt,
+              loggedTaskIds: c.taskLogs.map((l) => l.taskId),
+            }).map((t) => t.id)
+          )
           const done = new Set(c.taskLogs.filter((l) => taskIds.has(l.taskId)).map((l) => l.taskId))
           const completionRate = taskIds.size > 0 ? done.size / taskIds.size : 0
 
