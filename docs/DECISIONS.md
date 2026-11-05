@@ -5,6 +5,56 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-05 — BUG-25: no TaskAttachment-only fix; the 20 uncreated tables wait for the §2 baseline squash — DRAFT
+
+**DRAFT — to be ratified by Gary.** Nothing below is ratified yet. The ruling
+itself is Gary's (quoted). The framing around it is Claude's.
+
+**GARY'S RULING, 2026-11-05, in chat, after the BUG-25 Phase 1 audit** (his
+words):
+
+> "Ruling: path 3. Don't build anything for BUG-25 — no migration, no
+> fixture, no Neon runs. One docs commit only: correct the BUG-25 row in place
+> (20 tables have no CREATE TABLE, a fresh migrate deploy fails at
+> 20260706190000_i6_recipes_adjustments_prep, so TaskAttachment alone can't be
+> fixed in isolation), set it to point at the MIGRATIONS.md §2 baseline
+> squash, and file one ROW for the squash itself if none exists (list all 20
+> tables; note the check matched table names only, not columns). Draft my
+> ruling in DECISIONS.md for me to ratify. Commit only."
+
+**What "path 3" means.** It was the third option in Claude's Phase 1 report:
+"Leave the whole problem to the MIGRATIONS.md §2 baseline squash." The other
+two were (1) fix TaskAttachment alone with an idempotent baseline, file the
+other 19 as a row, and drop the fresh-database proof (Claude's
+recommendation), and (2) one idempotent baseline for all 20 tables,
+timestamped before i6.
+
+**The finding that forced the choice** (Claude, measured;
+`docs/prompts/BUG-25_AUDIT.md` § 5). 20 of 130 schema models have no CREATE
+TABLE in any migration, TaskAttachment among them. The check matched table
+names only. On an empty database, `migrate deploy` fails at
+`20260706190000_i6_recipes_adjustments_prep`, whose first statement alters
+`SalesItem`. So a TaskAttachment baseline dated November would never run on a
+fresh database.
+
+**What it settles:**
+
+- BUG-25 builds nothing. It stays open, blocked on DEBT-125, and closes when
+  the squash lands.
+- The squash is DEBT-125, filed 2026-11-05 with all 20 tables listed. Its fix
+  shape is MIGRATIONS.md §2 as written.
+- **NOT adopted:** the BUG-25 prompt's draft rule "R1 — a table that exists
+  without a migration gets an idempotent baseline migration, never `migrate
+  resolve`". It was the prompt's draft, not a ruling, and path 3 makes it
+  moot for these 20 tables. §2's own procedure marks the regenerated 0_init
+  as applied on each branch. Whether that step happens is Gary's call when
+  DEBT-125 is scheduled, not something this entry decides.
+
+**Claude, for the record:** the Phase 1 audit query had a hand-typed branch
+literal (`'br-broad-wave'::text AS branch`), which CLAUDE.md R4 forbids. It was
+never run on Neon. The audit § 4 records it with the
+`current_setting('neon.branch_id', true)` replacement.
+
 ## 2026-11-04 — BUG-23: a template with history is archived, never deleted; DELETE answers 409
 
 **RATIFIED BY GARY, 2026-11-04, at the BUG-23 PRE-PUSH-CHECK, as written:**
