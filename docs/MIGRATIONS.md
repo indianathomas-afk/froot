@@ -2540,15 +2540,22 @@ the session.
 
 ## 2026-11-05 — `0_init` (DEBT-125 baseline squash; closes BUG-25)
 
-**BUILT. MARKED ON DEV ONLY (2026-11-05); staging and production NOT marked.** Phase 3 rehearsal passed (DEPLOY_LOG). Work commit `1c85892` on
-`staging`, not pushed. See § 2a for what was built, the marking INSERT, and the
-recovery UPDATE.
+**STATUS: MARKED ON ALL BRANCHES (dev, staging, production), 2026-11-05.
+Promoted in merge `ba38ed2`** (DEPLOY_LOG `ba38ed2 — 2026-11-05 — DEBT-125`).
+Rollback: `git revert -m 1 ba38ed2` does NOT remove the `0_init` rows below;
+rolling back the squash needs a planning session, not a revert alone.
+Stamped by PROMOTE-DOCS_2026-11-05_DEBT-125. The previous status line, spent
+and kept: "BUILT. MARKED ON DEV ONLY (2026-11-05); staging and production NOT
+marked. … Work commit `1c85892` on `staging`, not pushed."
+
+Phase 3 rehearsal passed (DEPLOY_LOG). See § 2a for what was built, the
+marking INSERT, and the recovery UPDATE.
 
 | Branch | `0_init` row (`_prisma_migrations`) | By |
 |---|---|---|
 | dev `br-broad-wave-a6vpjdw0` | **MARKED 2026-11-05**, right after Phase 3 B (Gary's ruling). id `ad30c396-8451-4f30-8109-158b65b16dff`. A local `migrate deploy` after it found nothing pending. `finished_at` not recorded | Gary, console |
-| staging `br-square-feather-a63z92vz` | not yet. INSERT BEFORE the push that carries `1c85892` | Gary, console |
-| production `br-sparkling-block-a620qvg4` | not yet. INSERT BEFORE the promotion that carries `1c85892` | Gary, console |
+| staging `br-square-feather-a63z92vz` | **MARKED 2026-11-05**, before the push that carried `1c85892`. id `85cb75ea-8670-4cde-b5ba-255a713543f4`, 87 ledger rows. The `9213f4c` staging build on `ep-odd-rain-a6gr4xmm`: "1 migration found", then "No pending migrations to apply". `finished_at` not recorded | Gary, console |
+| production `br-sparkling-block-a620qvg4` | **MARKED 2026-11-05**, before the `ba38ed2` promotion. Checksum `0e7d39aa…b752e4c717`, 1 step, 87 ledger rows. id not recorded. Production build for `ba38ed2`, Gary's words: "ba38ed2 went Ready on production; build log showed no pending migrations." | Gary, console |
 
 **Archive.** The 86 entries above this one name migrations that now live in
 `prisma/migrations_archive/<name>/`. Their verbatim command lines

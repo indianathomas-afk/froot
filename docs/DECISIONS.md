@@ -65,9 +65,17 @@ What each one settles (Claude's summary):
 - **F4.** MIGRATIONS.md §2/§3 and CLAUDE.md § Database were corrected in the
   DEBT-125 docs commit.
 
-## 2026-11-05 — BUG-25: no TaskAttachment-only fix; the 20 uncreated tables wait for the §2 baseline squash — DRAFT
+## 2026-11-05 — BUG-25: no TaskAttachment-only fix; the 20 uncreated tables wait for the §2 baseline squash
 
-**DRAFT — to be ratified by Gary.** Nothing below is ratified yet. The ruling
+**RATIFIED BY GARY, 2026-11-05, in chat at PROMOTE-DOCS_2026-11-05_DEBT-125,
+after DEBT-125 shipped in merge `ba38ed2`, as written:** "Ratify as written."
+This covers the entry as a whole. The heading's "— DRAFT" suffix was removed
+at this pass. The "DRAFT — to be ratified by Gary" paragraph below is no
+longer current; it is spent, kept. BUG-25 closed with DEBT-125 the same day,
+as "What it settles" foresaw.
+
+**DRAFT — to be ratified by Gary.** *(No longer current — ratified above.)*
+Nothing below is ratified yet. The ruling
 itself is Gary's (quoted). The framing around it is Claude's.
 
 **GARY'S RULING, 2026-11-05, in chat, after the BUG-25 Phase 1 audit** (his

@@ -26666,11 +26666,27 @@ bugs:
       (BUG-23's exact shape).
 
   - id: BUG-25
-    status: planned
+    # planned -> shipped 2026-11-05 by PROMOTE-DOCS_2026-11-05_DEBT-125:
+    # CLOSED BY DEBT-125, which shipped in merge ba38ed2. BUG-25 built nothing
+    # of its own (Gary's "path 3" ruling); the commits below are DEBT-125's.
+    # The "stays open" / "BLOCKED ON DEBT-125" notes below are spent, kept.
+    status: shipped
+    shipped: 2026-11-05
+    commits:
+      # DEBT-125: work commit — 0_init creates TaskAttachment and the other 19
+      - "1c85892"
+      # merge(main): production promotion of DEBT-125 2026-11-05
+      - "ba38ed2"
     title: >
       TaskAttachment appears in no migration — check whether a database built
       from prisma/migrations alone lacks the table
     notes: >
+      CLOSED 2026-11-05 BY DEBT-125 (merge ba38ed2). The condition was met by
+      DEBT-125's Phase 3 A: a fresh `migrate deploy` on an empty database
+      built the whole schema, TaskAttachment included. Dev, staging and
+      production are all marked with 0_init. Gary ratified the BUG-25 ruling
+      in DECISIONS.md on 2026-11-05: "Ratify as written."
+
       POINTER 2026-11-05: DEBT-125 is in_progress. Its squash is committed as
       1c85892 on staging, not pushed: 0_init creates TaskAttachment and the
       other 19 tables. BUG-25 stays open until DEBT-125's Phase 3 A shows a
@@ -36730,7 +36746,20 @@ debt:
     # "STILL OWED: PRE-PUSH-CHECK" are spent, kept. THE PUSH STILL WAITS ON
     # THE STAGING 0_init INSERT (MIGRATIONS.md § 2a): `staging` here means the
     # check passed, and the code is ready for staging once the INSERT is in.
-    status: staging
+    # `staging` -> `shipped` 2026-11-05, stamped post-merge 2026-11-05 by
+    # PROMOTE-DOCS_2026-11-05_DEBT-125 (on `staging`, R1): merge ba38ed2
+    # (DEPLOY_LOG entry `ba38ed2 — 2026-11-05 — DEBT-125`). The PRE-PUSH-CHECK
+    # docs SHA ("the commit immediately after 98532a3") is 9213f4c. All three
+    # branches are marked with 0_init: dev, staging, production. The "Not yet
+    # pushed" / "THE PUSH STILL WAITS" comments above and the notes' "STILL
+    # OWED" / "STAGING AND PRODUCTION ARE NOT MARKED" are spent, kept.
+    # Rollback: `git revert -m 1 ba38ed2` does NOT undo the 0_init ledger
+    # rows; rolling back the squash needs a planning session, not a revert.
+    # SHIPPED 2026-11-05. No `shipped:` key: DebtItem (src/lib/roadmap.ts)
+    # has no such field and the build rejects it; the date lives here and in
+    # the notes. Adding the field is a code change, out of scope for this
+    # TIER 1 docs pass.
+    status: shipped
     title: >
       Do the MIGRATIONS.md §2 baseline squash — 20 tables have no CREATE TABLE
       in any migration, so prisma/migrations cannot build a database
@@ -36743,7 +36772,25 @@ debt:
       - "b72883e"
       # docs(DEBT-125): Phase 3 rehearsal passed; dev marked with 0_init
       - "98532a3"
+      # docs(DEBT-125): PRE-PUSH-CHECK, the "commit immediately after
+      # 98532a3"; recorded by PROMOTE-DOCS_2026-11-05_DEBT-125
+      - "9213f4c"
+      # merge(main): production promotion 2026-11-05 (first parent 2b0a33e,
+      # second parent 9213f4c)
+      - "ba38ed2"
     notes: >
+      SHIPPED 2026-11-05 in merge ba38ed2 (PROMOTE-DOCS_2026-11-05_DEBT-125).
+      Staging marked: 0_init id 85cb75ea-8670-4cde-b5ba-255a713543f4 on
+      br-square-feather-a63z92vz, 87 rows; the 9213f4c staging build on
+      ep-odd-rain-a6gr4xmm found 1 migration and nothing pending; Gary's
+      staging smoke test passed. Production marked: 0_init INSERT on
+      br-sparkling-block-a620qvg4, checksum 0e7d39aa…b752e4c717, 1 step, 87
+      rows. Gary, on production (his words): "ba38ed2 went Ready on
+      production; build log showed no pending migrations." and "All smoke
+      tests worked: footer ba38ed2, dashboard, Opener edit page, purchase
+      order." BUG-25 closes with this row. Evidence: DEPLOY_LOG `ba38ed2 —
+      2026-11-05 — DEBT-125`.
+
       PHASE 3 PASSED, DEV MARKED, 2026-11-05 (Gary, as he reported it in
       chat; evidence in DEPLOY_LOG's DEBT-125 entry). A: an empty
       `squash_test` database on dev took `migrate deploy` (0_init only), and
