@@ -5,6 +5,45 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-04 — BUG-23: a template with history is archived, never deleted; DELETE answers 409 — DRAFT
+
+**DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** Nothing below is
+ratified yet.
+
+**R1–R4 are the session prompt's draft rulings** (`docs/prompts/BUG-23.md`,
+"Draft rulings (Gary ratifies at PRE-PUSH-CHECK)"). They are recorded as
+built, not as Gary's words:
+
+- **R1.** A template "has history" if anything RESTRICT-references it or its
+  tasks. Built as four checks (`src/app/api/templates/history.ts`):
+  `Checklist.templateId`, `CalendarEvent.templateId`, `TaskLog.taskId`,
+  `TaskLog.sectionId` — every RESTRICT FK in the migration SQL that reaches
+  the template from outside it.
+- **R2.** On a template with history the edit page shows **Archive** in place
+  of **Delete**, with a confirm dialog ("Archive this template? It stops
+  generating new checklists. Past checklists are kept."). Archive is the
+  existing `PATCH { isArchived: true }`. Delete never quietly archives.
+- **R3.** A template with no history still hard-deletes.
+- **R4.** The route is the gate. DELETE on a template with history returns
+  **409** `{ error: "This template has checklist history — archive it
+  instead." }`, and the form shows that text. A foreign-key violation caught
+  around the delete returns the same 409.
+
+**Claude — three implementation choices the prompt did not make:**
+
+- **The catch is wider than P2003.** The prompt said "catch Prisma `P2003`".
+  Measured on dev `br-broad-wave-a6vpjdw0`: under `@prisma/adapter-neon` a
+  RESTRICT violation is SQLSTATE `23001` and arrives as a `DriverAdapterError`,
+  not a P2003. A P2003-only catch would have left the 500 in place. The
+  matcher takes P2003 or a raw postgres `23001`/`23503`.
+- **An already-archived template with history shows neither button.** The
+  prompt did not cover it; offering Archive on an archived template would be
+  a no-op that re-runs the calendar cascade.
+- **A template whose ONLY reference is a calendar event counts as history**
+  (R1 as written), so it gets Archive and the 409 — whose wording says
+  "checklist history" although no checklist exists yet. Copy left as the
+  prompt gave it; flagged for Gary at the check.
+
 ## 2026-11-04 — TPL-3: deleted template tasks with history are retired, not kept
 
 **RATIFIED BY GARY, 2026-11-04, at the TPL-3 PRE-PUSH-CHECK, as written:**

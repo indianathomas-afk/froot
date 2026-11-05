@@ -26477,7 +26477,11 @@ bugs:
       BUG-21.
 
   - id: BUG-23
-    status: planned
+    # planned -> in_progress 2026-11-04 at the work commit b9b7389 (NOT
+    # pushed). The docs SHA is the commit immediately after b9b7389 (its own
+    # SHA cannot be written inside itself). R1-R4 are DRAFT in DECISIONS.md
+    # until Gary ratifies them at PRE-PUSH-CHECK.
+    status: in_progress
     title: >
       Deleting a template that has completion history fails with an
       unhandled 500 — DELETE /api/templates/[id] has no guard and no
@@ -26515,6 +26519,46 @@ bugs:
       the two named above are the ones this audit checked, not a census.
 
       Untouched by TPL-3 (e5d6804): the DELETE handler was not edited.
+
+      BUILT 2026-11-04, work commit b9b7389 (TIER 2), on draft rulings R1-R4
+      (docs/DECISIONS.md, DRAFT until PRE-PUSH-CHECK) — option (a) with (c)'s
+      button swap: a template with history shows ARCHIVE in place of Delete,
+      and the route refuses a delete on its own with a 409. A template with no
+      history still hard-deletes. Delete never quietly archives.
+
+      THE CENSUS THE ROW ASKED FOR, read from prisma/migrations SQL. RESTRICT
+      onto Template / Task / Section from outside the template: Checklist.
+      templateId, CalendarEvent.templateId (CAL-2 — the row named two, there
+      are four), TaskLog.taskId, TaskLog.sectionId. Task.sectionId is RESTRICT
+      but intra-template (both rows cascade off the same delete). CASCADE:
+      Task, Section, TemplateStoreAssignment, TaskAttachment. SET NULL:
+      TeamMessage.postedToTemplateId. templateHasHistory()
+      (src/app/api/templates/history.ts) checks all four RESTRICT paths, one
+      exists-style read each.
+
+      MEASURED, AND IT CHANGED THE BUILD: a P2003 catch would NOT have caught
+      this. Under @prisma/adapter-neon a RESTRICT violation (SQLSTATE 23001)
+      arrives as a DriverAdapterError with cause.code "23001", not a P2003
+      PrismaClientKnownRequestError — dev br-broad-wave-a6vpjdw0, fixture B5,
+      which was written expecting P2003 and failed. The backstop matches P2003
+      or a raw postgres 23001/23503.
+
+      ARCHIVE IS A REAL SUBSTITUTE (audit 2, plan-changer did not fire): bulk
+      and single generate (api/checklists), day-close materialise, the
+      store-view picker and schedulable-templates all filter
+      `isActive: true, isArchived: false`; calendar-materialize skips an
+      archived template's events, and the archive PATCH already archives them
+      (CAL-2 cascade).
+
+      FIXTURE scripts/verify-bug23.ts — 30/30 on dev br-broad-wave-a6vpjdw0:
+      no-history delete removes the row and its cascades; a Checklist, a lone
+      TaskLog on a retired task, and a lone CalendarEvent each make the helper
+      true and the delete refuse with the row intact; archiving drops the
+      template from the materialise query and keeps its past checklist.
+
+      NOT YET DONE: staging test (Gary, after PRE-PUSH-CHECK and push — the
+      three steps in docs/prompts/BUG-23.md). Not observed in a browser by
+      the session: the edit page needs a Clerk sign-in.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.

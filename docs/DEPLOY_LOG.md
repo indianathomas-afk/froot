@@ -2,6 +2,27 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-04 — BUG-23: template Delete on a template with history is a 409 + Archive, not a 500
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit `b9b7389`;
+docs commit is the one after it. No migration, no env var.
+
+- **What changed.** `DELETE /api/templates/[id]` checks
+  `templateHasHistory()` first (Checklist, CalendarEvent, TaskLog by task,
+  TaskLog by section) and answers 409 "This template has checklist history —
+  archive it instead." A template with no history still hard-deletes. The
+  edit page shows Archive (confirm dialog → `/templates`) in place of Delete
+  on a template with history.
+- **Backstop.** An FK violation around the delete is also a 409. It matches
+  the adapter's raw SQLSTATE 23001 as well as P2003 — a P2003-only catch
+  misses RESTRICT under `@prisma/adapter-neon` (measured on dev).
+- **Evidence.** `scripts/verify-bug23.ts` 30/30 on dev
+  `br-broad-wave-a6vpjdw0`. Not observed in a browser.
+- **Staging test owed (Gary):** a history template reads Archive and lands
+  under Archived; a never-run throwaway reads Delete and deletes; optional
+  two-tab stale case shows no raw 500.
+- **Rollback.** `git revert b9b7389`; nothing in the database changes.
+
 ## 6a6e2af — 2026-11-04 — TPL-3: deleted template tasks with history are retired, not silently kept
 
 **PROMOTED 2026-11-04 in merge `6a6e2af`** ("Merge branch 'staging'"). First
