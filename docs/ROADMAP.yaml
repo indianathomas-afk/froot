@@ -26671,6 +26671,47 @@ bugs:
       TaskAttachment appears in no migration — check whether a database built
       from prisma/migrations alone lacks the table
     notes: >
+      BLOCKED ON DEBT-125 (the MIGRATIONS.md §2 baseline squash), by Gary's
+      ruling 2026-11-05. BUG-25 builds nothing of its own. It closes when
+      DEBT-125's squash lands and a fresh `migrate deploy` on an empty branch
+      creates TaskAttachment. (Written in notes because bug rows have no
+      `blockers` field.)
+
+      CORRECTED 2026-11-05 by the BUG-25 session (audit:
+      docs/prompts/BUG-25_AUDIT.md). The text below this paragraph is the
+      filing, kept as written. It is right that TaskAttachment has no
+      migration, but it understates the problem. TaskAttachment is ONE OF 20
+      models in prisma/schema.prisma (of 130) with no CREATE TABLE in any
+      migration. The 20 are listed on DEBT-125. The check matched table names
+      only, not columns. All 20 arrived 2026-06-30 → 2026-07-06, the last week
+      before `db push` was retired. On an empty database, a fresh `npx prisma
+      migrate deploy` FAILS at 20260706190000_i6_recipes_adjustments_prep:
+      its first statement is `ALTER TABLE "SalesItem" ADD COLUMN …`, and no
+      earlier migration creates SalesItem. So "a fresh DB from migrations
+      lacks the table" is not the failure: a fresh DB cannot be built at all,
+      and TaskAttachment alone cannot be fixed in isolation. A TaskAttachment
+      baseline timestamped in November would never be reached.
+
+      GARY'S RULING, 2026-11-05 (his words): "Ruling: path 3. Don't build
+      anything for BUG-25 — no migration, no fixture, no Neon runs." Path 3
+      was the Phase 1 report's option "Leave the whole problem to the
+      MIGRATIONS.md §2 baseline squash". The §2 squash regenerates 0_init
+      from the schema, which creates all 20. BUG-25 now waits on DEBT-125
+      (the squash row, filed 2026-11-05). DECISIONS.md carries the ruling as
+      a DRAFT for Gary to ratify. The session prompt's draft R1 ("an
+      idempotent baseline migration, never `migrate resolve`") is NOT
+      adopted: nothing was built.
+
+      WHAT WAS MEASURED (audit § 2–4). Added by 129a378 (2026-06-30) with no
+      migration; db push is likely but NOT proven. Target DDL: one table, 7
+      columns, unique index "TaskAttachment_taskId_key", FK
+      "TaskAttachment_taskId_fkey" ON DELETE CASCADE. dev (br-broad-wave,
+      per local .env, endpoint ep-late-water…) MATCHES it exactly, measured
+      2026-11-05. Staging and production NOT measured; the Neon runs were
+      cancelled. THE PHASE 1 AUDIT QUERY CARRIED A HAND-TYPED BRANCH LITERAL,
+      WHICH CLAUDE.md R4 FORBIDS. Reuse it only with the
+      `current_setting('neon.branch_id', true)` swap given in the audit § 4.
+
       FILED 2026-11-04 by the BUG-23 session, on Gary's instruction ("file
       ... TaskAttachment having no migration (investigate whether a fresh DB
       from migrations lacks the table)"). The ID was confirmed free.
@@ -36675,6 +36716,61 @@ debt:
       additive-only and no column or table is ever dropped. So retiring means
       the code stops reading and writing the models, and dropping the tables
       is its own ruling. RELATED: N-1, N-3, BEV-1.
+
+  - id: DEBT-125
+    title: >
+      Do the MIGRATIONS.md §2 baseline squash — 20 tables have no CREATE TABLE
+      in any migration, so prisma/migrations cannot build a database
+    notes: >
+      FILED 2026-11-05 by the BUG-25 session, on Gary's ruling: "file one ROW
+      for the squash itself if none exists (list all 20 tables; note the
+      check matched table names only, not columns)". No squash row existed:
+      ROADMAP.yaml's "squash" and "baseline" hits are all notes on other rows
+      (DOC-1, DOC-3, BUG-25, DEBT-3, DEBT-5, DEBT-27, DEBT-35). THE ID was
+      confirmed free: DEBT-124 was the highest, and DEBT-125 appears nowhere
+      in docs/ or CLAUDE.md. Evidence: docs/prompts/BUG-25_AUDIT.md § 5.
+
+      THE 20 TABLES (of 130 models), each a model in prisma/schema.prisma with
+      no `CREATE TABLE "<name>"` in any prisma/migrations/*/migration.sql:
+      TaskAttachment (129a378, 2026-06-30); CatalogCategory, CatalogItem,
+      CatalogItemVariation (10794e5); Vendor, PurchaseOrder, PurchaseOrderLine
+      (376fe38); VendorIngredient (2e610d9); SquareCategory, SalesItem,
+      IngredientCategory, Ingredient (3893e62); IngredientCostLog,
+      IngredientDuplicateDismissal (2172c83) — all 2026-07-05;
+      IngredientStorageMapping (432a30e); InventoryCountCorrection (eb816db);
+      SalesPeriodCache, SalesLineCache, SalesHourlyCache, StoreMonthlyGoal
+      (b3cb378) — all 2026-07-06. The commit is the model's first appearance
+      in schema.prisma. All 20 date from the last week before `db push` was
+      retired (2026-07-06), consistent with db push but NOT proven. All 15
+      enums do have a CREATE TYPE.
+
+      THE CHECK'S LIMIT. It matched TABLE NAMES ONLY, not columns, types,
+      indexes or FKs. A table that a migration does create can still differ
+      from the live databases. DEBT-35's Task.estimatedTimeMinutes (INTEGER in
+      init, double precision live) passes this check, which is the proof. The
+      20 are the known floor, not the full extent.
+
+      COST OF DOING NOTHING: LATENT. dev, staging and production all have the
+      tables already (dev measured for TaskAttachment only, 2026-11-05; the
+      others are inferred from the app working). Nothing observable today.
+      Trigger: any database built from prisma/migrations. On an empty
+      database, `npx prisma migrate deploy` FAILS at
+      20260706190000_i6_recipes_adjustments_prep (first statement `ALTER
+      TABLE "SalesItem" ADD COLUMN …`) and nothing after it runs. That covers
+      a fresh Neon branch, a new environment, and a disaster rebuild. It is
+      also why `migrate dev` is broken (CLAUDE.md § Database).
+
+      FIX SHAPE. docs/MIGRATIONS.md §2, as written: regenerate 0_init from the
+      schema, which creates all 20. Two cautions already in §2 apply here.
+      (1) Re-append the protected indexes and CHECK constraints by hand.
+      (2) Diff the regenerated 0_init against a LIVE branch's actual columns
+      before marking it applied, because the squash erases the evidence
+      that the ledger ever disagreed. For these 20 tables the live diff is
+      the only column check anyone will have done. §2's ledger reset (DELETE
+      FROM "_prisma_migrations", then mark 0_init applied) touches every
+      branch, so it is TIER 3 and Gary runs every step. CLOSES BUG-25 when a
+      fresh `migrate deploy` on an empty branch creates TaskAttachment.
+      RELATED: BUG-25, DEBT-35, docs/MIGRATIONS.md §2.
 
 rulings:
   - id: R1
