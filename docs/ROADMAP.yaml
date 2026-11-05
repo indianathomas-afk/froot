@@ -1292,7 +1292,13 @@ phases:
     # (origin/staging = 2e2f8b0). DECISIONS TPL-3 ratified there ("Ratify as
     # written"); the "DRAFT until PRE-PUSH-CHECK" open item below is spent,
     # kept.
-    status: staging
+    # `staging` -> `shipped` 2026-11-04, stamped post-merge 2026-11-04 by
+    # PROMOTE-DOCS_2026-11-04_TPL-3 (on `staging`, R1): merge 6a6e2af
+    # (DEPLOY_LOG entry `6a6e2af — 2026-11-04 — TPL-3`). The PRE-PUSH-CHECK
+    # docs SHA ("the commit immediately after 6155ada") is b6123e9. The
+    # "NOT pushed" / "staging" comments above are spent, kept.
+    status: shipped
+    shipped: 2026-11-04
     commits:
       # feat(TPL-3): work commit — migration, task-sync, readers, form, fixture
       - "e5d6804"
@@ -1303,6 +1309,12 @@ phases:
       - "6155ada"
       # + the commit immediately after 6155ada: docs(PRE-PUSH-CHECK) —
       # DECISIONS ratified, this row's docs SHA and status flip
+      # docs(PRE-PUSH-CHECK): the "commit immediately after 6155ada" named
+      # above; recorded by PROMOTE-DOCS_2026-11-04_TPL-3
+      - "b6123e9"
+      # merge(main): production promotion 2026-11-04 (first parent 274c1f7,
+      # second parent b6123e9)
+      - "6a6e2af"
     title: "Deleted template tasks with completion history are retired, not silently kept"
     open:
       - >
@@ -1312,8 +1324,16 @@ phases:
         Reopen: the 3 tasks are gone. Run the next checklist materialise and
         confirm they are absent. Open an old completed checklist and confirm
         they still show.
+        (Promotion 2026-11-04, 6a6e2af: no staging test result is recorded.
+        Production evidence, partial, Gary: on the Opener Checklist
+        (template cmqx004es00003apdxqovzc4u) "I deleted tasks and it saved";
+        notice "I didn't see what it said"; the editor list ends at 40;
+        production Neon read: active 40, retired 10, total_rows 50. Still
+        unobserved: the notice text, materialise without the retired tasks,
+        and an old completed checklist still showing them.)
       - >
         DECISIONS 2026-11-04 TPL-3 is a DRAFT until PRE-PUSH-CHECK.
+        (Spent, kept: ratified at PRE-PUSH-CHECK, b6123e9.)
     notes: >
       THE BUG (Gary, production, Opener Checklist). On /templates/[id]/edit he
       deleted tasks 48, 49 and 50 and saved; the page saved and the tasks were
