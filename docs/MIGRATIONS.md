@@ -2403,7 +2403,16 @@ name, not a clock reading.
 |---|---|---|
 | dev `br-broad-wave-a6vpjdw0` | **2026-11-05 00:57:03.600728 UTC** (2026-11-04 16:57:03 PST) — read by the session from `_prisma_migrations` in the same query as `current_setting('neon.branch_id', true)` | Gary |
 | staging `br-square-feather-a63z92vz` | not yet — on Gary's push | Vercel build |
-| production `br-sparkling-block-a620qvg4` | not yet — at promotion | Vercel build |
+| production `br-sparkling-block-a620qvg4` | not yet — at promotion *(spent, kept: see below)* | Vercel build |
+
+**Production: APPLIED 2026-11-04 via vercel-build at promotion merge `6a6e2af`.**
+Read by Gary in the Neon console on the production branch (he confirmed
+"production"; `neon.branch_id` was not selected), pasted result:
+`finished_at` = **2026-11-05 01:31:25.350596 UTC** (2026-11-04 17:31:25 PST),
+`rolled_back_at` = null. The Vercel build log was not read. **Staging:** this
+promotion did not read or record a `finished_at`. The staging row above is
+still "not yet" as written, and that is unverified, not a claim that it is
+unapplied. Staging deploys of `b6123e9` ran the same vercel-build.
 
 The diff against the dev datasource (`env | grep -c DATABASE_URL` printed `0`)
 generated exactly one statement, which is the evidence dev had no other drift.

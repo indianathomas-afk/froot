@@ -2,12 +2,48 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-04 — TPL-3: deleted template tasks with history are retired, not silently kept
+## 6a6e2af — 2026-11-04 — TPL-3: deleted template tasks with history are retired, not silently kept
+
+**PROMOTED 2026-11-04 in merge `6a6e2af`** ("Merge branch 'staging'"). First
+parent `274c1f7` (prior tip of `main`, the N-5b promotion), second parent
+`b6123e9` (staging tip, the TPL-3 PRE-PUSH-CHECK). **6 commits** in
+`274c1f7..6a6e2af` besides the merge: `2e2f8b0` (N-5b / BUG-22 promotion
+stamp, docs only, needs nothing else), `e5d6804` (work), `6d7280a` (docs),
+`6155ada` (BUG-23 filed), `b6123e9` (PRE-PUSH-CHECK). Measured at this stamp by
+`git log` after `git fetch`: `staging` = `origin/staging` = `main` =
+`origin/main` = `6a6e2af`. Rollback: `git revert -m 1 6a6e2af`; the
+`Task.retiredAt` column stays and is harmless. Stamped post-merge 2026-11-04 on
+`staging` (PROMOTE-DOCS_2026-11-04_TPL-3); the heading previously read
+"UNPROMOTED — 2026-11-04 — TPL-3: …". The "staging only, not on `main`. NOT
+pushed at writing" line below is spent, kept.
+
+**Production evidence (Gary, 2026-11-04, after promotion).**
+- **Migration.** Gary ran this on the **production** Neon branch (he confirmed
+  "production") and pasted the result: `_prisma_migrations` row
+  `20261104020000_tpl3_task_retired_at`, `finished_at` =
+  `2026-11-05 01:31:25.350596+00` (2026-11-04 17:31:25 PST),
+  `rolled_back_at` = null. This is a Neon console read, not the Vercel build
+  log; the build log was not read.
+- **Opener Checklist delete** (www.usefroot.com, template
+  `cmqx004es00003apdxqovzc4u`). Gary, in his words: "I deleted tasks and it
+  saved". On the notice: "I didn't see what it said". His screenshot of
+  `/templates/cmqx004es00003apdxqovzc4u/edit` after the save shows the task
+  list ending at task 40. The prompt expected tasks 48–50 to be deleted; the
+  count shows 10 retired, so more than those three were deleted. Production
+  Neon read of `"Task"` for that template, pasted by Gary (branch: production,
+  per Gary; `neon.branch_id` was not selected): `active` 40, `retired` 10,
+  `total_rows` 50. The 10 retired rows stay for history. If the template held
+  exactly 50 tasks before the save, none were hard-deleted, but the
+  pre-save count was not recorded, so that is an inference. The notice text
+  was not observed. The Clerk org id for the screenshot was not recorded
+  (§ Browser Evidence), and the template id is the only identifier.
+- **Not yet observed in production:** checklist materialisation without the
+  retired tasks, and an old completed checklist still showing them.
 
 **Status: staging only, not on `main`. NOT pushed at writing.** Work commit
 `e5d6804`; docs commit immediately after it (this entry, TPL-3 row, DECISIONS
 draft, MIGRATIONS entry, audit, prompt). TIER 3. Rulings: DECISIONS
-2026-11-04 TPL-3 (DRAFT until PRE-PUSH-CHECK).
+2026-11-04 TPL-3 (ratified at PRE-PUSH-CHECK (`b6123e9`)).
 
 **Migration `20261104020000_tpl3_task_retired_at` rides this push** —
 additive: `Task.retiredAt TIMESTAMP(3)`, nullable, no default. Dev
