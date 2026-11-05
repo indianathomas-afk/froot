@@ -26481,7 +26481,24 @@ bugs:
     # pushed). The docs SHA is the commit immediately after b9b7389 (its own
     # SHA cannot be written inside itself). R1-R4 are DRAFT in DECISIONS.md
     # until Gary ratifies them at PRE-PUSH-CHECK.
-    status: in_progress
+    # in_progress -> staging 2026-11-04 at the BUG-23 PRE-PUSH-CHECK (the
+    # commit immediately after 1b598c6). Not yet pushed at the check
+    # (origin/staging = a9ee8fb). DECISIONS BUG-23 ratified there ("Ratify as
+    # written"); the "DRAFT ... until Gary ratifies" comment above and the
+    # "DRAFT until PRE-PUSH-CHECK" note below are spent, kept.
+    status: staging
+    commits:
+      # fix(BUG-23): work commit — history guard, 409, Archive swap, fixture
+      - "b9b7389"
+      # docs(BUG-23): the commit immediately after b9b7389 — this row,
+      # DECISIONS draft, DEPLOY_LOG UNPROMOTED, prompt
+      - "87723dc"
+      # fix(BUG-23): 409 text true for calendar-only templates (Gary's ruling 1)
+      - "db7e3f1"
+      # docs(BUG-23): Gary's two rulings; files BUG-24 and BUG-25
+      - "1b598c6"
+      # + the commit immediately after 1b598c6: docs(PRE-PUSH-CHECK) —
+      # DECISIONS ratified, this row's docs SHAs and status flip
     title: >
       Deleting a template that has completion history fails with an
       unhandled 500 — DELETE /api/templates/[id] has no guard and no

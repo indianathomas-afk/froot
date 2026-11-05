@@ -5,7 +5,13 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-04 — BUG-23: a template with history is archived, never deleted; DELETE answers 409 — DRAFT
+## 2026-11-04 — BUG-23: a template with history is archived, never deleted; DELETE answers 409
+
+**RATIFIED BY GARY, 2026-11-04, at the BUG-23 PRE-PUSH-CHECK, as written:**
+"Ratify as written". This covers R1–R4 as a whole, with rulings (1) and (2)
+below standing as already recorded. The "heading keeps — DRAFT" sentence and
+the "DRAFT" paragraph below are spent, kept; the heading's "— DRAFT" suffix
+was removed at this check.
 
 **GARY'S RULINGS, 2026-11-04, at the BUG-23 PRE-PUSH-CHECK, on the two
 choices flagged below** (his words):
