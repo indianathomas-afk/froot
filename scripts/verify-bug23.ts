@@ -85,7 +85,7 @@ async function main() {
     check("B1. helper says history", await templateHasHistory(withCl.t.id), true)
     check("B2. delete → refused for history (route: 409)", await deleteTemplateUnlessHistory(withCl.t.id), { ok: false, reason: "history" })
     check("B3. template row intact", await prisma.template.count({ where: { id: withCl.t.id } }), 1)
-    check("B4. exact 409 message", TEMPLATE_HAS_HISTORY_MESSAGE, "This template has checklist history — archive it instead.")
+    check("B4. exact 409 message", TEMPLATE_HAS_HISTORY_MESSAGE, "This template is used by past checklists or calendar events — archive it instead.")
     // The backstop. The unguarded delete is the BUG-23 500. Under the Neon
     // driver adapter a RESTRICT violation is NOT a P2003 — it is a
     // DriverAdapterError carrying SQLSTATE 23001 (this check was first written

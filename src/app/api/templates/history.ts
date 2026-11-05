@@ -51,8 +51,10 @@ export async function templateHasHistory(
   return !!(checklist || calendarEvent || logByTask || logBySection)
 }
 
-// R4. The 409 text, verbatim — the form shows `body.error` as-is.
-export const TEMPLATE_HAS_HISTORY_MESSAGE = "This template has checklist history — archive it instead."
+// R4. The 409 text, verbatim — the form shows `body.error` as-is. Reworded by
+// Gary at the BUG-23 PRE-PUSH-CHECK (2026-11-04) so it is true for a template
+// whose only reference is a calendar event, which R1 also counts as history.
+export const TEMPLATE_HAS_HISTORY_MESSAGE = "This template is used by past checklists or calendar events — archive it instead."
 
 export type DeleteTemplateResult = { ok: true } | { ok: false; reason: "history" }
 
