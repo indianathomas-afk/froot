@@ -1279,6 +1279,74 @@ phases:
       docs/prompts/TYPE-1_AUDIT.md, which is the map of every read and write
       site and is the reason this row can be scoped without re-auditing.
 
+  - id: TPL-3
+    track: platform
+    size: M
+    # planned -> in_progress 2026-11-04 at the work commit e5d6804 (NOT
+    # pushed). The docs SHA is the commit immediately after e5d6804 (its own
+    # SHA cannot be written inside itself). Filed and built in one session:
+    # the session prompt (docs/prompts/TPL-1.md) proposed the id TPL-1, which
+    # was taken, so this phase is TPL-3.
+    status: in_progress
+    commits:
+      # feat(TPL-3): work commit — migration, task-sync, readers, form, fixture
+      - "e5d6804"
+      # + the commit immediately after e5d6804: docs(TPL-3) — this row,
+      # DECISIONS draft, MIGRATIONS, DEPLOY_LOG UNPROMOTED, audit, prompt
+    title: "Deleted template tasks with completion history are retired, not silently kept"
+    open:
+      - >
+        STAGING TEST OWED (Gary, after push; staging-SHA precondition first).
+        Edit a daily template that has history and delete 3 tasks. Save:
+        /templates should show "3 tasks retired — completion history kept".
+        Reopen: the 3 tasks are gone. Run the next checklist materialise and
+        confirm they are absent. Open an old completed checklist and confirm
+        they still show.
+      - >
+        DECISIONS 2026-11-04 TPL-3 is a DRAFT until PRE-PUSH-CHECK.
+    notes: >
+      THE BUG (Gary, production, Opener Checklist). On /templates/[id]/edit he
+      deleted tasks 48, 49 and 50 and saved; the page saved and the tasks were
+      still there. PATCH /api/templates/[id] put every removed task that had a
+      TaskLog (TaskLog.task is RESTRICT) into a `blockedIds` set that nothing
+      read, left it live, and returned 200. Any task a store had ever ticked
+      could never be deleted, and nothing said so. Daily templates hit it on
+      every task. Second defect on the same path: the form mapped pending
+      attachments onto the response by position, and the response still held
+      the skipped tasks, so a new task's attachment could land on the wrong
+      task. (On staging the response was already ordered by orderIndex —
+      CHK-1 — so only the extra rows were left; the prompt read main.)
+
+      WHAT SHIPPED. F1: Task.retiredAt (migration
+      20261104020000_tpl3_task_retired_at, one additive nullable column). A
+      removed task with history is retired; one without is still hard-deleted.
+      The diff lives in src/app/api/templates/task-sync.ts, inside the
+      transaction. R2 (a): an incoming id naming a retired task un-retires it.
+      F2: seven template readers filter `retiredAt: null` (GET /api/templates,
+      which Duplicate copies from; edit, view and print pages; export; the
+      store-view picker; the PATCH response). Checklists read tasks LIVE (no
+      snapshot), so the eight checklist readers go through
+      src/lib/checklist-tasks.ts — R1: a task is on a checklist if it is live,
+      was ticked on it, or was retired after the checklist finished. Left
+      unfiltered on purpose: section pruning, by-id task lookups, milestones,
+      reports. F3: PATCH returns retiredCount / deletedCount; the form goes to
+      /templates?retired=N, which shows the one line. Attachments now match by
+      orderIndex (src/app/(app)/templates/attachment-match.ts).
+
+      EVIDENCE: dev and build only. scripts/verify-tpl3.ts 42/42 on dev
+      br-broad-wave-a6vpjdw0 after Gary applied the migration (retire vs
+      delete, TaskLog intact, live reads, fresh / open / past checklist views,
+      attachment mapping incl. the old-response regression, reader source
+      coverage, re-save and stale-tab). verify-chk15.ts 28/28 (it reads
+      touched sources). Build green. NOTHING OBSERVED IN A BROWSER OR ON ANY
+      DEPLOYMENT.
+
+      KNOWN LIMITS, NOT FIXED. Task has no createdAt, so a task added after a
+      past checklist still shows on it (pre-existing). DELETE
+      /api/templates/[id] 500s on any template with history (RESTRICT on
+      TaskLog.task and Checklist.template, no try/catch) — pre-existing,
+      offered as a row, not filed. Audit: docs/prompts/TPL-3_AUDIT.md.
+
   - id: X-1
     track: platform
     size: S
