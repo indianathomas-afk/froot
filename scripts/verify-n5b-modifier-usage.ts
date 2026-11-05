@@ -301,7 +301,7 @@ async function main() {
         /unmappedModifierSoldCount: mods\.unmappedModifierSoldCount/.test(src("src/app/api/inventory/reports/variance/route.ts")) &&
         /modifierDataMissingDays: mods\.modifierDataMissingDays/.test(src("src/app/api/inventory/reports/variance/route.ts"))
     )
-    const migration = src("prisma/migrations/20261104010000_n5b_sales_modifier_cache/migration.sql")
+    const migration = src("prisma/migrations_archive/20261104010000_n5b_sales_modifier_cache/migration.sql")
     check("S1 the migration is additive only", !/DROP (COLUMN|TABLE|CONSTRAINT|INDEX)/i.test(migration) && !/ALTER COLUMN/i.test(migration))
   } finally {
     await prisma.salesModifierCache.deleteMany({ where: { storeId: store.id } })

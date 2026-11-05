@@ -170,7 +170,7 @@ check("5f. an unrecognised bound stays blank + flagged: sodium <5 mg, calories <
 check("5g. a printed 0 g and a plain value are unchanged", [parsePrintedValue("totalFatG", "0g", ""), parsePrintedValue("proteinG", "1g", "")], [{ value: 0, flag: "ZERO" }, { value: 1, flag: null }])
 
 // ─── 6. The migration file says what the rulings say ─────────────────────────
-const MIGRATION = "prisma/migrations/20261102220000_n1d_proof_only_nutrition/migration.sql"
+const MIGRATION = "prisma/migrations_archive/20261102220000_n1d_proof_only_nutrition/migration.sql"
 const sql = readFileSync(MIGRATION, "utf8")
 const BACKFILL = `UPDATE "IngredientNutrition"
 SET "status" = 'ESTIMATED', "verifiedAt" = NULL, "verifiedByUserId" = NULL

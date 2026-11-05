@@ -26671,6 +26671,11 @@ bugs:
       TaskAttachment appears in no migration — check whether a database built
       from prisma/migrations alone lacks the table
     notes: >
+      POINTER 2026-11-05: DEBT-125 is in_progress. Its squash is committed as
+      1c85892 on staging, not pushed: 0_init creates TaskAttachment and the
+      other 19 tables. BUG-25 stays open until DEBT-125's Phase 3 A shows a
+      fresh `migrate deploy` on an empty database creating it. See DEBT-125.
+
       BLOCKED ON DEBT-125 (the MIGRATIONS.md §2 baseline squash), by Gary's
       ruling 2026-11-05. BUG-25 builds nothing of its own. It closes when
       DEBT-125's squash lands and a fresh `migrate deploy` on an empty branch
@@ -36718,10 +36723,67 @@ debt:
       is its own ruling. RELATED: N-1, N-3, BEV-1.
 
   - id: DEBT-125
+    # in_progress -> staging 2026-11-05 at the DEBT-125 PRE-PUSH-CHECK (the
+    # commit immediately after 98532a3). Not yet pushed at the check
+    # (origin/staging = 2b0a33e). DECISIONS DEBT-125 R1-R4 ratified there
+    # ("Ratify as written"); the notes' "carries R1-R4 as DRAFT" and
+    # "STILL OWED: PRE-PUSH-CHECK" are spent, kept. THE PUSH STILL WAITS ON
+    # THE STAGING 0_init INSERT (MIGRATIONS.md § 2a): `staging` here means the
+    # check passed, and the code is ready for staging once the INSERT is in.
+    status: staging
     title: >
       Do the MIGRATIONS.md §2 baseline squash — 20 tables have no CREATE TABLE
       in any migration, so prisma/migrations cannot build a database
+    commits:
+      # DEBT-125: work commit — 86 folders archived, 0_init, verify-debt125
+      - 1c85892
+      # docs(DEBT-125): the commit immediately after 1c85892 — this row,
+      # DECISIONS R1-R4 draft, DEPLOY_LOG UNPROMOTED, MIGRATIONS § 2a,
+      # CLAUDE.md, prompt + audit
+      - "b72883e"
+      # docs(DEBT-125): Phase 3 rehearsal passed; dev marked with 0_init
+      - "98532a3"
     notes: >
+      PHASE 3 PASSED, DEV MARKED, 2026-11-05 (Gary, as he reported it in
+      chat; evidence in DEPLOY_LOG's DEBT-125 entry). A: an empty
+      `squash_test` database on dev took `migrate deploy` (0_init only), and
+      the diff was empty. Its fingerprint (131 tables, 1356 columns, 316
+      indexes; column, index, constraint and enum hashes) matches the live
+      branches. B: `squash-rehearsal` (br-spring-salad-a6uy5xsy, a copy of
+      dev) took the INSERT, and `migrate deploy` then reported "No pending
+      migrations to apply" with the 86 old rows still present. Dev
+      br-broad-wave-a6vpjdw0 was marked right after B, by Gary's ruling,
+      replacing the prompt's "dev last": 0_init id
+      ad30c396-8451-4f30-8109-158b65b16dff, and a local `migrate deploy`
+      found nothing pending. STILL OWED: PRE-PUSH-CHECK; the staging INSERT
+      BEFORE the push; then the production INSERT BEFORE the `--no-ff`
+      promotion. STAGING AND PRODUCTION ARE NOT MARKED. BUG-25's condition
+      (a fresh deploy creates TaskAttachment) is met by A. BUG-25 closes
+      with this row at cutover.
+
+      IN PROGRESS 2026-11-05: PHASE 2 BUILT, COMMITTED ON STAGING, NOT PUSHED.
+      1c85892 moves all 86 migration folders into prisma/migrations_archive/
+      (README: history only, never deleted) and adds prisma/migrations/0_init:
+      the generated schema (130 tables, including all 20 below) plus the 8
+      hand-written objects (3 partial unique indexes, 5 CHECKs), each copied
+      verbatim from its archived source. sha256 of 0_init is
+      0e7d39aa0030e9c7adf485a92e7adc3f5038580a521b2ef707b9b6a752e4c717, the
+      checksum in the Neon-console marking INSERT (DEPLOY_LOG, 2026-11-05).
+      Fixture: `npx tsx scripts/verify-debt125.ts` (pure, no database).
+      NOT DONE: Phase 3 rehearsal (Gary: A, a fresh deploy to an empty
+      `squash_test` database plus an empty diff; B, a marked
+      `squash-rehearsal` branch whose deploy has nothing to apply), and
+      Phase 4 cutover (INSERT before push, staging then production then dev).
+      Do not push 1c85892 before staging carries the INSERT. The PART 1/PART 2
+      column check this row asked for was done before the build: § 7
+      fingerprints of all columns on dev, staging and production match
+      (1,356 columns each, which is 0_init's 1,348 plus _prisma_migrations'
+      8). Staging first had to get `receivedAt` on PurchaseOrder and
+      PurchaseOrderLine by console ALTER (audit F6, ruling R4).
+      DECISIONS.md 2026-11-05 carries R1–R4 as DRAFT. Audit:
+      docs/prompts/DEBT-125_AUDIT.md. The count is 86 migrations, not the 87
+      the session prompt said.
+
       FILED 2026-11-05 by the BUG-25 session, on Gary's ruling: "file one ROW
       for the squash itself if none exists (list all 20 tables; note the
       check matched table names only, not columns)". No squash row existed:

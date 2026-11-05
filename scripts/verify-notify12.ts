@@ -343,7 +343,7 @@ async function main() {
     {
       const column = ["  Notify12-X@Example.com", "notify12-x@example.com", "notify12-y@example.com", " ", "NOTIFY12-Y@EXAMPLE.COM"]
       await prisma.organization.update({ where: { id: orgC.id }, data: { hrAckRecipients: column } })
-      const sql = readFileSync(path.join(__dirname, "../prisma/migrations/20261023200000_notify12_recipients/migration.sql"), "utf8")
+      const sql = readFileSync(path.join(__dirname, "../prisma/migrations_archive/20261023200000_notify12_recipients/migration.sql"), "utf8")
       const backfill = sql.slice(sql.indexOf("-- F1 BACKFILL, step 1"))
       const statements = backfill
         .split(/;\s*\n/)

@@ -9,7 +9,7 @@
  * SHIPPED code or SQL, never a re-typed copy:
  *
  *   1. SEED IDEMPOTENCY — the migration's own data block, read out of
- *      prisma/migrations/…_doc5_document_category_entity/migration.sql and
+ *      prisma/migrations_archive/…_doc5_document_category_entity/migration.sql and
  *      replayed twice; plus ensureStarterDocumentCategories (the webhook seed)
  *      called repeatedly, including after a rename and a delete. The constant
  *      is also compared to the migration's VALUES list (they MUST MATCH).
@@ -54,10 +54,10 @@ function check(label: string, ok: boolean, detail = "") {
 const ROOT = join(__dirname, "..")
 const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8")
 
-const migrationDir = readdirSync(join(ROOT, "prisma/migrations")).find((d) =>
+const migrationDir = readdirSync(join(ROOT, "prisma/migrations_archive")).find((d) =>
   d.endsWith("_doc5_document_category_entity")
 )!
-const MIGRATION_SQL = read(`prisma/migrations/${migrationDir}/migration.sql`)
+const MIGRATION_SQL = read(`prisma/migrations_archive/${migrationDir}/migration.sql`)
 
 // The data block = everything after the DATA MIGRATION banner, split into its
 // statements with comment lines removed. No statement contains a ';' inside a

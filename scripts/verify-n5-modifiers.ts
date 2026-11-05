@@ -303,7 +303,7 @@ check("6g. prep list uses recipeKind, not salesItemId === null", /recipeKind\(r\
 const modTable = src("src/app/(app)/nutrition/menu/modifier-nutrition-table.tsx")
 check("6h. N5-F7: the Modifiers view never imports FDA label rounding", /from "@\/lib\/nutrition-label"/.test(modTable), false)
 check("6i. modifier cost shown only with inventory.costs.view", /can\(current\.actor, "inventory\.costs\.view"\)/.test(src("src/app/(app)/nutrition/menu/page.tsx")), true)
-const migration = src("prisma/migrations/20261103020000_n5_square_modifiers/migration.sql")
+const migration = src("prisma/migrations_archive/20261103020000_n5_square_modifiers/migration.sql")
 check("6j. the migration is additive only", [/DROP (COLUMN|TABLE|CONSTRAINT|INDEX)/i.test(migration), /ALTER TABLE "Recipe" (?!ADD)/.test(migration)], [false, false])
 
 // ─── 7. Against the applied schema (dev), rolled back ────────────────────────

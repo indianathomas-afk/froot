@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 // DOC-5. The starter document taxonomy every org begins with — one taxonomy
 // for library documents AND agreement forms (F7, Gary 2026-09-28).
 //
-// MUST MATCH prisma/migrations/20260928213037_doc5_document_category_entity
+// MUST MATCH prisma/migrations_archive/20260928213037_doc5_document_category_entity
 // STEP 1 EXACTLY — same five names, same colours, same sortOrder. That
 // migration seeded these for every existing org and backfilled categoryId from
 // the legacy string; this constant does the seed half for orgs created

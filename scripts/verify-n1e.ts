@@ -320,7 +320,7 @@ const oldRoute = readFileSync("src/app/api/nutrition/labels/discard-old/route.ts
 check("8a. DELETE marks DISCARDED, clears fileUrl, and deletes the blob", [/status: "DISCARDED", fileUrl: null/.test(itemRoute), /deleteLabelBlob\(item\.fileUrl\)/.test(itemRoute)], [true, true])
 check("8b. discard-old deletes every discarded file", /for \(const i of old\) await deleteLabelBlob\(i\.fileUrl\)/.test(oldRoute), true)
 check("8c. age in whole UTC days; 7 days is the cut-off", [ageDays(new Date("2026-10-26T18:00:01Z"), new Date(NOW)), ageDays(new Date("2026-10-26T18:00:00Z"), new Date(NOW)), ABANDONED_AFTER_DAYS], [6, 7, 7])
-const migration = readFileSync("prisma/migrations/20261103010000_n1e_label_inbox/migration.sql", "utf8")
+const migration = readFileSync("prisma/migrations_archive/20261103010000_n1e_label_inbox/migration.sql", "utf8")
 check("8d. the migration is additive only", [/DROP (COLUMN|TABLE|CONSTRAINT|INDEX)/i.test(migration), /ALTER TABLE "(?!NutritionLabelInboxItem)/.test(migration)], [false, false])
 
 // ─── 9. Against the applied schema (dev), rolled back ────────────────────────
