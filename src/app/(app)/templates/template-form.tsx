@@ -24,6 +24,7 @@ import { CreateEventForm } from "../calendar/create-event-form"
 import { DndContext, PointerSensor, useSensor, useSensors, DragEndEvent, closestCenter, type CollisionDetection } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
+import { savedTaskIdFor } from "./attachment-match"
 
 interface TaskAttachment {
   id: string
@@ -1530,13 +1531,19 @@ export function TemplateForm({
         return
       }
 
-      if (Object.keys(pendingAttachments).length > 0) {
-        const savedTemplate = await res.json() as { tasks: { id: string }[] }
+      // TPL-3: the body is always read now, for `retiredCount` (F3). It is
+      // only ever parsed once.
+      const savedTemplate = await res.json().catch(() => null) as
+        | { tasks?: { id: string; orderIndex: number }[]; retiredCount?: number }
+        | null
+
+      if (Object.keys(pendingAttachments).length > 0 && savedTemplate?.tasks) {
         const localIds = tasks.map((t) => t.id)
+        const savedTasks = savedTemplate.tasks
         await Promise.all(
           Object.entries(pendingAttachments).map(([localId, { file, label }]) => {
-            const idx = localIds.indexOf(localId)
-            const realTaskId = savedTemplate.tasks[idx]?.id
+            // TPL-3: matched by orderIndex, not by position — see attachment-match.ts.
+            const realTaskId = savedTaskIdFor(localIds, localId, savedTasks)
             if (!realTaskId) return Promise.resolve()
             const form = new FormData()
             form.append("file", file)
@@ -1552,7 +1559,11 @@ export function TemplateForm({
       // longer unsaved — so without this the operator is warned about the very
       // edits they have just persisted.
       setSavedAndLeaving(true)
-      router.push("/templates")
+      // TPL-3 (F3): a save that RETIRED tasks says so on /templates, which
+      // reads `?retired=` server-side. Deletes are not announced — a task
+      // with no history vanishing is what the operator asked for.
+      const retiredCount = savedTemplate?.retiredCount ?? 0
+      router.push(retiredCount > 0 ? `/templates?retired=${retiredCount}` : "/templates")
       router.refresh()
     } catch (err) {
       // CHK-8: an expired session lands here as SessionExpiredError rather than

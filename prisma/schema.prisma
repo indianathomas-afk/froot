@@ -747,6 +747,15 @@ model Task {
   excludedStoreIds     String[]
   videoUrl             String?
 
+  // TPL-3 (F1). Set when an operator deletes a task that has TaskLog history:
+  // the FK from TaskLog is RESTRICT, so the row cannot go, and before TPL-3 the
+  // PATCH route silently left it live. NULL = live. Every template reader
+  // filters `retiredAt: null`; checklist readers go through
+  // src/lib/checklist-tasks.ts, which keeps a retired task visible on history
+  // it belongs to (ruling R1). A task with no history is still hard-deleted.
+  // Filter with `retiredAt: null` — never a `not:` form, which drops NULLs.
+  retiredAt DateTime?
+
   template   Template        @relation(fields: [templateId], references: [id], onDelete: Cascade)
   section    Section?        @relation(fields: [sectionId], references: [id], onDelete: Restrict)
   taskLogs   TaskLog[]

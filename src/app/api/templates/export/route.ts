@@ -64,7 +64,7 @@ export async function GET(req: Request) {
     include: {
       // CHK-1: the section join, for exactly TPL-2's reason one model down —
       // see the `task_section` cell below.
-      tasks: { orderBy: { orderIndex: "asc" }, include: { section: { select: { name: true } } } },
+      tasks: { where: { retiredAt: null }, orderBy: { orderIndex: "asc" }, include: { section: { select: { name: true } } } },
       // TPL-2 step (2). THIS JOIN IS NOT COSMETIC AND IT IS NOT OPTIONAL.
       // Step (1) stopped the rename cascade and the reassign write, so
       // Template.type is now a snapshot at insert — an export still emitting it

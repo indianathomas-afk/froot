@@ -8,6 +8,17 @@ import TemplatesClient from "./templates-client"
 // override layer, and the /templates page would keep rendering for a user the
 // layout had already decided to bounce. Deleted rather than converted: one
 // guard, in the layout, is the whole point of putting it there.
-export default function TemplatesPage() {
-  return <TemplatesClient />
+//
+// TPL-3 (F3): `?retired=N` is set by the template form after a save that
+// retired N tasks (deleted tasks with completion history). Read here rather
+// than with useSearchParams so the client needs no Suspense boundary.
+export default async function TemplatesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const raw = (await searchParams).retired
+  const n = Number(Array.isArray(raw) ? raw[0] : raw)
+  const retiredNotice = Number.isInteger(n) && n > 0 ? n : null
+  return <TemplatesClient retiredNotice={retiredNotice} />
 }

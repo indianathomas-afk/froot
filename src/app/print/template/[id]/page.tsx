@@ -17,7 +17,7 @@ export default async function TemplatePrintPage({ params }: { params: Promise<{ 
     where: { id, organizationId: org.id },
     include: {
       // CHK-1: headings and their order come from the joined Section.
-      tasks: { orderBy: { orderIndex: "asc" }, include: { section: { select: { name: true, sortOrder: true } } } },
+      tasks: { where: { retiredAt: null }, orderBy: { orderIndex: "asc" }, include: { section: { select: { name: true, sortOrder: true } } } },
       // TPL-2 step (2): joined row is the truth; the legacy `type` string is
       // the fallback for a template with no TemplateType.
       templateType: { select: { name: true } },

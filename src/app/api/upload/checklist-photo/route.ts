@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { tasksForChecklist } from "@/lib/checklist-tasks"
 import { getUserStoreScope } from "@/lib/auth"
 import { NextResponse } from "next/server"
 import { put } from "@vercel/blob"
@@ -65,8 +66,11 @@ export async function POST(req: Request) {
     select: {
       storeId: true,
       closedAt: true,
+      completedAt: true,
       status: true,
-      template: { select: { tasks: { select: { id: true } } } },
+      // TPL-3: same task set as task-log — src/lib/checklist-tasks.ts.
+      template: { select: { tasks: { select: { id: true, retiredAt: true } } } },
+      taskLogs: { select: { taskId: true } },
     },
   })
   if (!checklist) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -86,7 +90,12 @@ export async function POST(req: Request) {
     )
   }
 
-  if (!checklist.template.tasks.some((t) => t.id === taskId)) {
+  const ownTasks = tasksForChecklist(checklist.template.tasks, {
+    completedAt: checklist.completedAt,
+    closedAt: checklist.closedAt,
+    loggedTaskIds: checklist.taskLogs.map((l) => l.taskId),
+  })
+  if (!ownTasks.some((t) => t.id === taskId)) {
     return NextResponse.json({ error: "That task does not belong to this checklist" }, { status: 400 })
   }
 

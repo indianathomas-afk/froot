@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { tasksForChecklist } from "@/lib/checklist-tasks"
 import { NextResponse, after } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
 import { can } from "@/lib/permissions"
@@ -182,7 +183,8 @@ export async function GET(req: Request) {
   const checklistItems: { id: string; checklistId: string; label: string; checked: boolean }[] = []
   for (const cl of checklists) {
     const done = new Set(cl.taskLogs.map((t) => t.taskId))
-    for (const task of cl.template.tasks) {
+    // TPL-3 (R1): src/lib/checklist-tasks.ts decides which tasks this row carries.
+    for (const task of tasksForChecklist(cl.template.tasks, { completedAt: cl.completedAt, closedAt: cl.closedAt, loggedTaskIds: done })) {
       if (task.excludedStoreIds.includes(storeId)) continue
       checklistItems.push({ id: task.id, checklistId: cl.id, label: task.description, checked: done.has(task.id) })
     }

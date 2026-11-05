@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import { AlertTriangle } from "lucide-react"
 import { groupTasksBySection } from "@/lib/sections"
+import { tasksForChecklist } from "@/lib/checklist-tasks"
 import { checklistState, isCompletedLate } from "@/lib/checklist-lifecycle"
 import { frozenWindow } from "@/lib/checklist-status-display"
 import { ChecklistPrintControls } from "./checklist-print-controls"
@@ -43,6 +44,15 @@ export default async function ChecklistPrintPage({
     },
   })
   if (!checklist) return notFound()
+
+  // TPL-3 (R1): the tasks this checklist actually carries — live tasks, plus a
+  // retired task already ticked here or retired after this checklist finished.
+  // See src/lib/checklist-tasks.ts. Every count below reads the filtered list.
+  checklist.template.tasks = tasksForChecklist(checklist.template.tasks, {
+    completedAt: checklist.completedAt,
+    closedAt: checklist.closedAt,
+    loggedTaskIds: checklist.taskLogs.map((l) => l.taskId),
+  })
 
   const completedTaskIds = new Set(checklist.taskLogs.map((l) => l.taskId))
 

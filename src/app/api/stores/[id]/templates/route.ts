@@ -37,7 +37,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   const templates = await prisma.template.findMany({
     where: { organizationId: org.id, isActive: true, isArchived: false },
     include: {
-      tasks: true,
+      tasks: { where: { retiredAt: null } }, // TPL-3: picker counts live tasks only
       storeAssignments: true,
       templateType: { select: { name: true } },
     },

@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { tasksForChecklist } from "@/lib/checklist-tasks"
 import { getUserStoreScope } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { businessDayWindow } from "@/lib/reports"
@@ -55,29 +56,37 @@ export async function GET(req: Request) {
     orderBy: { date: "desc" },
   })
 
-  const result = checklists.map((c) => ({
-    id: c.id,
-    templateName: c.template.name,
-    // TPL-1a, 2026-08-08: `templateType` is emitted here and consumed NOWHERE
-    // — a repo-wide grep for the key returns this line only. Left in place
-    // rather than removed, since a response field is cheap and something may
-    // yet want it; recorded so the next reader does not spend the search
-    // working that out.
-    //
-    // TPL-2 step (2), 2026-08-08 — THIS IS THE SITE BEING ANSWERED FOR. The
-    // key name is unchanged; only its SOURCE moved, from the legacy string to
-    // the joined row. MIGRATED RATHER THAN DELETED (Gary, Q3): deleting it is
-    // a response-shape change no caller asked for, and this way the field is
-    // correct instead of going stale the moment a type is renamed. Deleting it
-    // is a fair question for TPL-2 step (3), which revisits this surface.
-    templateType: c.template.templateType?.name ?? c.template.type,
-    status: c.status,
-    date: c.date,
-    storeName: c.store.name,
-    taskCount: c.template.tasks.length,
-    estimatedMinutes: Math.round(c.template.tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0)),
-    completedTaskIds: c.taskLogs.map((l) => l.taskId),
-  }))
+  const result = checklists.map((c) => {
+    // TPL-3 (R1): this row's own task set — src/lib/checklist-tasks.ts.
+    const tasks = tasksForChecklist(c.template.tasks, {
+      completedAt: c.completedAt,
+      closedAt: c.closedAt,
+      loggedTaskIds: c.taskLogs.map((l) => l.taskId),
+    })
+    return {
+      id: c.id,
+      templateName: c.template.name,
+      // TPL-1a, 2026-08-08: `templateType` is emitted here and consumed NOWHERE
+      // — a repo-wide grep for the key returns this line only. Left in place
+      // rather than removed, since a response field is cheap and something may
+      // yet want it; recorded so the next reader does not spend the search
+      // working that out.
+      //
+      // TPL-2 step (2), 2026-08-08 — THIS IS THE SITE BEING ANSWERED FOR. The
+      // key name is unchanged; only its SOURCE moved, from the legacy string to
+      // the joined row. MIGRATED RATHER THAN DELETED (Gary, Q3): deleting it is
+      // a response-shape change no caller asked for, and this way the field is
+      // correct instead of going stale the moment a type is renamed. Deleting it
+      // is a fair question for TPL-2 step (3), which revisits this surface.
+      templateType: c.template.templateType?.name ?? c.template.type,
+      status: c.status,
+      date: c.date,
+      storeName: c.store.name,
+      taskCount: tasks.length,
+      estimatedMinutes: Math.round(tasks.reduce((sum, t) => sum + (t.estimatedTimeMinutes ?? 0), 0)),
+      completedTaskIds: c.taskLogs.map((l) => l.taskId),
+    }
+  })
 
   return NextResponse.json(result)
 }

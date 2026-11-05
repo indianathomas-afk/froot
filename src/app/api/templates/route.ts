@@ -20,7 +20,7 @@ export async function GET() {
   const templates = await prisma.template.findMany({
     where: { organizationId: org.id },
     include: {
-      tasks: { include: { attachment: true }, orderBy: { orderIndex: "asc" } },
+      tasks: { where: { retiredAt: null }, include: { attachment: true }, orderBy: { orderIndex: "asc" } }, // TPL-3: live only — also what Duplicate copies
       // TPL-1b: the badge reads its colour from the joined row rather than from
       // a hardcoded map. Joined per-template rather than resolved client-side
       // against /api/template-types, so it is authoritative for the row, does

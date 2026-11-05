@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
 import { notFound } from "next/navigation"
 import { ChecklistExecutionClient } from "./checklist-execution-client"
+import { tasksForChecklist } from "@/lib/checklist-tasks"
 
 export default async function ChecklistExecutionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -38,6 +39,15 @@ export default async function ChecklistExecutionPage({ params }: { params: Promi
   })
 
   if (!checklist) return notFound()
+
+  // TPL-3 (R1): the tasks this checklist actually carries — live tasks, plus a
+  // retired task already ticked here or retired after this checklist finished.
+  // See src/lib/checklist-tasks.ts. Every count below reads the filtered list.
+  checklist.template.tasks = tasksForChecklist(checklist.template.tasks, {
+    completedAt: checklist.completedAt,
+    closedAt: checklist.closedAt,
+    loggedTaskIds: checklist.taskLogs.map((l) => l.taskId),
+  })
 
   const { isAdmin, storeIds } = await getUserStoreScope()
   // Non-admins can never view a checklist for a store they aren't assigned to,
