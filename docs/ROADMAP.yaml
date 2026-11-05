@@ -26486,7 +26486,13 @@ bugs:
     # (origin/staging = a9ee8fb). DECISIONS BUG-23 ratified there ("Ratify as
     # written"); the "DRAFT ... until Gary ratifies" comment above and the
     # "DRAFT until PRE-PUSH-CHECK" note below are spent, kept.
-    status: staging
+    # `staging` -> `shipped` 2026-11-04, stamped post-merge 2026-11-04 by
+    # PROMOTE-DOCS_2026-11-04_BUG-23 (on `staging`, R1): merge f24b18e
+    # (DEPLOY_LOG entry `f24b18e — 2026-11-04 — BUG-23`). The PRE-PUSH-CHECK
+    # docs SHA ("the commit immediately after 1b598c6") is ced65fc. The
+    # "Not yet pushed" / "staging" comments above are spent, kept.
+    status: shipped
+    shipped: 2026-11-04
     commits:
       # fix(BUG-23): work commit — history guard, 409, Archive swap, fixture
       - "b9b7389"
@@ -26499,6 +26505,12 @@ bugs:
       - "1b598c6"
       # + the commit immediately after 1b598c6: docs(PRE-PUSH-CHECK) —
       # DECISIONS ratified, this row's docs SHAs and status flip
+      # docs(PRE-PUSH-CHECK): the "commit immediately after 1b598c6" named
+      # above; recorded by PROMOTE-DOCS_2026-11-04_BUG-23
+      - "ced65fc"
+      # merge(main): production promotion 2026-11-04 (first parent a9ee8fb,
+      # second parent ced65fc)
+      - "f24b18e"
     title: >
       Deleting a template that has completion history fails with an
       unhandled 500 — DELETE /api/templates/[id] has no guard and no
@@ -26591,6 +26603,16 @@ bugs:
       filed on his instruction: BUG-24 (adapter FK-error gap) and BUG-25
       (TaskAttachment has no migration).
 
+      SHIPPED 2026-11-04 in production merge f24b18e (no migration). Staging,
+      Gary in chat: "Overdue Test" showed Archive, archived into the Archived
+      tab, and that tab offered Unarchive; the throwaway delete was not run on
+      staging. Production (www.usefroot.com), Gary's chosen answers: a
+      template with history — "Yes, showed Archive"; a brand-new throwaway —
+      "Yes, deleted cleanly". Clerk org id not recorded. The two-tab stale
+      case was never observed. Full record: DEPLOY_LOG entry `f24b18e —
+      2026-11-04 — BUG-23`. Two pre-existing /templates Archived-tab defects
+      seen on staging the same day are filed as BUG-26.
+
   - id: BUG-24
     status: planned
     title: >
@@ -26682,6 +26704,42 @@ bugs:
       migrations — a fresh Neon branch replayed from scratch, a new
       environment, or the baseline squash `migrate dev` is waiting on — gets
       no TaskAttachment table, and every template edit and save then fails.
+
+  - id: BUG-26
+    status: planned
+    title: >
+      /templates Archived tab — archived cards still show a green "Active"
+      badge, and the bulk bar reads "1 templates selected"
+    notes: >
+      FILED 2026-11-04 by PROMOTE-DOCS_2026-11-04_BUG-23, on the promotion
+      prompt's instruction, which filed it as TIER 1. Seen on staging
+      2026-11-04 during the BUG-23 staging test (Gary, in chat). Both defects
+      predate BUG-23: neither line was touched by b9b7389 or db7e3f1. The ID
+      was confirmed free (no BUG-26 in docs/, src/ or scripts/).
+
+      (1) THE BADGE. src/app/(app)/templates/templates-client.tsx:423-424
+      renders `template.isActive ? "Active" : "Inactive"` with the success
+      colours, and reads only isActive, never isArchived. Archiving a template
+      does not appear to clear isActive, so an archived card still shows a
+      green "Active" badge. Read from code at f24b18e; the archive PATCH's
+      effect on isActive was not checked.
+
+      (2) THE PLURAL. templates-client.tsx:350 renders `{selected.size}
+      templates selected` with no singular case, so one selection reads "1
+      templates selected". Copy only.
+
+      TIER NOTE, RECORDED NOT RULED: (2) is TIER 1 as filed. (1) changes a
+      conditional that decides WHAT the badge says (an archived card would
+      need to read "Archived", or show no badge), which CLAUDE.md § Session
+      Tiers says was never TIER 1. The session that builds it should expect
+      to re-declare (1) as TIER 2, or ask Gary to split the row. The right
+      badge for an archived template is a product choice for Gary and has not
+      been made.
+
+      COST OF DOING NOTHING: LIVE, cosmetic. An admin on /templates →
+      Archived sees archived templates labelled "Active" and a
+      grammatically wrong count. Nothing is wrong in the data and no write is
+      affected.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
