@@ -1345,7 +1345,8 @@ phases:
       past checklist still shows on it (pre-existing). DELETE
       /api/templates/[id] 500s on any template with history (RESTRICT on
       TaskLog.task and Checklist.template, no try/catch) — pre-existing,
-      offered as a row, not filed. Audit: docs/prompts/TPL-3_AUDIT.md.
+      offered as a row, not filed. (Rider 2026-11-04: FILED as BUG-23
+      on Gary's instruction; "not filed" is spent, kept.) Audit: docs/prompts/TPL-3_AUDIT.md.
 
   - id: X-1
     track: platform
@@ -26444,6 +26445,46 @@ bugs:
       BUG-20's single-flight question. PRECONDITION (Gary): check the
       afternoon production logs before building. RELATED: BUG-7, BUG-20,
       BUG-21.
+
+  - id: BUG-23
+    status: planned
+    title: >
+      Deleting a template that has completion history fails with an
+      unhandled 500 — DELETE /api/templates/[id] has no guard and no
+      try/catch over two RESTRICT foreign keys
+    notes: >
+      FILED 2026-11-04 by the TPL-3 session, on Gary's instruction ("Yes,
+      file the template DELETE 500 as a ROW"). Found in the TPL-3 Phase 1
+      audit (docs/prompts/TPL-3_AUDIT.md §6), where it was offered as a row and
+      not built. The ID was confirmed free (no BUG-23 in docs/, src/ or
+      scripts/).
+
+      THE DEFECT, DERIVED FROM CODE, NOT REPRODUCED. DELETE
+      /api/templates/[id] calls `prisma.template.delete({ where: { id } })`
+      with no pre-check and no try/catch. Task rows cascade from Template,
+      but "TaskLog_taskId_fkey" and "Checklist_templateId_fkey" are both ON
+      DELETE RESTRICT (read from prisma/migrations). So any template that
+      has ever produced a checklist, or had a task ticked, makes the delete
+      throw, and the route answers with an unhandled 500. The form's Delete
+      button (template-form.tsx handleDelete, behind its AlertDialog) reaches
+      it and shows the generic "Failed to delete template. Please try
+      again." — a retry fails the same way, and nothing says why. Same root
+      as TPL-3: history is RESTRICT, and the write path did not plan for it.
+      Not measured: how many production templates have history (likely
+      every daily template in use).
+
+      WHAT IT NEEDS — A RULING, NOT A ONE-LINER. Options for Gary: (a)
+      refuse with a 409 that says "This template has completion history —
+      archive it instead", and offer Archive (the working path today, which
+      already cascades onto the calendar per CAL-2); (b) turn Delete into
+      Archive for a template with history; (c) hide Delete on such templates.
+      Hard-deleting history is not an option (TaskLog and past checklists
+      are the compliance record). Whatever is chosen, enumerate every
+      RESTRICT relation onto Template, Task and Section before claiming the
+      route is covered (CLAUDE.md § Verifying a guard covers every path) —
+      the two named above are the ones this audit checked, not a census.
+
+      Untouched by TPL-3 (e5d6804): the DELETE handler was not edited.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
