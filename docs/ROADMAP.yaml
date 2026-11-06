@@ -26940,7 +26940,28 @@ bugs:
     # inside itself). Docs SHAs: b3bfc40 (row, DRAFT R1-R2, DEPLOY_LOG),
     # 156b4ed (DECISIONS scope widened to BUG-27). R1-R2 RATIFIED by Gary at
     # this check, "Ratify as written". NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-05, stamped post-merge 2026-11-05 by
+    # PROMOTE-DOCS_2026-11-05_BUG-26-27 (on `staging`): merge e647573
+    # (DEPLOY_LOG entry `e647573 — 2026-11-05 — BUG-26 ...`). The
+    # PRE-PUSH-CHECK docs SHA ("the commit immediately after 156b4ed") is
+    # 68ed2c0. The "NOT pushed" / "staging" comments above are spent, kept.
+    # Rollback: `git revert -m 1 e647573`; no migration.
+    status: shipped
+    shipped: 2026-11-05
+    commits:
+      # fix(BUG-26): work commit — templates card badge + bulk-bar plural
+      - "d17edfa"
+      # docs(BUG-26): the commit immediately after d17edfa — this row,
+      # DRAFT R1-R2, DEPLOY_LOG UNPROMOTED
+      - "b3bfc40"
+      # docs(BUG-26/27): DECISIONS R1-R2 scope widened to /hr/training
+      - "156b4ed"
+      # docs(PRE-PUSH-CHECK): the "commit immediately after 156b4ed";
+      # recorded by PROMOTE-DOCS_2026-11-05_BUG-26-27
+      - "68ed2c0"
+      # merge(main): production promotion 2026-11-05 (first parent 80293ca,
+      # second parent 68ed2c0)
+      - "e647573"
     title: >
       /templates Archived tab — archived cards still show a green "Active"
       badge, and the bulk bar reads "1 templates selected"
@@ -26988,6 +27009,14 @@ bugs:
       against the pre-fix file. Staging test owed (Gary): the DEPLOY_LOG
       entry "UNPROMOTED — 2026-11-05 — BUG-26".
 
+      SHIPPED 2026-11-05 in merge e647573
+      (PROMOTE-DOCS_2026-11-05_BUG-26-27). The "Staging test owed" sentence
+      above is spent, kept. Staging (planning chat, recorded as given): on
+      /templates → Archived, "CAL-2 test" shows a grey "Archived" badge, and
+      with one card ticked the bar reads "1 template selected". Production
+      (Gary, verbatim): "Ready, not looked" — e647573 went Ready; neither
+      Archived tab was looked at on www.usefroot.com.
+
   - id: BUG-27
     # planned -> in_progress 2026-11-05 at the work commit 08fedf1 (NOT
     # pushed). The docs SHA is the commit immediately after 08fedf1. Reuses
@@ -26997,7 +27026,30 @@ bugs:
     # (the commit immediately after 156b4ed). Docs SHAs: 527ee04 (row filed),
     # 361089b (row, DEPLOY_LOG), 156b4ed (DECISIONS scope). R1-R2 RATIFIED by
     # Gary at this check, "Ratify as written". NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-05, stamped post-merge 2026-11-05 by
+    # PROMOTE-DOCS_2026-11-05_BUG-26-27 (on `staging`): merge e647573, the
+    # same promotion as BUG-26. The PRE-PUSH-CHECK docs SHA ("the commit
+    # immediately after 156b4ed") is 68ed2c0. The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback: `git revert -m 1 e647573`
+    # (whole promotion) or `git revert 08fedf1` (BUG-27 alone); no migration.
+    status: shipped
+    shipped: 2026-11-05
+    commits:
+      # docs(BUG-27): row filed
+      - "527ee04"
+      # fix(BUG-27): work commit — training badge (cards + table) + plural
+      - "08fedf1"
+      # docs(BUG-27): the commit immediately after 08fedf1 — this row,
+      # DEPLOY_LOG extended
+      - "361089b"
+      # docs(BUG-26/27): DECISIONS R1-R2 scope widened to /hr/training
+      - "156b4ed"
+      # docs(PRE-PUSH-CHECK): the "commit immediately after 156b4ed";
+      # recorded by PROMOTE-DOCS_2026-11-05_BUG-26-27
+      - "68ed2c0"
+      # merge(main): production promotion 2026-11-05 (first parent 80293ca,
+      # second parent 68ed2c0)
+      - "e647573"
     title: >
       /hr/training Archived tab — archived modules can show a green "Active"
       badge, and the bulk bar reads "1 modules selected" (BUG-26's twin)
@@ -27042,6 +27094,15 @@ bugs:
       only, no DB: 14/14, and 7 fail against the pre-fix file. Staging test
       owed (Gary): the DEPLOY_LOG entry "UNPROMOTED — 2026-11-05 — BUG-26",
       which now carries BUG-27 too.
+
+      SHIPPED 2026-11-05 in merge e647573
+      (PROMOTE-DOCS_2026-11-05_BUG-26-27). The "Staging test owed" sentence
+      above is spent, kept. Staging (planning chat, recorded as given): on
+      /hr/training → Archived, card view, both archived modules show grey
+      "Archived" badges, and with one ticked the bar reads "1 module
+      selected". Table view was not checked in a browser; the fixture covers
+      it. Production (Gary, verbatim): "Ready, not looked" — e647573 went
+      Ready; neither Archived tab was looked at on www.usefroot.com.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
