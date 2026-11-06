@@ -36,6 +36,9 @@ export const RESTRICT_MESSAGES = {
   store: "This store has checklists, purchase orders or inventory counts — it can't be deleted.",
   // BUG-24 row 3. The pre-check's own sentence, reused for the catch.
   staff: "This staff member has records and cannot be deleted — terminate them instead",
+  // BUG-24 row 2, Ruling A, in Gary's words (2026-11-05). Access is already
+  // removed in Clerk by the time this can fire, so the sentence says so.
+  user: "Access removed. Their record stays because they posted corporate updates",
   // Rows 8–13: the race behind an existing pre-check. Each reuses its route's
   // pre-check sentence; the counted ones drop the count, which the race cannot know.
   templateType: "Templates still use this type — reassign them first",

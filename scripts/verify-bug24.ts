@@ -89,6 +89,21 @@ async function main() {
     check("1c. unused store → deleted (route: 200)", await answer(() => prisma.store.delete({ where: { id: storeClean.id } }), RESTRICT_MESSAGES.store), { status: 200 })
     check("1d. …and it is gone", await prisma.store.count({ where: { id: storeClean.id } }), 0)
 
+    // ── 2. User removal (row 2, Ruling A) ────────────────────────────────────
+    // The Clerk half runs first in the route and is not exercised here (no
+    // Clerk calls from a fixture). Section S checks it stays first.
+    console.log("\n2. DELETE /api/users/[id] — DB half")
+    const author = await prisma.user.create({ data: { clerkUserId: `bug24-author-${stamp}`, organizationId: org.id, email: `bug24-author-${stamp}@example.invalid` } })
+    await prisma.corporateUpdate.create({ data: { organizationId: org.id, authorUserId: author.id, title: "BUG-24 Update", body: "BUG-24", deletedAt: new Date() } })
+    check("2a. author of a (soft-deleted) corporate update → 409 + Gary's sentence",
+      await answer(() => prisma.user.deleteMany({ where: { clerkUserId: author.clerkUserId, organizationId: org.id } }), RESTRICT_MESSAGES.user),
+      { status: 409, body: { error: "Access removed. Their record stays because they posted corporate updates" } })
+    check("2b. …and the User row stays", await prisma.user.count({ where: { id: author.id } }), 1)
+    const plain = await prisma.user.create({ data: { clerkUserId: `bug24-plain-${stamp}`, organizationId: org.id, email: `bug24-plain-${stamp}@example.invalid` } })
+    check("2c. user with no updates → deleted",
+      await answer(() => prisma.user.deleteMany({ where: { clerkUserId: plain.clerkUserId, organizationId: org.id } }), RESTRICT_MESSAGES.user), { status: 200 })
+    check("2d. …and they are gone", await prisma.user.count({ where: { id: plain.id } }), 0)
+
     // ── 3. Staff (row 3) ─────────────────────────────────────────────────────
     console.log("\n3. DELETE /api/staff/[id]")
     const staffBlocked = await mkStaff("BUG-24 Staff With Labor")
@@ -158,6 +173,7 @@ async function main() {
     const src = (p: string) => readFileSync(p, "utf8")
     const wired: [string, string, keyof typeof RESTRICT_MESSAGES][] = [
       ["S1", "src/app/api/stores/[id]/route.ts", "store"],
+      ["S2", "src/app/api/users/[id]/route.ts", "user"],
       ["S3", "src/app/api/staff/[id]/route.ts", "staff"],
       ["S8", "src/app/api/template-types/[id]/route.ts", "templateType"],
       ["S9", "src/app/api/hr/training/categories/[id]/route.ts", "trainingCategory"],
@@ -171,6 +187,12 @@ async function main() {
       check(`${n}. ${p.replace("src/app/api/", "")} uses refuseIfRestricted + RESTRICT_MESSAGES.${key}`,
         s.includes("refuseIfRestricted(") && s.includes(`RESTRICT_MESSAGES.${key}`), true)
     }
+    const usersRoute = src("src/app/api/users/[id]/route.ts")
+    const iMembership = usersRoute.indexOf("deleteOrganizationMembership(")
+    const iClerkUser = usersRoute.indexOf("clerk.users.deleteUser(")
+    const iDb = usersRoute.indexOf("refuseIfRestricted(")
+    check("S2b. Ruling A: both Clerk calls run BEFORE the DB delete", iMembership > 0 && iClerkUser > iMembership && iDb > iClerkUser, true)
+    check("S2c. users caller shows the route's error text", src("src/app/(app)/users/user-actions.tsx").includes(`setError(data?.error ?? "Failed to remove user")`), true)
     const staffRoute = src("src/app/api/staff/[id]/route.ts")
     check("S3b. staff pre-check counts laborAssignment", staffRoute.includes("prisma.laborAssignment.count({ where: { staffMemberId: id } })"), true)
     check("S1b. no bare awaited store delete left", src("src/app/api/stores/[id]/route.ts").includes("await prisma.store.delete("), false)
@@ -185,6 +207,8 @@ async function main() {
     await prisma.hrDocumentAcknowledgment.deleteMany({ where: { id: { in: ids.acks } } })
     await prisma.hrDocument.deleteMany({ where: { organizationId: org.id } }) // cascades versions + checkpoints
     await prisma.hrDocumentCategory.deleteMany({ where: { organizationId: org.id } })
+    await prisma.corporateUpdate.deleteMany({ where: { organizationId: org.id } })
+    await prisma.user.deleteMany({ where: { organizationId: org.id } })
     await prisma.laborAssignment.deleteMany({ where: { organizationId: org.id } })
     await prisma.staffMember.deleteMany({ where: { organizationId: org.id } })
     await prisma.checklist.deleteMany({ where: { organizationId: org.id } })
