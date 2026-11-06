@@ -5,7 +5,13 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-05 — BUG-26: an archived template's badge reads "Archived"; the bulk bar pluralises — DRAFT
+## 2026-11-05 — BUG-26: an archived template's badge reads "Archived"; the bulk bar pluralises
+
+**RATIFIED BY GARY, 2026-11-05, at the BUG-26 + BUG-27 PRE-PUSH-CHECK:**
+"Ratify as written". This covers R1–R2, their widening to `/hr/training`
+(BUG-27), and the two Claude implementation choices as a whole, which are
+now ratified as his. The "DRAFT" paragraph below is spent, kept; the
+heading's "— DRAFT" suffix was removed at this check.
 
 **DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** Nothing below is
 ratified yet.

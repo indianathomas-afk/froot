@@ -26935,7 +26935,12 @@ bugs:
     # pushed). The docs SHA is the commit immediately after d17edfa (its own
     # SHA cannot be written inside itself). R1-R2 are DRAFT in DECISIONS.md
     # until Gary ratifies them at PRE-PUSH-CHECK.
-    status: in_progress
+    # in_progress -> staging 2026-11-05 at the BUG-26 + BUG-27 PRE-PUSH-CHECK
+    # (the commit immediately after 156b4ed; its own SHA cannot be written
+    # inside itself). Docs SHAs: b3bfc40 (row, DRAFT R1-R2, DEPLOY_LOG),
+    # 156b4ed (DECISIONS scope widened to BUG-27). R1-R2 RATIFIED by Gary at
+    # this check, "Ratify as written". NOT pushed at writing.
+    status: staging
     title: >
       /templates Archived tab — archived cards still show a green "Active"
       badge, and the bulk bar reads "1 templates selected"
@@ -26988,7 +26993,11 @@ bugs:
     # pushed). The docs SHA is the commit immediately after 08fedf1. Reuses
     # BUG-26's R1-R2, which are DRAFT in DECISIONS.md until Gary ratifies
     # them at PRE-PUSH-CHECK.
-    status: in_progress
+    # in_progress -> staging 2026-11-05 at the BUG-26 + BUG-27 PRE-PUSH-CHECK
+    # (the commit immediately after 156b4ed). Docs SHAs: 527ee04 (row filed),
+    # 361089b (row, DEPLOY_LOG), 156b4ed (DECISIONS scope). R1-R2 RATIFIED by
+    # Gary at this check, "Ratify as written". NOT pushed at writing.
+    status: staging
     title: >
       /hr/training Archived tab — archived modules can show a green "Active"
       badge, and the bulk bar reads "1 modules selected" (BUG-26's twin)
