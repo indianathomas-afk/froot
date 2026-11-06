@@ -26983,6 +26983,41 @@ bugs:
       against the pre-fix file. Staging test owed (Gary): the DEPLOY_LOG
       entry "UNPROMOTED — 2026-11-05 — BUG-26".
 
+  - id: BUG-27
+    status: planned
+    title: >
+      /hr/training Archived tab — archived modules can show a green "Active"
+      badge, and the bulk bar reads "1 modules selected" (BUG-26's twin)
+    notes: >
+      FILED 2026-11-05 at the close of BUG-26, on Gary's instruction in chat
+      ("Yes, file a row"). Found by that session as a COMMENT: the same two
+      defects BUG-26 fixed on /templates, on a different page, so outside
+      BUG-26's scope. Read from code at b3bfc40; not observed in a browser.
+      The ID was confirmed free (no BUG-27 in docs/, src/ or scripts/).
+
+      (1) THE BADGE. src/app/(app)/hr/training/training-client.tsx:225
+      StatusBadge takes isActive only and renders "Active" (success colours)
+      or "Inactive". It is called at :892 (cards) and :971 (table), both with
+      isActive={m.isActive} and never isArchived. Archiving writes isArchived
+      alone (api/hr/training/route.ts:94 bulk, api/hr/training/[id]/route.ts:88
+      single) and leaves isActive as it was, so a module archived while active
+      shows "Active" on the Archived tab. Same mechanism as BUG-26.
+
+      (2) THE PLURAL. training-client.tsx:757 renders `{selected.size}
+      modules selected` with no singular case. Copy only.
+
+      LIKELY SHAPE, RECORDED NOT RULED: BUG-26's R1–R2 (DRAFT in DECISIONS.md
+      at the time of filing) applied here — "Archived" in the existing muted
+      pair whenever isArchived, and "{n} module{s} selected". If Gary ratifies
+      R1 for templates, it reads as the same choice; the session that builds
+      this should confirm that rather than assume it. TIER 2 by the same
+      reasoning as BUG-26 (a conditional deciding what the badge says).
+
+      COST OF DOING NOTHING: LIVE, cosmetic. An admin on /hr/training →
+      Archived can see archived modules labelled "Active" and a
+      grammatically wrong count. Nothing is wrong in the data and no write is
+      affected; assignability already checks both flags (:269).
+
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
 #
