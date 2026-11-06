@@ -26679,7 +26679,14 @@ bugs:
     # ("Ratify as written. And yes — "1. Yes" means removing access always
     # wins."); the comment above's "DRAFT ... until Gary ratifies" is spent,
     # kept.
-    status: staging
+    # `staging` -> `shipped` 2026-11-05, stamped post-merge 2026-11-05 by
+    # PROMOTE-DOCS_2026-11-05_BUG-24 (on `staging`, R1): merge 1d6e0b8
+    # (DEPLOY_LOG entry `1d6e0b8 — 2026-11-05 — BUG-24`). The PRE-PUSH-CHECK
+    # docs SHA ("the commit immediately after dc3785f") is 56287ab. The "Not
+    # yet pushed" / "staging" comments above are spent, kept. Rollback:
+    # `git revert -m 1 1d6e0b8`; no migration.
+    status: shipped
+    shipped: 2026-11-05
     commits:
       # fix(BUG-24): work commit — shared matcher, rows 1/3 + 8-13, fixture
       - "9a5b987"
@@ -26691,6 +26698,12 @@ bugs:
       # docs(BUG-24): the commit immediately after fd1adb2 — Ruling A
       # recorded, DEBT-126 filed, DEPLOY_LOG bullet
       - "dc3785f"
+      # docs(PRE-PUSH-CHECK): the "commit immediately after dc3785f";
+      # recorded by PROMOTE-DOCS_2026-11-05_BUG-24
+      - "56287ab"
+      # merge(main): production promotion 2026-11-05 (first parent 8845365,
+      # second parent 56287ab)
+      - "1d6e0b8"
     title: >
       Under the Neon driver adapter a RESTRICT foreign-key violation is a raw
       DriverAdapterError (SQLSTATE 23001), not a P2003 — sweep every delete
@@ -26803,6 +26816,17 @@ bugs:
       br-broad-wave-a6vpjdw0, zero leftovers. Staging test may add: remove a
       user who posted a corporate update -> the sentence shows under their
       row; they leave the list on reload.
+
+      SHIPPED 2026-11-05 in merge 1d6e0b8 (PROMOTE-DOCS_2026-11-05_BUG-24).
+      The "STAGING TEST OWED" paragraph above is spent, kept. Staging
+      (planning chat, recorded as given): South Reno's delete showed the
+      store sentence and the store stayed; Tommy Thomas's delete showed
+      "...terminate them instead" and he stayed; Brielle Caron (Carson)
+      deleted, by existing design, and was restored by the Square staff sync
+      — she holds shift history, filed as DEBT-127. User removal was not
+      exercised in a browser, on purpose (it deletes a real Clerk login); the
+      fixture covers it. Production (Gary, his answer this session): "Ready,
+      sentence shown". UX-3, UX-4 and DEBT-126 stay planned.
 
   - id: BUG-25
     # planned -> shipped 2026-11-05 by PROMOTE-DOCS_2026-11-05_DEBT-125:
@@ -37055,6 +37079,54 @@ debt:
       correct today, but nothing says they left.
 
       RELATED: DEBT-106, BUG-24.
+
+  - id: DEBT-127
+    title: >
+      Staff delete only refuses on Froot record types — a staff member with
+      Square shift / attendance history can still be hard-deleted
+    notes: >
+      FILED 2026-11-05 by PROMOTE-DOCS_2026-11-05_BUG-24, from the BUG-24
+      staging evidence (planning chat, recorded as given): deleting Brielle
+      Caron (Carson) on staging went through, which is the existing design.
+      She was restored by the Square staff sync. Her roster row shows
+      attendance ("20% on time"), so Froot holds shift history for her, yet
+      nothing blocked the delete.
+
+      TODAY: DELETE /api/staff/[id] (src/app/api/staff/[id]/route.ts) refuses
+      with a 409 only when one of eleven Froot-side counts is non-zero —
+      TaskLog, TeamMessage, ManagerNote, HrDocumentAcknowledgment,
+      HrSignedRecord, FormSubmission, TrainingAssignment,
+      TrainingLessonProgress, StaffDocument, HrReturnEvent, LaborAssignment.
+      None of them is Square shift history.
+
+      WHERE SHIFT HISTORY LIVES, AND HOW IT LINKS (prisma/schema.prisma at
+      1d6e0b8). NO FOREIGN KEY TO StaffMember — every table joins by the
+      opaque Square id, StaffMember.squareTeamMemberId (unique per org):
+      SquareTimecard.squareTeamMemberId (actual worked time); and
+      SquareScheduledShift.draftTeamMemberId / publishedTeamMemberId /
+      effectiveTeamMemberId (scheduled shifts, all nullable for open
+      shifts). Those two are what "% on time" reads (getOnTimeForStaff,
+      src/lib/attendance.ts, filtering both by squareTeamMemberId).
+      SquareTeamMemberWage and LaborSalariedPerson are keyed the same way
+      (wages and salaried flags, not shift history). Because nothing is an
+      FK, a delete can never be refused by the database here — the 409 must
+      be an explicit count — and the Square rows survive the delete and
+      rejoin whichever StaffMember the sync re-creates with the same id.
+
+      PLANNING-CHAT LEAN, NOT A RULING: anyone with any history should be
+      terminate-only. Owed from Gary: whether that holds, and if so whether
+      "history" means any SquareTimecard row, any scheduled shift (published
+      only, or drafts too), or both. Then the counts join the list above,
+      with the existing RESTRICT_MESSAGES.staff sentence.
+
+      COST OF DOING NOTHING: LATENT, low. A manager can hard-delete a staff
+      member who has worked shifts; the Square rows stay, and the Square sync
+      re-imports the person, so the visible effect is a fresh StaffMember
+      row (new id) carrying only what the sync supplies; any Froot-only
+      state on the deleted row is gone. Which fields that covers was not
+      measured at filing.
+
+      RELATED: BUG-24, HR-7 (terminate, not delete).
 
 rulings:
   - id: R1
