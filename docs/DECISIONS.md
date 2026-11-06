@@ -5,7 +5,15 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-05 — BUG-24: a delete blocked by history answers 409, never 500; one shared matcher — DRAFT
+## 2026-11-05 — BUG-24: a delete blocked by history answers 409, never 500; one shared matcher
+
+**RATIFIED BY GARY, 2026-11-05, at the BUG-24 PRE-PUSH-CHECK, as written:**
+"Ratify as written. And yes — “1. Yes” means removing access always wins."
+This covers R1–R3 and the four Claude implementation choices as a whole,
+which are now ratified as his. His second sentence confirms Claude's reading
+of Ruling A's answer 1, on which `fd1adb2` is built. The "DRAFT" paragraph
+below is spent, kept; the heading's "— DRAFT" suffix was removed at this
+check.
 
 **DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** Nothing below is
 ratified yet.
