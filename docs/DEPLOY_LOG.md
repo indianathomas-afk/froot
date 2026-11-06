@@ -2,7 +2,39 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-05 — BUG-24: deletes blocked by history answer 409, not 500 (stores, staff, race backstops)
+## 1d6e0b8 — 2026-11-05 — BUG-24: deletes blocked by history answer 409, not 500 (stores, staff, race backstops)
+
+**PROMOTED 2026-11-05 in merge `1d6e0b8`** ("Merge branch 'staging'"). First
+parent `8845365` (prior tip of `main`), second parent `56287ab` (staging tip,
+the BUG-24 PRE-PUSH-CHECK). **5 commits** in `8845365..1d6e0b8` besides the
+merge: `9a5b987` (work), `7cde006` (docs), `fd1adb2` (Ruling A, user
+removal), `dc3785f` (docs), `56287ab` (PRE-PUSH-CHECK). No migration. Measured
+at this stamp by `git log` after `git fetch`: `staging` = `origin/staging` =
+`main` = `origin/main` = `1d6e0b8`. Stamped post-merge 2026-11-05 on `staging`
+(PROMOTE-DOCS_2026-11-05_BUG-24); the heading previously read "UNPROMOTED —
+2026-11-05 — BUG-24: …". Spent, kept below: the "Staging only, not on `main`.
+NOT pushed at writing" line and the "Staging test owed (Gary)" list.
+
+**Rollback (whole promotion).** `git revert -m 1 1d6e0b8`; nothing in the
+database changes.
+
+**Staging evidence (planning chat, 2026-11-05, recorded as given).**
+- Store with history: deleting South Reno on staging kept the dialog open
+  with "This store has checklists, purchase orders or inventory counts — it
+  can't be deleted." The store stayed.
+- Staff with records: deleting Tommy Thomas showed the alert "This staff
+  member has records and cannot be deleted — terminate them instead." He
+  stayed.
+- Staff with no blocking records: deleting Brielle Caron (Carson) on staging
+  went through, which is the existing design. She was restored by the Square
+  staff sync. Her row shows attendance ("20% on time"), so Froot holds shift
+  history for her, yet nothing blocked the delete. Filed as DEBT-127.
+- The user-removal case was not exercised in a browser, on purpose, because
+  it deletes a real Clerk login. The fixture covers it.
+
+**Production (Gary, 2026-11-05, his answer in this session, verbatim):**
+"Ready, sentence shown" — production `1d6e0b8` went Ready and a blocked store
+delete on www.usefroot.com showed the sentence. Org id not given.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit `9a5b987`;
 docs commit is the one after it. No migration, no env var.
