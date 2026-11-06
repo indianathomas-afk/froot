@@ -2,7 +2,55 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-05 — DEBT-125: baseline squash of prisma/migrations into `0_init` (closes BUG-25)
+## ba38ed2 — 2026-11-05 — DEBT-125: baseline squash of prisma/migrations into `0_init` (closes BUG-25)
+
+**PROMOTED 2026-11-05 in merge `ba38ed2`** ("Merge branch 'staging'"). First
+parent `2b0a33e` (prior tip of `main`), second parent `9213f4c` (staging tip,
+the DEBT-125 PRE-PUSH-CHECK). **4 commits** in `2b0a33e..ba38ed2` besides the
+merge: `1c85892` (work), `b72883e` (docs), `98532a3` (Phase 3 rehearsal; dev
+marked), `9213f4c` (PRE-PUSH-CHECK). Measured at this stamp by `git log` after
+`git fetch`: `staging` = `origin/staging` = `main` = `origin/main` =
+`ba38ed2`. Stamped post-merge 2026-11-05 on `staging`
+(PROMOTE-DOCS_2026-11-05_DEBT-125); the heading previously read "UNPROMOTED —
+2026-11-05 — DEBT-125: …". Spent, kept below: the "Staging only, not on
+`main`. NOT pushed at writing" line, the "DO NOT PUSH `1c85892`" line, "STAGING
+AND PRODUCTION ARE NOT MARKED YET", and the "Still owed (Gary)" list. All
+three branches are now marked.
+
+**Rollback — READ THIS FIRST.** The code rollback is `git revert -m 1
+ba38ed2`. **It does NOT undo the `0_init` rows** in `_prisma_migrations` on
+dev, staging or production; a revert changes files, never a ledger. A revert
+alone would leave every branch carrying a `0_init` row for a folder the code
+no longer has. **Rolling back the squash needs a planning session, not a
+revert alone.**
+
+**Staging marked (planning chat, 2026-11-05, recorded as given).** `0_init`
+id `85cb75ea-8670-4cde-b5ba-255a713543f4` on `br-square-feather-a63z92vz`
+(preview/staging), 87 ledger rows. The staging build for `9213f4c` on
+`ep-odd-rain-a6gr4xmm` showed "1 migration found", then "No pending
+migrations to apply". Gary's staging smoke test passed: footer
+`9213f4c-staging`, dashboard, Opener edit page, PO-00001, checklists.
+
+**Production marked (planning chat, 2026-11-05, recorded as given).** `0_init`
+INSERT on `br-sparkling-block-a620qvg4` (production), checksum
+`0e7d39aa…b752e4c717`, 1 step, 87 ledger rows.
+
+**Production evidence (Gary, in chat, 2026-11-05, after promotion), word for
+word:**
+- Asked whether the production build log for `ba38ed2` showed
+  `ep-green-smoke-a6xthq4r`, "1 migration found" and "No pending migrations
+  to apply", and whether it went Ready — Gary: "ba38ed2 went Ready on
+  production; build log showed no pending migrations."
+- Asked whether the production smoke test passed (footer `ba38ed2`,
+  dashboard, Opener edit page, a purchase order) — Gary: "All smoke tests
+  worked: footer ba38ed2, dashboard, Opener edit page, purchase order."
+- Asked to ratify the BUG-25 DRAFT ruling in DECISIONS.md — Gary: "Ratify as
+  written."
+
+Not stated in Gary's answer, so not recorded as observed: the endpoint
+`ep-green-smoke-a6xthq4r` in the production build log, and its "1 migration
+found" line. Not recorded: the Clerk org id the production smoke test ran
+under (§ Browser Evidence), and the purchase order's number.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit `1c85892`
 plus this docs commit, both on local `staging`. TIER 3: this touches the
