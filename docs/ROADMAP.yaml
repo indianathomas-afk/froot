@@ -26984,7 +26984,11 @@ bugs:
       entry "UNPROMOTED — 2026-11-05 — BUG-26".
 
   - id: BUG-27
-    status: planned
+    # planned -> in_progress 2026-11-05 at the work commit 08fedf1 (NOT
+    # pushed). The docs SHA is the commit immediately after 08fedf1. Reuses
+    # BUG-26's R1-R2, which are DRAFT in DECISIONS.md until Gary ratifies
+    # them at PRE-PUSH-CHECK.
+    status: in_progress
     title: >
       /hr/training Archived tab — archived modules can show a green "Active"
       badge, and the bulk bar reads "1 modules selected" (BUG-26's twin)
@@ -27017,6 +27021,18 @@ bugs:
       Archived can see archived modules labelled "Active" and a
       grammatically wrong count. Nothing is wrong in the data and no write is
       affected; assignability already checks both flags (:269).
+
+      BUILT 2026-11-05 in 08fedf1, same session as BUG-26, TIER 2. REUSES
+      BUG-26's RULINGS: Gary in chat, "same rulings as BUG-26 R1–R2 applied
+      to /hr/training (grey "Archived" badge whenever isArchived, on cards and
+      table; "1 module selected" / "N modules selected")". That settles the
+      LIKELY SHAPE note above. (1) StatusBadge now takes isArchived and checks
+      it first, "Archived" in the existing muted (Inactive) pair; both call
+      sites, cards and table, pass m.isArchived. (2) The bulk bar reads
+      "{n} module{s} selected". Fixture scripts/verify-bug27.ts, source checks
+      only, no DB: 14/14, and 7 fail against the pre-fix file. Staging test
+      owed (Gary): the DEPLOY_LOG entry "UNPROMOTED — 2026-11-05 — BUG-26",
+      which now carries BUG-27 too.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
