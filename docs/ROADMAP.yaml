@@ -24246,12 +24246,23 @@ phases:
     # -> in_progress 2026-11-06 at the work commit d5d3202 (NOT pushed). The
     # docs SHA is the commit immediately after d5d3202 (its own SHA cannot be
     # written inside itself).
-    status: in_progress
+    # in_progress -> staging 2026-11-06 at the NOTIFY-16 PRE-PUSH-CHECK (the
+    # commit immediately after 17af011; its own SHA cannot be written inside
+    # itself). Docs SHA: 17af011 (row, DRAFT DECISIONS, prompt of record).
+    # The check wrote the DEPLOY_LOG UNPROMOTED entry. DECISIONS R1 and the
+    # implementation choices RATIFIED by Gary at this check, "Ratify as
+    # written". NOT pushed at writing.
+    # Rollback: `git revert d5d3202`; no migration.
+    status: staging
     title: "Email Notification Settings — renamed door and room; collapsible sections with Expand all"
     commits:
       - "d5d3202"
       # + the commit immediately after d5d3202: docs(NOTIFY-16) — this row,
       # the DRAFT DECISIONS entry, the prompt of record
+      - "17af011"
+      # + the commit immediately after 17af011: docs(NOTIFY-16)
+      # PRE-PUSH-CHECK — DECISIONS ratified, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
     notes: >
       BUILT 2026-11-06 on staging, NOT pushed. TIER 2, UI only. Prompt of
       record: docs/prompts/NOTIFY-UI-ACCORDION.md (working name; this id was

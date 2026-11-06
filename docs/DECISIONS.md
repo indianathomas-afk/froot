@@ -5,7 +5,13 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-06 — NOTIFY-16: notification settings sections start collapsed and remember their state — DRAFT
+## 2026-11-06 — NOTIFY-16: notification settings sections start collapsed and remember their state
+
+**RATIFIED BY GARY, 2026-11-06, at the NOTIFY-16 PRE-PUSH-CHECK:**
+"Ratify as written". This covers R1 and the four Claude implementation
+choices as a whole, which are now ratified as his. The rename mapping was
+already his words. The "DRAFT" paragraph below is spent, kept; the
+heading's "— DRAFT" suffix was removed at this check.
 
 **DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** Nothing below is
 ratified yet.

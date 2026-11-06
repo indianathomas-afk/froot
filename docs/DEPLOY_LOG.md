@@ -2,6 +2,32 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-06 — NOTIFY-16: "Email Notification Settings" rename; collapsible sections with Expand all on /settings/notifications
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`d5d3202`; docs commit `17af011`; the PRE-PUSH-CHECK is the commit
+immediately after `17af011`. TIER 2, UI only. No migration, no schema,
+route, query or dependency added. No save route or email send touched.
+Four files: `src/app/(app)/settings/page.tsx` (link card renamed),
+`src/app/(app)/settings/notifications/page.tsx` (h1 renamed, six cards
+wrapped), the new `src/components/settings/collapsible-section.tsx`, and
+one message string in `src/app/api/hr/settings/route.ts` (the already
+retired PUT's 410 text, a pointer repaired to the new page name). R1 and
+the implementation choices were ratified by Gary at this check
+(DECISIONS.md, 2026-11-06 NOTIFY-16).
+
+**Rollback.** `git revert d5d3202`; nothing in the database changes. The
+only client-side residue is the localStorage key
+`froot.notifySettings.open`, which nothing else reads.
+
+**Staging test owed (Gary, after push, as an ADMIN).** (1) /settings shows
+"Email Notification Settings" with "Message Center Settings" beneath it.
+(2) /settings/notifications reads "Email Notification Settings"; every
+section is collapsed on first visit and each header shows a status line.
+(3) Expand all / Collapse all and the individual chevrons work. (4) Type a
+pace threshold, collapse, expand: the value is still there, and Save works.
+(5) Reload: open/closed state survives. (6) The same at phone width.
+
 ## e647573 — 2026-11-05 — BUG-26: archived template cards read "Archived"; bulk bar says "1 template selected" (+ BUG-27, the same on /hr/training)
 
 **PROMOTED 2026-11-05 in merge `e647573`** ("Merge branch 'staging'"). First
