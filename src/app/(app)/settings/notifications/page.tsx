@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { ChevronLeft, Award, BriefcaseBusiness, CheckCircle, FileClock, TrendingDown, XCircle } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { CollapsibleSection, CollapsibleSections, ExpandAllButton } from "@/components/settings/collapsible-section"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { paceThresholdPct } from "@/lib/pace-alerts"
@@ -129,8 +129,39 @@ export default async function NotificationSettingsPage() {
   // to be 90 — see the field's own comment.
   const paceDefaultPct = paceThresholdPct()
 
+  // NOTIFY-UI-ACCORDION. One status line per collapsed header, built ONLY from
+  // what this page already loaded above — no new query. Each mirrors the state
+  // its card body already shows; a schedule word appears only when a schedule
+  // is SAVED, because with none the cadence is the kind's own default and
+  // naming it here would be a second claim to keep in sync.
+  const freqWord = (f: string | undefined) =>
+    f === "daily" ? "Daily" : f === "weekly" ? "Weekly" : f === "monthly" ? "Monthly" : null
+  const onOff = (on: boolean, freq?: string) => [on ? "On" : "Off", on ? freqWord(freq) : null].filter(Boolean).join(" · ")
+  const activeContacts = contacts.filter((c) => !c.archived).length
+  const contactsSummary = activeContacts === 0 ? "No contacts" : `${activeContacts} contact${activeContacts === 1 ? "" : "s"}`
+  // Same expression the card's own On/Off line uses.
+  const ackOn = (picks["hr.ack"] ?? []).some((id) => contacts.some((c) => c.id === id && !c.archived))
+  const ackSummary = hrActive ? onOff(ackOn) : "HR module off"
+  const paceSummary = `${onOff(paceAlertsActive, paceSchedule?.saved?.frequency)} · ${
+    org.paceAlertThresholdPct ?? paceDefaultPct
+  }% threshold`
+  const milestoneSummary = milestonesOn
+    ? onOff(milestoneAlertsActive, milestoneSchedule?.saved?.frequency)
+    : "Milestones off"
+  const docDueSummary = hrActive ? onOff(docDigestActive, digestSchedule?.saved?.frequency) : "HR module off"
+  const recentSummary =
+    recentEmails.length === 0 ? "None yet" : `Last ${recentEmails.length} email${recentEmails.length === 1 ? "" : "s"}`
+  // Exactly the sections rendered below, so Expand all acts on those and no others.
+  const sectionIds = [
+    "contacts",
+    ...(hrAvailable ? ["ack"] : []),
+    "pace",
+    ...(hrAvailable ? ["milestones", "docdue"] : []),
+    "recent",
+  ]
+
   return (
-    <div>
+    <CollapsibleSections ids={sectionIds}>
       <div className="mb-6">
         <Link
           href="/settings"
@@ -138,34 +169,29 @@ export default async function NotificationSettingsPage() {
         >
           <ChevronLeft className="h-4 w-4" /> Settings
         </Link>
-        <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Email notifications</h1>
+        <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Email Notification Settings</h1>
         <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
           Who Froot emails, and when. Every email the app sends is configured here.
         </p>
         {/* NOTIFY-5. Near the top because it answers the question this page is
             usually opened to ask — does email work here at all. */}
-        <div className="mt-4">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <TestSendButton />
+          {/* NOTIFY-UI-ACCORDION: the one page-level control. */}
+          <div className="ml-auto">
+            <ExpandAllButton />
+          </div>
         </div>
       </div>
 
       {/* NOTIFY-13b. First, outside every HR conditional: it is the address
           book the "Also send to" pickers below draw from. */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Contacts</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <CollapsibleSection id="contacts" title="Contacts" summary={contactsSummary}>
           <ContactsCard contacts={contacts} />
-        </CardContent>
-      </Card>
+        </CollapsibleSection>
 
       {hrAvailable && (
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>Signed-acknowledgment emails</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <CollapsibleSection id="ack" title="Signed-acknowledgment emails" summary={ackSummary} className="mt-4">
             {hrActive ? (
               <div className="p-4 border border-[var(--color-border)] rounded-lg">
                 <div className="flex items-start gap-3">
@@ -216,15 +242,10 @@ export default async function NotificationSettingsPage() {
             {hrActive && (
               <RecipientsSection kind="hr.ack" contacts={contacts} pickedIds={picks["hr.ack"] ?? []} />
             )}
-          </CardContent>
-        </Card>
+          </CollapsibleSection>
       )}
 
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>Behind-pace alerts</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <CollapsibleSection id="pace" title="Behind-pace alerts" summary={paceSummary} className="mt-4">
           {/* The module row, moved from /settings verbatim. The help text names
               WHO is emailed and HOW OFTEN because an admin flipping this on is
               choosing to put their managers on a mailing list, and the switch
@@ -276,15 +297,10 @@ export default async function NotificationSettingsPage() {
             pickerHelp="Extra recipients get every store's alert."
           />
           {paceSchedule && <ScheduleSection view={paceSchedule} />}
-        </CardContent>
-      </Card>
+        </CollapsibleSection>
 
       {hrAvailable && (
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>Milestone emails</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <CollapsibleSection id="milestones" title="Milestone emails" summary={milestoneSummary} className="mt-4">
             {milestonesOn ? (
               <>
                 <div className="flex items-start justify-between gap-3 p-4 border border-[var(--color-border)] rounded-lg">
@@ -338,16 +354,11 @@ export default async function NotificationSettingsPage() {
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </CollapsibleSection>
       )}
 
       {hrAvailable && (
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>Document due dates</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <CollapsibleSection id="docdue" title="Document due dates" summary={docDueSummary} className="mt-4">
             {hrActive ? (
               <>
                 <div className="flex items-start justify-between gap-3 p-4 border border-[var(--color-border)] rounded-lg">
@@ -402,15 +413,10 @@ export default async function NotificationSettingsPage() {
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </CollapsibleSection>
       )}
 
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>Recent emails</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <CollapsibleSection id="recent" title="Recent emails" summary={recentSummary} className="mt-4">
           <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
             The last {recentEmails.length === 1 ? "email" : `${recentEmails.length} emails`} Froot sent
             for this organization, newest first. <span className="font-medium text-[var(--color-foreground)]">Delivered</span>{" "}
@@ -420,8 +426,7 @@ export default async function NotificationSettingsPage() {
             composed and logged, and nothing left this environment. Each recipient has their own row.
           </p>
           <RecentEmails entries={recentEmails} timeZone={org.timezone} />
-        </CardContent>
-      </Card>
-    </div>
+        </CollapsibleSection>
+    </CollapsibleSections>
   )
 }

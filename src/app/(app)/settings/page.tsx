@@ -422,7 +422,7 @@ export default async function SettingsPage() {
               added. The card says where the settings are and nothing else. */}
           <Card className="mt-4">
             <CardHeader>
-              <CardTitle>Email notifications</CardTitle>
+              <CardTitle>Email Notification Settings</CardTitle>
             </CardHeader>
             <CardContent>
               <Link
@@ -435,7 +435,7 @@ export default async function SettingsPage() {
                   </div>
                   <div>
                     <h3 className="font-medium text-[var(--color-foreground)]">
-                      Behind-pace alerts and signed-acknowledgment emails
+                      Message Center Settings
                     </h3>
                     <p className="text-sm text-[var(--color-muted-foreground)]">
                       Turn each one on or off, set the pace threshold, and choose who hears about a
@@ -444,7 +444,7 @@ export default async function SettingsPage() {
                   </div>
                 </div>
                 <span className="text-sm font-medium text-[var(--color-primary)] whitespace-nowrap">
-                  Email notifications &rarr;
+                  Email Notification Settings &rarr;
                 </span>
               </Link>
             </CardContent>
