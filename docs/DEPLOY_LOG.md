@@ -2,6 +2,21 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-05 — BUG-26: archived template cards read "Archived"; bulk bar says "1 template selected"
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`d17edfa`; the docs commit is the one immediately after it. TIER 2, no
+migration, no API or data change: one file under `src/app/(app)/templates/`
+plus the fixture `scripts/verify-bug26.ts` (12/12, no DB; 5 fail against
+the pre-fix file). R1–R2 are DRAFT in DECISIONS.md.
+
+**Rollback.** `git revert d17edfa`; nothing in the database changes.
+
+**Staging test owed (Gary, after PRE-PUSH-CHECK and push).** On
+`/templates` → Archived, the card shows a grey "Archived" badge. Tick one
+card and the bar reads "1 template selected"; tick two and it reads
+"2 templates selected". The Active tab is unchanged.
+
 ## 1d6e0b8 — 2026-11-05 — BUG-24: deletes blocked by history answer 409, not 500 (stores, staff, race backstops)
 
 **PROMOTED 2026-11-05 in merge `1d6e0b8`** ("Merge branch 'staging'"). First

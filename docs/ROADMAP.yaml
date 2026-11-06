@@ -26931,7 +26931,11 @@ bugs:
       no TaskAttachment table, and every template edit and save then fails.
 
   - id: BUG-26
-    status: planned
+    # planned -> in_progress 2026-11-05 at the work commit d17edfa (NOT
+    # pushed). The docs SHA is the commit immediately after d17edfa (its own
+    # SHA cannot be written inside itself). R1-R2 are DRAFT in DECISIONS.md
+    # until Gary ratifies them at PRE-PUSH-CHECK.
+    status: in_progress
     title: >
       /templates Archived tab — archived cards still show a green "Active"
       badge, and the bulk bar reads "1 templates selected"
@@ -26965,6 +26969,19 @@ bugs:
       Archived sees archived templates labelled "Active" and a
       grammatically wrong count. Nothing is wrong in the data and no write is
       affected.
+
+      BUILT 2026-11-05 in d17edfa, as TIER 2 (declared by the session prompt,
+      docs/prompts/BUG-26.md, which settles the TIER NOTE above as one row,
+      not a split). (1) The card badge checks isArchived first and reads
+      "Archived" in the existing muted pair (the Inactive colours), whatever
+      isActive is (R1, DRAFT). The open question above is answered: the
+      archive PATCH writes isArchived alone and does NOT clear isActive, which
+      is why the badge read "Active". The card is the only badge render under
+      /templates (no table view; /templates/[id] has no status badge). (2)
+      The bulk bar reads "{n} template{s} selected" (R2, DRAFT). Fixture
+      scripts/verify-bug26.ts, source checks only, no DB: 12/12, and 5 fail
+      against the pre-fix file. Staging test owed (Gary): the DEPLOY_LOG
+      entry "UNPROMOTED — 2026-11-05 — BUG-26".
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.
