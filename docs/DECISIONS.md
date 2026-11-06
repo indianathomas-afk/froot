@@ -5,6 +5,65 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-05 — BUG-24: a delete blocked by history answers 409, never 500; one shared matcher — DRAFT
+
+**DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** Nothing below is
+ratified yet.
+
+**R1–R3 are the session prompt's draft rulings** (`docs/prompts/BUG-24.md`,
+"Draft rulings (Gary ratifies at PRE-PUSH-CHECK)"). They are recorded as
+built, not as Gary's words:
+
+- **R1.** A delete blocked by history never returns a 500. It returns 409 with
+  one plain sentence naming what blocks it, and the UI shows that sentence.
+  Built for `DELETE /api/stores/[id]` ("This store has checklists, purchase
+  orders or inventory counts — it can't be deleted.") and `DELETE
+  /api/staff/[id]` (its existing "…terminate them instead" sentence), and as
+  the race backstop behind the pre-checks of template types, training
+  categories, HR document categories, training modules, training
+  assignments and HR checkpoints.
+- **R2.** BUG-24 makes no product changes. Where Archive should replace
+  Delete, a ROW is filed instead: UX-3 (store Deactivate control) and UX-4
+  (vendor button reads Deactivate when the vendor has POs).
+- **R3.** One shared matcher for restrict violations — `isRestrictViolation`
+  in `src/lib/db/restrict-violation.ts` (P2003, or a raw postgres
+  `23001`/`23503` on the adapter error's `cause`) — used everywhere.
+  `api/templates/history.ts` re-exports it under BUG-23's name.
+
+**Gary's picks and rulings, in his words (2026-11-05):** "fix row 1 (store —
+409 + make the delete dialog show the error) and row 3 (staff — add the
+LaborAssignment count + make the roster show the 409). Add the shared-matcher
+race backstop to rows 8–13." Ruling B (vendor): "leave delete-deactivates as
+is; file a row to label the button "Deactivate" when the vendor has POs."
+"File the Store Deactivate-control row. Staging test uses a store, not a
+vendor."
+
+**Ruling A (user removal) is NOT recorded.** It arrived as an unfilled
+template placeholder, and an example sentence inside a placeholder is not
+Gary's ruling. Row 2 (`DELETE /api/users/[id]`) was not picked and is
+unchanged. It still deletes the Clerk membership and account before the DB
+row, so a user who authored a corporate update is left half-removed behind a
+500.
+
+**Claude — four implementation choices the prompt did not make:**
+
+- **A helper, not a bare catch, in each route.** `refuseIfRestricted(run,
+  message, context)` returns null on success (each route keeps its own
+  success shape), a 409 on a RESTRICT refusal, and a logged 500 on anything
+  else. The fixture calls the same helper with each route's exact delete.
+- **The sentences live in `RESTRICT_MESSAGES`, not in the route files.** Next
+  only lets a route module export its handlers and config, and the fixture
+  needs the exact text.
+- **The race sentences drop the count.** Rows 8–10's pre-check sentences
+  carry a count ("3 templates still use this type…"); the race cannot know
+  it, so the backstop says "Templates still use this type — reassign them
+  first" (and the same shape for modules and documents).
+- **Store: no pre-check.** Three tables block a store, so it is not one
+  `exists`-style query; the catch alone decides. The store dialog stays open
+  on failure (preventDefault on AlertDialogAction) and closes only on
+  success. The staff roster uses `alert()`, the pattern the same file already
+  uses for a Square sync failure: no new UI.
+
 ## 2026-11-05 — DEBT-125: baseline squash — archive, console marking, hand-written objects, staging catch-up (R1–R4)
 
 **RATIFIED BY GARY, 2026-11-05, at the DEBT-125 PRE-PUSH-CHECK, as written:**
