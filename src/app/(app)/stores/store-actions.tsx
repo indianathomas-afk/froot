@@ -49,6 +49,8 @@ const NOT_LINKED = "__not_linked__"
 export function StoreActions({ store }: { store: StoreForEdit }) {
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [editOpen, setEditOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -149,16 +151,25 @@ export function StoreActions({ store }: { store: StoreForEdit }) {
   //     delete a real one specifically because of this, and PERM-6's entry (1)
   //     records the second cascade firing for real on a fixture. When cleaning
   //     up test data, DELETE THE PRINCIPALS, NOT THE STORES.
-  // (2) THE SWALLOW, which is what makes (1) dangerous rather than merely
-  //     destructive: there is no `res.ok` check below. A 4xx or 5xx from the
-  //     DELETE route lands in the same path as success — router.refresh() runs
-  //     and the dialog closes either way. Compare handleSave above, which does
-  //     check and surfaces the error. Whoever adds that check here should treat
-  //     it as a behaviour change and not a drive-by fix.
-  async function handleDelete() {
+  // (2) THE SWALLOW — CLOSED BY BUG-24 (2026-11-05), as the behaviour change
+  //     this note asked for. Before, there was no `res.ok` check: a 4xx or 5xx
+  //     landed in the same path as success, and the dialog closed either way.
+  //     Now the route answers 409 when a store's checklists, purchase orders or
+  //     inventory counts block the delete. The dialog stays open and shows that
+  //     sentence. It only closes on success. preventDefault is what stops
+  //     AlertDialogAction from closing the dialog before the answer arrives.
+  async function handleDelete(e: React.MouseEvent) {
+    e.preventDefault()
     setDeleting(true)
+    setDeleteError(null)
     try {
-      await fetch(`/api/stores/${store.id}`, { method: "DELETE" })
+      const res = await fetch(`/api/stores/${store.id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        setDeleteError(data?.error ?? "Failed to delete store.")
+        return
+      }
+      setDeleteOpen(false)
       router.refresh()
     } finally {
       setDeleting(false)
@@ -339,7 +350,7 @@ export function StoreActions({ store }: { store: StoreForEdit }) {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog>
+      <AlertDialog open={deleteOpen} onOpenChange={(o) => { setDeleteOpen(o); if (!o) setDeleteError(null) }}>
         <AlertDialogTrigger asChild>
           <button className="p-1.5 rounded hover:bg-[var(--color-accent)] transition-colors" aria-label="Delete store">
             <Trash2 className="h-4 w-4 text-[var(--color-muted-foreground)] hover:text-[var(--color-destructive)]" />
@@ -352,6 +363,7 @@ export function StoreActions({ store }: { store: StoreForEdit }) {
               This will permanently delete this store and all associated data. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {deleteError && <p className="text-sm text-[var(--color-destructive)]">{deleteError}</p>}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction

@@ -1,3 +1,4 @@
+import { RESTRICT_MESSAGES, refuseIfRestricted } from "@/lib/db/restrict-violation"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireHrTrainingAccess } from "../../access"
@@ -77,10 +78,9 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   // Counts EVERY module, archived included — an archived module still holds
   // the FK, and the FK's ON DELETE RESTRICT is the backstop behind this check
   // rather than the message the operator sees. If a module lands on this
-  // category between the count and the delete, RESTRICT refuses and the race
-  // surfaces as a 500, not a 409 — left deliberately, per the measured note in
-  // api/template-types/[id]/route.ts: the Neon adapter's error carries no
-  // .code to sniff, and the pre-check makes the race vanishingly rare.
+  // category between the count and the delete, RESTRICT refuses. Since BUG-24
+  // the shared matcher turns that race into a 409, not a 500 (the SQLSTATE is
+  // on the adapter error's `.cause`; see src/lib/db/restrict-violation.ts).
   const moduleCount = await prisma.trainingModule.count({
     where: { categoryId: id, organizationId: access.org.id },
   })
@@ -94,6 +94,11 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     )
   }
 
-  await prisma.trainingCategory.delete({ where: { id } })
+  const refused = await refuseIfRestricted(
+    () => prisma.trainingCategory.delete({ where: { id } }),
+    RESTRICT_MESSAGES.trainingCategory,
+    "DELETE /api/hr/training/categories/[id]",
+  )
+  if (refused) return refused
   return NextResponse.json({ success: true })
 }

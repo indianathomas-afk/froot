@@ -1,3 +1,4 @@
+import { RESTRICT_MESSAGES, refuseIfRestricted } from "@/lib/db/restrict-violation"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
@@ -82,6 +83,11 @@ export async function DELETE(
     )
   }
 
-  await prisma.hrDocumentCheckpoint.delete({ where: { id: checkpoint.id } })
+  const refused = await refuseIfRestricted(
+    () => prisma.hrDocumentCheckpoint.delete({ where: { id: checkpoint.id } }),
+    RESTRICT_MESSAGES.hrCheckpoint,
+    "DELETE /api/hr/documents/[id]/checkpoints/[checkpointId]",
+  )
+  if (refused) return refused
   return NextResponse.json({ success: true })
 }
