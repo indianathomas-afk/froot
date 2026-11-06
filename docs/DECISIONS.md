@@ -20,6 +20,13 @@ built, not as Gary's words:
 - **R2.** The /templates bulk bar pluralises: "1 template selected",
   "2 templates selected".
 
+**Scope widened, same session: R1–R2 now also cover `/hr/training`
+(BUG-27, work commit `08fedf1`).** Gary in chat: "same rulings as BUG-26
+R1–R2 applied to /hr/training (grey "Archived" badge whenever isArchived, on
+cards and table; "1 module selected" / "N modules selected")". Recorded
+here (Claude) so the PRE-PUSH-CHECK ratification of R1–R2 can cover both
+pages; whether it does is Gary's to say.
+
 **Claude implementation choices (work commit `d17edfa`):**
 
 - The muted style is the existing Inactive pair (`--color-muted` /
