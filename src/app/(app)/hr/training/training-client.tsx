@@ -222,10 +222,14 @@ function CardSkeleton() {
   )
 }
 
-function StatusBadge({ isActive }: { isActive: boolean }) {
+// BUG-27 (BUG-26 R1 applied here): isArchived is checked FIRST. Archiving
+// writes isArchived alone and leaves isActive as it was, so an isActive-only
+// badge labelled archived modules "Active". Archived reuses the Inactive
+// muted pair; no new colour.
+function StatusBadge({ isActive, isArchived }: { isActive: boolean; isArchived: boolean }) {
   return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${isActive ? "bg-[var(--color-success-bg)] text-[var(--color-success-text)]" : "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]"}`}>
-      {isActive ? "Active" : "Inactive"}
+    <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${!isArchived && isActive ? "bg-[var(--color-success-bg)] text-[var(--color-success-text)]" : "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]"}`}>
+      {isArchived ? "Archived" : isActive ? "Active" : "Inactive"}
     </span>
   )
 }
@@ -754,7 +758,7 @@ export default function TrainingClient({
           Archived offers Unarchive. */}
       {canManage && someSelected && (
         <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-[var(--color-muted)]/30 border border-[var(--color-border)]">
-          <span className="text-sm font-medium text-[var(--color-foreground)]">{selected.size} modules selected</span>
+          <span className="text-sm font-medium text-[var(--color-foreground)]">{selected.size} module{selected.size !== 1 ? "s" : ""} selected</span>
           <button onClick={() => setSelected(new Set())} className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]">
             Clear Selection
           </button>
@@ -889,7 +893,7 @@ export default function TrainingClient({
                     {/* Active/Inactive is a builder state. The read tier is
                         only ever served live modules, so the badge would say
                         "Active" on every row and mean nothing. */}
-                    {canManage && <StatusBadge isActive={m.isActive} />}
+                    {canManage && <StatusBadge isActive={m.isActive} isArchived={m.isArchived} />}
                   </div>
 
                   <h3 className="font-semibold text-[var(--color-foreground)] mb-2">{m.title}</h3>
@@ -968,7 +972,7 @@ export default function TrainingClient({
                       </td>
                       {canManage && (
                         <td className="px-3 py-2.5 whitespace-nowrap">
-                          <StatusBadge isActive={m.isActive} />
+                          <StatusBadge isActive={m.isActive} isArchived={m.isArchived} />
                         </td>
                       )}
                       <td className="px-3 py-2.5 whitespace-nowrap">

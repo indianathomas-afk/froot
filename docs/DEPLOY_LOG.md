@@ -2,6 +2,34 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-05 — BUG-26: archived template cards read "Archived"; bulk bar says "1 template selected" (+ BUG-27, the same on /hr/training)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`d17edfa`; the docs commit is the one immediately after it. TIER 2, no
+migration, no API or data change: one file under `src/app/(app)/templates/`
+plus the fixture `scripts/verify-bug26.ts` (12/12, no DB; 5 fail against
+the pre-fix file). R1–R2 are DRAFT in DECISIONS.md.
+
+**Rollback.** `git revert d17edfa`; nothing in the database changes.
+
+**Staging test owed (Gary, after PRE-PUSH-CHECK and push).** On
+`/templates` → Archived, the card shows a grey "Archived" badge. Tick one
+card and the bar reads "1 template selected"; tick two and it reads
+"2 templates selected". The Active tab is unchanged.
+
+**BUG-27, added the same session.** Work commit `08fedf1`; its docs commit
+is the one immediately after it. The same two fixes on `/hr/training`, under
+BUG-26's R1–R2 (Gary in chat). One file,
+`src/app/(app)/hr/training/training-client.tsx`, plus the fixture
+`scripts/verify-bug27.ts` (14/14, no DB; 7 fail against the pre-fix file).
+Still TIER 2, no migration, no API or data change. Rollback:
+`git revert 08fedf1`, independent of `d17edfa`.
+
+**Staging test owed for BUG-27 (Gary).** On `/hr/training` → Archived, as an
+admin, cards AND table view show a grey "Archived" badge. Tick one module
+and the bar reads "1 module selected"; tick two and it reads "2 modules
+selected". The Active and Inactive tabs are unchanged.
+
 ## 1d6e0b8 — 2026-11-05 — BUG-24: deletes blocked by history answer 409, not 500 (stores, staff, race backstops)
 
 **PROMOTED 2026-11-05 in merge `1d6e0b8`** ("Merge branch 'staging'"). First

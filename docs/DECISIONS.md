@@ -5,6 +5,47 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-05 — BUG-26: an archived template's badge reads "Archived"; the bulk bar pluralises
+
+**RATIFIED BY GARY, 2026-11-05, at the BUG-26 + BUG-27 PRE-PUSH-CHECK:**
+"Ratify as written". This covers R1–R2, their widening to `/hr/training`
+(BUG-27), and the two Claude implementation choices as a whole, which are
+now ratified as his. The "DRAFT" paragraph below is spent, kept; the
+heading's "— DRAFT" suffix was removed at this check.
+
+**DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** Nothing below is
+ratified yet.
+
+**R1–R2 are the session prompt's draft rulings** (`docs/prompts/BUG-26.md`,
+"Draft rulings (Gary ratifies at PRE-PUSH-CHECK)"). They are recorded as
+built, not as Gary's words:
+
+- **R1.** A template card's badge reads **"Archived"** in a muted grey style
+  whenever `isArchived` is true, whatever `isActive` is. Otherwise the badge
+  keeps today's behaviour ("Active" green, "Inactive" muted).
+- **R2.** The /templates bulk bar pluralises: "1 template selected",
+  "2 templates selected".
+
+**Scope widened, same session: R1–R2 now also cover `/hr/training`
+(BUG-27, work commit `08fedf1`).** Gary in chat: "same rulings as BUG-26
+R1–R2 applied to /hr/training (grey "Archived" badge whenever isArchived, on
+cards and table; "1 module selected" / "N modules selected")". Recorded
+here (Claude) so the PRE-PUSH-CHECK ratification of R1–R2 can cover both
+pages; whether it does is Gary's to say.
+
+**Claude implementation choices (work commit `d17edfa`):**
+
+- The muted style is the existing Inactive pair (`--color-muted` /
+  `--color-muted-foreground`), so an Archived badge and an Inactive badge
+  look the same apart from the word. No new colour or token, as the prompt
+  required.
+- The premise R1 rests on was checked before building: archiving writes
+  `isArchived` alone and leaves `isActive` as it was (`api/templates/[id]`,
+  `api/templates` bulk PATCH), and `lib/calendar.ts` names archived-and-active
+  as the normal state. `isActive` is live. The one path that sets both is the
+  import replacing an old version (`isArchived: true, isActive: false`), and
+  R1 covers it the same way.
+
 ## 2026-11-05 — BUG-24: a delete blocked by history answers 409, never 500; one shared matcher
 
 **RATIFIED BY GARY, 2026-11-05, at the BUG-24 PRE-PUSH-CHECK, as written:**
