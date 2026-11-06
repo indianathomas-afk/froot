@@ -347,7 +347,7 @@ export default function TemplatesClient({ retiredNotice = null }: { retiredNotic
       {/* Bulk action bar */}
       {someSelected && (
         <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-[var(--color-muted)]/30 border border-[var(--color-border)]">
-          <span className="text-sm font-medium text-[var(--color-foreground)]">{selected.size} templates selected</span>
+          <span className="text-sm font-medium text-[var(--color-foreground)]">{selected.size} template{selected.size !== 1 ? "s" : ""} selected</span>
           <button onClick={() => setSelected(new Set())} className="text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]">
             Clear Selection
           </button>
@@ -420,8 +420,14 @@ export default function TemplatesClient({ retiredNotice = null }: { retiredNotic
                       <Image src="/redpaperimage.png" alt="" width={16} height={16} className="object-contain" />
                     </div>
                   </div>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${template.isActive ? "bg-[var(--color-success-bg)] text-[var(--color-success-text)]" : "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]"}`}>
-                    {template.isActive ? "Active" : "Inactive"}
+                  {/* BUG-26 R1: isArchived is checked FIRST. Archiving writes
+                      isArchived alone and leaves isActive as it was (an
+                      archived-and-active template is the normal state — see
+                      lib/calendar.ts), so an isActive-only ternary labelled
+                      archived cards "Active". Archived reuses the Inactive
+                      muted pair; no new colour. */}
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${!template.isArchived && template.isActive ? "bg-[var(--color-success-bg)] text-[var(--color-success-text)]" : "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]"}`}>
+                    {template.isArchived ? "Archived" : template.isActive ? "Active" : "Inactive"}
                   </span>
                 </div>
 
