@@ -1,5 +1,6 @@
 import { auth, clerkClient } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
+import { RESTRICT_MESSAGES, refuseIfRestricted } from "@/lib/db/restrict-violation"
 import { requireUsersManage } from "../access"
 import { NextResponse } from "next/server"
 import { z } from "zod"
@@ -367,9 +368,23 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     // user may not exist or may belong to another org; continue
   }
 
-  // Also remove from DB if present
+  // Also remove from DB if present.
+  //
+  // BUG-24, Ruling A (Gary, 2026-11-05): removing access always wins, so the
+  // Clerk calls above stay FIRST and there is no pre-check. A user who posted
+  // corporate updates is still referenced by CorporateUpdate.authorUserId (ON
+  // DELETE RESTRICT, soft-deleted updates included), so their DB row cannot
+  // be deleted. Before BUG-24 that came back a bare 500 after access was
+  // already gone. Now it is a 409 that says honestly what happened: access is
+  // removed and the record stays. Showing such authors as a former user is a
+  // separate row (DEBT-126, linked to DEBT-106).
   if (org) {
-    await prisma.user.deleteMany({ where: { clerkUserId: id, organizationId: org.id } })
+    const refused = await refuseIfRestricted(
+      () => prisma.user.deleteMany({ where: { clerkUserId: id, organizationId: org.id } }),
+      RESTRICT_MESSAGES.user,
+      "DELETE /api/users/[id]",
+    )
+    if (refused) return refused
   }
 
   return NextResponse.json({ success: true })

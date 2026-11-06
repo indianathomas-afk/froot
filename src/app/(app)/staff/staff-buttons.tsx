@@ -538,7 +538,16 @@ export function DeleteStaffButton({ staffId }: { staffId: string }) {
     if (!confirm("Remove this staff member?")) return
     setLoading(true)
     try {
-      await fetch(`/api/staff/${staffId}`, { method: "DELETE" })
+      // BUG-24: the route answers 409 "…has records… terminate them instead"
+      // for a member with history. That answer used to be dropped here, so
+      // the click looked like it did nothing. It now shows the sentence the
+      // same way the Square sync failure above does.
+      const res = await fetch(`/api/staff/${staffId}`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        alert(data?.error ?? "Failed to remove staff member")
+        return
+      }
       router.refresh()
     } finally {
       setLoading(false)

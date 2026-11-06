@@ -1,3 +1,4 @@
+import { RESTRICT_MESSAGES, refuseIfRestricted } from "@/lib/db/restrict-violation"
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { denyUnlessTemplatesManage } from "../../templates/access"
@@ -124,15 +125,17 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     )
   }
 
-  // THE BACKSTOP DOES NOT LOOK LIKE THE PRE-CHECK, measured on dev
-  // (br-broad-wave-a6vpjdw0) 2026-08-08. If a template is assigned to this type
-  // between the count above and this delete, Postgres refuses and Prisma 7 with
-  // the Neon driver adapter throws a `DriverAdapterError` carrying NO `.code`
-  // — unlike a unique violation, which does arrive as P2002. So that race
-  // surfaces as a 500, not a 409, and isUniqueViolation()-style code sniffing
-  // would never catch it. Left deliberately: catching a bare DriverAdapterError
-  // here would swallow every other database failure on this line to dress up a
-  // race that the pre-check already makes vanishingly rare.
-  await prisma.templateType.delete({ where: { id } })
+  // THE BACKSTOP (BUG-24, 2026-11-05). This used to say the race was left as
+  // a 500 on purpose, because the Neon adapter's error "carries NO .code". That
+  // was true of `.code` and wrong about the conclusion: BUG-23 measured the
+  // SQLSTATE (23001) on the error's `.cause`. The shared matcher keys on exactly
+  // that, so it catches the RESTRICT refusal and nothing else. Any other
+  // database failure on this line still returns a 500 and is logged.
+  const refused = await refuseIfRestricted(
+    () => prisma.templateType.delete({ where: { id } }),
+    RESTRICT_MESSAGES.templateType,
+    "DELETE /api/template-types/[id]",
+  )
+  if (refused) return refused
   return NextResponse.json({ success: true })
 }

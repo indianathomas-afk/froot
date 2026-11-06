@@ -930,6 +930,58 @@ phases:
       a site created after the measurement is exactly the one the measurement
       cannot contain.
 
+  - id: UX-3
+    track: platform
+    size: S
+    status: planned
+    title: "Stores have no Deactivate control — Delete is the only action, and history blocks it"
+    notes: >
+      FILED 2026-11-05 by the BUG-24 session, on Gary's instruction ("File the
+      Store Deactivate-control row."). BUG-24 made DELETE /api/stores/[id]
+      answer 409 when a store has checklists, purchase orders or inventory
+      counts — a store with any history can no longer be deleted, and before
+      BUG-24 the delete failed silently with a swallowed 500. That leaves an
+      operator with no way to retire a store that has history.
+
+      WHAT ALREADY EXISTS: Store.isActive (default true) is in the schema,
+      PATCH /api/stores/[id] accepts isActive, and pages already filter on it
+      (store-view, messages, settings/labor). What is missing is any UI that
+      sends it: nothing on /stores toggles isActive. R2 of BUG-24 (draft):
+      Archive-should-replace-Delete is filed, not built, in that phase.
+
+      WHAT IT NEEDS: a ruling on the shape (a Deactivate/Reactivate control,
+      and whether a store with history shows Deactivate in place of Delete,
+      BUG-23-style), plus an audit of every surface that lists stores, to see
+      which ignore isActive today.
+
+      COST OF DOING NOTHING: LATENT until a store closes. Trigger: an
+      operator tries to remove a closed store that has history, gets the 409,
+      and has no other control to use.
+  - id: UX-4
+    track: inventory
+    size: XS-S
+    status: planned
+    title: "Vendor Delete deactivates when the vendor has purchase orders — label the button Deactivate in that case"
+    notes: >
+      FILED 2026-11-05 by the BUG-24 session, on Gary's Ruling B ("leave
+      delete-deactivates as is; file a row to label the button "Deactivate"
+      when the vendor has POs").
+
+      TODAY: DELETE /api/inventory/vendors/[id] counts purchase orders; with
+      any, it sets isActive false and returns { success: true, softDisabled:
+      true } instead of deleting. The dialog (vendors-client.tsx,
+      DeleteVendorButton) discloses this in its description, but the button
+      and title still read Delete, and the client ignores softDisabled.
+      BUG-23's R2 ("Delete never quietly archives") is the contrast; Gary
+      ruled the behaviour stays, and only the label changes.
+
+      WHAT IT NEEDS: the vendor list already has the vendor; it needs a
+      has-purchase-orders flag (or a count) so the trash control and dialog
+      can read Deactivate for those vendors. Display-only once that flag
+      exists.
+
+      COST OF DOING NOTHING: COSMETIC. The behaviour is disclosed; the label
+      is wrong.
   - id: TPL-1
     track: platform
     size: M
@@ -26614,7 +26666,31 @@ bugs:
       seen on staging the same day are filed as BUG-26.
 
   - id: BUG-24
-    status: planned
+    # planned -> in_progress 2026-11-05 at the work commit 9a5b987 (NOT
+    # pushed). The docs SHA is the commit immediately after 9a5b987 (its own
+    # SHA cannot be written inside itself). R1-R3 are DRAFT in DECISIONS.md
+    # until Gary ratifies them at PRE-PUSH-CHECK.
+    # 2026-11-05, same session: Gary gave Ruling A after 7cde006; row 2 built
+    # in fd1adb2. The docs SHA for that is the commit immediately after
+    # fd1adb2.
+    # in_progress -> staging 2026-11-05 at the BUG-24 PRE-PUSH-CHECK (the
+    # commit immediately after dc3785f). Not yet pushed at the check
+    # (origin/staging = 8845365). DECISIONS BUG-24 R1-R3 ratified there
+    # ("Ratify as written. And yes — "1. Yes" means removing access always
+    # wins."); the comment above's "DRAFT ... until Gary ratifies" is spent,
+    # kept.
+    status: staging
+    commits:
+      # fix(BUG-24): work commit — shared matcher, rows 1/3 + 8-13, fixture
+      - "9a5b987"
+      # docs(BUG-24): the commit immediately after 9a5b987 — this row,
+      # DECISIONS draft, DEPLOY_LOG UNPROMOTED, UX-3 + UX-4, prompt
+      - "7cde006"
+      # fix(BUG-24): row 2, user removal 409 (Ruling A)
+      - "fd1adb2"
+      # docs(BUG-24): the commit immediately after fd1adb2 — Ruling A
+      # recorded, DEBT-126 filed, DEPLOY_LOG bullet
+      - "dc3785f"
     title: >
       Under the Neon driver adapter a RESTRICT foreign-key violation is a raw
       DriverAdapterError (SQLSTATE 23001), not a P2003 — sweep every delete
@@ -26664,6 +26740,69 @@ bugs:
       that history still RESTRICT-references, on a delete path with no
       pre-check — an unexplained 500 and a retry that fails the same way
       (BUG-23's exact shape).
+
+      PHASE 1 AUDIT, 2026-11-05 (BUG-24 session, TIER 2; gate: staging and
+      main both at 8845365). 0_init holds 244 FKs, 110 of them ON DELETE
+      RESTRICT; src/ holds 86 delete calls, and every $executeRaw is an
+      UPDATE. 13 paths delete a model on the parent side of a RESTRICT FK,
+      directly or by cascade. Unguarded: (1) DELETE /api/stores/[id]
+      (Checklist, PurchaseOrder, InventoryCount; the dialog swallowed the
+      answer); (2) DELETE /api/users/[id] (CorporateUpdate.authorUserId; the
+      Clerk membership and account are deleted BEFORE the DB delete, so the
+      500 arrives after an irreversible Clerk removal); (3) DELETE
+      /api/staff/[id] (LaborAssignment.staffMemberId missing from its ten
+      counts; latent, nothing writes LaborAssignment yet). Vendor delete is
+      Guarded by deactivating instead (disclosed in its dialog). Templates,
+      task sync and section prune are Guarded (BUG-23, TPL-3). Template types,
+      training categories, HR document categories, training modules, training
+      assignments and HR checkpoints are Guarded with an uncaught race. Not
+      deleted anywhere: Organization, HrDocument, HrDocumentVersion,
+      SalesItem, SquareModifierList, NotificationContact; Ingredient,
+      CorporateUpdate and TeamMessage are soft-deleted only.
+
+      GARY'S PICKS (2026-11-05): fix row 1 (store: 409 + the delete dialog
+      shows it) and row 3 (staff: LaborAssignment count + the roster shows
+      the 409); add the shared-matcher race backstop to rows 8-13. Ruling B
+      (vendor): "leave delete-deactivates as is; file a row to label the
+      button "Deactivate" when the vendor has POs" — filed as UX-4. "File the
+      Store Deactivate-control row" — filed as UX-3. Row 2 (user removal) NOT
+      picked; Ruling A arrived as an unfilled template placeholder and is NOT
+      recorded here. It is owed from Gary in his own words.
+
+      BUILT in 9a5b987. src/lib/db/restrict-violation.ts holds
+      isRestrictViolation (moved from api/templates/history.ts, which
+      re-exports it as isForeignKeyViolation), RESTRICT_MESSAGES (one
+      sentence per route) and refuseIfRestricted() (RESTRICT -> 409 with the
+      sentence; anything else -> console.error + 500). Store dialog: stays
+      open on failure and shows the sentence; closes only on success. Roster
+      button: alert() of the 409, the pattern staff-buttons.tsx already uses
+      for a sync failure. Stale "carries no .code" comments in rows 8-10
+      corrected. Fixture scripts/verify-bug24.ts 40/40 on dev
+      br-broad-wave-a6vpjdw0, zero leftovers; verify-bug23.ts re-run 30/30 on
+      dev. Not observed in a browser.
+
+      STAGING TEST OWED (Gary, after push), with a STORE, not a vendor
+      (Gary): delete a store that has checklists -> the dialog shows "This
+      store has checklists, purchase orders or inventory counts — it can't
+      be deleted." and the store stays; delete a brand-new unused store ->
+      it goes. Second route: delete a staff member with records -> an alert
+      reads "...terminate them instead" and they stay.
+
+      RULING A RECEIVED, 2026-11-05 (same session, after 7cde006). The
+      "Ruling A ... is NOT recorded here. It is owed" sentence above is
+      spent, kept. Asked three questions (does removing access always win;
+      if Clerk stays first and the DB delete is blocked, should the message
+      say access is removed but the record stays; should authors show as a
+      former user, in a row linked to DEBT-106), Gary answered: "1. Yes. 2.
+      Yes agreed. "Access removed. Their record stays because they posted
+      corporate updates". 3. Yes." BUILT in fd1adb2: DELETE /api/users/[id]
+      keeps the Clerk membership + account deletions FIRST, with no
+      pre-check; a DB delete refused by CorporateUpdate.authorUserId answers
+      409 with that sentence verbatim, and the users page shows it in its
+      existing error line. Answer 3 filed as DEBT-126. Fixture 47/47 on dev
+      br-broad-wave-a6vpjdw0, zero leftovers. Staging test may add: remove a
+      user who posted a corporate update -> the sentence shows under their
+      row; they leave the list on reload.
 
   - id: BUG-25
     # planned -> shipped 2026-11-05 by PROMOTE-DOCS_2026-11-05_DEBT-125:
@@ -36880,6 +37019,42 @@ debt:
       branch, so it is TIER 3 and Gary runs every step. CLOSES BUG-25 when a
       fresh `migrate deploy` on an empty branch creates TaskAttachment.
       RELATED: BUG-25, DEBT-35, docs/MIGRATIONS.md §2.
+
+  - id: DEBT-126
+    status: planned
+    title: >
+      A removed user who posted corporate updates keeps a live-looking User
+      row; show them as a former user
+    notes: >
+      FILED 2026-11-05 by the BUG-24 session, on Gary's Ruling A, answer 3
+      ("Yes") to: should authors show as "Former user" (or similar), in a row
+      linked to DEBT-106.
+
+      TODAY (after BUG-24 fd1adb2): DELETE /api/users/[id] removes the Clerk
+      membership and account first (Ruling A: removing access always wins).
+      Then it tries to delete the User row. CorporateUpdate.authorUserId is
+      ON DELETE RESTRICT, so for any author (soft-deleted updates included)
+      the row stays. The route answers 409 "Access removed. Their record
+      stays because they posted corporate updates". The leftover row keeps
+      its role and store assignments, and nothing marks it as departed.
+
+      WHY DEBT-106: that row is the same defect from the webhook side.
+      organizationMembership.deleted leaves a User row with its role, and the
+      database cannot tell a departed user from a current one. A "former
+      user" marker would serve both: exclude departed users wherever DEBT-106
+      lists (pace-alert recipients, NOTIFY-12 user picks), and render
+      corporate-update bylines as a former user.
+
+      WHAT IT NEEDS: a ruling on the shape. Either a departed marker on User
+      (additive column, TIER 3), or CorporateUpdate.authorUserId becoming
+      nullable with ON DELETE SET NULL plus a stored author name (schema
+      change, TIER 3). Then the byline display and DEBT-106's exclusions.
+
+      COST OF DOING NOTHING: LATENT. A removed author's row looks current:
+      same role, same stores. Bylines still show their old name, which is
+      correct today, but nothing says they left.
+
+      RELATED: DEBT-106, BUG-24.
 
 rulings:
   - id: R1

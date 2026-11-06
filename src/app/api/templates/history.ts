@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
+import { isRestrictViolation as isForeignKeyViolation } from "@/lib/db/restrict-violation"
 
 // ── BUG-23 — A TEMPLATE WITH HISTORY CANNOT BE DELETED, ONLY ARCHIVED ──────────
 //
@@ -76,20 +77,9 @@ export async function deleteTemplateUnlessHistory(templateId: string): Promise<D
   }
 }
 
-// ── P2003 ALONE DOES NOT CATCH THIS. MEASURED, NOT ASSUMED ─────────────────────
-// Every FK in the census above is ON DELETE RESTRICT, and Postgres reports a
-// RESTRICT violation as SQLSTATE 23001 (restrict_violation), NOT 23503
-// (foreign_key_violation). Under @prisma/adapter-neon the 23001 is NOT mapped
-// to a P2003 PrismaClientKnownRequestError: it arrives as a `DriverAdapterError`
-// with `cause: { kind: "postgres", code: "23001" }` and no `.code` of its own.
-// Observed on dev br-broad-wave-a6vpjdw0, 2026-11-04, by scripts/verify-bug23.ts
-// (B5), which was written to expect P2003 and failed. A catch keyed on P2003
-// would have let the exact BUG-23 failure through as a 500.
-//
-// So: the Prisma code (for a NO ACTION FK the adapter does map) OR either raw
-// SQLSTATE on the adapter's cause.
-export function isForeignKeyViolation(err: unknown): boolean {
-  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2003") return true
-  const cause = (err as { cause?: { kind?: unknown; code?: unknown } } | null)?.cause
-  return cause?.kind === "postgres" && (cause.code === "23001" || cause.code === "23503")
-}
+// ── THE MATCHER MOVED (BUG-24, R3) ────────────────────────────────────────────
+// isForeignKeyViolation now lives in src/lib/db/restrict-violation.ts as
+// isRestrictViolation, with the measured 23001 note that used to sit here. It is
+// re-exported under its BUG-23 name so this file's catch and
+// scripts/verify-bug23.ts import it unchanged.
+export { isRestrictViolation as isForeignKeyViolation } from "@/lib/db/restrict-violation"

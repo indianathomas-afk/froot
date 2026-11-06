@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { denyUnlessStoresManage } from "../access"
+import { RESTRICT_MESSAGES, refuseIfRestricted } from "@/lib/db/restrict-violation"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -33,7 +34,18 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   const store = await prisma.store.findFirst({ where: { id, organizationId: org.id } })
   if (!store) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  await prisma.store.delete({ where: { id } })
+  // BUG-24 row 1. Checklist, PurchaseOrder and InventoryCount all point at a
+  // store ON DELETE RESTRICT, so a store with any of them cannot be deleted.
+  // Postgres refuses the whole statement, so none of the store's cascades run
+  // either. Before BUG-24 that refusal came back a bare 500 and the dialog
+  // swallowed it. No pre-check: three tables block, so it is not one
+  // `exists`-style query.
+  const refused = await refuseIfRestricted(
+    () => prisma.store.delete({ where: { id } }),
+    RESTRICT_MESSAGES.store,
+    "DELETE /api/stores/[id]",
+  )
+  if (refused) return refused
   return NextResponse.json({ ok: true })
 }
 

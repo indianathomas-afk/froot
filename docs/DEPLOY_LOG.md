@@ -2,6 +2,33 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-05 — BUG-24: deletes blocked by history answer 409, not 500 (stores, staff, race backstops)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit `9a5b987`;
+docs commit is the one after it. No migration, no env var.
+
+- **What changed.** `DELETE /api/stores/[id]` answers 409 "This store has
+  checklists, purchase orders or inventory counts — it can't be deleted."
+  The delete dialog stays open and shows it, where it used to swallow every
+  answer. `DELETE /api/staff/[id]` now also counts LaborAssignment, and the
+  roster alerts its 409 instead of dropping it. Template types, training
+  categories, HR document categories, training modules, training
+  assignments and HR checkpoints: the race behind each pre-check is a 409.
+- **Shared matcher.** `src/lib/db/restrict-violation.ts` (P2003 or raw
+  23001/23503); BUG-23's `history.ts` re-exports it.
+- **Row 2, user removal (Ruling A, `fd1adb2`).** Clerk access is still
+  removed first. If the user posted corporate updates, the DB row stays and
+  the route answers 409 "Access removed. Their record stays because they
+  posted corporate updates"; the users page shows it. Fixture now 47/47 on
+  dev. Rollback adds `git revert fd1adb2`.
+- **Evidence.** `scripts/verify-bug24.ts` 40/40 on dev
+  `br-broad-wave-a6vpjdw0`, zero leftovers; `verify-bug23.ts` 30/30 on dev.
+  Not observed in a browser.
+- **Staging test owed (Gary):** a store with checklists shows the sentence
+  and stays; a brand-new unused store deletes; a staff member with records
+  shows "…terminate them instead" and stays.
+- **Rollback.** `git revert 9a5b987`; nothing in the database changes.
+
 ## ba38ed2 — 2026-11-05 — DEBT-125: baseline squash of prisma/migrations into `0_init` (closes BUG-25)
 
 **PROMOTED 2026-11-05 in merge `ba38ed2`** ("Merge branch 'staging'"). First

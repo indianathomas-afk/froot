@@ -1,3 +1,4 @@
+import { RESTRICT_MESSAGES, refuseIfRestricted } from "@/lib/db/restrict-violation"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireHrDocumentAccess } from "../../access"
@@ -86,8 +87,8 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   // reassignment is a separate act that unlocks this. Never cascade-to-null.
   // Counts EVERY row on the category — library documents and agreement forms,
   // archived included — since each holds the FK. ON DELETE RESTRICT is the
-  // backstop behind this check; a row landing between the count and the delete
-  // surfaces as a 500, left deliberately per the HR-20 route's measured note.
+  // backstop behind this check. A row landing between the count and the
+  // delete is a 409 since BUG-24 (shared matcher), no longer a 500.
   const documentCount = await prisma.hrDocument.count({
     where: { categoryId: id, organizationId: access.org.id },
   })
@@ -101,6 +102,11 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     )
   }
 
-  await prisma.hrDocumentCategory.delete({ where: { id } })
+  const refused = await refuseIfRestricted(
+    () => prisma.hrDocumentCategory.delete({ where: { id } }),
+    RESTRICT_MESSAGES.hrDocumentCategory,
+    "DELETE /api/hr/documents/categories/[id]",
+  )
+  if (refused) return refused
   return NextResponse.json({ success: true })
 }

@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
+import { RESTRICT_MESSAGES, refuseIfRestricted } from "@/lib/db/restrict-violation"
 import { getUserStoreScope } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { isValidDateStr } from "@/lib/milestones"
@@ -226,14 +227,25 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     // DOC-6: a return event is a record too. Its FK is RESTRICT, so without this
     // count the delete would 500 instead of 409ing with the message below.
     prisma.hrReturnEvent.count({ where: { staffMemberId: id } }),
+    // BUG-24 row 3: LaborAssignment.staffMemberId is RESTRICT too, and was the
+    // one RESTRICT child this list missed. Nothing writes it yet (L-4), so the
+    // gap was latent. Counted now so the refusal is this 409, not the catch.
+    prisma.laborAssignment.count({ where: { staffMemberId: id } }),
   ])
   if (counts.some((c) => c > 0)) {
     return NextResponse.json(
-      { error: "This staff member has records and cannot be deleted — terminate them instead" },
+      { error: RESTRICT_MESSAGES.staff },
       { status: 409 }
     )
   }
 
-  await prisma.staffMember.deleteMany({ where: { id, organizationId: org.id } })
+  // BUG-24: the backstop for a RESTRICT child added after this list, or a
+  // record written between the counts and the delete. Same sentence either way.
+  const refused = await refuseIfRestricted(
+    () => prisma.staffMember.deleteMany({ where: { id, organizationId: org.id } }),
+    RESTRICT_MESSAGES.staff,
+    "DELETE /api/staff/[id]",
+  )
+  if (refused) return refused
   return NextResponse.json({ success: true })
 }

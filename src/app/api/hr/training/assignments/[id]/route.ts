@@ -1,3 +1,4 @@
+import { RESTRICT_MESSAGES, refuseIfRestricted } from "@/lib/db/restrict-violation"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
@@ -83,6 +84,11 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     )
   }
 
-  await prisma.trainingAssignment.delete({ where: { id } })
+  const refused = await refuseIfRestricted(
+    () => prisma.trainingAssignment.delete({ where: { id } }),
+    RESTRICT_MESSAGES.trainingAssignment,
+    "DELETE /api/hr/training/assignments/[id]",
+  )
+  if (refused) return refused
   return NextResponse.json({ success: true })
 }
