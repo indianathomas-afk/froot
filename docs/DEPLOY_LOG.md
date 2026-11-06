@@ -2,7 +2,35 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-05 — BUG-26: archived template cards read "Archived"; bulk bar says "1 template selected" (+ BUG-27, the same on /hr/training)
+## e647573 — 2026-11-05 — BUG-26: archived template cards read "Archived"; bulk bar says "1 template selected" (+ BUG-27, the same on /hr/training)
+
+**PROMOTED 2026-11-05 in merge `e647573`** ("Merge branch 'staging'"). First
+parent `80293ca` (prior tip of `main`), second parent `68ed2c0` (staging tip,
+the BUG-26 + BUG-27 PRE-PUSH-CHECK). **7 commits** in `80293ca..e647573`
+besides the merge: `d17edfa` (BUG-26 work), `b3bfc40` (BUG-26 docs),
+`527ee04` (BUG-27 filed), `08fedf1` (BUG-27 work), `361089b` (BUG-27 docs),
+`156b4ed` (DECISIONS scope), `68ed2c0` (PRE-PUSH-CHECK). No migration.
+Measured at this stamp by `git log` after `git fetch`: `staging` =
+`origin/staging` = `main` = `origin/main` = `e647573`. Stamped post-merge
+2026-11-05 on `staging` (PROMOTE-DOCS_2026-11-05_BUG-26-27); the heading
+previously read "UNPROMOTED — 2026-11-05 — BUG-26: …". Spent, kept below:
+the "Staging only, not on `main`. NOT pushed at writing" line and both
+"Staging test owed" paragraphs.
+
+**Rollback (whole promotion).** `git revert -m 1 e647573`; nothing in the
+database changes.
+
+**Staging evidence (planning chat, 2026-11-05, recorded as given).**
+- /templates Archived tab: "CAL-2 test" shows a grey "Archived" badge. With
+  one card ticked, the bar reads "1 template selected".
+- /hr/training Archived tab, card view: both archived modules show grey
+  "Archived" badges. With one ticked, the bar reads "1 module selected".
+- Table view on /hr/training: not checked in a browser. The fixture covers
+  it.
+
+**Production (Gary, 2026-11-05, his answer in this session, verbatim):**
+"Ready, not looked" — production `e647573` went Ready; neither Archived tab
+was looked at on www.usefroot.com.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `d17edfa`; the docs commit is the one immediately after it. TIER 2, no
