@@ -24240,6 +24240,67 @@ phases:
       The digest builder (src/lib/hr-doc-digest.ts) skips training by its
       `kind` test today; the rollup already carries the items.
 
+  - id: NOTIFY-16
+    track: platform
+    size: S
+    # -> in_progress 2026-11-06 at the work commit d5d3202 (NOT pushed). The
+    # docs SHA is the commit immediately after d5d3202 (its own SHA cannot be
+    # written inside itself).
+    status: in_progress
+    title: "Email Notification Settings — renamed door and room; collapsible sections with Expand all"
+    commits:
+      - "d5d3202"
+      # + the commit immediately after d5d3202: docs(NOTIFY-16) — this row,
+      # the DRAFT DECISIONS entry, the prompt of record
+    notes: >
+      BUILT 2026-11-06 on staging, NOT pushed. TIER 2, UI only. Prompt of
+      record: docs/prompts/NOTIFY-UI-ACCORDION.md (working name; this id was
+      taken as the next free NOTIFY-n after reading this file). No schema,
+      migration, route, query or dependency added; no save route or email
+      touched. RENAMES (Gary ruled the mapping at the Step 1 STOP, 2026-11-06:
+      "1. That is correct. 2. Correct"). /settings link card
+      (src/app/(app)/settings/page.tsx) — CardTitle :425 and link label :447
+      "Email notifications" -> "Email Notification Settings"; bold heading
+      :438 "Behind-pace alerts and signed-acknowledgment emails" -> "Message
+      Center Settings"; the description paragraph below it unchanged. Hub h1
+      (src/app/(app)/settings/notifications/page.tsx) -> "Email Notification
+      Settings"; the page has no metadata title. The retired PUT
+      /api/hr/settings 410 message names the page and was repaired to the new
+      name (a pointer). The /users permissions-grid area "Email
+      notifications" (src/lib/permissions.ts) is a different surface and was
+      deliberately left. No docs/guide article names the page (the help
+      generator lists /settings/notifications as unclaimed). ACCORDION. One
+      shared component, src/components/settings/collapsible-section.tsx; the
+      six top-level cards (Contacts, Signed-acknowledgment emails,
+      Behind-pace alerts, Milestone emails, Document due dates, Recent
+      emails) wrap in it with their bodies untouched — nothing removed or
+      reordered. Headers carry a status line from data the page already
+      loads: "N contacts"; On/Off (or "HR module off" / "Milestones off");
+      the saved schedule frequency only when one is saved; the pace card adds
+      "N% threshold" (org value, else the fallback the field itself shows);
+      "Last N emails". Chevron is a real button inside the card's h3,
+      aria-expanded + aria-controls. One Expand all / Collapse all button
+      beside "Send a test to me". All collapsed on first visit; state per
+      browser in localStorage key froot.notifySettings.open, every access in
+      try/catch, unreadable = all collapsed. COLLAPSED BODIES STAY MOUNTED
+      (height 0 + inert), so an unsaved edit survives a collapse — this is
+      structural, not observed. Storage is read through useSyncExternalStore
+      rather than CAL-2c's fetch continuation, because this page makes no
+      client fetch to ride; it satisfies the same two constraints (no
+      hydration mismatch, no setState in an effect). Animation is a
+      hand-rolled measured-height CSS transition, not the dead
+      accordion-down/up keyframes and not Radix; it runs only on a click and
+      never under prefers-reduced-motion. VERIFIED: scoped eslint clean and
+      npm run build green. NOT SEEN IN A BROWSER — Gary does not test locally
+      and staging does not have this code until Gary pushes. STAGING TEST
+      LIST (as an ADMIN): (1) /settings shows "Email Notification Settings"
+      with "Message Center Settings" beneath it. (2) /settings/notifications
+      header reads "Email Notification Settings"; all sections collapsed on
+      first visit; headers show status lines. (3) Expand all / Collapse all
+      works; individual chevrons work. (4) Type a pace threshold, collapse,
+      expand -> value still there; Save works. (5) Reload -> open/closed
+      state survives. (6) Same on phone width.
+
   - id: ING-UI-1
     track: inventory
     size: S

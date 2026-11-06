@@ -5,6 +5,39 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-06 — NOTIFY-16: notification settings sections start collapsed and remember their state — DRAFT
+
+**DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** Nothing below is
+ratified yet.
+
+**R1 is the session prompt's draft ruling** (`docs/prompts/NOTIFY-UI-ACCORDION.md`,
+Step 2), recorded as built, not as Gary's words:
+
+- **R1.** Sections on /settings/notifications start collapsed, remember
+  their state per browser, and collapsing never discards an unsaved edit.
+
+**Gary, in chat 2026-11-06, at the Step 1 STOP** — the rename mapping,
+answered "1. That is correct. 2. Correct": the /settings card title and
+link label become "Email Notification Settings", its bold heading becomes
+"Message Center Settings", the hub h1 becomes "Email Notification
+Settings"; the retired `/api/hr/settings` 410 message is repaired to the
+new name; the /users permissions-grid area "Email notifications" stays.
+
+**Claude implementation choices (work commit `d5d3202`):**
+
+- Stored state is read through `useSyncExternalStore` (server snapshot =
+  all collapsed), not CAL-2c's fetch continuation: this page has no client
+  fetch to ride. Same two constraints met — no hydration mismatch, no
+  setState in an effect.
+- Collapsed bodies stay mounted at height 0 and `inert`, as CAL-2c's list
+  does — `inert` rather than `aria-hidden` alone so a clipped control
+  cannot take focus.
+- The chevron button sits INSIDE the card's h3 (the WAI accordion shape),
+  because a heading may not sit inside a button.
+- Header status lines name a schedule frequency only when one is saved; with
+  none the cadence is the kind's default and a second statement of it would
+  be one more thing to keep in sync.
+
 ## 2026-11-05 — BUG-26: an archived template's badge reads "Archived"; the bulk bar pluralises
 
 **RATIFIED BY GARY, 2026-11-05, at the BUG-26 + BUG-27 PRE-PUSH-CHECK:**
