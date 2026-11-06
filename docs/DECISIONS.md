@@ -45,6 +45,23 @@ unchanged. It still deletes the Clerk membership and account before the DB
 row, so a user who authored a corporate update is left half-removed behind a
 500.
 
+**Ruling A — received later the same day (2026-11-05), after `7cde006`. The
+paragraph above is spent, kept.** Claude asked three questions: (1) should
+removing access always win, or should an author be refused before anything
+is touched; (2) if Clerk stays first and the DB delete is blocked, should the
+message say access is removed but the record stays; (3) should authors who
+leave show as "Former user", in a row linked to DEBT-106. Gary, verbatim:
+"Ruling A: 1. Yes. 2. Yes agreed. "Access removed. Their record stays
+because they posted corporate updates". 3. Yes."
+
+Built in `fd1adb2`: `DELETE /api/users/[id]` keeps both Clerk deletions
+first, with no pre-check. A DB delete refused by `CorporateUpdate.authorUserId`
+answers 409 with Gary's sentence verbatim (`RESTRICT_MESSAGES.user`), and the
+users page shows it in its existing error line. Answer 3 is filed as
+DEBT-126. **Claude:** "1. Yes" was read as "removing access always wins",
+the first of the two options in question 1, consistent with answer 2. The
+sentence is stored exactly as given, with no closing full stop added.
+
 **Claude — four implementation choices the prompt did not make:**
 
 - **A helper, not a bare catch, in each route.** `refuseIfRestricted(run,

@@ -26670,10 +26670,18 @@ bugs:
     # pushed). The docs SHA is the commit immediately after 9a5b987 (its own
     # SHA cannot be written inside itself). R1-R3 are DRAFT in DECISIONS.md
     # until Gary ratifies them at PRE-PUSH-CHECK.
+    # 2026-11-05, same session: Gary gave Ruling A after 7cde006; row 2 built
+    # in fd1adb2. The docs SHA for that is the commit immediately after
+    # fd1adb2.
     status: in_progress
     commits:
       # fix(BUG-24): work commit — shared matcher, rows 1/3 + 8-13, fixture
       - "9a5b987"
+      # docs(BUG-24): the commit immediately after 9a5b987 — this row,
+      # DECISIONS draft, DEPLOY_LOG UNPROMOTED, UX-3 + UX-4, prompt
+      - "7cde006"
+      # fix(BUG-24): row 2, user removal 409 (Ruling A)
+      - "fd1adb2"
     title: >
       Under the Neon driver adapter a RESTRICT foreign-key violation is a raw
       DriverAdapterError (SQLSTATE 23001), not a P2003 — sweep every delete
@@ -26770,6 +26778,22 @@ bugs:
       be deleted." and the store stays; delete a brand-new unused store ->
       it goes. Second route: delete a staff member with records -> an alert
       reads "...terminate them instead" and they stay.
+
+      RULING A RECEIVED, 2026-11-05 (same session, after 7cde006). The
+      "Ruling A ... is NOT recorded here. It is owed" sentence above is
+      spent, kept. Asked three questions (does removing access always win;
+      if Clerk stays first and the DB delete is blocked, should the message
+      say access is removed but the record stays; should authors show as a
+      former user, in a row linked to DEBT-106), Gary answered: "1. Yes. 2.
+      Yes agreed. "Access removed. Their record stays because they posted
+      corporate updates". 3. Yes." BUILT in fd1adb2: DELETE /api/users/[id]
+      keeps the Clerk membership + account deletions FIRST, with no
+      pre-check; a DB delete refused by CorporateUpdate.authorUserId answers
+      409 with that sentence verbatim, and the users page shows it in its
+      existing error line. Answer 3 filed as DEBT-126. Fixture 47/47 on dev
+      br-broad-wave-a6vpjdw0, zero leftovers. Staging test may add: remove a
+      user who posted a corporate update -> the sentence shows under their
+      row; they leave the list on reload.
 
   - id: BUG-25
     # planned -> shipped 2026-11-05 by PROMOTE-DOCS_2026-11-05_DEBT-125:
@@ -36986,6 +37010,42 @@ debt:
       branch, so it is TIER 3 and Gary runs every step. CLOSES BUG-25 when a
       fresh `migrate deploy` on an empty branch creates TaskAttachment.
       RELATED: BUG-25, DEBT-35, docs/MIGRATIONS.md §2.
+
+  - id: DEBT-126
+    status: planned
+    title: >
+      A removed user who posted corporate updates keeps a live-looking User
+      row; show them as a former user
+    notes: >
+      FILED 2026-11-05 by the BUG-24 session, on Gary's Ruling A, answer 3
+      ("Yes") to: should authors show as "Former user" (or similar), in a row
+      linked to DEBT-106.
+
+      TODAY (after BUG-24 fd1adb2): DELETE /api/users/[id] removes the Clerk
+      membership and account first (Ruling A: removing access always wins).
+      Then it tries to delete the User row. CorporateUpdate.authorUserId is
+      ON DELETE RESTRICT, so for any author (soft-deleted updates included)
+      the row stays. The route answers 409 "Access removed. Their record
+      stays because they posted corporate updates". The leftover row keeps
+      its role and store assignments, and nothing marks it as departed.
+
+      WHY DEBT-106: that row is the same defect from the webhook side.
+      organizationMembership.deleted leaves a User row with its role, and the
+      database cannot tell a departed user from a current one. A "former
+      user" marker would serve both: exclude departed users wherever DEBT-106
+      lists (pace-alert recipients, NOTIFY-12 user picks), and render
+      corporate-update bylines as a former user.
+
+      WHAT IT NEEDS: a ruling on the shape. Either a departed marker on User
+      (additive column, TIER 3), or CorporateUpdate.authorUserId becoming
+      nullable with ON DELETE SET NULL plus a stored author name (schema
+      change, TIER 3). Then the byline display and DEBT-106's exclusions.
+
+      COST OF DOING NOTHING: LATENT. A removed author's row looks current:
+      same role, same stores. Bylines still show their old name, which is
+      correct today, but nothing says they left.
+
+      RELATED: DEBT-106, BUG-24.
 
 rulings:
   - id: R1

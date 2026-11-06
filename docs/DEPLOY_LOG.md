@@ -16,6 +16,11 @@ docs commit is the one after it. No migration, no env var.
   assignments and HR checkpoints: the race behind each pre-check is a 409.
 - **Shared matcher.** `src/lib/db/restrict-violation.ts` (P2003 or raw
   23001/23503); BUG-23's `history.ts` re-exports it.
+- **Row 2, user removal (Ruling A, `fd1adb2`).** Clerk access is still
+  removed first. If the user posted corporate updates, the DB row stays and
+  the route answers 409 "Access removed. Their record stays because they
+  posted corporate updates"; the users page shows it. Fixture now 47/47 on
+  dev. Rollback adds `git revert fd1adb2`.
 - **Evidence.** `scripts/verify-bug24.ts` 40/40 on dev
   `br-broad-wave-a6vpjdw0`, zero leftovers; `verify-bug23.ts` 30/30 on dev.
   Not observed in a browser.
