@@ -85,6 +85,18 @@ yet ratified:**
   leaks one, and the User's email column is never read. (This replaces
   `652ea75`, which labelled every user author "Team member".)
 
+**Appended 2026-11-06, NOTIFY-4-POLISH (fix `f042fd4`; nothing above is
+edited).** Gary, in chat, verbatim, on staging finding 3: "Fix 3: option
+(ii). Keep the guard: staff first name, then the User’s first name, then
+“Team member”. Never read the email column." The Clerk name sync is filed
+as DEBT-129. One choice Gary approved ("including your wording for emails
+already queued. Record that choice in DECISIONS."): the "Daily checklists"
+section now reads `dailyDueDays` from the snapshot. A payload queued before
+that field existed has none, and when no store in it missed a day it reads
+"Every store with daily checklists due started them", never "No daily
+checklists were due". Without the count, that is the only wording that is
+true in both cases.
+
 ## 2026-11-06 — NOTIFY-16: notification settings sections start collapsed and remember their state
 
 **RATIFIED BY GARY, 2026-11-06, at the NOTIFY-16 PRE-PUSH-CHECK:**

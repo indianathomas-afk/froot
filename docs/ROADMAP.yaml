@@ -23034,7 +23034,40 @@ phases:
       - "2e85c90"
       # + the commit immediately after 2e85c90: docs(NOTIFY-4) PRE-PUSH-CHECK —
       # DECISIONS ratified, DEPLOY_LOG UNPROMOTED entry, this row to staging
+      - "5c24e02"
+      # fix(NOTIFY-4), NOTIFY-4-POLISH: Gary's staging findings 1–4
+      - "f042fd4"
+      # + the commit immediately after f042fd4: docs(NOTIFY-4) — this rider,
+      # DEBT-129, one DECISIONS line, the NOTIFY-4-POLISH prompt of record
     notes: >
+      RIDER 2026-11-06 — staging findings 1–4 fixed in f042fd4 (prepended;
+      nothing below is edited). TIER 2, prompt of record
+      docs/prompts/NOTIFY-4-POLISH.md. From Gary's staging pass under
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa (Clerk instance verified-snapper-7).
+      (1) Daily checklists: nothing due in the recipient's stores -> "No daily
+      checklists were due"; some due, all started -> "Every store with daily
+      checklists due started them"; "did not attempt" lines unchanged. The
+      snapshot carries dailyDueDays per store. (2) "as ticked below" -> "as
+      ticked above"; the same sweep fixed "Contacts card below" in the
+      shared Also-send-to empty state (the Contacts card is the page's first
+      section). (3) Author name: no code change, by Gary's ruling: "option
+      (ii). Keep the guard: staff first name, then the User’s first name,
+      then “Team member”. Never read the email column." The gap is filed as
+      DEBT-129. The feed's authorName() (src/lib/messages.ts:181) falls back
+      to the email local part, so the email stays less specific than the
+      feed until that row lands. (4) Card description: no change. Gary: "The
+      schedule wasn’t saved when I saw “a day”." The code already read the
+      saved schedule (page.tsx:168, the same row the footer reads).
+      EVIDENCE: scripts/verify-notify-taskcomm.ts 94/94 on dev
+      br-broad-wave-a6vpjdw0 (was 86). Negative control: with the "@" guard
+      removed, 91/94 (3 author checks fail); restored, 94/94. npm run build
+      green.
+      STAGING RE-CHECK LIST (after Gary pushes and the deployed SHA matches):
+      (a) a preview for a period with no Daily checklists due shows "No daily
+      checklists were due"; (b) the Recipients line says "as ticked above";
+      (c) a message by indianathomas shows "Team member" in the email (by
+      ruling; DEBT-129 changes this to the real name); (d) dropped (finding
+      4 was not a defect).
       FIX NOTE 2026-11-06 (prepended; nothing below is edited). Fix commit
       12c5474, on Gary's two changes before PRE-PUSH-CHECK (verbatim in
       docs/DECISIONS.md): (1) weekly and monthly emails list EVERY equipment
@@ -37502,6 +37535,40 @@ debt:
       reads). DEBT-26 is the standing rule: call one definition, never
       re-derive.
       RELATED: NOTIFY-4, CHK-5, DEBT-26, DEBT-63, DEBT-61.
+
+  - id: DEBT-129
+    status: planned
+    title: >
+      User.name is empty for Clerk users although Clerk has the name — sync
+      it from Clerk
+    notes: >
+      FILED 2026-11-06 by NOTIFY-4-POLISH, on Gary's ruling: "File a ROW:
+      User.name is empty for Clerk users even though Clerk has the name (the
+      sidebar shows “Gary Thomas”); sync the name from Clerk, which fixes both
+      the email and the Messages feed’s fallback to the email address."
+      SEEN: on staging (org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk instance
+      verified-snapper-7) a team message by indianathomas (ADMIN, no staff
+      record) shows "indianathomas" in /messages and "Team member" in the
+      Tasks and Communication email. NOT MEASURED: the User row itself was
+      not queried this session. An empty name is inferred from the email
+      falling to "Team member", which needs both staff and User name absent.
+      IN CODE: the Messages feed's authorName() (src/lib/messages.ts:181)
+      falls back staff displayName -> User.name -> the EMAIL LOCAL PART
+      (authorUser.email.split("@")[0]) -> "Unknown". The email's
+      authorFirstName() (src/lib/notifications/kinds/task-comm.ts) never reads
+      the email column, by ruling, so it falls to "Team member". The Clerk
+      webhook (src/app/api/webhooks/clerk/route.ts,
+      organizationMembership.created) writes User.name on CREATE only, from
+      public_user_data first/last name; its update branch deliberately
+      leaves the name alone ("Ruling 4": an admin's correction must not be
+      reset). A row created by any other path, or before Clerk had a name,
+      keeps a null name forever.
+      OPEN FOR THE BUILD: how a sync coexists with Ruling 4 (fill only a
+      null name, or overwrite whenever Clerk changes); which event carries it
+      (user.updated, or a lazy fill in getCurrentUser()); a backfill for
+      existing null rows on each branch. Once names are filled, the feed's
+      email-local-part fallback should be reconsidered too.
+      RELATED: NOTIFY-4, BUG-2, PERM-7.
 
 rulings:
   - id: R1
