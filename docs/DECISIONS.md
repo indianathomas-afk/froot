@@ -5,6 +5,40 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-06 — DEBT-129: User.name comes from Clerk; Froot never invents a name — DRAFT
+
+**DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** The two rulings quoted
+below are Gary's own words. Rule A itself is the prompt's plan (a
+planning-chat lean, not a ruling); Gary built on it in his go ("A: the
+existing create sites use the helper too") and did not object to it, which
+makes it a recommendation until ratified here.
+
+Prompt of record: `docs/prompts/DEBT-129.md`. Work commit `b479b10`.
+
+**Rule A.** A User's name is Clerk's first name + " " + last name, each
+trimmed. Empty → null. Never the username, never the email, never anything
+containing "@". One helper, `clerkDisplayName()` in `src/lib/user-name.ts`,
+used by every writer: the webhook's membership create, `user.updated`, the
+/users auto-sync, and the usage-beacon lazy fill.
+
+**Froot never invents a name.** When Clerk has no usable name the column
+stays null and the existing display fallbacks apply. The one name Froot
+sets itself is the PERM-7 device name (Ruling 4), and both sync paths leave
+it alone.
+
+**Gary, in chat 2026-11-06, verbatim:**
+
+- Ruling 1: B′. On user.updated, write the name from the helper, but skip rows with role STORE (device names stay create-only, Ruling 4). A null result never blanks an existing name. No user.created handler.
+- Ruling 2: C approved. One getUser call inside the throttled branch, only while the name is null, with an updateMany that still requires a null name and skips STORE rows. Wrap it so a Clerk failure never breaks the usage beacon.
+- A: the existing create sites use the helper too, keeping deviceName first at the webhook.
+
+**Claude implementation choices (not yet ratified):** the STORE test is
+role only, not `isDeviceLogin()`'s role + one assignment, because the role
+is on the row and the assignment count is not. A STORE row that isn't a
+device keeps its birth name, which is the safe direction. The lazy fill
+runs after the last-seen write, so a Clerk failure cannot cost the stamp.
+A blank-string name ("") is not treated as missing; only NULL is.
+
 ## 2026-11-06 — NOTIFY-4: Tasks and Communication email — rulings F0–F11 and riders (Gary)
 
 **RATIFIED BY GARY, 2026-11-06, at the NOTIFY-4 PRE-PUSH-CHECK:**
