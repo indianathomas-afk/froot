@@ -23024,7 +23024,14 @@ phases:
     # the commit immediately after 1809c73 (f042fd4 NOT pushed at writing;
     # Gary pushes). The appended DECISIONS paragraph was ratified by Gary at
     # that check: "Ratify as written".
-    status: staging
+    # `staging` -> `shipped` 2026-11-06, stamped post-merge 2026-11-06 by
+    # PROMOTE-DOCS_2026-11-06_NOTIFY-16_NOTIFY-4 (on `staging`): merge
+    # 0ee6965 (DEPLOY_LOG entry `0ee6965 — 2026-11-06 — NOTIFY-4 ...`). The
+    # polish PRE-PUSH-CHECK ("the commit immediately after 1809c73") is
+    # b469663. The "NOT pushed" / "staging" comments above are spent, kept.
+    # Rollback: `git revert -m 1 0ee6965`; the table stays (additive-only).
+    status: shipped
+    shipped: 2026-11-06
     title: "Tasks and Communication email — scheduled recap of team messages, corporate updates and daily checklists (built under the Operational reports email row)"
     commits:
       - "652ea75"
@@ -23047,7 +23054,31 @@ phases:
       # + the commit immediately after 1809c73: docs(NOTIFY-4) PRE-PUSH-CHECK
       # for the polish — DECISIONS appended paragraph ratified, DEPLOY_LOG
       # UNPROMOTED polish entry, this row's SHAs
+      - "b469663"
+      # merge(main): production promotion 2026-11-06 (first parent 49249fb,
+      # second parent b469663), with NOTIFY-16
+      - "0ee6965"
     notes: >
+      SHIPPED 2026-11-06 in merge "0ee6965" (prepended; nothing below is
+      edited). Promotion timestamp 2026-11-06 18:02:01 -0800 (PST) =
+      2026-11-07 02:02:01 UTC, from git show -s --format=%ci 0ee6965.
+      --no-ff, first parent 49249fb; 11 commits: NOTIFY-16 d5d3202, 17af011,
+      1b36e73; NOTIFY-4 652ea75, 547425a, 12c5474, 2e85c90, 5c24e02; polish
+      f042fd4, 1809c73, b469663. MIGRATION
+      20261106230000_notify_taskcomm_kind_settings: staging
+      (br-square-feather-a63z92vz, ep-odd-rain-a6gr4xmm) applied in the
+      5c24e02 staging build log, "2 migrations found … successfully applied".
+      Production applies via vercel-build; Gary reports the production build
+      Ready and the new card loading on production /settings/notifications.
+      The production build-log migration lines were NOT pasted to chat; the
+      card loading is the evidence (the page reads NotificationKindSettings).
+      PRODUCTION VERDICT (Gary, verbatim): "I did all tests and this is
+      working amazing." Browser identity was not captured with it: Gary's
+      report, not browser evidence. The email arrives OFF for every
+      production org (no NotificationKindSettings row = off); Gary turns it
+      on himself. Rollback: git revert -m 1 0ee6965; the table stays
+      (additive-only). staging = origin/staging = main = origin/main =
+      0ee6965 at this stamp.
       RIDER 2026-11-06 — staging findings 1–4 fixed in f042fd4 (prepended;
       nothing below is edited). TIER 2, prompt of record
       docs/prompts/NOTIFY-4-POLISH.md. From Gary's staging pass under
@@ -24413,7 +24444,14 @@ phases:
     # implementation choices RATIFIED by Gary at this check, "Ratify as
     # written". NOT pushed at writing.
     # Rollback: `git revert d5d3202`; no migration.
-    status: staging
+    # `staging` -> `shipped` 2026-11-06, stamped post-merge 2026-11-06 by
+    # PROMOTE-DOCS_2026-11-06_NOTIFY-16_NOTIFY-4 (on `staging`): merge
+    # 0ee6965, with NOTIFY-4 (DEPLOY_LOG entry `0ee6965 — 2026-11-06 —
+    # NOTIFY-16 ...`). The PRE-PUSH-CHECK ("the commit immediately after
+    # 17af011") is 1b36e73. The "NOT pushed" / "staging" comments above are
+    # spent, kept. Rollback: `git revert -m 1 0ee6965`; no migration.
+    status: shipped
+    shipped: 2026-11-06
     title: "Email Notification Settings — renamed door and room; collapsible sections with Expand all"
     commits:
       - "d5d3202"
@@ -24423,7 +24461,21 @@ phases:
       # + the commit immediately after 17af011: docs(NOTIFY-16)
       # PRE-PUSH-CHECK — DECISIONS ratified, DEPLOY_LOG UNPROMOTED entry,
       # status -> staging
+      - "1b36e73"
+      # merge(main): production promotion 2026-11-06 (first parent 49249fb,
+      # second parent b469663), with NOTIFY-4
+      - "0ee6965"
     notes: >
+      SHIPPED 2026-11-06 in merge "0ee6965" with NOTIFY-4 (prepended; nothing
+      below is edited). Promotion timestamp 2026-11-06 18:02:01 -0800 (PST) =
+      2026-11-07 02:02:01 UTC, from git show -s --format=%ci 0ee6965.
+      --no-ff, first parent 49249fb; NOTIFY-16's commits d5d3202, 17af011,
+      1b36e73 are 3 of its 11. No migration in this row (the promotion's one
+      migration is NOTIFY-4's). PRODUCTION VERDICT (Gary, verbatim, for the
+      promotion): "I did all tests and this is working amazing." Browser
+      identity was not captured with it: Gary's report, not browser
+      evidence. Rollback: git revert -m 1 0ee6965. staging = origin/staging
+      = main = origin/main = 0ee6965 at this stamp.
       BUILT 2026-11-06 on staging, NOT pushed. TIER 2, UI only. Prompt of
       record: docs/prompts/NOTIFY-UI-ACCORDION.md (working name; this id was
       taken as the next free NOTIFY-n after reading this file). No schema,
