@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser } from "@/lib/auth"
+import { clerkClient } from "@clerk/nextjs/server"
+import { fillMissingUserName } from "@/lib/user-name"
 import {
   normalizePath,
   orgLocalDate,
@@ -58,7 +60,7 @@ export async function POST(req: Request) {
       // No session, or no Organization row for the session's org.
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-    const { org, dbUser } = ctx
+    const { org, dbUser, userId } = ctx
 
     // A cross-org User row is refused by getCurrentUser() and arrives here as
     // null (DEBT-50/F1). There is no row to attribute usage to and inventing one
@@ -125,6 +127,18 @@ export async function POST(req: Request) {
           // this time", not "nowhere".
           ...(location ? { lastSeenLocation: location } : {}),
         },
+      })
+
+      // DEBT-129 lazy backfill (Gary, Ruling 2, 2026-11-06). Inside the
+      // 15-minute throttle and only while User.name is NULL, so this is at most
+      // one Clerk getUser call per unnamed user per quarter hour and none at
+      // all for a named or STORE row (the helper returns before calling the
+      // loader). AFTER the last-seen write, and fillMissingUserName never
+      // throws, so a Clerk failure cannot cost the last-seen stamp or the 204.
+      // Only first/last name are read off the Clerk user — never the username.
+      await fillMissingUserName(dbUser, async () => {
+        const clerkUser = await (await clerkClient()).users.getUser(userId)
+        return { firstName: clerkUser.firstName, lastName: clerkUser.lastName }
       })
     }
 

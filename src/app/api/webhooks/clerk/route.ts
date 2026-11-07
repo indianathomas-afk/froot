@@ -4,6 +4,7 @@ import { WebhookEvent } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { slugify } from "@/lib/utils"
 import { getClerkPrimaryEmail, normalizeEmail } from "@/lib/clerk"
+import { clerkDisplayName, syncUserNameFromClerk } from "@/lib/user-name"
 import { ensureStarterTemplateTypes } from "@/lib/template-types"
 import { ensureStarterTrainingCategories } from "@/lib/training-categories"
 import { ensureStarterDocumentCategories } from "@/lib/document-categories"
@@ -199,9 +200,10 @@ export async function POST(req: Request) {
         clerkUserId: membership.public_user_data.user_id,
         organizationId: org.id,
         email: userEmail,
+        // DEBT-129 rule A via the shared helper; deviceName still wins.
         name:
           deviceName ??
-          ([membership.public_user_data.first_name, membership.public_user_data.last_name].filter(Boolean).join(" ") || null),
+          clerkDisplayName(membership.public_user_data.first_name, membership.public_user_data.last_name),
         role: resolvedRole,
       },
     })
@@ -276,6 +278,8 @@ export async function POST(req: Request) {
       id: string
       primary_email_address_id?: string | null
       email_addresses?: { id: string; email_address: string }[]
+      first_name?: string | null
+      last_name?: string | null
     }
     const primary =
       u.email_addresses?.find((e) => e.id === u.primary_email_address_id) ?? u.email_addresses?.[0]
@@ -283,6 +287,12 @@ export async function POST(req: Request) {
     if (email) {
       await prisma.user.updateMany({ where: { clerkUserId: u.id }, data: { email } })
     }
+    // DEBT-129 (Gary, Ruling 1, 2026-11-06): a name set or changed in Clerk
+    // reaches Froot. Skips role STORE — device names stay create-only (Ruling 4,
+    // above) — and a missing Clerk name never blanks an existing one. See
+    // src/lib/user-name.ts. No user.created handler: the User row is born on
+    // organizationMembership.created, after user.created, so there is no row yet.
+    await syncUserNameFromClerk(u.id, u.first_name, u.last_name)
   }
 
   // HR-7 rule 1: keep app state consistent when an org membership goes away —

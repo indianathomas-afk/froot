@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/auth"
 import { can, type PermissionUser } from "@/lib/permissions"
 import { fetchAllClerkPages, getClerkPrimaryEmail, normalizeEmail } from "@/lib/clerk"
 import { isAboveStore } from "@/lib/device-login"
+import { clerkDisplayName } from "@/lib/user-name"
 import { ShieldAlert, Tablet } from "lucide-react"
 import { redirect } from "next/navigation"
 
@@ -146,7 +147,8 @@ async function getData() {
             clerkUserId: pub.userId!,
             organizationId: org.id,
             email,
-            name: [pub.firstName, pub.lastName].filter(Boolean).join(" ") || null,
+            // DEBT-129 rule A — the same helper the webhook uses.
+            name: clerkDisplayName(pub.firstName, pub.lastName),
             // DEBT-17 (direction B, Gary 2026-07-28). PendingInvite is the ONLY
             // record of the app role the admin picked: POST /api/users maps every
             // non-ADMIN role to the same Clerk role, org:member
