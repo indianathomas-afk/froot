@@ -23023,7 +23023,23 @@ phases:
       - "652ea75"
       # + the commit immediately after 652ea75: docs(NOTIFY-4) — this row,
       # the DRAFT DECISIONS entry, the prompt and audit of record
+      - "547425a"
+      # fix(NOTIFY-4), Gary's two changes before PRE-PUSH-CHECK
+      - "12c5474"
+      # + the commit immediately after 12c5474: docs(NOTIFY-4) — DECISIONS
+      # implementation notes and this row
     notes: >
+      FIX NOTE 2026-11-06 (prepended; nothing below is edited). Fix commit
+      12c5474, on Gary's two changes before PRE-PUSH-CHECK (verbatim in
+      docs/DECISIONS.md): (1) weekly and monthly emails list EVERY equipment
+      and shortage ticket still open at send time in the recipient's stores,
+      whatever its age; this replaces the "still-open tickets created in the
+      period" in the rider below. (2) Author labels: staff first name, else
+      the user's first name, else "Team member", never part of an email
+      address. Fixture now 86/86 on dev br-broad-wave-a6vpjdw0 (was 69/69),
+      npm run build green. STAGING TEST LIST ADDITION (9): a weekly preview
+      for a store with an equipment ticket opened weeks ago and still open
+      lists it under "— still open"; resolve it, preview again, it is gone.
       RIDER 2026-11-06 (prepended; nothing below is edited). BUILT UNDER THIS
       ROW by Gary's F0: "Build under NOTIFY-4 with a dated rider." The
       operational-reports email this row filed is the Tasks and Communication

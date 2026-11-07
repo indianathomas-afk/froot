@@ -40,7 +40,14 @@ build"; that was a go-ahead, not a ruling, and nothing was recorded from it.
 (store closures by date, F8), DEBT-128 (reconcile /reports with
 /reports/operations, F9).
 
-**Claude implementation choices (work commit `652ea75`) — not yet ratified:**
+**Gary, in chat 2026-11-06, before PRE-PUSH-CHECK, verbatim** (built in fix
+commit `12c5474`):
+
+1. Weekly and monthly: list every equipment and shortage ticket still open at send time, in the recipient’s stores, no matter when it was created. An ice machine broken for three weeks must show.
+2. Author names: the staff first name; if there is no staff record, the user’s first name; only if neither exists, “Team member”. Never part of an email address.
+
+**Claude implementation choices (work commit `652ea75`, fix `12c5474`) — not
+yet ratified:**
 
 - The send-time lookup is a new OPTIONAL `hydrate` step on per-intent kinds
   in the dispatcher (`src/lib/notifications/define.ts`, `dispatch.ts`), run
@@ -49,18 +56,28 @@ build"; that was a go-ahead, not a ruling, and nothing was recorded from it.
   uses it for the preview, so the preview payload is ids only too.
 - `NotificationOrg.kindSettings` is OPTIONAL: absent reads as "no row" (off),
   so older fixtures that build an org by hand need no change.
-- Weekly and monthly emails list counts per store and category, then the
-  equipment and shortage tickets CREATED IN THE PERIOD that are still open at
-  send time (F6 said "still open at send time"; the creation window is
-  Claude's reading).
+- Weekly and monthly emails list counts per store and category, then EVERY
+  equipment and shortage ticket still open at send time in the viewer's
+  stores, whatever its age (Gary's ruling 1 above, fix `12c5474`; this
+  replaces `652ea75`'s created-in-the-period reading). The snapshot records
+  the ids of every open, undeleted ticket; each one's status is re-checked
+  at send time, so a ticket resolved or deleted since drops out. Each line
+  shows the date it was opened. A store with no messages in the period still
+  gets its "still open" list. Daily emails are unchanged: they itemise the
+  day's messages only. The list sits in the team-messages section, so it
+  follows that section's `messages.use` gate.
 - Corporate updates are windowed by `publishedAt` in the schedule's zone;
   messages and checklists by each store's own zone.
 - Team messages appear only for a viewer holding `messages.use`, and store
   performance only for one holding `reports.view` (F3's "only where the
   recipient could see them in the app"). A contact with no user sees both.
 - When one address resolves to two scopes, the narrower one wins.
-- A user author with no staff record is labelled "Team member" (the rider's
-  wording), even when the User has a name.
+- Author labels follow Gary's ruling 2 above (fix `12c5474`): the first word
+  of the staff member's displayName; with no staff record, the first word of
+  the User's name; only if neither, "Team member". A word containing "@" is
+  treated as absent, so a name field that holds an email address never
+  leaks one, and the User's email column is never read. (This replaces
+  `652ea75`, which labelled every user author "Team member".)
 
 ## 2026-11-06 — NOTIFY-16: notification settings sections start collapsed and remember their state
 
