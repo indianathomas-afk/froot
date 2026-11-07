@@ -216,6 +216,25 @@ export async function buildTaskCommSnapshot(opts: {
     if (rows.length) messageIdsByStore[s.id] = rows.map((r) => r.id)
   }
 
+  // ── (a′) weekly/monthly: every equipment and shortage ticket open NOW, any
+  // age (Gary, 2026-11-06: "no matter when it was created"). Ids only; the
+  // kind re-checks each one's status at send time.
+  const openTicketIdsByStore: Record<string, string[]> = {}
+  if (frequency !== "daily") {
+    const open = await prisma.teamMessage.findMany({
+      where: {
+        organizationId,
+        storeId: { in: [...activeIds] },
+        deletedAt: null,
+        status: "open",
+        type: { in: ["equipment", "shortage"] },
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: { id: true, storeId: true },
+    })
+    for (const t of open) (openTicketIdsByStore[t.storeId] ??= []).push(t.id)
+  }
+
   // ── (b) corporate updates published in the period, in the schedule's zone
   const cw = localWindow(period.from, period.to, opts.timeZone)
   const corporate = await prisma.corporateUpdate.findMany({
@@ -301,6 +320,7 @@ export async function buildTaskCommSnapshot(opts: {
       thresholdPct,
       stores,
       messageIdsByStore,
+      openTicketIdsByStore,
       notAttempted,
       performance,
       views,

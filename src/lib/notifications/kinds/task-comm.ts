@@ -94,13 +94,21 @@ export function messageCategory(type: string, shiftPhase: string | null): TaskCo
 }
 
 /**
- * Rider (Gary): "author names use the staff first name or “Team member”, never
- * part of an email address." The staff member's displayName, first word; no
- * staff author → "Team member". A user's email is never read here.
+ * Author label (Gary, 2026-11-06, superseding the first rider's wording):
+ * "the staff first name; if there is no staff record, the user’s first name;
+ * only if neither exists, “Team member”. Never part of an email address."
+ *
+ * First word of the staff member's displayName; else first word of the
+ * User's NAME. A word containing "@" is treated as absent (a name field that
+ * holds an email address must not leak one). The User's email column is never
+ * read here.
  */
-export function authorFirstName(staffDisplayName: string | null | undefined): string {
-  const first = (staffDisplayName ?? "").trim().split(/\s+/)[0]
-  return first || "Team member"
+export function authorFirstName(staffDisplayName: string | null | undefined, userName?: string | null): string {
+  const firstWord = (v: string | null | undefined) => {
+    const w = (v ?? "").trim().split(/\s+/)[0] ?? ""
+    return w && !w.includes("@") ? w : ""
+  }
+  return firstWord(staffDisplayName) || firstWord(userName) || "Team member"
 }
 
 // ── The payload ─────────────────────────────────────────────────────────────
@@ -161,6 +169,15 @@ export type TaskCommPayload = {
   stores: Record<string, TaskCommStore>
   /** Every message id in each store's period, oldest first. Ids only. */
   messageIdsByStore: Record<string, string[]>
+  /**
+   * Weekly and monthly only (empty for daily). Every equipment and shortage
+   * ticket OPEN at the snapshot in each store, WHENEVER it was created (Gary,
+   * 2026-11-06: "list every equipment and shortage ticket still open at send
+   * time, in the recipient’s stores, no matter when it was created. An ice
+   * machine broken for three weeks must show."). Re-checked at send time:
+   * one resolved or deleted since drops out.
+   */
+  openTicketIdsByStore: Record<string, string[]>
   /** Store-local dates each store did not attempt any Daily checklist (F8). */
   notAttempted: Record<string, string[]>
   /** Operations-report figures per store over its period (F9). */
@@ -273,10 +290,20 @@ export function renderTaskComm(
         const archived = mine.filter((x) => x.status === "archived").length
         if (archived > 0) push(counts, { label: "Archived", value: `${archived} of these ${plural(archived, "is", "are")} archived` })
         if (counts.length) sections.push({ heading: `${storeName(sid)} — messages`, rows: counts })
+      }
+    }
+    // WEEKLY AND MONTHLY: every equipment and shortage ticket still open at
+    // send time in the viewer's stores, whatever its age — so a store with no
+    // messages this period still shows its three-week-old broken ice machine.
+    if (!daily) {
+      for (const sid of view.storeIds) {
+        const tz = p.stores[sid]?.timezone ?? DEFAULT_TIME_ZONE
         const open: EmailRow[] = []
-        for (const m of mine.filter((x) => (x.category === "equipment" || x.category === "shortage") && x.status === "open")) {
+        for (const id of p.openTicketIdsByStore?.[sid] ?? []) {
+          const m = lookup.messages[id]
+          if (!m || m.storeId !== sid || m.status !== "open" || (m.category !== "equipment" && m.category !== "shortage")) continue
           push(open, {
-            label: `${TASK_COMM_CATEGORY_LABEL[m.category]} · ${formatInstant(m.createdAt, tz, "monthDayTime")}`,
+            label: `${TASK_COMM_CATEGORY_LABEL[m.category]} · opened ${formatInstant(m.createdAt, tz, "monthDay")} · ${m.author}`,
             value: `[Open] ${truncate(m.body, TASK_COMM_BODY_TRUNCATE)}`,
           })
         }
@@ -357,7 +384,7 @@ export function renderTaskComm(
 
 /** The send-time lookup (rider). Exported so the preview path hydrates the same way. */
 export async function hydrateTaskComm(p: TaskCommPayload, organizationId: string): Promise<TaskCommPayload> {
-  const messageIds = [...new Set(Object.values(p.messageIdsByStore).flat())]
+  const messageIds = [...new Set([...Object.values(p.messageIdsByStore).flat(), ...Object.values(p.openTicketIdsByStore ?? {}).flat()])]
   const corporateIds = [...new Set(Object.values(p.views).flatMap((v) => v.corporateIds))]
   const [msgs, corps] = await Promise.all([
     messageIds.length
@@ -373,6 +400,8 @@ export async function hydrateTaskComm(p: TaskCommPayload, organizationId: string
             body: true,
             createdAt: true,
             authorStaff: { select: { displayName: true } },
+            // The User's NAME only — never its email (author rule above).
+            authorUser: { select: { name: true } },
             _count: { select: { attachments: true } },
           },
         })
@@ -392,7 +421,7 @@ export async function hydrateTaskComm(p: TaskCommPayload, organizationId: string
       status: m.status,
       body: m.body,
       createdAt: m.createdAt.toISOString(),
-      author: authorFirstName(m.authorStaff?.displayName),
+      author: authorFirstName(m.authorStaff?.displayName, m.authorUser?.name),
       attachments: m._count.attachments,
     }
   }

@@ -131,7 +131,10 @@ async function main() {
   const noBreak = renderEmail({ ...base, intro: "plain intro" }).html
   check("an intro with no line break renders exactly as before", noBreak.includes(">plain intro</p>") && !noBreak.includes("<br>"))
   check("author: staff displayName's first word", authorFirstName("Maria Lopez") === "Maria")
-  check("author: no staff → \"Team member\"", authorFirstName(null) === "Team member" && authorFirstName("  ") === "Team member")
+  check("author: staff wins over the user's name", authorFirstName("Maria Lopez", "Priya Shah") === "Maria")
+  check("author: no staff record → the user's first name (fix)", authorFirstName(null, "Priya Shah") === "Priya")
+  check("author: neither → \"Team member\"", authorFirstName(null, null) === "Team member" && authorFirstName("  ", "  ") === "Team member")
+  check("author: a name that is an email address is never used", authorFirstName(null, "notify4-x@example.com") === "Team member")
 
   // ── 5. Fixture rows ─────────────────────────────────────────────────────────
   const tag = Math.random().toString(36).slice(2, 8)
@@ -172,6 +175,15 @@ async function main() {
       mgrNoReports: await mkUser("mgr-noreports", "MANAGER", [A], ["reports.view"]),
       storeLogin: await mkUser("store-a", "STORE", [A]),
     }
+    // Message authors with no staff record (fix 2): a named user, a user with
+    // no name, and a user whose name field holds an email address.
+    const mkAuthor = (k: string, name: string | null) =>
+      prisma.user.create({ data: { organizationId: orgId, clerkUserId: `notify4-${k}-${tag}`, email: em(k), name, role: "MANAGER", deniedCapabilities: ["notify.taskcomm.receive"] } })
+    const W = {
+      priya: await mkAuthor("author-priya", "Priya NOTIFY-4 Author"),
+      noName: await mkAuthor("author-noname", null),
+      emailName: await mkAuthor("author-emailname", em("author-emailname")),
+    }
     const maria = await prisma.staffMember.create({
       data: { organizationId: orgId, displayName: "NOTIFY-4 Maria Lopez", fullName: "NOTIFY-4 Maria Lopez Fixture", startDate: civil(addDays(today, -200)), storeAssignments: { create: { storeId: A.id, isPrimary: true } } },
     })
@@ -186,12 +198,20 @@ async function main() {
       equipOpen: await msg(A.id, "blender grinding", { type: "equipment", status: "open", authorStaffId: maria.id }),
       equipDone: await msg(A.id, "fridge fixed", { type: "equipment", status: "resolved", authorStaffId: maria.id }),
       archived: await msg(A.id, "archived general", { type: "general", status: "archived", authorStaffId: maria.id }),
-      byUser: await msg(A.id, "manager posted", { type: "general", authorUserId: U.mgrA.id }),
+      byUser: await msg(A.id, "manager posted", { type: "general", authorUserId: W.priya.id }),
+      byNoName: await msg(A.id, "nameless user posted", { type: "general", authorUserId: W.noName.id }),
+      byEmailName: await msg(A.id, "email-named user posted", { type: "general", authorUserId: W.emailName.id }),
       deletedBefore: await msg(A.id, "deleted before snapshot", { type: "general", deletedAt: at(D, "11:00") }),
       deleteLater: await msg(A.id, "deleted after snapshot", { type: "general", authorStaffId: maria.id }),
       editLater: await msg(A.id, "original text", { type: "general", authorStaffId: maria.id }),
       outside: await msg(A.id, "two days ago", { type: "general", createdAt: at(addDays(D, -1), "10:00") }),
       bSecret: await msg(B.id, "B secret staffing", { type: "staffing", authorStaffId: maria.id }),
+      // Fix 1: tickets from long before any period.
+      iceMachine: await msg(A.id, "ice machine broken", { type: "equipment", status: "open", authorStaffId: maria.id, createdAt: at(addDays(today, -21), "09:00") }),
+      oldShortage: await msg(A.id, "old cup shortage", { type: "shortage", status: "open", authorUserId: W.priya.id, createdAt: at(addDays(today, -30), "09:00") }),
+      oldResolved: await msg(A.id, "old resolved freezer", { type: "equipment", status: "resolved", authorStaffId: maria.id, createdAt: at(addDays(today, -21), "09:00") }),
+      oldDeleted: await msg(A.id, "old deleted oven", { type: "equipment", status: "open", deletedAt: at(addDays(today, -2), "09:00"), createdAt: at(addDays(today, -21), "09:00") }),
+      bIce: await msg(B.id, "B ice machine", { type: "equipment", status: "open", authorStaffId: maria.id, createdAt: at(addDays(today, -21), "09:00") }),
     }
     await prisma.messageAttachment.create({ data: { kind: "image", url: "https://example.invalid/n4.png", messageId: M.opener.id } })
 
@@ -289,7 +309,11 @@ async function main() {
     check("an edit after the snapshot shows the current text (rider)", tAdmin.includes("edited text") && !tAdmin.includes("original text"))
     check("equipment shows [Open] and [Resolved]; archived shows [Archived] (F6)", tAdmin.includes("[Open] NOTIFY-4 blender") && tAdmin.includes("[Resolved] NOTIFY-4 fridge") && tAdmin.includes("[Archived] NOTIFY-4 archived"))
     check("attachments shown as +N (F6)", tAdmin.includes("(+1 attachment)"))
-    check("author: staff first name; a user author reads \"Team member\" (rider)", tAdmin.includes(`· ${mariaLabel}`) && tAdmin.includes("· Team member"))
+    check("author: staff first name in the email (rider)", tAdmin.includes(`· ${mariaLabel}`))
+    check("author: a user with no staff record shows the user's first name (fix)", tAdmin.includes("· Priya"))
+    check("author: a nameless user and an email-named user both read \"Team member\" (fix)", (tAdmin.match(/· Team member/g) ?? []).length >= 4)
+    check("daily: a three-week-old open ticket is NOT itemised (fix 1 is weekly/monthly only)", !tAdmin.includes("ice machine broken") && !tAdmin.includes("old cup shortage"))
+    check("daily: the payload carries no open-ticket list", Object.keys(payload.openTicketIdsByStore).length === 0)
     check("no author label is built from an email address (rider)", !/·\s*notify4-/.test(tAdmin))
     check("did-not-attempt sentence for Store A (F8)", tA.includes("NOTIFY-4 Store A did not attempt any daily checklist for this day."))
     check("the holiday caveat is on the email (F8)", tA.includes("Froot does not yet record store closures by date"))
@@ -337,6 +361,33 @@ async function main() {
     const pr = tk.render(await tk.hydrate(tp, orgView), orgView, U.admin.email)
     check("preview subject is the real one with \"Test — \" in front", pr.subject === "Test — NOTIFY-4 custom subject", pr.subject)
     check("NEGATIVE: a manager-view preview shows no Store B message", !!pr.text && pr.text.includes("opener note") && !pr.text.includes("B secret staffing"))
+
+    // ── 12b. Weekly and monthly: every open ticket, any age (fix 1) ────────────
+    console.log("\n── 12b. weekly/monthly — every ticket still open at send time, any age (fix 1) ──")
+    const wkAll = await buildTaskCommSnapshot({ organizationId: orgId, frequency: "weekly", localDate: today, timeZone: TZ, now, settings: s2, previewUserId: null })
+    const wkA = await buildTaskCommSnapshot({ organizationId: orgId, frequency: "weekly", localDate: today, timeZone: TZ, now, settings: s2, previewUserId: U.mgrA.id })
+    const ticketsA = wkAll.payload.openTicketIdsByStore[A.id] ?? []
+    check(
+      "weekly snapshot: Store A's open tickets include the 21- and 30-day-old ones",
+      [M.iceMachine, M.oldShortage, M.equipOpen].every((m) => ticketsA.includes(m.id))
+    )
+    check("weekly snapshot: no resolved or deleted ticket", ![M.oldResolved, M.oldDeleted, M.equipDone].some((m) => ticketsA.includes(m.id)))
+    check("weekly snapshot: Store B's old open ticket is under Store B", (wkAll.payload.openTicketIdsByStore[B.id] ?? []).includes(M.bIce.id))
+    const mo = await buildTaskCommSnapshot({ organizationId: orgId, frequency: "monthly", localDate: today, timeZone: TZ, now, settings: s2, previewUserId: null })
+    check("monthly snapshot: the ice machine is there too", (mo.payload.openTicketIdsByStore[A.id] ?? []).includes(M.iceMachine.id))
+    // Resolved AFTER the snapshot, before the send: must drop out ("still open at send time").
+    await prisma.teamMessage.update({ where: { id: M.oldShortage.id }, data: { status: "resolved", resolvedAt: new Date() } })
+    const hA = await hydrateTaskComm(wkA.payload, orgId)
+    const wA = renderTaskComm(hA, hA.views[wkA.previewViewKey!], org.name, s2)
+    const wAt = "text" in wA ? wA.text : ""
+    check("manager A's weekly email shows the three-week-old ice machine, marked opened", wAt.includes("ice machine broken") && /opened [A-Z][a-z]{2} \d+ · NOTIFY-4/.test(wAt), wAt.split("\n").find((l) => l.includes("ice machine")) ?? "")
+    check("NEGATIVE: a ticket resolved after the snapshot is absent at send", !wAt.includes("old cup shortage"))
+    check("NEGATIVE: an old resolved ticket is absent", !wAt.includes("old resolved freezer"))
+    check("NEGATIVE: manager A's weekly email does NOT show Store B's open ticket", !wAt.includes("B ice machine"))
+    const hAll = await hydrateTaskComm(wkAll.payload, orgId)
+    const wAll = renderTaskComm(hAll, hAll.views[wkAll.previewViewKey!], org.name, s2)
+    check("the org-wide weekly email shows Store B's old open ticket", "text" in wAll && !!wAll.text?.includes("B ice machine"))
+    check("RIDER: the weekly payload holds no ticket text", !JSON.stringify(wkAll.payload).includes("ice machine"))
 
     // ── 13. The hourly runner leg ─────────────────────────────────────────────
     console.log("\n── 13. runScheduledEmails — the Tasks and Communication leg ──")
