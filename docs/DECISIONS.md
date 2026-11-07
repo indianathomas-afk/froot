@@ -5,7 +5,13 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-06 — DEBT-129: User.name comes from Clerk; Froot never invents a name — DRAFT
+## 2026-11-06 — DEBT-129: User.name comes from Clerk; Froot never invents a name
+
+**RATIFIED BY GARY, 2026-11-06, at the DEBT-129 PRE-PUSH-CHECK:**
+"Ratify as written". This covers the whole entry, including Rule A and the
+Claude implementation choices, which are now ratified as his. The rulings
+were already his words. The "DRAFT" paragraph below is spent, kept; the
+heading's "— DRAFT" suffix was removed at this check.
 
 **DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** The two rulings quoted
 below are Gary's own words. Rule A itself is the prompt's plan (a

@@ -37597,8 +37597,24 @@ debt:
       RELATED: NOTIFY-4, CHK-5, DEBT-26, DEBT-63, DEBT-61.
 
   - id: DEBT-129
-    status: in_progress
-    commits: [b479b10]
+    # in_progress -> staging 2026-11-06 at the DEBT-129 PRE-PUSH-CHECK (the
+    # commit immediately after 8590610; its own SHA cannot be written inside
+    # itself). Docs SHA: 8590610 (row, DRAFT DECISIONS). The check committed
+    # the prompt of record docs/prompts/DEBT-129.md and wrote the DEPLOY_LOG
+    # UNPROMOTED entry. DECISIONS entry (Rule A, "Froot never invents a
+    # name", Rulings 1 and 2, the implementation choices) RATIFIED by Gary at
+    # this check, "Ratify as written". The notes' "DRAFT" is spent, kept.
+    # NOT pushed at writing.
+    # Rollback: `git revert b479b10`; no migration.
+    status: staging
+    commits:
+      - "b479b10"
+      # + the commit immediately after b479b10: docs(DEBT-129) — this row,
+      # the DRAFT DECISIONS entry
+      - "8590610"
+      # + the commit immediately after 8590610: docs(DEBT-129)
+      # PRE-PUSH-CHECK — DECISIONS ratified, prompt of record, DEPLOY_LOG
+      # UNPROMOTED entry, status -> staging
     title: >
       User.name is empty for Clerk users although Clerk has the name — sync
       it from Clerk
