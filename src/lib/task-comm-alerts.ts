@@ -245,6 +245,7 @@ export async function buildTaskCommSnapshot(opts: {
 
   // ── (c) did not attempt: ≥1 Daily row that store-day, none started, no task logged (F8)
   const notAttempted: Record<string, string[]> = {}
+  const dailyDueDays: Record<string, number> = {}
   for (const s of activeStores) {
     const rows = await prisma.checklist.findMany({
       where: { organizationId, storeId: s.id, date: { gte: dbDate(stores[s.id].from), lte: dbDate(stores[s.id].to) } },
@@ -261,6 +262,9 @@ export async function buildTaskCommSnapshot(opts: {
     }
     const days = [...byDate.entries()].filter(([, e]) => e.daily > 0 && e.touched === 0).map(([d]) => d).sort()
     if (days.length) notAttempted[s.id] = days
+    // NOTIFY-4-POLISH fix 1: days with ≥1 Daily row due, same rows as above.
+    const due = [...byDate.values()].filter((e) => e.daily > 0).length
+    if (due) dailyDueDays[s.id] = due
   }
 
   // ── (d) operations-report figures per store (F9: the Operations Report's definition)
@@ -322,6 +326,7 @@ export async function buildTaskCommSnapshot(opts: {
       messageIdsByStore,
       openTicketIdsByStore,
       notAttempted,
+      dailyDueDays,
       performance,
       views,
       scopes,

@@ -180,6 +180,14 @@ export type TaskCommPayload = {
   openTicketIdsByStore: Record<string, string[]>
   /** Store-local dates each store did not attempt any Daily checklist (F8). */
   notAttempted: Record<string, string[]>
+  /**
+   * NOTIFY-4-POLISH fix 1: per store, how many store-local days in its period
+   * had at least one Daily checklist due (the same Daily rows section (c)
+   * reads). A store with none is absent. OPTIONAL: a payload enqueued before
+   * this field existed has none, and renders the "with daily checklists due"
+   * wording, which is true either way (Gary, 2026-11-06).
+   */
+  dailyDueDays?: Record<string, number>
   /** Operations-report figures per store over its period (F9). */
   performance: Record<string, TaskCommPerf>
   views: Record<string, TaskCommView>
@@ -343,10 +351,20 @@ export function renderTaskComm(
       })
     }
   }
+  // NOTIFY-4-POLISH fix 1 (Gary, 2026-11-06): no vacuous praise. Nothing due
+  // in the view's stores → say so; some due and all started → name that.
+  const noneDue = p.dailyDueDays !== undefined && !view.storeIds.some((sid) => (p.dailyDueDays?.[sid] ?? 0) > 0)
   sections.push({
     heading: "Daily checklists",
     rows: [
-      ...(dna.length ? dna : [{ label: "Checklists", value: "Every store started its checklists" }]),
+      ...(dna.length
+        ? dna
+        : [
+            {
+              label: "Checklists",
+              value: noneDue ? "No daily checklists were due" : "Every store with daily checklists due started them",
+            },
+          ]),
       // F8 (Gary): "State on the email that holidays can be flagged".
       {
         label: "Note",
@@ -440,7 +458,7 @@ export async function hydrateTaskComm(p: TaskCommPayload, organizationId: string
 export const taskCommKind = defineNotification<TaskCommPayload>({
   kind: TASK_COMM_KIND,
   label: TASK_COMM_LABEL,
-  roleDefault: { summary: "Admins and managers, as ticked below: admins for every store, managers for their assigned stores.", usersLink: true },
+  roleDefault: { summary: "Admins and managers, as ticked above: admins for every store, managers for their assigned stores.", usersLink: true },
   // F2 (Gary): "A store with its own mailbox is added as a contact."
   extras: true,
   capability: "notify.taskcomm.receive",

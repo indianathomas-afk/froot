@@ -134,6 +134,7 @@ async function main() {
   check("author: staff wins over the user's name", authorFirstName("Maria Lopez", "Priya Shah") === "Maria")
   check("author: no staff record → the user's first name (fix)", authorFirstName(null, "Priya Shah") === "Priya")
   check("author: neither → \"Team member\"", authorFirstName(null, null) === "Team member" && authorFirstName("  ", "  ") === "Team member")
+  check("POLISH fix 2: the Recipients line says \"as ticked above\"", !!taskCommKind.roleDefault?.summary?.includes("as ticked above") && !taskCommKind.roleDefault?.summary?.includes("below"))
   check("author: a name that is an email address is never used", authorFirstName(null, "notify4-x@example.com") === "Team member")
 
   // ── 5. Fixture rows ─────────────────────────────────────────────────────────
@@ -174,6 +175,9 @@ async function main() {
       mgrDenied: await mkUser("mgr-denied", "MANAGER", [A], ["notify.taskcomm.receive"]),
       mgrNoReports: await mkUser("mgr-noreports", "MANAGER", [A], ["reports.view"]),
       storeLogin: await mkUser("store-a", "STORE", [A]),
+      // NOTIFY-4-POLISH: Store C only — C has no Daily checklist due, so this
+      // view has nothing due. Denied, so no recipient set above changes.
+      mgrC: await mkUser("mgr-c", "MANAGER", [C], ["notify.taskcomm.receive"]),
     }
     // Message authors with no staff record (fix 2): a named user, a user with
     // no name, and a user whose name field holds an email address.
@@ -269,6 +273,7 @@ async function main() {
     check("NEGATIVE: the contact matching manager A gets manager A's view, never wider (rider)", payload.scopes[U.mgrA.email.toLowerCase()] === payload.scopes[K.asMgrA.email.toLowerCase()] && sameSet(viewOf(K.asMgrA.email)?.storeIds ?? [], [A.id]))
     check("manager without reports.view: no performance section in their view", viewOf(U.mgrNoReports.email)?.reports === false)
     check("Store A did not attempt on the reported day; B and C did not get flagged", sameSet(payload.notAttempted[A.id] ?? [], [D]) && !payload.notAttempted[B.id] && !payload.notAttempted[C.id])
+    check("POLISH fix 1: daily-due days — A 1, B 1, C none (its only row is Weekly)", payload.dailyDueDays?.[A.id] === 1 && payload.dailyDueDays?.[B.id] === 1 && !payload.dailyDueDays?.[C.id], JSON.stringify(payload.dailyDueDays))
     check("Store A is below 90% (0%); Store B is not (100%)", payload.performance[A.id]?.below === true && payload.performance[B.id]?.below === false && payload.thresholdPct === 90)
     const aIds = payload.messageIdsByStore[A.id] ?? []
     check(
@@ -316,6 +321,10 @@ async function main() {
     check("daily: the payload carries no open-ticket list", Object.keys(payload.openTicketIdsByStore).length === 0)
     check("no author label is built from an email address (rider)", !/·\s*notify4-/.test(tAdmin))
     check("did-not-attempt sentence for Store A (F8)", tA.includes("NOTIFY-4 Store A did not attempt any daily checklist for this day."))
+    const tB = textOf(U.mgrB.email)
+    check("POLISH fix 1: some due, all started → \"Every store with daily checklists due started them\"", tB.includes("Every store with daily checklists due started them"))
+    check("POLISH fix 1: the old vacuous line is gone", !tB.includes("Every store started its checklists") && !tAdmin.includes("Every store started its checklists"))
+    check("POLISH fix 1: a store that did not attempt still gets its line, not the praise", !tA.includes("Every store with daily checklists due"))
     check("the holiday caveat is on the email (F8)", tA.includes("Froot does not yet record store closures by date"))
     check("store performance: Store A flagged below 90%, listed before B (F9)", tAdmin.includes("NOTIFY-4 Store A (below 90%)") && tAdmin.indexOf("Store A (below 90%)") < tAdmin.indexOf("NOTIFY-4 Store B:"))
     check("NEGATIVE: the manager without reports.view gets no store performance", tNoRep.length > 10 && !tNoRep.includes("Store performance"))
@@ -361,6 +370,18 @@ async function main() {
     const pr = tk.render(await tk.hydrate(tp, orgView), orgView, U.admin.email)
     check("preview subject is the real one with \"Test — \" in front", pr.subject === "Test — NOTIFY-4 custom subject", pr.subject)
     check("NEGATIVE: a manager-view preview shows no Store B message", !!pr.text && pr.text.includes("opener note") && !pr.text.includes("B secret staffing"))
+
+    // ── 12a. Nothing due (NOTIFY-4-POLISH fix 1) ────────────────────────────
+    console.log("\n── 12a. no daily checklists due — no vacuous praise (POLISH fix 1) ──")
+    const pc = await buildTaskCommSnapshot({ organizationId: orgId, frequency: "daily", localDate: today, timeZone: TZ, now, settings: s2, previewUserId: U.mgrC.id })
+    const hc = await hydrateTaskComm(pc.payload, orgId)
+    const rc = renderTaskComm(hc, hc.views[pc.previewViewKey!], org.name, s2)
+    const tc = "text" in rc ? rc.text ?? "" : ""
+    check("zero Daily checklists due → \"No daily checklists were due\"", tc.includes("No daily checklists were due"), tc.split("\n").find((l) => l.includes("daily checklist")) ?? "")
+    check("NEGATIVE: zero due does NOT say \"Every store\"", tc.length > 10 && !tc.includes("Every store"))
+    const legacy = { ...hc, dailyDueDays: undefined }
+    const rl = renderTaskComm(legacy, legacy.views[pc.previewViewKey!], org.name, s2)
+    check("a payload queued before the field existed reads \"Every store with daily checklists due started them\"", "text" in rl && !!rl.text?.includes("Every store with daily checklists due started them") && !rl.text?.includes("No daily checklists were due"))
 
     // ── 12b. Weekly and monthly: every open ticket, any age (fix 1) ────────────
     console.log("\n── 12b. weekly/monthly — every ticket still open at send time, any age (fix 1) ──")

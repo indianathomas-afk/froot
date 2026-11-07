@@ -90,7 +90,7 @@ export function AlsoSendTo({
 
       {contacts.length === 0 ? (
         <p className="text-sm text-[var(--color-muted-foreground)] mt-3">
-          You have no contacts yet. Add people in the <span className="font-medium">Contacts</span> card below,
+          You have no contacts yet. Add people in the <span className="font-medium">Contacts</span> card above,
           then choose them here.
         </p>
       ) : (
