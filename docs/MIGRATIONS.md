@@ -2591,3 +2591,55 @@ file was restored byte-identical.
 **Not run:** Phase 2 step 4's `--from-migrations` diff (F2). The session ran no
 `migrate deploy`, `migrate dev`, `migrate reset`, `migrate resolve` or
 `db execute`.
+
+## 2026-11-06 — `20261106230000_notify_taskcomm_kind_settings` (NOTIFY-4)
+
+**SHIPPED 2026-11-06 in merge `0ee6965`** (DEPLOY_LOG `0ee6965 — 2026-11-06 —
+NOTIFY-4`). **The FIRST migration after the DEBT-125 squash**, sitting beside
+`0_init` in `prisma/migrations/`. Applied to dev by Gary at the NOTIFY-4
+migration STOP, before the work commit `652ea75` (§ A migration STOPS the
+session). The timestamp `20261106230000` is a name, not a clock reading.
+**Written after the fact** on 2026-11-06 by
+PROMOTE-DOCS_2026-11-06_NOTIFY-16_NOTIFY-4, on Gary's instruction ("Write the
+entry"). The NOTIFY-4 session wrote no entry here. Every fact below comes from
+the NOTIFY-4 ROADMAP row, its DEPLOY_LOG entry and the promotion prompt. None
+was re-measured by this session.
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | **2026-11-06 23:37:11 UTC** (15:37 PST), "ledger finished", as recorded in the NOTIFY-4 row and DEPLOY_LOG entry. Whether `neon.branch_id` was selected with it is not recorded | Gary |
+| staging `br-square-feather-a63z92vz` | applied in the `5c24e02` staging build log (endpoint `ep-odd-rain-a6gr4xmm`): "2 migrations found … successfully applied". This is the first evidence that `migrate deploy` works on the squashed baseline. `finished_at` not read | Vercel build |
+| production `br-sparkling-block-a620qvg4` | applied via vercel-build at promotion merge `0ee6965`. **The production build-log migration lines were NOT pasted to chat, and no `finished_at` was read.** The evidence is Gary's report that the build went Ready and the new card loads on production /settings/notifications. That page reads `NotificationKindSettings`, so it could not load without the table | Vercel build |
+
+**Additive only.** It creates one new table and no existing table is
+altered. There is no backfill, and nothing is dropped. The `sendToStores`
+column was removed from the schema before the SQL was regenerated (Gary,
+"Change to the migration"):
+
+| Statement | Kind |
+|---|---|
+| `CREATE TABLE "NotificationKindSettings"` (`id`, `organizationId`, `kind`, `enabled` default false, `subject`, `body`, `sendToAdmins` default true, `sendToManagers` default true, `thresholdPct`, `updatedByUserId`, `createdAt`, `updatedAt`) | per-org, per-kind email settings. **No row = off**, so the Tasks and Communication email starts OFF for every org on every branch |
+| `CREATE UNIQUE INDEX` `(organizationId, kind)` | one settings row per org per kind |
+| FK `organizationId` → `Organization` `ON DELETE CASCADE` | the settings go with the org |
+
+**Blast radius beyond the new kind.** The dispatcher's `loadOrg` selects
+`notificationKindSettings` for EVERY email kind. Any email send on a branch
+the migration had not reached would fail. All three branches now have it.
+
+**Rollback.** `git revert -m 1 0ee6965`. The table STAYS on every branch
+(additive-only schema); the reverted code simply stops reading it. A revert
+changes files, never a ledger.
+
+**Fixture:** `scripts/verify-notify-taskcomm.ts` against the applied schema
+on dev `br-broad-wave-a6vpjdw0`: 69/69 at `652ea75`, 86/86 after `12c5474`,
+94/94 after `f042fd4`.
+
+**Prisma commands for this migration, verbatim** — from the NOTIFY-4 build
+session's own report in chat on 2026-11-06, when it regenerated the
+migration, as relayed by Gary (not found in the repo):
+`npx prisma format` · `npx prisma validate` ·
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/20261106230000_notify_taskcomm_kind_settings/migration.sql`.
+Gary applied it to dev himself with `npx prisma migrate deploy`; the session
+did not. `npm run build` also runs `prisma generate`. (Was: "NOT RECORDED",
+written by this entry's first commit `b969223` because the commands were not
+in the repo. Corrected the same day on Gary's relay; spent.)

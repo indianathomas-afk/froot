@@ -2,7 +2,15 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-06 — NOTIFY-4 polish: Tasks and Communication email no longer praises stores with nothing due; "ticked above"
+## 0ee6965 — 2026-11-06 — NOTIFY-4 polish: Tasks and Communication email no longer praises stores with nothing due; "ticked above"
+
+**PROMOTED 2026-11-06 in merge `0ee6965`**, together with NOTIFY-4 and
+NOTIFY-16 (the NOTIFY-4 entry below carries the merge facts). Stamped
+post-merge 2026-11-06 on `staging`
+(PROMOTE-DOCS_2026-11-06_NOTIFY-16_NOTIFY-4); the heading previously read
+"UNPROMOTED — 2026-11-06 — NOTIFY-4 polish: …". Spent, kept below: the
+"Staging only, not on `main`. NOT pushed at writing" line and the "Staging
+re-check owed" list.
 
 **Staging only, not on `main`. NOT pushed at writing.** Fix commit
 `f042fd4`; docs commit `1809c73`; the PRE-PUSH-CHECK is the commit
@@ -44,7 +52,45 @@ matches).** (a) A preview for a period with no Daily checklists due shows
 above". (c) A message by indianathomas shows "Team member" in the email,
 by ruling.
 
-## UNPROMOTED — 2026-11-06 — NOTIFY-4: Tasks and Communication email (team messages, corporate updates, daily checklists) on a schedule
+## 0ee6965 — 2026-11-06 — NOTIFY-4: Tasks and Communication email (team messages, corporate updates, daily checklists) on a schedule
+
+**PROMOTED 2026-11-06 in merge `0ee6965`** ("Merge branch 'staging'",
+2026-11-06 18:02:01 -0800 (PST) = 2026-11-07 02:02:01 UTC, read from
+`git show -s --format=%ci 0ee6965`), `--no-ff`. First parent `49249fb`
+(prior tip of `main`), second parent `b469663` (staging tip, the NOTIFY-4
+polish PRE-PUSH-CHECK). **11 commits** in `49249fb..0ee6965` besides the
+merge: NOTIFY-16 `d5d3202`, `17af011`, `1b36e73`; NOTIFY-4 `652ea75`,
+`547425a`, `12c5474`, `2e85c90`, `5c24e02`; NOTIFY-4 polish `f042fd4`,
+`1809c73`, `b469663`. 31 files (`git diff --shortstat 0ee6965^1 0ee6965`).
+Measured at this stamp by `git rev-parse` after `git fetch`: `staging` =
+`origin/staging` = `main` = `origin/main` = `0ee6965`. The NOTIFY-4 polish
+entry above and the NOTIFY-16 entry below point here. Stamped post-merge 2026-11-06 on
+`staging` (PROMOTE-DOCS_2026-11-06_NOTIFY-16_NOTIFY-4); the heading
+previously read "UNPROMOTED — 2026-11-06 — NOTIFY-4: …". Spent, kept below:
+the "Staging only, not on `main`. NOT pushed at writing" line, "Staging gets
+it from `prisma migrate deploy` … on Gary's push", and the "Staging test
+owed" list.
+
+**Rollback (whole promotion).** `git revert -m 1 0ee6965`. The
+`NotificationKindSettings` table STAYS on every branch (additive-only
+schema); the reverted code simply stops reading it.
+
+**Migration `20261106230000_notify_taskcomm_kind_settings`.** Staging
+(`br-square-feather-a63z92vz`, endpoint `ep-odd-rain-a6gr4xmm`): applied in
+the `5c24e02` staging build log, "2 migrations found … successfully
+applied" — the first evidence that `migrate deploy` works on the squashed
+baseline. Production: applies via vercel-build. Gary reports the production
+build Ready and the new card loading on production
+/settings/notifications. **The production build-log migration lines were
+NOT pasted to chat**; the evidence is the card loading, because the page
+reads `NotificationKindSettings`. No `finished_at` was read on production.
+
+**Production (Gary, 2026-11-06, verbatim):** "I did all tests and this is
+working amazing." Browser identity (org id, Clerk instance) was not captured
+with that statement: this is Gary's report, not browser evidence.
+
+**The Tasks and Communication email arrives OFF for every production org**
+(no `NotificationKindSettings` row = off). Gary turns it on himself.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `652ea75`; docs commit `547425a`; fix commit `12c5474`; docs commit
@@ -117,7 +163,17 @@ range. (9) A weekly preview lists an old, still-open equipment ticket;
 resolve it and it is gone. (10) An existing email (e.g. a pace-alert or
 document-digest preview) still sends — the shared `loadOrg` change.
 
-## UNPROMOTED — 2026-11-06 — NOTIFY-16: "Email Notification Settings" rename; collapsible sections with Expand all on /settings/notifications
+## 0ee6965 — 2026-11-06 — NOTIFY-16: "Email Notification Settings" rename; collapsible sections with Expand all on /settings/notifications
+
+**PROMOTED 2026-11-06 in merge `0ee6965`**, together with NOTIFY-4 and its
+polish (the NOTIFY-4 entry above carries the merge facts). Its three commits:
+`d5d3202` (work), `17af011` (docs), `1b36e73` (PRE-PUSH-CHECK). No
+migration. Stamped post-merge 2026-11-06 on `staging`
+(PROMOTE-DOCS_2026-11-06_NOTIFY-16_NOTIFY-4); the heading previously read
+"UNPROMOTED — 2026-11-06 — NOTIFY-16: …". Spent, kept below: the "Staging
+only, not on `main`. NOT pushed at writing" line and the "Staging test owed"
+list. Production: covered by Gary's verdict recorded on the NOTIFY-4 entry
+above.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `d5d3202`; docs commit `17af011`; the PRE-PUSH-CHECK is the commit
