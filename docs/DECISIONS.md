@@ -5,6 +5,63 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-06 — NOTIFY-4: Tasks and Communication email — rulings F0–F11 and riders (Gary) — DRAFT
+
+**DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** The rulings below are
+Gary's own words; the implementation choices after them are not yet ratified.
+
+Prompt of record: `docs/prompts/NOTIFY-TASKCOMM.md` (working name). Audit:
+`docs/prompts/NOTIFY-TASKCOMM_AUDIT.md` (forks § 10). Work commit `652ea75`.
+
+**Gary, in chat 2026-11-06, verbatim** ("These are my rulings on F0–F11. Use
+them instead of the audit’s leans, and record them in DECISIONS in these
+words."):
+
+- F0: Build under NOTIFY-4 with a dated rider.
+- F1: Approved as leaned.
+- F2: Admins and Managers only, both on by default. No Store logins option. A store with its own mailbox is added as a contact. File a ROW for per-store contacts.
+- F3: Approved. Admins see all stores, managers see their assigned stores.
+- F4: Approved. Default daily at 7 AM, 5 AM floor.
+- F5: Approved. One new table holding the switch, role boxes, threshold, subject and body. Fix line breaks in the template.
+- F6: Approved. Include archived messages, labelled.
+- F7: Approved.
+- F8: Approved. State on the email that holidays can be flagged, and file a ROW for store closures by date.
+- F9: Use the Operations Report’s definition: Daily checklists, store-local day. Move it into src/lib/ and point /reports/operations at it. Leave /reports alone and file a ROW to reconcile the two. Flag stores below 90% completion; the threshold is adjustable on the card, integer 50–100, default 90.
+- F10: Approved.
+- F11: Approved. Reuse the document digest preview, including preview as a manager.
+- Riders: A contact matching a user gets that user’s own view, never wider. Store message ids, not text, and look the text up at send time. Fix all three build items; author names use the staff first name or “Team member”, never part of an email address.
+- Change to the migration: remove the sendToStores column, then delete and regenerate the migration with migrate diff. Show me the new SQL and stop again. The MIGRATIONS.md COMMENT is closed, nothing to file.
+
+"Approved" and "Approved as leaned" adopt the lean as printed in the prompt
+of record's FORKS section for that fork. Earlier the same day Gary said "Go
+build"; that was a go-ahead, not a ruling, and nothing was recorded from it.
+
+**Rows filed for the rulings:** NOTIFY-17 (per-store contacts, F2), CHK-17
+(store closures by date, F8), DEBT-128 (reconcile /reports with
+/reports/operations, F9).
+
+**Claude implementation choices (work commit `652ea75`) — not yet ratified:**
+
+- The send-time lookup is a new OPTIONAL `hydrate` step on per-intent kinds
+  in the dispatcher (`src/lib/notifications/define.ts`, `dispatch.ts`), run
+  once per dispatch before render. Render stays pure. A hydrate failure
+  leaves the intent's state unchanged for the sweep to retry. The test kind
+  uses it for the preview, so the preview payload is ids only too.
+- `NotificationOrg.kindSettings` is OPTIONAL: absent reads as "no row" (off),
+  so older fixtures that build an org by hand need no change.
+- Weekly and monthly emails list counts per store and category, then the
+  equipment and shortage tickets CREATED IN THE PERIOD that are still open at
+  send time (F6 said "still open at send time"; the creation window is
+  Claude's reading).
+- Corporate updates are windowed by `publishedAt` in the schedule's zone;
+  messages and checklists by each store's own zone.
+- Team messages appear only for a viewer holding `messages.use`, and store
+  performance only for one holding `reports.view` (F3's "only where the
+  recipient could see them in the app"). A contact with no user sees both.
+- When one address resolves to two scopes, the narrower one wins.
+- A user author with no staff record is labelled "Team member" (the rider's
+  wording), even when the User has a name.
+
 ## 2026-11-06 — NOTIFY-16: notification settings sections start collapsed and remember their state
 
 **RATIFIED BY GARY, 2026-11-06, at the NOTIFY-16 PRE-PUSH-CHECK:**
