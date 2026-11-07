@@ -2,6 +2,79 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-06 — NOTIFY-4: Tasks and Communication email (team messages, corporate updates, daily checklists) on a schedule
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`652ea75`; docs commit `547425a`; fix commit `12c5474`; docs commit
+`2e85c90`; the PRE-PUSH-CHECK is the commit immediately after `2e85c90`.
+TIER 3: new schema, a new email kind on the hourly runner, a new
+capability, a new PUT route and a widened preview route. Rulings F0–F11,
+the riders, Gary's two pre-check changes and the implementation choices
+were ratified by Gary at this check ("Ratified as written."; DECISIONS.md,
+2026-11-06 NOTIFY-4).
+
+**Migration — the FIRST after the DEBT-125 squash.**
+`20261106230000_notify_taskcomm_kind_settings` sits beside `0_init` in
+`prisma/migrations/`. One new table, `NotificationKindSettings` (unique
+`(organizationId, kind)`, FK to `Organization` ON DELETE CASCADE).
+Additive only: no column on an existing table is added, changed or dropped.
+The `sendToStores` column was removed before the SQL was regenerated (Gary,
+"Change to the migration"). Applied to dev `br-broad-wave-a6vpjdw0` by Gary,
+ledger finished 2026-11-06 23:37:11 UTC (15:37 PST). Staging gets it from
+`prisma migrate deploy` in the Vercel build on Gary's push; staging and
+production both carry the `0_init` mark (DEBT-125 entry below), so the
+build should report one pending migration and apply it. **That build log is
+the first evidence that `migrate deploy` works on the squashed baseline;
+read it, don't assume it.**
+
+**What changed.** Kind `tasks.comm.recap` ("Tasks and Communication",
+`src/lib/notifications/kinds/task-comm.ts`), producer
+`src/lib/task-comm-alerts.ts`, a fourth leg in the hourly runner
+(`src/lib/scheduled-emails.ts`), capability `notify.taskcomm.receive`
+(ADMIN + MANAGER, deniable), a card on `/settings/notifications`, `PUT
+/api/task-comm/settings`, and `POST /api/notify/test?kind=tasks.comm.recap`
+with preview as a manager. The dispatcher gained an optional per-intent
+`hydrate` step (`define.ts`, `dispatch.ts`): payloads store ids, text is
+read at send time. **OFF by default per org** — no org receives this email
+until an admin turns it on, so the push alone sends nothing new.
+**Blast radius outside the new email:** (a) the F9 move —
+`/reports/operations` now calls `computeOperationsReport` in
+`src/lib/operations-report.ts` (moved unchanged); (b) **the dispatcher's
+`loadOrg` now selects `notificationKindSettings` for EVERY kind**, so every
+email send — pace alerts, digests, milestones — reads the new table and
+would fail on a branch the migration had not reached; the `hydrate` branch
+itself is skipped for kinds that define none; (c) `src/lib/email-template.ts`
+intro paragraph turns line breaks into `<br>` after escaping, shared by
+every email; a single-line intro renders byte for byte as before.
+`/reports` is untouched (DEBT-128).
+
+**Evidence at writing.** `scripts/verify-notify-taskcomm.ts` 86/86 on dev
+`br-broad-wave-a6vpjdw0` after `12c5474` (69/69 at `652ea75`). Existing
+notify fixtures green on the same branch at `652ea75`: template 35, notify5
+55, notify6 78, notify12 54, notify-sched 48, notify14 54. `npm run build`
+green. Nothing verified in a browser: the card and both routes need a
+Clerk session.
+
+**Rollback.** `git revert 12c5474 652ea75` (the docs commits need no
+revert). The table is additive and is LEFT IN PLACE on any branch it
+reached: the reverted code simply stops reading it. Never drop it by hand
+(additive-only schema); a revert changes files, never a ledger.
+
+**Staging test owed (Gary, after push, once the deployed SHA matches;
+ROADMAP NOTIFY-4 has the full list).** (0) The staging build log shows the
+migration applied. (1) /settings/notifications: "Tasks and Communication"
+renders inside the accordion, Off. (2) Toggle, role boxes, threshold,
+subject and a two-line introduction persist across a reload. (3) "Reset to
+default" restores the copy; the schedule's Reset leaves it. (4) "Send a
+preview to me" as ADMIN arrives with "Test — " and the line break kept.
+(5) Preview as a MANAGER shows only that manager's stores. (6) A store with
+untouched Daily checklists yesterday gets its "did not attempt" line. (7)
+A manager denied the capability drops out of a real send. (8)
+/reports/operations shows the same numbers as before for one store and
+range. (9) A weekly preview lists an old, still-open equipment ticket;
+resolve it and it is gone. (10) An existing email (e.g. a pace-alert or
+document-digest preview) still sends — the shared `loadOrg` change.
+
 ## UNPROMOTED — 2026-11-06 — NOTIFY-16: "Email Notification Settings" rename; collapsible sections with Expand all on /settings/notifications
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit

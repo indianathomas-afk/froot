@@ -23017,7 +23017,10 @@ phases:
     # SHA cannot be written inside itself).
     # Rollback: `git revert 652ea75`; the migration is additive (one new
     # table) and is left in place on any branch it reached.
-    status: in_progress
+    # in_progress -> staging 2026-11-06 at the PRE-PUSH-CHECK, the commit
+    # immediately after 2e85c90 (NOT pushed at writing; Gary pushes). DECISIONS
+    # entry ratified by Gary at that check: "Ratified as written."
+    status: staging
     title: "Tasks and Communication email — scheduled recap of team messages, corporate updates and daily checklists (built under the Operational reports email row)"
     commits:
       - "652ea75"
@@ -23028,6 +23031,9 @@ phases:
       - "12c5474"
       # + the commit immediately after 12c5474: docs(NOTIFY-4) — DECISIONS
       # implementation notes and this row
+      - "2e85c90"
+      # + the commit immediately after 2e85c90: docs(NOTIFY-4) PRE-PUSH-CHECK —
+      # DECISIONS ratified, DEPLOY_LOG UNPROMOTED entry, this row to staging
     notes: >
       FIX NOTE 2026-11-06 (prepended; nothing below is edited). Fix commit
       12c5474, on Gary's two changes before PRE-PUSH-CHECK (verbatim in

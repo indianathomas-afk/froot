@@ -5,7 +5,13 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-06 — NOTIFY-4: Tasks and Communication email — rulings F0–F11 and riders (Gary) — DRAFT
+## 2026-11-06 — NOTIFY-4: Tasks and Communication email — rulings F0–F11 and riders (Gary)
+
+**RATIFIED BY GARY, 2026-11-06, at the NOTIFY-4 PRE-PUSH-CHECK:**
+"Ratified as written." This covers the whole entry, including the Claude
+implementation choices, which are now ratified as his. The rulings were
+already his words. The "DRAFT" paragraph below is spent, kept; the
+heading's "— DRAFT" suffix was removed at this check.
 
 **DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** The rulings below are
 Gary's own words; the implementation choices after them are not yet ratified.
