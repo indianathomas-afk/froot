@@ -168,6 +168,11 @@ export type Capability =
   // document digest, on the same convention: baseline ADMIN + MANAGER,
   // deniable from the grid, never grantable down to STORE or STAFF.
   | "notify.docdue.receive"
+  // NOTIFY-4 (Tasks and Communication email; F1, Gary 2026-11-06: "Approved
+  // as leaned."). The fourth user-addressed email, on the same convention:
+  // baseline ADMIN + MANAGER, deniable from the grid, never grantable down to
+  // STORE or STAFF. F2 (Gary): "Admins and Managers only".
+  | "notify.taskcomm.receive"
 
 const ALL: readonly PermissionRole[] = ["ADMIN", "MANAGER", "STORE", "STAFF"]
 const MANAGE: readonly PermissionRole[] = ["ADMIN", "MANAGER"]
@@ -528,6 +533,11 @@ const GRANTS: Record<Capability, readonly PermissionRole[]> = {
   // (every ADMIN: the whole org; each MANAGER: their assigned stores).
   // Deniable, not grantable, exactly as notify.pace.receive above.
   "notify.docdue.receive": MANAGE,
+  // NOTIFY-4 (F1, F2). Who is ELIGIBLE for the Tasks and Communication email;
+  // the producer (src/lib/task-comm-alerts.ts) decides what each eligible
+  // person sees (every ADMIN: every store; each MANAGER: their assigned
+  // stores). Deniable, not grantable, exactly as notify.pace.receive above.
+  "notify.taskcomm.receive": MANAGE,
 }
 
 function isPermissionRole(role: unknown): role is PermissionRole {
@@ -1044,6 +1054,14 @@ export const ENFORCED_CAPABILITIES: readonly EnforcedCapability[] = [
     label: "Overdue & due-soon document digest",
     removes:
       "A scheduled email listing staff in their stores with documents overdue or due within 3 days. Admins see every store. Nothing else changes — they keep every other permission, and only the email stops.",
+  },
+  // NOTIFY-4 — the fourth row in the area.
+  {
+    capability: "notify.taskcomm.receive",
+    area: "Email notifications",
+    label: "Tasks and Communication",
+    removes:
+      "A scheduled email recapping team messages, corporate updates and daily checklists in their stores. Admins see every store. Nothing else changes — they keep every other permission, and only the email stops.",
   },
 ]
 

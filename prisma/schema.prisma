@@ -217,6 +217,7 @@ model Organization {
   notificationRecipientPicks    NotificationRecipientPick[]
   notificationSchedules         NotificationSchedule[]
   notificationScheduleRuns      NotificationScheduleRun[]
+  notificationKindSettings      NotificationKindSettings[]
   hrDocuments                   HrDocument[]
   hrDocumentCategories          HrDocumentCategory[]
   hrReturnEvents                HrReturnEvent[]
@@ -1210,6 +1211,55 @@ model NotificationScheduleRun {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, kind, scopeKey, slotDate])
+}
+
+// ─── NOTIFY-TASKCOMM: per-kind email settings that are not a schedule ────────
+// docs/prompts/NOTIFY-TASKCOMM_AUDIT.md § 8; rulings F0–F11 in
+// docs/DECISIONS.md (Gary, 2026-11-06). F5 (Gary): "One new table holding the
+// switch, role boxes, threshold, subject and body."
+//
+// WHY A TABLE OF ITS OWN, NOT NotificationSchedule: "Reset to default" on a
+// schedule DELETES that row (NOTIFY-SCHED F15, api/notify/schedule/[kind]
+// DELETE), and must never take an admin's edited subject or body with it.
+// WHY NOT Organization COLUMNS: the card needs four settings (switch, two
+// role boxes, threshold) plus the copy, and NOTIFY-8 already plans a generic
+// per-org table. `kind` is a registry key, not an FK, as on
+// NotificationSchedule.
+//
+// NO STORE-LOGIN BOX (F2, Gary): "Admins and Managers only, both on by
+// default. No Store logins option. A store with its own mailbox is added as a
+// contact."
+//
+// NULL / NO ROW = THE DEFAULT, column by column: no row means OFF (every email
+// is off until an admin turns it on), subject and body null mean the kind's
+// built-in text, thresholdPct null means the kind's default (90). Ranges are
+// the write route's (Prisma models no CHECK): subject ≤ 120 chars, body ≤ 1,000,
+// both plain text; thresholdPct an integer 50–100.
+model NotificationKindSettings {
+  id              String   @id @default(cuid())
+  organizationId  String
+  kind            String
+  /// The org switch for this kind. No row = off.
+  enabled         Boolean  @default(false)
+  /// Admin-edited subject, plain text. Null = the kind's default subject.
+  subject         String?
+  /// Admin-edited intro paragraph, plain text, line breaks kept. Null = default.
+  body            String?
+  /// F2 role boxes, both on by default. They apply to this card only; no other
+  /// kind reads them.
+  sendToAdmins    Boolean  @default(true)
+  sendToManagers  Boolean  @default(true)
+  /// F9: flag stores below this completion %, integer 50–100. Null = 90.
+  thresholdPct    Int?
+  /// Who last saved it. A plain id, not an FK: the row must survive the user.
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // CASCADE ON ORG — the NotificationSchedule / NotificationContact precedent.
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, kind])
 }
 
 // ─── ENG-1: ENGAGEMENT TRACKING ──────────────────────────────────────────────

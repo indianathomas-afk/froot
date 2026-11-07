@@ -33,6 +33,24 @@ export type NotificationOrg = Pick<
    * hrAckRecipients is preserved and no longer read (F1).
    */
   activePicks: Record<string, number>
+  /**
+   * NOTIFY-4 (F5, Gary 2026-11-06: "One new table holding the switch, role
+   * boxes, threshold, subject and body."). NotificationKindSettings rows by
+   * kind; a kind with no row is absent, which every reader treats as OFF with
+   * every other setting at its default. OPTIONAL so a hand-built org (the
+   * older fixtures) needs no change: absent reads exactly like "no row", OFF.
+   */
+  kindSettings?: Record<string, KindSettings>
+}
+
+/** One NotificationKindSettings row as a kind sees it. Null = the kind's default. */
+export type KindSettings = {
+  enabled: boolean
+  subject: string | null
+  body: string | null
+  sendToAdmins: boolean
+  sendToManagers: boolean
+  thresholdPct: number | null
 }
 
 /** The intent as a kind sees it. `payload` is typed by the kind. */
@@ -186,6 +204,15 @@ type KindCommon<P> = {
 /** One intent, one render per recipient, one message per recipient. */
 export type PerIntentKindDef<P> = KindCommon<P> & {
   batch: "per-intent"
+  /**
+   * NOTIFY-4 (rider, Gary 2026-11-06: "Store message ids, not text, and look
+   * the text up at send time."). Optional, async, run ONCE per dispatch after
+   * recipients resolve and before any render: the stored payload in, the
+   * payload `render` reads out. A kind whose payload is self-contained omits
+   * it and renders the stored payload exactly as before. A throw leaves the
+   * intent's state unchanged, so the hourly sweep retries it.
+   */
+  hydrate?: (payload: P, org: NotificationOrg) => Promise<P>
   /** Pure: the payload, the org and one recipient in, one email out. */
   render: (payload: P, org: NotificationOrg, recipient: string) => Rendered
 }

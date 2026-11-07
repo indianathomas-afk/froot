@@ -63,6 +63,12 @@ function frequencyHelp(kind: string, f: ScheduleFrequency): string {
     if (f === "weekly") return "One email a week, on the day you pick, listing documents overdue or due within 3 days."
     return "At most one email a day, on the checked days, listing documents overdue or due within 3 days."
   }
+  // NOTIFY-4 (F4): each email recaps the period BEFORE the send day.
+  if (kind === "tasks.comm.recap") {
+    if (f === "weekly") return "One email a week, on the day you pick, recapping the previous Monday–Sunday."
+    if (f === "monthly") return "One email a month, on the day you pick, recapping the previous calendar month."
+    return "At most one email a day, on the checked days, recapping the previous day."
+  }
   if (f === "weekly") return "One email a week, on the day you pick, listing milestones reached since the last one."
   if (f === "monthly") return "One email a month, on the day you pick."
   return "At most one email a day, on the checked days."

@@ -372,17 +372,22 @@ const ORG_SELECT = {
   milestoneAlertsEnabled: true,
   docDigestEnabled: true,
   milestoneSettings: { select: { checklistMilestonesEnabled: true } },
+  // NOTIFY-4 (F5): every NotificationKindSettings row for the org, by kind.
+  notificationKindSettings: {
+    select: { kind: true, enabled: true, subject: true, body: true, sendToAdmins: true, sendToManagers: true, thresholdPct: true },
+  },
 } as const
 
 /** The org as a kind sees it. Null when the row is gone. */
 async function loadOrg(organizationId: string): Promise<NotificationOrg | null> {
   const row = await prisma.organization.findUnique({ where: { id: organizationId }, select: ORG_SELECT })
   if (!row) return null
-  const { milestoneSettings, ...org } = row
+  const { milestoneSettings, notificationKindSettings, ...org } = row
   return {
     ...org,
     checklistMilestonesEnabled: milestoneSettings?.checklistMilestonesEnabled ?? false,
     activePicks: await countActivePicks(organizationId),
+    kindSettings: Object.fromEntries(notificationKindSettings.map(({ kind, ...rest }) => [kind, rest])),
   }
 }
 
@@ -564,10 +569,22 @@ async function dispatchOne(
       ...args,
     })
 
+  // NOTIFY-4: a kind that stores ids looks its text up here, ONCE, at send
+  // time. A failure leaves the intent as it is for the sweep to retry.
+  let payload: unknown = intent.payload
+  if (def.batch === "per-intent" && def.hydrate && remaining.length > 0) {
+    try {
+      payload = await def.hydrate(intent.payload, org)
+    } catch (err) {
+      console.error(`[notify] hydrate ${intent.kind} intent=${intent.id} failed:`, err)
+      return { ...result, reason: `hydrate failed: ${errorText(err)}` }
+    }
+  }
+
   // 5–7. Render, one message per recipient, record.
   for (const r of remaining) {
     const mode = modeFor(r.email)
-    const rendered = safeRender(def, intent.payload, org, r.email)
+    const rendered = safeRender(def, payload, org, r.email)
 
     if (mode === "dry-run") {
       if (dryRunLogged.has(r.email)) {
