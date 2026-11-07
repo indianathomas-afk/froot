@@ -23020,6 +23020,10 @@ phases:
     # in_progress -> staging 2026-11-06 at the PRE-PUSH-CHECK, the commit
     # immediately after 2e85c90 (NOT pushed at writing; Gary pushes). DECISIONS
     # entry ratified by Gary at that check: "Ratified as written."
+    # staging, re-confirmed 2026-11-06 at the NOTIFY-4-POLISH PRE-PUSH-CHECK,
+    # the commit immediately after 1809c73 (f042fd4 NOT pushed at writing;
+    # Gary pushes). The appended DECISIONS paragraph was ratified by Gary at
+    # that check: "Ratify as written".
     status: staging
     title: "Tasks and Communication email — scheduled recap of team messages, corporate updates and daily checklists (built under the Operational reports email row)"
     commits:
@@ -23039,6 +23043,10 @@ phases:
       - "f042fd4"
       # + the commit immediately after f042fd4: docs(NOTIFY-4) — this rider,
       # DEBT-129, one DECISIONS line, the NOTIFY-4-POLISH prompt of record
+      - "1809c73"
+      # + the commit immediately after 1809c73: docs(NOTIFY-4) PRE-PUSH-CHECK
+      # for the polish — DECISIONS appended paragraph ratified, DEPLOY_LOG
+      # UNPROMOTED polish entry, this row's SHAs
     notes: >
       RIDER 2026-11-06 — staging findings 1–4 fixed in f042fd4 (prepended;
       nothing below is edited). TIER 2, prompt of record

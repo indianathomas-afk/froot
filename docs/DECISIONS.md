@@ -97,6 +97,10 @@ that field existed has none, and when no store in it missed a day it reads
 checklists were due". Without the count, that is the only wording that is
 true in both cases.
 
+**RATIFIED BY GARY, 2026-11-06, at the NOTIFY-4-POLISH PRE-PUSH-CHECK:**
+"Ratify as written". This covers the appended NOTIFY-4-POLISH paragraph
+directly above, and nothing else in this entry.
+
 ## 2026-11-06 — NOTIFY-16: notification settings sections start collapsed and remember their state
 
 **RATIFIED BY GARY, 2026-11-06, at the NOTIFY-16 PRE-PUSH-CHECK:**

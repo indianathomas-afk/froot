@@ -2,6 +2,48 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-06 — NOTIFY-4 polish: Tasks and Communication email no longer praises stores with nothing due; "ticked above"
+
+**Staging only, not on `main`. NOT pushed at writing.** Fix commit
+`f042fd4`; docs commit `1809c73`; the PRE-PUSH-CHECK is the commit
+immediately after `1809c73`. TIER 2 follow-up to the NOTIFY-4 entry below,
+from Gary's staging pass (org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk instance
+verified-snapper-7). Gary's finding-3 ruling and the approved
+queued-payload wording were ratified at this check ("Ratify as written";
+DECISIONS.md, 2026-11-06 NOTIFY-4, the appended paragraph).
+
+**No migration.** No schema, route, capability or cron change.
+
+**What changed.** (1) The "Daily checklists" section: the snapshot
+(`src/lib/task-comm-alerts.ts`) now carries an OPTIONAL `dailyDueDays`
+(per store, days with at least one Daily checklist due). Nothing due in
+the recipient's stores reads "No daily checklists were due"; some due and
+all started reads "Every store with daily checklists due started them".
+"Did not attempt" lines are unchanged. A payload queued before this push
+has no `dailyDueDays` and renders the second wording, never the first.
+(2) Copy: the role-default line says "as ticked above"; the shared Also
+send to empty state says "Contacts card above".
+(3) Author names: no code change, by ruling; DEBT-129 filed.
+
+**Blast radius outside this email:** the empty-state string in
+`also-send-to.tsx` renders on all five cards that use `RecipientsSection`
+on `/settings/notifications` (copy only). Nothing else outside the
+Tasks and Communication kind is touched.
+
+**Evidence at writing.** `scripts/verify-notify-taskcomm.ts` 94/94 on dev
+`br-broad-wave-a6vpjdw0` (was 86). Negative control: with the "@" guard
+removed, 91/94; restored, 94/94. `npm run build` green.
+
+**Rollback.** `git revert f042fd4` (the docs commits need no revert).
+Payloads queued with `dailyDueDays` render fine on the reverted code: the
+field is simply ignored.
+
+**Staging re-check owed (Gary, after push, once the deployed SHA
+matches).** (a) A preview for a period with no Daily checklists due shows
+"No daily checklists were due". (b) The Recipients line says "as ticked
+above". (c) A message by indianathomas shows "Team member" in the email,
+by ruling.
+
 ## UNPROMOTED — 2026-11-06 — NOTIFY-4: Tasks and Communication email (team messages, corporate updates, daily checklists) on a schedule
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
