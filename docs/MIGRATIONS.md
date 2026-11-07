@@ -2634,9 +2634,12 @@ changes files, never a ledger.
 on dev `br-broad-wave-a6vpjdw0`: 69/69 at `652ea75`, 86/86 after `12c5474`,
 94/94 after `f042fd4`.
 
-**Prisma commands for this migration: NOT RECORDED.** The NOTIFY-4 session
-did not write them into this file, the row or the DEPLOY_LOG entry, and this
-session cannot rebuild them. All the record shows is the prompt's
-instruction, "Generate the migration with prisma migrate diff only"
-(`docs/prompts/NOTIFY-TASKCOMM.md`), and that the SQL was regenerated after
-`sendToStores` was removed.
+**Prisma commands for this migration, verbatim** — from the NOTIFY-4 build
+session's own report in chat on 2026-11-06, when it regenerated the
+migration, as relayed by Gary (not found in the repo):
+`npx prisma format` · `npx prisma validate` ·
+`npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/20261106230000_notify_taskcomm_kind_settings/migration.sql`.
+Gary applied it to dev himself with `npx prisma migrate deploy`; the session
+did not. `npm run build` also runs `prisma generate`. (Was: "NOT RECORDED",
+written by this entry's first commit `b969223` because the commands were not
+in the repo. Corrected the same day on Gary's relay; spent.)
