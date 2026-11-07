@@ -37606,7 +37606,13 @@ debt:
     # this check, "Ratify as written". The notes' "DRAFT" is spent, kept.
     # NOT pushed at writing.
     # Rollback: `git revert b479b10`; no migration.
-    status: staging
+    # `staging` -> `shipped` 2026-11-06, stamped post-merge 2026-11-06 by
+    # PROMOTE-DOCS_2026-11-06_DEBT-129 (on `staging`): merge de8e428
+    # (DEPLOY_LOG entry `de8e428 — 2026-11-06 — DEBT-129 ...`). The
+    # PRE-PUSH-CHECK ("the commit immediately after 8590610") is fb6bcff.
+    # The "NOT pushed" / "staging" comments above are spent, kept.
+    # Rollback (whole promotion): `git revert -m 1 de8e428`; no migration.
+    status: shipped
     commits:
       - "b479b10"
       # + the commit immediately after b479b10: docs(DEBT-129) — this row,
@@ -37615,10 +37621,44 @@ debt:
       # + the commit immediately after 8590610: docs(DEBT-129)
       # PRE-PUSH-CHECK — DECISIONS ratified, prompt of record, DEPLOY_LOG
       # UNPROMOTED entry, status -> staging
+      - "fb6bcff"
+      # merge(main): production promotion 2026-11-06 (first parent 54824e4,
+      # second parent fb6bcff)
+      - "de8e428"
     title: >
       User.name is empty for Clerk users although Clerk has the name — sync
       it from Clerk
     notes: >
+      SHIPPED 2026-11-06 in merge "de8e428" (prepended; nothing below is
+      edited). Promotion timestamp 2026-11-06 22:28:02 -0800 (PST) =
+      2026-11-07 06:28:02 UTC, from git show -s --format=%ci de8e428.
+      --no-ff, first parent 54824e4; 3 commits: b479b10, 8590610, fb6bcff.
+      No migration. Rollback: git revert -m 1 de8e428. staging =
+      origin/staging = main = origin/main = de8e428 at this stamp.
+      STAGING EVIDENCE (Gary, browser, staging · org
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk instance verified-snapper-7, the
+      "Development" instance in the Clerk dashboard). Neon console,
+      br-square-feather (preview/staging): Gary has THREE User rows with email
+      indianathomas@live.com, one per staging org, three different
+      clerkUserIds. The active row (user_3G02wOBvMPSAne8fgbYcU4qhhpG) had name
+      NULL and lastSeenAt 2026-11-07 06:10:15 UTC after the beacon ran. Cause:
+      that Clerk user had a blank first and last name. The lazy fill worked as
+      ruled: Clerk had no name, so Froot wrote none ("Froot never invents a
+      name"). Gary set First "Gary", Last "Thomas" in Clerk; within a minute
+      staging /messages showed "Gary Thomas" on his posts. TEST (c), the
+      user.updated webhook path: PROVEN on staging. LAZY-FILL PATH: proven by
+      the fixture (23/23 on dev br-broad-wave-a6vpjdw0), NOT observed on
+      staging.
+      PRODUCTION: not yet checked after deploy. Gary's production account
+      (gary@kevajuice.com) has the Clerk name "Keva Juice", so the lazy fill
+      will label his production posts "Keva Juice" until he renames it in
+      Clerk.
+      OBSERVATION, no row filed: most Clerk accounts in the staging instance
+      have no first/last name, so after DEBT-129 names appear only where Clerk
+      has them; names must be entered in Clerk. Covered by DEBT-40 (no
+      configured Clerk instance collects a name) and DEBT-39 (making
+      first/last REQUIRED is its reopening trigger, so any change to how
+      Clerk collects names goes through that row).
       FILED 2026-11-06 by NOTIFY-4-POLISH, on Gary's ruling: "File a ROW:
       User.name is empty for Clerk users even though Clerk has the name (the
       sidebar shows “Gary Thomas”); sync the name from Clerk, which fixes both
