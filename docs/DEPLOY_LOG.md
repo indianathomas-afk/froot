@@ -2,7 +2,43 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-06 — DEBT-129: User.name kept in step with Clerk (webhook user.updated sync, usage-beacon lazy fill)
+## de8e428 — 2026-11-06 — DEBT-129: User.name kept in step with Clerk (webhook user.updated sync, usage-beacon lazy fill)
+
+**PROMOTED 2026-11-06 in merge `de8e428`** ("Merge branch 'staging'",
+2026-11-06 22:28:02 -0800 (PST) = 2026-11-07 06:28:02 UTC, read from
+`git show -s --format=%ci de8e428`), `--no-ff`. First parent `54824e4`
+(prior tip of `main`), second parent `fb6bcff` (staging tip, the DEBT-129
+PRE-PUSH-CHECK). **3 commits** in `54824e4..de8e428` besides the merge:
+`b479b10`, `8590610`, `fb6bcff`. 9 files (`git diff --shortstat
+de8e428^1 de8e428`). **No migration.** Measured at this stamp by
+`git rev-parse` after `git fetch`: `staging` = `origin/staging` = `main`
+= `origin/main` = `de8e428`. Stamped post-merge 2026-11-06 on `staging`
+(PROMOTE-DOCS_2026-11-06_DEBT-129); the heading previously read
+"UNPROMOTED — 2026-11-06 — DEBT-129: …". Spent, kept below: the "Staging
+only, not on `main`. NOT pushed at writing" line and the "Staging test
+owed" list.
+
+**Rollback (whole promotion).** `git revert -m 1 de8e428`; no migration.
+
+**Staging evidence (Gary, browser, staging · org
+org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk instance verified-snapper-7 — the
+"Development" instance in the Clerk dashboard).** Neon console,
+`br-square-feather` (preview/staging): Gary has THREE `User` rows with
+email indianathomas@live.com, one per staging org, three different
+`clerkUserId`s. The active row (`user_3G02wOBvMPSAne8fgbYcU4qhhpG`) had
+`name` NULL and `lastSeenAt` 2026-11-07 06:10:15 UTC after the beacon ran.
+Cause: that Clerk user had a blank first and last name. The lazy fill
+worked as ruled — Clerk had no name, so Froot wrote none ("Froot never
+invents a name"). Gary then set First "Gary", Last "Thomas" in Clerk;
+within a minute staging /messages showed "Gary Thomas" on his posts.
+**Test (c), the `user.updated` webhook path: PROVEN on staging.**
+**Lazy-fill path: proven by the fixture (23/23 on dev
+`br-broad-wave-a6vpjdw0`), NOT observed on staging.**
+
+**Production: not yet checked after deploy.** Gary's production account
+(gary@kevajuice.com) has the Clerk name "Keva Juice", so the lazy fill
+will label his production posts "Keva Juice" until he renames it in
+Clerk.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `b479b10`; docs commit `8590610`; the PRE-PUSH-CHECK is the commit
