@@ -201,11 +201,24 @@ function ctaButton(cta: { label: string; url: string } | undefined): string {
   )
 }
 
+/**
+ * The intro paragraph's HTML: escaped FIRST, then each line break becomes a
+ * <br> — so an admin-typed "<" can never become markup, and a typed line break
+ * survives (NOTIFY-4, F5). An intro with no line breaks renders exactly as
+ * esc(intro) did, byte for byte, so every earlier consumer is unchanged.
+ */
+function introHtml(intro: string): string {
+  return esc(intro).replace(/\r?\n/g, "<br>")
+}
+
 function renderHtml(input: EmailTemplateInput): string {
   const intro = input.intro.trim()
   // Preview text — the grey line an inbox shows beside the subject. Hidden in
   // the body itself. Text only; this is NOT a tracking pixel and loads nothing.
-  const preheader = intro || input.heading
+  // NOTIFY-4 (F5, Gary 2026-11-06: "Fix line breaks in the template."). An
+  // intro may now carry line breaks (an admin-edited body); the preview text is
+  // one line, so they collapse to spaces there.
+  const preheader = (intro || input.heading).replace(/\s*\r?\n\s*/g, " ")
 
   return (
     `<!DOCTYPE html>` +
@@ -224,7 +237,7 @@ function renderHtml(input: EmailTemplateInput): string {
     `<tr><td style="padding:24px;">` +
     `<h1 style="margin:0 0 ${intro ? "10px" : "18px"};font-family:${FONT};font-size:18px;line-height:26px;font-weight:600;color:${INK};">${esc(input.heading)}</h1>` +
     (intro
-      ? `<p style="margin:0 0 18px;font-family:${FONT};font-size:14px;line-height:22px;color:${MUTED_INK};">${esc(intro)}</p>`
+      ? `<p style="margin:0 0 18px;font-family:${FONT};font-size:14px;line-height:22px;color:${MUTED_INK};">${introHtml(intro)}</p>`
       : "") +
     rowsTable(input.rows) +
     sectionsHtml(input.sections) +

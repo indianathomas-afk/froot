@@ -5,6 +5,141 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-06 — NOTIFY-4: Tasks and Communication email — rulings F0–F11 and riders (Gary)
+
+**RATIFIED BY GARY, 2026-11-06, at the NOTIFY-4 PRE-PUSH-CHECK:**
+"Ratified as written." This covers the whole entry, including the Claude
+implementation choices, which are now ratified as his. The rulings were
+already his words. The "DRAFT" paragraph below is spent, kept; the
+heading's "— DRAFT" suffix was removed at this check.
+
+**DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** The rulings below are
+Gary's own words; the implementation choices after them are not yet ratified.
+
+Prompt of record: `docs/prompts/NOTIFY-TASKCOMM.md` (working name). Audit:
+`docs/prompts/NOTIFY-TASKCOMM_AUDIT.md` (forks § 10). Work commit `652ea75`.
+
+**Gary, in chat 2026-11-06, verbatim** ("These are my rulings on F0–F11. Use
+them instead of the audit’s leans, and record them in DECISIONS in these
+words."):
+
+- F0: Build under NOTIFY-4 with a dated rider.
+- F1: Approved as leaned.
+- F2: Admins and Managers only, both on by default. No Store logins option. A store with its own mailbox is added as a contact. File a ROW for per-store contacts.
+- F3: Approved. Admins see all stores, managers see their assigned stores.
+- F4: Approved. Default daily at 7 AM, 5 AM floor.
+- F5: Approved. One new table holding the switch, role boxes, threshold, subject and body. Fix line breaks in the template.
+- F6: Approved. Include archived messages, labelled.
+- F7: Approved.
+- F8: Approved. State on the email that holidays can be flagged, and file a ROW for store closures by date.
+- F9: Use the Operations Report’s definition: Daily checklists, store-local day. Move it into src/lib/ and point /reports/operations at it. Leave /reports alone and file a ROW to reconcile the two. Flag stores below 90% completion; the threshold is adjustable on the card, integer 50–100, default 90.
+- F10: Approved.
+- F11: Approved. Reuse the document digest preview, including preview as a manager.
+- Riders: A contact matching a user gets that user’s own view, never wider. Store message ids, not text, and look the text up at send time. Fix all three build items; author names use the staff first name or “Team member”, never part of an email address.
+- Change to the migration: remove the sendToStores column, then delete and regenerate the migration with migrate diff. Show me the new SQL and stop again. The MIGRATIONS.md COMMENT is closed, nothing to file.
+
+"Approved" and "Approved as leaned" adopt the lean as printed in the prompt
+of record's FORKS section for that fork. Earlier the same day Gary said "Go
+build"; that was a go-ahead, not a ruling, and nothing was recorded from it.
+
+**Rows filed for the rulings:** NOTIFY-17 (per-store contacts, F2), CHK-17
+(store closures by date, F8), DEBT-128 (reconcile /reports with
+/reports/operations, F9).
+
+**Gary, in chat 2026-11-06, before PRE-PUSH-CHECK, verbatim** (built in fix
+commit `12c5474`):
+
+1. Weekly and monthly: list every equipment and shortage ticket still open at send time, in the recipient’s stores, no matter when it was created. An ice machine broken for three weeks must show.
+2. Author names: the staff first name; if there is no staff record, the user’s first name; only if neither exists, “Team member”. Never part of an email address.
+
+**Claude implementation choices (work commit `652ea75`, fix `12c5474`) — not
+yet ratified:**
+
+- The send-time lookup is a new OPTIONAL `hydrate` step on per-intent kinds
+  in the dispatcher (`src/lib/notifications/define.ts`, `dispatch.ts`), run
+  once per dispatch before render. Render stays pure. A hydrate failure
+  leaves the intent's state unchanged for the sweep to retry. The test kind
+  uses it for the preview, so the preview payload is ids only too.
+- `NotificationOrg.kindSettings` is OPTIONAL: absent reads as "no row" (off),
+  so older fixtures that build an org by hand need no change.
+- Weekly and monthly emails list counts per store and category, then EVERY
+  equipment and shortage ticket still open at send time in the viewer's
+  stores, whatever its age (Gary's ruling 1 above, fix `12c5474`; this
+  replaces `652ea75`'s created-in-the-period reading). The snapshot records
+  the ids of every open, undeleted ticket; each one's status is re-checked
+  at send time, so a ticket resolved or deleted since drops out. Each line
+  shows the date it was opened. A store with no messages in the period still
+  gets its "still open" list. Daily emails are unchanged: they itemise the
+  day's messages only. The list sits in the team-messages section, so it
+  follows that section's `messages.use` gate.
+- Corporate updates are windowed by `publishedAt` in the schedule's zone;
+  messages and checklists by each store's own zone.
+- Team messages appear only for a viewer holding `messages.use`, and store
+  performance only for one holding `reports.view` (F3's "only where the
+  recipient could see them in the app"). A contact with no user sees both.
+- When one address resolves to two scopes, the narrower one wins.
+- Author labels follow Gary's ruling 2 above (fix `12c5474`): the first word
+  of the staff member's displayName; with no staff record, the first word of
+  the User's name; only if neither, "Team member". A word containing "@" is
+  treated as absent, so a name field that holds an email address never
+  leaks one, and the User's email column is never read. (This replaces
+  `652ea75`, which labelled every user author "Team member".)
+
+**Appended 2026-11-06, NOTIFY-4-POLISH (fix `f042fd4`; nothing above is
+edited).** Gary, in chat, verbatim, on staging finding 3: "Fix 3: option
+(ii). Keep the guard: staff first name, then the User’s first name, then
+“Team member”. Never read the email column." The Clerk name sync is filed
+as DEBT-129. One choice Gary approved ("including your wording for emails
+already queued. Record that choice in DECISIONS."): the "Daily checklists"
+section now reads `dailyDueDays` from the snapshot. A payload queued before
+that field existed has none, and when no store in it missed a day it reads
+"Every store with daily checklists due started them", never "No daily
+checklists were due". Without the count, that is the only wording that is
+true in both cases.
+
+**RATIFIED BY GARY, 2026-11-06, at the NOTIFY-4-POLISH PRE-PUSH-CHECK:**
+"Ratify as written". This covers the appended NOTIFY-4-POLISH paragraph
+directly above, and nothing else in this entry.
+
+## 2026-11-06 — NOTIFY-16: notification settings sections start collapsed and remember their state
+
+**RATIFIED BY GARY, 2026-11-06, at the NOTIFY-16 PRE-PUSH-CHECK:**
+"Ratify as written". This covers R1 and the four Claude implementation
+choices as a whole, which are now ratified as his. The rename mapping was
+already his words. The "DRAFT" paragraph below is spent, kept; the
+heading's "— DRAFT" suffix was removed at this check.
+
+**DRAFT — to be ratified by Gary at PRE-PUSH-CHECK.** Nothing below is
+ratified yet.
+
+**R1 is the session prompt's draft ruling** (`docs/prompts/NOTIFY-UI-ACCORDION.md`,
+Step 2), recorded as built, not as Gary's words:
+
+- **R1.** Sections on /settings/notifications start collapsed, remember
+  their state per browser, and collapsing never discards an unsaved edit.
+
+**Gary, in chat 2026-11-06, at the Step 1 STOP** — the rename mapping,
+answered "1. That is correct. 2. Correct": the /settings card title and
+link label become "Email Notification Settings", its bold heading becomes
+"Message Center Settings", the hub h1 becomes "Email Notification
+Settings"; the retired `/api/hr/settings` 410 message is repaired to the
+new name; the /users permissions-grid area "Email notifications" stays.
+
+**Claude implementation choices (work commit `d5d3202`):**
+
+- Stored state is read through `useSyncExternalStore` (server snapshot =
+  all collapsed), not CAL-2c's fetch continuation: this page has no client
+  fetch to ride. Same two constraints met — no hydration mismatch, no
+  setState in an effect.
+- Collapsed bodies stay mounted at height 0 and `inert`, as CAL-2c's list
+  does — `inert` rather than `aria-hidden` alone so a clipped control
+  cannot take focus.
+- The chevron button sits INSIDE the card's h3 (the WAI accordion shape),
+  because a heading may not sit inside a button.
+- Header status lines name a schedule frequency only when one is saved; with
+  none the cadence is the kind's default and a second statement of it would
+  be one more thing to keep in sync.
+
 ## 2026-11-05 — BUG-26: an archived template's badge reads "Archived"; the bulk bar pluralises
 
 **RATIFIED BY GARY, 2026-11-05, at the BUG-26 + BUG-27 PRE-PUSH-CHECK:**

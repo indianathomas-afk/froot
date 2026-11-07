@@ -4,19 +4,8 @@ import { ArrowLeft, Info } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
 import { dbDate, localDateStr } from "@/lib/reports"
-import { dayCloseJudgesChecklist } from "@/lib/calendar"
-import {
-  DAY_CLOSE_GRACE_HOURS,
-  checklistState,
-  dayCloseAppliesTo,
-  dayCloseInstant,
-  hoursForDate,
-  isCompletedLate,
-  shiftDateStr,
-  type DayCloseSource,
-  type HoursRow,
-} from "@/lib/checklist-lifecycle"
-import { frozenWindow } from "@/lib/checklist-status-display"
+import { DAY_CLOSE_GRACE_HOURS, shiftDateStr } from "@/lib/checklist-lifecycle"
+import { completionPct, computeOperationsReport, type OperationsBucket as Bucket } from "@/lib/operations-report"
 import { OperationsFilters } from "./operations-filters"
 
 // ─── The operations report (CHK-5, R4) ───────────────────────────────────────
@@ -45,6 +34,11 @@ import { OperationsFilters } from "./operations-filters"
 // it inherits that check with no new capability and no permissions.ts edit. A
 // second check here could only ever disagree with the first (TPL-1 Q3).
 // Store scoping is getUserStoreScope(), the /checklists precedent.
+//
+// NOTIFY-4 (F9, Gary 2026-11-06): THE COMPUTATION NOW LIVES IN
+// src/lib/operations-report.ts — computeOperationsReport(), moved there
+// unchanged so the Tasks and Communication email calls the same definition.
+// This page resolves the org, the viewer's scope and the range, then calls it.
 
 export const dynamic = "force-dynamic"
 
@@ -54,72 +48,11 @@ const DEFAULT_RANGE_DAYS = 7
 /** Longest range the page will honour — a guard on the query, not a policy. */
 const MAX_RANGE_DAYS = 92
 
-interface Bucket {
-  key: string
-  label: string
-  /** Only set on the by-store view — the day-close provenance column. */
-  sub?: string
-  total: number
-  completed: number
-  completedLate: number
-  missed: number
-  noWindow: number
-}
-
-function emptyBucket(key: string, label: string): Bucket {
-  return { key, label, total: 0, completed: 0, completedLate: 0, missed: 0, noWindow: 0 }
-}
-
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 /** A "YYYY-MM-DD" from the URL, or null. Never trusted into a query unparsed. */
 function cleanDate(value: string | undefined): string | null {
   return value && DATE_RE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`)) ? value : null
-}
-
-/** "Mon, Aug 10" for a store-local date string, rendered in UTC so the label
- *  cannot drift a day against `Checklist.date`'s UTC-midnight convention. */
-function dayLabel(dateStr: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  }).format(new Date(`${dateStr}T00:00:00.000Z`))
-}
-
-/**
- * WHY A STORE'S DAY ENDED WHEN IT DID, summarised over the range — the second
- * visible fallback signal, handed over by CHK-3 ("the two VISIBLE signals — a
- * note on /stores, a column on the operations report — are CHK-4/CHK-5 surface
- * work, and they read this").
- *
- * It is computed per DATE rather than read off the checklist row because there
- * is no `dayCloseSource` column: the engine exposes the fact queryably through
- * `dayCloseInstant()`, and asking it here is reading the engine, not copying it.
- *
- * The three fallback reasons are kept apart exactly as the lib keeps them apart
- * — "you marked Sunday closed" and "nobody has ever set this store's hours" are
- * different facts, and merging them tells an operator to fix something they
- * already did.
- */
-function dayCloseSummary(hours: HoursRow[], dates: string[], timeZone: string): string {
-  const counts = new Map<DayCloseSource, number>()
-  for (const d of dates) {
-    const source = dayCloseInstant(hoursForDate(hours, d), d, timeZone).source
-    counts.set(source, (counts.get(source) ?? 0) + 1)
-  }
-  const fallbackDays = dates.length - (counts.get("hours") ?? 0)
-  if (fallbackDays === 0) return "Store hours"
-
-  const reason = counts.get("no-hours")
-    ? "hours not set"
-    : counts.get("no-close-time")
-      ? "no closing time"
-      : "closed days"
-  return fallbackDays === dates.length
-    ? `Midnight fallback — ${reason}`
-    : `Midnight fallback ${fallbackDays}/${dates.length} days — ${reason}`
 }
 
 async function getOperationsData(params: { store?: string; from?: string; to?: string; view?: string }) {
@@ -168,96 +101,8 @@ async function getOperationsData(params: { store?: string; from?: string; to?: s
 
   const view = ["store", "day", "template"].includes(params.view ?? "") ? params.view! : "store"
 
-  const dates: string[] = []
-  for (let d = from; d <= to; d = shiftDateStr(d, 1)) dates.push(d)
-
-  const scopedIds = scopedStores.map((s) => s.id)
-  const [checklists, hoursRows] = await Promise.all([
-    prisma.checklist.findMany({
-      where: {
-        organizationId: org.id,
-        storeId: { in: scopedIds },
-        // Checklist.date is the UTC-midnight stamp of a STORE-LOCAL day
-        // (src/lib/reports.ts dbDate/businessDayWindow), so a plain range over
-        // the two date strings is timezone-free and needs no per-store OR.
-        date: { gte: dbDate(from), lte: dbDate(to) },
-      },
-      select: {
-        id: true,
-        date: true,
-        status: true,
-        closedAt: true,
-        completedLate: true,
-        expectedStartAt: true,
-        expectedEndAt: true,
-        storeId: true,
-        templateId: true,
-        // CAL-2, ruling 4. The gate this page asks is now "Daily OR scheduled",
-        // the same one day close asks — so the link has to be selected here too.
-        calendarOccurrenceId: true,
-        template: { select: { name: true, frequency: true } },
-      },
-    }),
-    prisma.storeHours.findMany({
-      where: { storeId: { in: scopedIds } },
-      select: { storeId: true, dayOfWeek: true, openingTime: true, closingTime: true, isClosed: true },
-    }),
-  ])
-
-  const hoursByStore = new Map<string, HoursRow[]>()
-  for (const r of hoursRows) hoursByStore.set(r.storeId, [...(hoursByStore.get(r.storeId) ?? []), r])
-
-  const byStore = new Map<string, Bucket>()
-  const byDay = new Map<string, Bucket>()
-  const byTemplate = new Map<string, Bucket>()
-  const totals = emptyBucket("all", "All")
-
-  // Rows the report will NOT judge, counted so the exclusion is a number on the
-  // page rather than an absence. DEBT-61 was the open row behind it; the page
-  // says so in plain words and never cites the row on screen.
-  //
-  // ── CAL-2 RENAMED THIS FROM `excludedNonDaily`, AND THE RENAME IS THE POINT
-  // It no longer counts non-Daily rows: it counts UNSCHEDULED ones. A weekly
-  // template that has been added to the calendar is tracked here in full, and
-  // its rows land in every tile and both tables. What is still excluded is a
-  // weekly or monthly template NOBODY HAS SCHEDULED — pre-CAL-2 litter, plus
-  // anything generated before this phase. "A name is not evidence of what it
-  // counts" is this engine's own recorded lesson (checklist-lifecycle.ts), and
-  // leaving the old name on the new meaning is exactly how that fires.
-  let excludedUnscheduled = 0
-
-  for (const c of checklists) {
-    if (!dayCloseJudgesChecklist(dayCloseAppliesTo(c.template.frequency), c.calendarOccurrenceId)) {
-      excludedUnscheduled++
-      continue
-    }
-
-    const window = frozenWindow(c)
-    const state = checklistState(c, window, now)
-    const late = isCompletedLate(c)
-    const dayStr = localDateStr(c.date, "UTC")
-    const store = scopedStores.find((s) => s.id === c.storeId)
-
-    const targets = [
-      totals,
-      byStore.get(c.storeId) ?? byStore.set(c.storeId, emptyBucket(c.storeId, store?.name ?? "Unknown store")).get(c.storeId)!,
-      byDay.get(dayStr) ?? byDay.set(dayStr, emptyBucket(dayStr, dayLabel(dayStr))).get(dayStr)!,
-      byTemplate.get(c.templateId) ?? byTemplate.set(c.templateId, emptyBucket(c.templateId, c.template.name)).get(c.templateId)!,
-    ]
-    for (const b of targets) {
-      b.total++
-      if (state === "completed") b.completed++
-      if (state === "missed") b.missed++
-      if (late) b.completedLate++
-      if (window === null) b.noWindow++
-    }
-  }
-
-  // The day-close provenance column, per store, over the selected range.
-  for (const s of scopedStores) {
-    const bucket = byStore.get(s.id)
-    if (bucket) bucket.sub = dayCloseSummary(hoursByStore.get(s.id) ?? [], dates, s.timezone)
-  }
+  const report = await computeOperationsReport({ organizationId: org.id, stores: scopedStores, from, to, now })
+  const { byStore, byDay, byTemplate, totals, excludedUnscheduled, fallbackStores } = report
 
   const rows =
     view === "day"
@@ -265,12 +110,6 @@ async function getOperationsData(params: { store?: string; from?: string; to?: s
       : view === "template"
         ? [...byTemplate.values()].sort((a, b) => b.missed - a.missed || a.label.localeCompare(b.label))
         : [...byStore.values()].sort((a, b) => b.missed - a.missed || a.label.localeCompare(b.label))
-
-  // Which stores in scope are running on the midnight fallback — the third
-  // disclosure, named rather than left for the reader to spot in a column.
-  const fallbackStores = scopedStores
-    .filter((s) => dayCloseSummary(hoursByStore.get(s.id) ?? [], dates, s.timezone) !== "Store hours")
-    .map((s) => s.name)
 
   return {
     rows,
@@ -287,7 +126,8 @@ async function getOperationsData(params: { store?: string; from?: string; to?: s
 }
 
 function rate(b: Bucket): string {
-  return b.total > 0 ? `${Math.round((b.completed / b.total) * 100)}%` : "—"
+  const pct = completionPct(b)
+  return pct === null ? "—" : `${pct}%`
 }
 
 export default async function OperationsReportPage({

@@ -18,6 +18,8 @@ import { localDateStr } from "@/lib/reports"
 import { docDigestView, digestIsEmpty } from "@/lib/hr-doc-digest"
 import { DOC_DIGEST_KIND, docDigestHrActive } from "@/lib/notifications/kinds/doc-digest"
 import type { ScheduleFrequency } from "@/lib/notifications/define"
+import { TASK_COMM_KIND } from "@/lib/notifications/kinds/task-comm"
+import { buildTaskCommSnapshot, loadTaskCommSettings } from "@/lib/task-comm-alerts"
 
 // POST /api/notify/test — NOTIFY-1. Proves real delivery from a deployed
 // environment without giving anyone a way to email arbitrary people.
@@ -62,6 +64,15 @@ import type { ScheduleFrequency } from "@/lib/notifications/define"
 // view sends nothing (draft ruling 4) and says so. HR available + active
 // (F10) or 404.
 //
+// NOTIFY-4 (F11, Gary 2026-11-06: "Reuse the document digest preview,
+// including preview as a manager."): `?kind=tasks.comm.recap` sends a REAL
+// Tasks and Communication email for the last period, with the card's current
+// settings — the org-wide view, or with `&asUser=<userId>` naming a MANAGER of
+// THIS org, that manager's view. Same model as the digest preview: `asUser`
+// chooses whose VIEW renders, never who receives it. It does not require the
+// email to be switched on, so an admin can see it before turning it on. F10:
+// a quiet period still sends (empty sections say so).
+//
 // CONSOLE MODE RETURNS ok: true AND THAT IS CORRECT. The console sender did
 // exactly what it is for — the response names the provider, so a "success"
 // with provider: "console" reads as "nothing left the building", which is the
@@ -79,7 +90,8 @@ export async function POST(req: Request) {
   const params = new URL(req.url).searchParams
   const sampleOf = params.get("kind") ?? undefined
   const isDigest = sampleOf === DOC_DIGEST_KIND
-  if (sampleOf !== undefined && !isDigest && !sampleableKinds().includes(sampleOf)) {
+  const isTaskComm = sampleOf === TASK_COMM_KIND
+  if (sampleOf !== undefined && !isDigest && !isTaskComm && !sampleableKinds().includes(sampleOf)) {
     return NextResponse.json({ error: `No sample for kind "${sampleOf}"` }, { status: 400 })
   }
 
@@ -122,6 +134,35 @@ export async function POST(req: Request) {
     }
   }
 
+  // NOTIFY-4: the Tasks and Communication preview's payload, ids only.
+  let taskCommPreview: TestPayload["taskCommPreview"]
+  if (isTaskComm) {
+    const asUser = params.get("asUser")
+    if (asUser) {
+      const manager = await prisma.user.findFirst({
+        where: { id: asUser, organizationId: org.id, role: "MANAGER" },
+        select: { id: true },
+      })
+      if (!manager) return NextResponse.json({ error: "No such manager in this organization" }, { status: 400 })
+    }
+    const row = await prisma.notificationSchedule.findUnique({
+      where: { organizationId_kind: { organizationId: org.id, kind: TASK_COMM_KIND } },
+      select: { frequency: true, timeZone: true },
+    })
+    const zone = row?.timeZone ?? DEFAULT_TIME_ZONE
+    const now = new Date()
+    const built = await buildTaskCommSnapshot({
+      organizationId: org.id,
+      frequency: (row?.frequency as ScheduleFrequency | undefined) ?? "daily",
+      localDate: localDateStr(now, zone),
+      timeZone: zone,
+      now,
+      settings: await loadTaskCommSettings(org.id),
+      previewUserId: asUser ?? null,
+    })
+    taskCommPreview = { payload: built.payload, viewKey: built.previewViewKey! }
+  }
+
   const to = await getClerkPrimaryEmail(userId)
   if (!to) {
     return NextResponse.json(
@@ -139,15 +180,16 @@ export async function POST(req: Request) {
 
   // NOTIFY-13a: a sample follows the org's SAVED schedule wording (C5), like
   // the real emails. Still no body: the org is the caller's own.
-  const sampleFrequency = sampleOf && !isDigest ? await savedScheduleFrequency(org.id, sampleOf) : undefined
+  const sampleFrequency = sampleOf && !isDigest && !isTaskComm ? await savedScheduleFrequency(org.id, sampleOf) : undefined
   const payload: TestPayload = {
     to,
     provider,
     stamp,
     deployEnv,
     sha,
-    ...(sampleOf && !isDigest ? { sampleOf } : {}),
+    ...(sampleOf && !isDigest && !isTaskComm ? { sampleOf } : {}),
     ...(digestPreview ? { digestPreview } : {}),
+    ...(taskCommPreview ? { taskCommPreview } : {}),
     ...(sampleFrequency ? { sampleFrequency } : {}),
   }
   const enq = await enqueueNotification({

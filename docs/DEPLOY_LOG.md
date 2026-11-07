@@ -2,6 +2,147 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-06 — NOTIFY-4 polish: Tasks and Communication email no longer praises stores with nothing due; "ticked above"
+
+**Staging only, not on `main`. NOT pushed at writing.** Fix commit
+`f042fd4`; docs commit `1809c73`; the PRE-PUSH-CHECK is the commit
+immediately after `1809c73`. TIER 2 follow-up to the NOTIFY-4 entry below,
+from Gary's staging pass (org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk instance
+verified-snapper-7). Gary's finding-3 ruling and the approved
+queued-payload wording were ratified at this check ("Ratify as written";
+DECISIONS.md, 2026-11-06 NOTIFY-4, the appended paragraph).
+
+**No migration.** No schema, route, capability or cron change.
+
+**What changed.** (1) The "Daily checklists" section: the snapshot
+(`src/lib/task-comm-alerts.ts`) now carries an OPTIONAL `dailyDueDays`
+(per store, days with at least one Daily checklist due). Nothing due in
+the recipient's stores reads "No daily checklists were due"; some due and
+all started reads "Every store with daily checklists due started them".
+"Did not attempt" lines are unchanged. A payload queued before this push
+has no `dailyDueDays` and renders the second wording, never the first.
+(2) Copy: the role-default line says "as ticked above"; the shared Also
+send to empty state says "Contacts card above".
+(3) Author names: no code change, by ruling; DEBT-129 filed.
+
+**Blast radius outside this email:** the empty-state string in
+`also-send-to.tsx` renders on all five cards that use `RecipientsSection`
+on `/settings/notifications` (copy only). Nothing else outside the
+Tasks and Communication kind is touched.
+
+**Evidence at writing.** `scripts/verify-notify-taskcomm.ts` 94/94 on dev
+`br-broad-wave-a6vpjdw0` (was 86). Negative control: with the "@" guard
+removed, 91/94; restored, 94/94. `npm run build` green.
+
+**Rollback.** `git revert f042fd4` (the docs commits need no revert).
+Payloads queued with `dailyDueDays` render fine on the reverted code: the
+field is simply ignored.
+
+**Staging re-check owed (Gary, after push, once the deployed SHA
+matches).** (a) A preview for a period with no Daily checklists due shows
+"No daily checklists were due". (b) The Recipients line says "as ticked
+above". (c) A message by indianathomas shows "Team member" in the email,
+by ruling.
+
+## UNPROMOTED — 2026-11-06 — NOTIFY-4: Tasks and Communication email (team messages, corporate updates, daily checklists) on a schedule
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`652ea75`; docs commit `547425a`; fix commit `12c5474`; docs commit
+`2e85c90`; the PRE-PUSH-CHECK is the commit immediately after `2e85c90`.
+TIER 3: new schema, a new email kind on the hourly runner, a new
+capability, a new PUT route and a widened preview route. Rulings F0–F11,
+the riders, Gary's two pre-check changes and the implementation choices
+were ratified by Gary at this check ("Ratified as written."; DECISIONS.md,
+2026-11-06 NOTIFY-4).
+
+**Migration — the FIRST after the DEBT-125 squash.**
+`20261106230000_notify_taskcomm_kind_settings` sits beside `0_init` in
+`prisma/migrations/`. One new table, `NotificationKindSettings` (unique
+`(organizationId, kind)`, FK to `Organization` ON DELETE CASCADE).
+Additive only: no column on an existing table is added, changed or dropped.
+The `sendToStores` column was removed before the SQL was regenerated (Gary,
+"Change to the migration"). Applied to dev `br-broad-wave-a6vpjdw0` by Gary,
+ledger finished 2026-11-06 23:37:11 UTC (15:37 PST). Staging gets it from
+`prisma migrate deploy` in the Vercel build on Gary's push; staging and
+production both carry the `0_init` mark (DEBT-125 entry below), so the
+build should report one pending migration and apply it. **That build log is
+the first evidence that `migrate deploy` works on the squashed baseline;
+read it, don't assume it.**
+
+**What changed.** Kind `tasks.comm.recap` ("Tasks and Communication",
+`src/lib/notifications/kinds/task-comm.ts`), producer
+`src/lib/task-comm-alerts.ts`, a fourth leg in the hourly runner
+(`src/lib/scheduled-emails.ts`), capability `notify.taskcomm.receive`
+(ADMIN + MANAGER, deniable), a card on `/settings/notifications`, `PUT
+/api/task-comm/settings`, and `POST /api/notify/test?kind=tasks.comm.recap`
+with preview as a manager. The dispatcher gained an optional per-intent
+`hydrate` step (`define.ts`, `dispatch.ts`): payloads store ids, text is
+read at send time. **OFF by default per org** — no org receives this email
+until an admin turns it on, so the push alone sends nothing new.
+**Blast radius outside the new email:** (a) the F9 move —
+`/reports/operations` now calls `computeOperationsReport` in
+`src/lib/operations-report.ts` (moved unchanged); (b) **the dispatcher's
+`loadOrg` now selects `notificationKindSettings` for EVERY kind**, so every
+email send — pace alerts, digests, milestones — reads the new table and
+would fail on a branch the migration had not reached; the `hydrate` branch
+itself is skipped for kinds that define none; (c) `src/lib/email-template.ts`
+intro paragraph turns line breaks into `<br>` after escaping, shared by
+every email; a single-line intro renders byte for byte as before.
+`/reports` is untouched (DEBT-128).
+
+**Evidence at writing.** `scripts/verify-notify-taskcomm.ts` 86/86 on dev
+`br-broad-wave-a6vpjdw0` after `12c5474` (69/69 at `652ea75`). Existing
+notify fixtures green on the same branch at `652ea75`: template 35, notify5
+55, notify6 78, notify12 54, notify-sched 48, notify14 54. `npm run build`
+green. Nothing verified in a browser: the card and both routes need a
+Clerk session.
+
+**Rollback.** `git revert 12c5474 652ea75` (the docs commits need no
+revert). The table is additive and is LEFT IN PLACE on any branch it
+reached: the reverted code simply stops reading it. Never drop it by hand
+(additive-only schema); a revert changes files, never a ledger.
+
+**Staging test owed (Gary, after push, once the deployed SHA matches;
+ROADMAP NOTIFY-4 has the full list).** (0) The staging build log shows the
+migration applied. (1) /settings/notifications: "Tasks and Communication"
+renders inside the accordion, Off. (2) Toggle, role boxes, threshold,
+subject and a two-line introduction persist across a reload. (3) "Reset to
+default" restores the copy; the schedule's Reset leaves it. (4) "Send a
+preview to me" as ADMIN arrives with "Test — " and the line break kept.
+(5) Preview as a MANAGER shows only that manager's stores. (6) A store with
+untouched Daily checklists yesterday gets its "did not attempt" line. (7)
+A manager denied the capability drops out of a real send. (8)
+/reports/operations shows the same numbers as before for one store and
+range. (9) A weekly preview lists an old, still-open equipment ticket;
+resolve it and it is gone. (10) An existing email (e.g. a pace-alert or
+document-digest preview) still sends — the shared `loadOrg` change.
+
+## UNPROMOTED — 2026-11-06 — NOTIFY-16: "Email Notification Settings" rename; collapsible sections with Expand all on /settings/notifications
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`d5d3202`; docs commit `17af011`; the PRE-PUSH-CHECK is the commit
+immediately after `17af011`. TIER 2, UI only. No migration, no schema,
+route, query or dependency added. No save route or email send touched.
+Four files: `src/app/(app)/settings/page.tsx` (link card renamed),
+`src/app/(app)/settings/notifications/page.tsx` (h1 renamed, six cards
+wrapped), the new `src/components/settings/collapsible-section.tsx`, and
+one message string in `src/app/api/hr/settings/route.ts` (the already
+retired PUT's 410 text, a pointer repaired to the new page name). R1 and
+the implementation choices were ratified by Gary at this check
+(DECISIONS.md, 2026-11-06 NOTIFY-16).
+
+**Rollback.** `git revert d5d3202`; nothing in the database changes. The
+only client-side residue is the localStorage key
+`froot.notifySettings.open`, which nothing else reads.
+
+**Staging test owed (Gary, after push, as an ADMIN).** (1) /settings shows
+"Email Notification Settings" with "Message Center Settings" beneath it.
+(2) /settings/notifications reads "Email Notification Settings"; every
+section is collapsed on first visit and each header shows a status line.
+(3) Expand all / Collapse all and the individual chevrons work. (4) Type a
+pace threshold, collapse, expand: the value is still there, and Save works.
+(5) Reload: open/closed state survives. (6) The same at phone width.
+
 ## e647573 — 2026-11-05 — BUG-26: archived template cards read "Archived"; bulk bar says "1 template selected" (+ BUG-27, the same on /hr/training)
 
 **PROMOTED 2026-11-05 in merge `e647573`** ("Merge branch 'staging'"). First

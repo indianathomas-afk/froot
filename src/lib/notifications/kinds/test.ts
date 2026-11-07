@@ -15,6 +15,7 @@ import { defineNotification, type GroupedKindDef, type ScheduleFrequency } from 
 import { MILESTONE_KIND, milestoneKind } from "./milestone"
 import { renderDocDigest } from "./doc-digest"
 import type { DocDigestView } from "@/lib/hr-doc-digest"
+import { hydrateTaskComm, renderTaskComm, taskCommSettings, type TaskCommPayload } from "./task-comm"
 
 // MS-4b — "Send a sample to me". A kind with sample() can be rendered through
 // THIS kind, so the sample inherits this kind's whole security model: the
@@ -51,6 +52,14 @@ export type TestPayload = {
    * by the real kind's renderer. Still this kind, so still only `to`.
    */
   digestPreview?: { view: DocDigestView; asOf: string; frequency: ScheduleFrequency }
+  /**
+   * NOTIFY-4 (F11, Gary 2026-11-06: "Reuse the document digest preview,
+   * including preview as a manager."). A REAL Tasks and Communication email —
+   * the caller's org-wide view, or a named manager's — built by the cron's own
+   * builder. IDS ONLY, like the real payload (rider); `hydrate` below reads the
+   * text at send time. Still this kind, so still only `to`.
+   */
+  taskCommPreview?: { payload: TaskCommPayload; viewKey: string }
 }
 
 export const testKind = defineNotification<TestPayload>({
@@ -67,12 +76,26 @@ export const testKind = defineNotification<TestPayload>({
   // clicking.
   sandboxBypass: true,
 
+  // NOTIFY-4: only a Tasks and Communication preview needs the send-time
+  // lookup; every other test payload passes through untouched.
+  async hydrate(p, org) {
+    if (!p.taskCommPreview) return p
+    return { ...p, taskCommPreview: { ...p.taskCommPreview, payload: await hydrateTaskComm(p.taskCommPreview.payload, org.id) } }
+  },
+
   async resolveRecipients(intent) {
     return [{ email: intent.payload.to }]
   },
 
   // The NOTIFY-1 text, unchanged and passed through the template verbatim.
   render(p, org, to) {
+    if (p.taskCommPreview) {
+      const { payload, viewKey } = p.taskCommPreview
+      const view = payload.views[viewKey]
+      if (!view) return { subject: "Test — Tasks and Communication", error: "no view for this preview" }
+      const r = renderTaskComm(payload, view, org.name, taskCommSettings(org))
+      return { ...r, subject: `Test — ${r.subject}` }
+    }
     if (p.digestPreview) {
       const d = p.digestPreview
       const r = renderDocDigest(d.view, org.name, d.asOf, d.frequency)

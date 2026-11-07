@@ -11,6 +11,8 @@ import { MILESTONE_KIND } from "@/lib/notifications/kinds/milestone"
 import { claimScheduleSlot, scheduleProblem, slotDue } from "@/lib/notifications/schedule"
 import { DOC_DIGEST_KIND, docDigestHrActive } from "@/lib/notifications/kinds/doc-digest"
 import { processDocDigest, type DocDigestOrgResult } from "@/lib/doc-digest-alerts"
+import { TASK_COMM_KIND } from "@/lib/notifications/kinds/task-comm"
+import { processTaskComm, type TaskCommOrgResult } from "@/lib/task-comm-alerts"
 
 // ─── NOTIFY-SCHED: the hourly runner for scheduled email kinds ───────────────
 // docs/prompts/NOTIFY-SCHED_AUDIT.md § 5 and § 13 step 2. Called by
@@ -45,6 +47,11 @@ import { processDocDigest, type DocDigestOrgResult } from "@/lib/doc-digest-aler
 // so an org that cannot send burns no run marker. Its no-row default is the
 // kind's own defaultRow (weekly, Monday, 8 AM Pacific — F2), not 15:00 UTC.
 //
+// NOTIFY-4 adds a FOURTH LEG, Tasks and Communication: org-scoped like the
+// digest, gated by its NotificationKindSettings switch (read here first, so an
+// org that cannot send burns no run marker). Its no-row default is the kind's
+// own defaultRow (daily, 7 AM Pacific — F4).
+//
 // PACE BEFORE MILESTONES, as in the old route. Each leg has its own try/catch
 // per unit; a failure in one store or org never stops the next.
 
@@ -77,6 +84,11 @@ export type ScheduledRunResult = {
   docDigestOrgsNotDue: number
   docDigestOrgsAlreadyRun: number
   docDigestOrgsDeferred: number
+  /** NOTIFY-4: the Tasks and Communication leg. */
+  taskComm: TaskCommOrgResult[] | { error: string }
+  taskCommOrgsNotDue: number
+  taskCommOrgsAlreadyRun: number
+  taskCommOrgsDeferred: number
   /** Rows the evaluator could not use; those slots ran on the default (F6). */
   unusableSchedules: { organizationId: string; kind: string; problem: string }[]
 }
@@ -100,17 +112,19 @@ export async function runScheduledEmails(opts: {
   const paceSpec = getKind(PACE_KIND)?.schedule
   const milestoneSpec = getKind(MILESTONE_KIND)?.schedule
   const digestSpec = getKind(DOC_DIGEST_KIND)?.schedule
-  if (!paceSpec || !milestoneSpec || !digestSpec) throw new Error("scheduled kinds are missing their schedule definitions")
+  const taskCommSpec = getKind(TASK_COMM_KIND)?.schedule
+  if (!paceSpec || !milestoneSpec || !digestSpec || !taskCommSpec) throw new Error("scheduled kinds are missing their schedule definitions")
 
   const schedules = await prisma.notificationSchedule.findMany({
-    where: { kind: { in: [PACE_KIND, MILESTONE_KIND, DOC_DIGEST_KIND] }, ...orgScope },
+    where: { kind: { in: [PACE_KIND, MILESTONE_KIND, DOC_DIGEST_KIND, TASK_COMM_KIND] }, ...orgScope },
   })
   const scheduleOf = new Map<string, NotificationSchedule>(
     schedules.map((s) => [scheduleKey(s.organizationId, s.kind), s])
   )
   const unusableSchedules: ScheduledRunResult["unusableSchedules"] = []
   for (const s of schedules) {
-    const spec = s.kind === PACE_KIND ? paceSpec : s.kind === MILESTONE_KIND ? milestoneSpec : digestSpec
+    const spec =
+      s.kind === PACE_KIND ? paceSpec : s.kind === MILESTONE_KIND ? milestoneSpec : s.kind === TASK_COMM_KIND ? taskCommSpec : digestSpec
     const problem = scheduleProblem(spec, s)
     if (problem) unusableSchedules.push({ organizationId: s.organizationId, kind: s.kind, problem })
   }
@@ -296,6 +310,68 @@ export async function runScheduledEmails(opts: {
     docDigest = { error: msg.slice(0, 200) }
   }
 
+  // ── The Tasks and Communication leg (NOTIFY-4). One slot per org, in the
+  // saved row's zone or the default row's (slotDue resolves which). Shaped on
+  // the digest leg above, line for line.
+  let taskComm: TaskCommOrgResult[] | { error: string }
+  let taskCommOrgsNotDue = 0
+  let taskCommOrgsAlreadyRun = 0
+  let taskCommOrgsDeferred = 0
+  try {
+    const enabled = await prisma.notificationKindSettings.findMany({
+      where: { kind: TASK_COMM_KIND, enabled: true, ...orgScope },
+      select: { organizationId: true },
+    })
+    const out: TaskCommOrgResult[] = []
+    for (const { organizationId } of enabled) {
+      try {
+        const row = scheduleOf.get(scheduleKey(organizationId, TASK_COMM_KIND)) ?? null
+        const usable = row && !scheduleProblem(taskCommSpec, row) ? row : null
+        const zone = usable?.timeZone ?? taskCommSpec.defaultRow?.timeZone ?? DEFAULT_TIME_ZONE
+        const decision = slotDue(taskCommSpec, row, now, row?.timeZone ?? DEFAULT_TIME_ZONE)
+        if (!decision.due) {
+          taskCommOrgsNotDue++
+          continue
+        }
+        if (Date.now() > deadline) {
+          taskCommOrgsDeferred++
+          continue
+        }
+        const claimed = await claimScheduleSlot({
+          organizationId,
+          kind: TASK_COMM_KIND,
+          scopeKey: "org",
+          slotDate: decision.slotDate,
+        })
+        if (!claimed) {
+          taskCommOrgsAlreadyRun++
+          continue
+        }
+        out.push(
+          await processTaskComm({
+            sender: opts.sender,
+            mode: opts.mode,
+            now,
+            organizationId,
+            // The kind has a defaultRow, so slotDue always returns a frequency.
+            frequency: decision.frequency ?? "daily",
+            localDate: decision.localDate,
+            timeZone: zone,
+          })
+        )
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        console.error(`[scheduled-emails] task comm org=${organizationId}: ${msg}`)
+        out.push({ organizationId, views: 0, recipients: 0, sent: 0, failed: 0, dryRun: 0, error: msg.slice(0, 200) })
+      }
+    }
+    taskComm = out
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "task comm failed"
+    console.error(`[scheduled-emails] task comm leg: ${msg}`)
+    taskComm = { error: msg.slice(0, 200) }
+  }
+
   return {
     mode: opts.mode,
     fallbackThresholdPct: fallbackPct,
@@ -316,6 +392,10 @@ export async function runScheduledEmails(opts: {
     docDigestOrgsNotDue,
     docDigestOrgsAlreadyRun,
     docDigestOrgsDeferred,
+    taskComm,
+    taskCommOrgsNotDue,
+    taskCommOrgsAlreadyRun,
+    taskCommOrgsDeferred,
     unusableSchedules,
   }
 }
@@ -367,6 +447,15 @@ export async function scheduledEmailsCron(req: Request, route: string): Promise<
         `${r.docDigestOrgsAlreadyRun} already run, ${r.docDigestOrgsDeferred} deferred` +
         (r.docDigest.length
           ? ": " + r.docDigest.map((d) => `${d.organizationId} ${d.skipped ? `skipped=${d.skipped}` : `state=${d.intentState} sent=${d.sent} failed=${d.failed} dryRun=${d.dryRun}`}${d.error ? ` error=${d.error}` : ""}`).join("; ")
+          : "")
+    )
+  }
+  if (Array.isArray(r.taskComm)) {
+    console.log(
+      `[cron:${route}] task comm mode=${r.mode} ${r.taskComm.length} org(s) run, ${r.taskCommOrgsNotDue} not due, ` +
+        `${r.taskCommOrgsAlreadyRun} already run, ${r.taskCommOrgsDeferred} deferred` +
+        (r.taskComm.length
+          ? ": " + r.taskComm.map((t) => `${t.organizationId} ${t.skipped ? `skipped=${t.skipped}` : `period=${t.periodKey} state=${t.intentState} sent=${t.sent} failed=${t.failed} dryRun=${t.dryRun}`}${t.error ? ` error=${t.error}` : ""}`).join("; ")
           : "")
     )
   }

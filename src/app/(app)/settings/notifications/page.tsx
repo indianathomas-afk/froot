@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { ChevronLeft, Award, BriefcaseBusiness, CheckCircle, FileClock, TrendingDown, XCircle } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ChevronLeft, Award, BriefcaseBusiness, CheckCircle, FileClock, MessagesSquare, TrendingDown, XCircle } from "lucide-react"
+import { CollapsibleSection, CollapsibleSections, ExpandAllButton } from "@/components/settings/collapsible-section"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { paceThresholdPct } from "@/lib/pace-alerts"
@@ -19,6 +19,17 @@ import { ScheduleSection } from "./schedule-section"
 import { loadScheduleView } from "@/lib/notifications/schedule-settings"
 import { DOC_DIGEST_KIND, docDigestCardText } from "@/lib/notifications/kinds/doc-digest"
 import { prisma } from "@/lib/prisma"
+import {
+  TASK_COMM_BODY_MAX,
+  TASK_COMM_DEFAULT_BODY,
+  TASK_COMM_DEFAULT_SUBJECT,
+  TASK_COMM_DEFAULT_THRESHOLD,
+  TASK_COMM_KIND,
+  TASK_COMM_SUBJECT_MAX,
+  taskCommCardText,
+} from "@/lib/notifications/kinds/task-comm"
+import { loadTaskCommSettings } from "@/lib/task-comm-alerts"
+import { TaskCommCopyFields, TaskCommRoleBoxes, TaskCommThresholdField, TaskCommToggle } from "./task-comm-actions"
 
 // NOTIFY-2a — every email setting on one page (Gary's ruling, 2026-09-20).
 // Before this, HR-16's acknowledgment recipients and F-5b's behind-pace toggle
@@ -91,7 +102,7 @@ export default async function NotificationSettingsPage() {
 
   // F2: the newest 50. Fetched here rather than behind a route — the page is
   // already the ADMIN_ONLY gate and the card neither refreshes nor paginates.
-  const [recentEmails, contacts, picks, paceSchedule, milestoneSchedule, digestSchedule, managers] = await Promise.all([
+  const [recentEmails, contacts, picks, paceSchedule, milestoneSchedule, digestSchedule, managers, taskCommSchedule, taskComm] = await Promise.all([
     listRecentEmails(org.id),
     listContacts(org.id),
     contactPicksByKind(org.id),
@@ -104,6 +115,9 @@ export default async function NotificationSettingsPage() {
       select: { id: true, name: true, email: true },
       orderBy: [{ name: "asc" }, { email: "asc" }],
     }),
+    // NOTIFY-4: Tasks and Communication — its schedule and its settings row.
+    loadScheduleView(org.id, TASK_COMM_KIND),
+    loadTaskCommSettings(org.id),
   ])
   // F13: the cards' cadence words follow the SAVED schedule; no row → the
   // sentence is byte for byte what it was.
@@ -129,8 +143,46 @@ export default async function NotificationSettingsPage() {
   // to be 90 — see the field's own comment.
   const paceDefaultPct = paceThresholdPct()
 
+  // NOTIFY-UI-ACCORDION. One status line per collapsed header, built ONLY from
+  // what this page already loaded above — no new query. Each mirrors the state
+  // its card body already shows; a schedule word appears only when a schedule
+  // is SAVED, because with none the cadence is the kind's own default and
+  // naming it here would be a second claim to keep in sync.
+  const freqWord = (f: string | undefined) =>
+    f === "daily" ? "Daily" : f === "weekly" ? "Weekly" : f === "monthly" ? "Monthly" : null
+  const onOff = (on: boolean, freq?: string) => [on ? "On" : "Off", on ? freqWord(freq) : null].filter(Boolean).join(" · ")
+  const activeContacts = contacts.filter((c) => !c.archived).length
+  const contactsSummary = activeContacts === 0 ? "No contacts" : `${activeContacts} contact${activeContacts === 1 ? "" : "s"}`
+  // Same expression the card's own On/Off line uses.
+  const ackOn = (picks["hr.ack"] ?? []).some((id) => contacts.some((c) => c.id === id && !c.archived))
+  const ackSummary = hrActive ? onOff(ackOn) : "HR module off"
+  const paceSummary = `${onOff(paceAlertsActive, paceSchedule?.saved?.frequency)} · ${
+    org.paceAlertThresholdPct ?? paceDefaultPct
+  }% threshold`
+  const milestoneSummary = milestonesOn
+    ? onOff(milestoneAlertsActive, milestoneSchedule?.saved?.frequency)
+    : "Milestones off"
+  const docDueSummary = hrActive ? onOff(docDigestActive, digestSchedule?.saved?.frequency) : "HR module off"
+  // NOTIFY-4. No row = off, every other setting at its default (F2, F5, F9).
+  const taskCommOn = taskComm?.enabled ?? false
+  const taskCommText = taskCommCardText(taskCommSchedule?.saved?.frequency as ScheduleFrequency | undefined)
+  const taskCommSummary = `${onOff(taskCommOn, taskCommSchedule?.saved?.frequency ?? (taskCommOn ? "daily" : undefined))} · ${
+    taskComm?.thresholdPct ?? TASK_COMM_DEFAULT_THRESHOLD
+  }% threshold`
+  const recentSummary =
+    recentEmails.length === 0 ? "None yet" : `Last ${recentEmails.length} email${recentEmails.length === 1 ? "" : "s"}`
+  // Exactly the sections rendered below, so Expand all acts on those and no others.
+  const sectionIds = [
+    "contacts",
+    ...(hrAvailable ? ["ack"] : []),
+    "pace",
+    ...(hrAvailable ? ["milestones", "docdue"] : []),
+    "taskcomm",
+    "recent",
+  ]
+
   return (
-    <div>
+    <CollapsibleSections ids={sectionIds}>
       <div className="mb-6">
         <Link
           href="/settings"
@@ -138,34 +190,29 @@ export default async function NotificationSettingsPage() {
         >
           <ChevronLeft className="h-4 w-4" /> Settings
         </Link>
-        <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Email notifications</h1>
+        <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Email Notification Settings</h1>
         <p className="text-sm text-[var(--color-muted-foreground)] mt-1">
           Who Froot emails, and when. Every email the app sends is configured here.
         </p>
         {/* NOTIFY-5. Near the top because it answers the question this page is
             usually opened to ask — does email work here at all. */}
-        <div className="mt-4">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <TestSendButton />
+          {/* NOTIFY-UI-ACCORDION: the one page-level control. */}
+          <div className="ml-auto">
+            <ExpandAllButton />
+          </div>
         </div>
       </div>
 
       {/* NOTIFY-13b. First, outside every HR conditional: it is the address
           book the "Also send to" pickers below draw from. */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Contacts</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <CollapsibleSection id="contacts" title="Contacts" summary={contactsSummary}>
           <ContactsCard contacts={contacts} />
-        </CardContent>
-      </Card>
+        </CollapsibleSection>
 
       {hrAvailable && (
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>Signed-acknowledgment emails</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <CollapsibleSection id="ack" title="Signed-acknowledgment emails" summary={ackSummary} className="mt-4">
             {hrActive ? (
               <div className="p-4 border border-[var(--color-border)] rounded-lg">
                 <div className="flex items-start gap-3">
@@ -216,15 +263,10 @@ export default async function NotificationSettingsPage() {
             {hrActive && (
               <RecipientsSection kind="hr.ack" contacts={contacts} pickedIds={picks["hr.ack"] ?? []} />
             )}
-          </CardContent>
-        </Card>
+          </CollapsibleSection>
       )}
 
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>Behind-pace alerts</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <CollapsibleSection id="pace" title="Behind-pace alerts" summary={paceSummary} className="mt-4">
           {/* The module row, moved from /settings verbatim. The help text names
               WHO is emailed and HOW OFTEN because an admin flipping this on is
               choosing to put their managers on a mailing list, and the switch
@@ -276,15 +318,10 @@ export default async function NotificationSettingsPage() {
             pickerHelp="Extra recipients get every store's alert."
           />
           {paceSchedule && <ScheduleSection view={paceSchedule} />}
-        </CardContent>
-      </Card>
+        </CollapsibleSection>
 
       {hrAvailable && (
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>Milestone emails</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <CollapsibleSection id="milestones" title="Milestone emails" summary={milestoneSummary} className="mt-4">
             {milestonesOn ? (
               <>
                 <div className="flex items-start justify-between gap-3 p-4 border border-[var(--color-border)] rounded-lg">
@@ -338,16 +375,11 @@ export default async function NotificationSettingsPage() {
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </CollapsibleSection>
       )}
 
       {hrAvailable && (
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>Document due dates</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <CollapsibleSection id="docdue" title="Document due dates" summary={docDueSummary} className="mt-4">
             {hrActive ? (
               <>
                 <div className="flex items-start justify-between gap-3 p-4 border border-[var(--color-border)] rounded-lg">
@@ -402,15 +434,62 @@ export default async function NotificationSettingsPage() {
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </CollapsibleSection>
       )}
 
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>Recent emails</CardTitle>
-        </CardHeader>
-        <CardContent>
+      {/* NOTIFY-4 — Tasks and Communication. Not module-gated: it reads
+          checklists and team messages, which every org has. Inside the
+          NOTIFY-16 accordion, after the HR cards and before Recent emails. */}
+      <CollapsibleSection id="taskcomm" title="Tasks and Communication" summary={taskCommSummary} className="mt-4">
+        <div className="flex items-start justify-between gap-3 p-4 border border-[var(--color-border)] rounded-lg">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="w-10 h-10 shrink-0 rounded bg-[var(--color-primary)] flex items-center justify-center text-white">
+              <MessagesSquare className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-medium text-[var(--color-foreground)]">Tasks and Communication</h3>
+              <p className="text-sm text-[var(--color-muted-foreground)]">{taskCommText}</p>
+              <div className="flex items-center gap-1.5 mt-1.5">
+                {taskCommOn ? (
+                  <>
+                    <CheckCircle className="h-4 w-4 text-[var(--color-success)]" />
+                    <span className="text-sm text-[var(--color-success-text)] font-medium">Enabled</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                    <span className="text-sm text-[var(--color-muted-foreground)]">Disabled</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+          <TaskCommToggle enabled={taskCommOn} />
+        </div>
+        <TaskCommRoleBoxes sendToAdmins={taskComm?.sendToAdmins ?? true} sendToManagers={taskComm?.sendToManagers ?? true} />
+        {/* F3: a contact that is a Froot user gets that user's own view; any other contact, the org-wide one. */}
+        <RecipientsSection kind={TASK_COMM_KIND} contacts={contacts} pickedIds={picks[TASK_COMM_KIND] ?? []} />
+        {taskCommSchedule && <ScheduleSection view={taskCommSchedule} />}
+        <TaskCommThresholdField thresholdPct={taskComm?.thresholdPct ?? null} defaultPct={TASK_COMM_DEFAULT_THRESHOLD} />
+        <TaskCommCopyFields
+          subject={taskComm?.subject ?? null}
+          body={taskComm?.body ?? null}
+          defaultSubject={TASK_COMM_DEFAULT_SUBJECT}
+          defaultBody={TASK_COMM_DEFAULT_BODY}
+          subjectMax={TASK_COMM_SUBJECT_MAX}
+          bodyMax={TASK_COMM_BODY_MAX}
+        />
+        {/* F11: real data for the last period, emailed only to the admin pressing it. */}
+        <div className="mt-4">
+          <TestSendButton
+            kind={TASK_COMM_KIND}
+            label="Send a preview to me"
+            previewAs={managers.map((m) => ({ id: m.id, name: m.name?.trim() || m.email }))}
+          />
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection id="recent" title="Recent emails" summary={recentSummary} className="mt-4">
           <p className="text-sm text-[var(--color-muted-foreground)] mb-4">
             The last {recentEmails.length === 1 ? "email" : `${recentEmails.length} emails`} Froot sent
             for this organization, newest first. <span className="font-medium text-[var(--color-foreground)]">Delivered</span>{" "}
@@ -420,8 +499,7 @@ export default async function NotificationSettingsPage() {
             composed and logged, and nothing left this environment. Each recipient has their own row.
           </p>
           <RecentEmails entries={recentEmails} timeZone={org.timezone} />
-        </CardContent>
-      </Card>
-    </div>
+        </CollapsibleSection>
+    </CollapsibleSections>
   )
 }

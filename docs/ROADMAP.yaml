@@ -3797,6 +3797,30 @@ phases:
       resolveTaskLogStaff together, never one alone. Cross-refs: MS-4
       (MS-4a), CHK-15.
 
+  - id: CHK-17
+    track: checklists
+    size: M
+    status: planned
+    title: "Store closures by date — a holiday or one-off closure is not a missed day"
+    notes: >
+      FILED 2026-11-06 by NOTIFY-4 (Tasks and Communication), on Gary's F8:
+      "State on the email that holidays can be flagged, and file a ROW for
+      store closures by date." NOT DESIGNED.
+      THE GAP (docs/prompts/NOTIFY-TASKCOMM_AUDIT.md § 5): StoreHours is
+      weekday-only (@@unique([storeId, dayOfWeek])), so a weekly closed day
+      is known and day close materialises nothing for it
+      (api/cron/checklist-day-close isClosed skip). A one-off closure is not
+      recordable: day close files Missed rows for every untouched Daily
+      template, and the Tasks and Communication email then lists the store as
+      "did not attempt any daily checklist". The email says so on its face.
+      SAME ROOT, SECOND HOLE: TemplateStoreAssignment has no createdAt, so a
+      store newly assigned to an old template can collect up to
+      DAY_CLOSE_LOOKBACK_DAYS of misses for days it was not on it (day-close
+      route comment). Worth ruling on together.
+      WHAT IT WOULD TOUCH: a date-keyed closure record; day close's
+      materialisation skip; the operations report and the email reading it.
+      Cross-refs: NOTIFY-4, CHK-3, CHK-5.
+
   # ---- Inventory ----
 
   - id: I-1
@@ -22987,10 +23011,146 @@ phases:
 
   - id: NOTIFY-4
     track: platform
-    size: S-M
-    status: planned
-    title: "Operational reports email — the scheduled digest Gary wants, recipient model TBD"
+    size: M
+    # planned -> in_progress 2026-11-06 at the work commit 652ea75 (NOT
+    # pushed). The docs SHA is the commit immediately after 652ea75 (its own
+    # SHA cannot be written inside itself).
+    # Rollback: `git revert 652ea75`; the migration is additive (one new
+    # table) and is left in place on any branch it reached.
+    # in_progress -> staging 2026-11-06 at the PRE-PUSH-CHECK, the commit
+    # immediately after 2e85c90 (NOT pushed at writing; Gary pushes). DECISIONS
+    # entry ratified by Gary at that check: "Ratified as written."
+    # staging, re-confirmed 2026-11-06 at the NOTIFY-4-POLISH PRE-PUSH-CHECK,
+    # the commit immediately after 1809c73 (f042fd4 NOT pushed at writing;
+    # Gary pushes). The appended DECISIONS paragraph was ratified by Gary at
+    # that check: "Ratify as written".
+    status: staging
+    title: "Tasks and Communication email — scheduled recap of team messages, corporate updates and daily checklists (built under the Operational reports email row)"
+    commits:
+      - "652ea75"
+      # + the commit immediately after 652ea75: docs(NOTIFY-4) — this row,
+      # the DRAFT DECISIONS entry, the prompt and audit of record
+      - "547425a"
+      # fix(NOTIFY-4), Gary's two changes before PRE-PUSH-CHECK
+      - "12c5474"
+      # + the commit immediately after 12c5474: docs(NOTIFY-4) — DECISIONS
+      # implementation notes and this row
+      - "2e85c90"
+      # + the commit immediately after 2e85c90: docs(NOTIFY-4) PRE-PUSH-CHECK —
+      # DECISIONS ratified, DEPLOY_LOG UNPROMOTED entry, this row to staging
+      - "5c24e02"
+      # fix(NOTIFY-4), NOTIFY-4-POLISH: Gary's staging findings 1–4
+      - "f042fd4"
+      # + the commit immediately after f042fd4: docs(NOTIFY-4) — this rider,
+      # DEBT-129, one DECISIONS line, the NOTIFY-4-POLISH prompt of record
+      - "1809c73"
+      # + the commit immediately after 1809c73: docs(NOTIFY-4) PRE-PUSH-CHECK
+      # for the polish — DECISIONS appended paragraph ratified, DEPLOY_LOG
+      # UNPROMOTED polish entry, this row's SHAs
     notes: >
+      RIDER 2026-11-06 — staging findings 1–4 fixed in f042fd4 (prepended;
+      nothing below is edited). TIER 2, prompt of record
+      docs/prompts/NOTIFY-4-POLISH.md. From Gary's staging pass under
+      org_3G02wO4QlVVSWppi8aqlnSZnsDa (Clerk instance verified-snapper-7).
+      (1) Daily checklists: nothing due in the recipient's stores -> "No daily
+      checklists were due"; some due, all started -> "Every store with daily
+      checklists due started them"; "did not attempt" lines unchanged. The
+      snapshot carries dailyDueDays per store. (2) "as ticked below" -> "as
+      ticked above"; the same sweep fixed "Contacts card below" in the
+      shared Also-send-to empty state (the Contacts card is the page's first
+      section). (3) Author name: no code change, by Gary's ruling: "option
+      (ii). Keep the guard: staff first name, then the User’s first name,
+      then “Team member”. Never read the email column." The gap is filed as
+      DEBT-129. The feed's authorName() (src/lib/messages.ts:181) falls back
+      to the email local part, so the email stays less specific than the
+      feed until that row lands. (4) Card description: no change. Gary: "The
+      schedule wasn’t saved when I saw “a day”." The code already read the
+      saved schedule (page.tsx:168, the same row the footer reads).
+      EVIDENCE: scripts/verify-notify-taskcomm.ts 94/94 on dev
+      br-broad-wave-a6vpjdw0 (was 86). Negative control: with the "@" guard
+      removed, 91/94 (3 author checks fail); restored, 94/94. npm run build
+      green.
+      STAGING RE-CHECK LIST (after Gary pushes and the deployed SHA matches):
+      (a) a preview for a period with no Daily checklists due shows "No daily
+      checklists were due"; (b) the Recipients line says "as ticked above";
+      (c) a message by indianathomas shows "Team member" in the email (by
+      ruling; DEBT-129 changes this to the real name); (d) dropped (finding
+      4 was not a defect).
+      FIX NOTE 2026-11-06 (prepended; nothing below is edited). Fix commit
+      12c5474, on Gary's two changes before PRE-PUSH-CHECK (verbatim in
+      docs/DECISIONS.md): (1) weekly and monthly emails list EVERY equipment
+      and shortage ticket still open at send time in the recipient's stores,
+      whatever its age; this replaces the "still-open tickets created in the
+      period" in the rider below. (2) Author labels: staff first name, else
+      the user's first name, else "Team member", never part of an email
+      address. Fixture now 86/86 on dev br-broad-wave-a6vpjdw0 (was 69/69),
+      npm run build green. STAGING TEST LIST ADDITION (9): a weekly preview
+      for a store with an equipment ticket opened weeks ago and still open
+      lists it under "— still open"; resolve it, preview again, it is gone.
+      RIDER 2026-11-06 (prepended; nothing below is edited). BUILT UNDER THIS
+      ROW by Gary's F0: "Build under NOTIFY-4 with a dated rider." The
+      operational-reports email this row filed is the Tasks and Communication
+      email. TIER 3. Prompt of record docs/prompts/NOTIFY-TASKCOMM.md (working
+      name NOTIFY-TASKCOMM); audit docs/prompts/NOTIFY-TASKCOMM_AUDIT.md;
+      rulings F0–F11 and riders in docs/DECISIONS.md, 2026-11-06, in Gary's
+      words. The recipient-model question below is answered for THIS email
+      only (F2: admins and managers, plus "Also send to" contacts); NOTIFY-3's
+      employee-facing model is untouched.
+      WHAT WAS BUILT (work commit 652ea75): kind "tasks.comm.recap", label
+      "Tasks and Communication" (src/lib/notifications/kinds/task-comm.ts);
+      producer src/lib/task-comm-alerts.ts; a fourth leg in the hourly runner
+      (src/lib/scheduled-emails.ts); capability notify.taskcomm.receive
+      (ADMIN + MANAGER, deniable, never grantable); card on
+      /settings/notifications inside the NOTIFY-16 accordion; PUT
+      /api/task-comm/settings; "Send a preview to me" with preview as a
+      manager (POST /api/notify/test?kind=tasks.comm.recap[&asUser=]). The
+      email recaps the period BEFORE the send day: (a) team messages by store
+      and category (daily itemised, weekly/monthly counts plus still-open
+      tickets, 300-line cap); (b) corporate updates the viewer could see;
+      (c) "[Location] did not attempt any daily checklist for this day.",
+      with the holiday caveat on its face; (d) per-store completion from the
+      Operations Report's definition, stores below the threshold (default 90,
+      50–100) first. Admins see every store; managers their assigned stores;
+      a contact matching a user gets that user's own view; any other contact
+      the org-wide view. OFF by default; default schedule daily 7 AM Pacific,
+      5 AM floor.
+      IDS, NOT TEXT: the stored payload holds message and update ids only. A
+      new optional per-intent `hydrate` step in the dispatcher reads the text
+      at send time.
+      F9 REFACTOR: the Operations Report's computation moved unchanged to
+      src/lib/operations-report.ts (computeOperationsReport), and
+      /reports/operations calls it. /reports is untouched (DEBT-128).
+      SCHEMA: migration 20261106230000_notify_taskcomm_kind_settings, one new
+      table NotificationKindSettings (organizationId, kind, enabled, subject,
+      body, sendToAdmins, sendToManagers, thresholdPct, updatedByUserId,
+      timestamps; unique (organizationId, kind); FK cascade). Additive only.
+      Applied to dev br-broad-wave-a6vpjdw0 by Gary, ledger finished
+      2026-11-06 23:37:11 UTC (15:37 PST). Staging and production get it
+      through migrate deploy in the Vercel build.
+      EVIDENCE: scripts/verify-notify-taskcomm.ts 69/69 on dev
+      br-broad-wave-a6vpjdw0, with a negative control per scoping rule.
+      Existing notify fixtures green on the same branch: template 35,
+      notify5 55, notify6 78, notify12 54, notify-sched 48, notify14 54.
+      npm run build green.
+      NOT VERIFIED IN A BROWSER: the card, the settings route and the preview
+      route need a Clerk session; they are the staging list below.
+      STAGING TEST LIST (after Gary pushes and the deployed SHA matches):
+      (1) /settings/notifications: the "Tasks and Communication" section
+      renders inside the accordion, Off by default. (2) Turn it on; tick and
+      untick Admins / Managers; set the threshold; edit the subject and the
+      introduction (with a line break); reload -> all of it persists. (3)
+      "Reset to default" (confirm dialog) -> both copy fields return to the
+      default wording; the schedule's own Reset leaves the copy alone. (4)
+      "Send a preview to me" as ADMIN -> the email arrives for the last
+      period, with "Test — " in front of the subject and the introduction's
+      line break kept. (5) Preview as Tommy (MANAGER) -> only his stores'
+      messages and performance. (6) A store with untouched Daily checklists
+      yesterday -> its "did not attempt any daily checklist for this day."
+      line appears. (7) Deny "Tasks and Communication" for a manager in Edit
+      User -> they drop out of the next send (the preview is the caller's, so
+      check Recent emails after a real send, or the fixture's denial check).
+      (8) /reports/operations renders the same numbers as before for one
+      store and range (the F9 move).
       FILED 2026-09-20 as a named consumer of the /settings/notifications hub.
       Gary's, and explicitly LATER - it has no design yet beyond "operational
       reports go out by email on a schedule".
@@ -24239,6 +24399,98 @@ phases:
       its own ruling for training before it can share the digest's window.
       The digest builder (src/lib/hr-doc-digest.ts) skips training by its
       `kind` test today; the rollup already carries the items.
+
+  - id: NOTIFY-16
+    track: platform
+    size: S
+    # -> in_progress 2026-11-06 at the work commit d5d3202 (NOT pushed). The
+    # docs SHA is the commit immediately after d5d3202 (its own SHA cannot be
+    # written inside itself).
+    # in_progress -> staging 2026-11-06 at the NOTIFY-16 PRE-PUSH-CHECK (the
+    # commit immediately after 17af011; its own SHA cannot be written inside
+    # itself). Docs SHA: 17af011 (row, DRAFT DECISIONS, prompt of record).
+    # The check wrote the DEPLOY_LOG UNPROMOTED entry. DECISIONS R1 and the
+    # implementation choices RATIFIED by Gary at this check, "Ratify as
+    # written". NOT pushed at writing.
+    # Rollback: `git revert d5d3202`; no migration.
+    status: staging
+    title: "Email Notification Settings — renamed door and room; collapsible sections with Expand all"
+    commits:
+      - "d5d3202"
+      # + the commit immediately after d5d3202: docs(NOTIFY-16) — this row,
+      # the DRAFT DECISIONS entry, the prompt of record
+      - "17af011"
+      # + the commit immediately after 17af011: docs(NOTIFY-16)
+      # PRE-PUSH-CHECK — DECISIONS ratified, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
+    notes: >
+      BUILT 2026-11-06 on staging, NOT pushed. TIER 2, UI only. Prompt of
+      record: docs/prompts/NOTIFY-UI-ACCORDION.md (working name; this id was
+      taken as the next free NOTIFY-n after reading this file). No schema,
+      migration, route, query or dependency added; no save route or email
+      touched. RENAMES (Gary ruled the mapping at the Step 1 STOP, 2026-11-06:
+      "1. That is correct. 2. Correct"). /settings link card
+      (src/app/(app)/settings/page.tsx) — CardTitle :425 and link label :447
+      "Email notifications" -> "Email Notification Settings"; bold heading
+      :438 "Behind-pace alerts and signed-acknowledgment emails" -> "Message
+      Center Settings"; the description paragraph below it unchanged. Hub h1
+      (src/app/(app)/settings/notifications/page.tsx) -> "Email Notification
+      Settings"; the page has no metadata title. The retired PUT
+      /api/hr/settings 410 message names the page and was repaired to the new
+      name (a pointer). The /users permissions-grid area "Email
+      notifications" (src/lib/permissions.ts) is a different surface and was
+      deliberately left. No docs/guide article names the page (the help
+      generator lists /settings/notifications as unclaimed). ACCORDION. One
+      shared component, src/components/settings/collapsible-section.tsx; the
+      six top-level cards (Contacts, Signed-acknowledgment emails,
+      Behind-pace alerts, Milestone emails, Document due dates, Recent
+      emails) wrap in it with their bodies untouched — nothing removed or
+      reordered. Headers carry a status line from data the page already
+      loads: "N contacts"; On/Off (or "HR module off" / "Milestones off");
+      the saved schedule frequency only when one is saved; the pace card adds
+      "N% threshold" (org value, else the fallback the field itself shows);
+      "Last N emails". Chevron is a real button inside the card's h3,
+      aria-expanded + aria-controls. One Expand all / Collapse all button
+      beside "Send a test to me". All collapsed on first visit; state per
+      browser in localStorage key froot.notifySettings.open, every access in
+      try/catch, unreadable = all collapsed. COLLAPSED BODIES STAY MOUNTED
+      (height 0 + inert), so an unsaved edit survives a collapse — this is
+      structural, not observed. Storage is read through useSyncExternalStore
+      rather than CAL-2c's fetch continuation, because this page makes no
+      client fetch to ride; it satisfies the same two constraints (no
+      hydration mismatch, no setState in an effect). Animation is a
+      hand-rolled measured-height CSS transition, not the dead
+      accordion-down/up keyframes and not Radix; it runs only on a click and
+      never under prefers-reduced-motion. VERIFIED: scoped eslint clean and
+      npm run build green. NOT SEEN IN A BROWSER — Gary does not test locally
+      and staging does not have this code until Gary pushes. STAGING TEST
+      LIST (as an ADMIN): (1) /settings shows "Email Notification Settings"
+      with "Message Center Settings" beneath it. (2) /settings/notifications
+      header reads "Email Notification Settings"; all sections collapsed on
+      first visit; headers show status lines. (3) Expand all / Collapse all
+      works; individual chevrons work. (4) Type a pace threshold, collapse,
+      expand -> value still there; Save works. (5) Reload -> open/closed
+      state survives. (6) Same on phone width.
+
+  - id: NOTIFY-17
+    track: platform
+    size: S-M
+    status: planned
+    title: "Per-store contacts — a store's own mailbox as an email recipient for that store"
+    notes: >
+      FILED 2026-11-06 by NOTIFY-4 (Tasks and Communication), on Gary's F2:
+      "Admins and Managers only, both on by default. No Store logins option. A
+      store with its own mailbox is added as a contact. File a ROW for
+      per-store contacts." NOT DESIGNED.
+      TODAY: a contact in the /settings/notifications address book has no
+      store. Picked under "Also send to" on the Tasks and Communication card,
+      a contact with no Froot user gets the ORG-WIDE email (F3), so a store's
+      own mailbox added as a contact today sees every store's messages.
+      WHAT IT WOULD ADD: a NotificationContact tied to one or more stores, so
+      the producer can give that address that store's view. Store logins stay
+      out (F2); STORE-login addresses are plus-addresses of one real mailbox
+      (src/lib/device-login.ts plusAddress), which is part of why.
+      Cross-refs: NOTIFY-4, NOTIFY-12 (contacts and picks).
 
   - id: ING-UI-1
     track: inventory
@@ -37265,6 +37517,66 @@ debt:
       measured at filing.
 
       RELATED: BUG-24, HR-7 (terminate, not delete).
+
+  - id: DEBT-128
+    status: planned
+    title: >
+      Two definitions of checklist performance — /reports (all frequencies,
+      rolling 7 days UTC) disagrees with /reports/operations (Daily, store-local)
+    notes: >
+      FILED 2026-11-06 by NOTIFY-4 (Tasks and Communication), on Gary's F9:
+      "Use the Operations Report's definition: Daily checklists, store-local
+      day. Move it into src/lib/ and point /reports/operations at it. Leave
+      /reports alone and file a ROW to reconcile the two."
+      MEASURED IN CODE (docs/prompts/NOTIFY-TASKCOMM_AUDIT.md § 4):
+      /reports getReportsData() (src/app/(app)/reports/page.tsx) counts EVERY
+      frequency over `Date.now() − 7 days` (a UTC instant, not a store-local
+      day) and its per-store table has no Non-Compliant column. Its period and
+      store selects carry only defaultValue and are wired to nothing.
+      /reports/operations, now src/lib/operations-report.ts
+      computeOperationsReport(), counts Daily (or calendar-linked) rows by
+      store-local date. The same store and week can show two completion
+      rates.
+      WHAT RECONCILING MEANS: /reports either calls computeOperationsReport
+      for its tiles and table, or states its own definition on its face. A
+      ruling on which, then a TIER 3 change (it changes what a MANAGER
+      reads). DEBT-26 is the standing rule: call one definition, never
+      re-derive.
+      RELATED: NOTIFY-4, CHK-5, DEBT-26, DEBT-63, DEBT-61.
+
+  - id: DEBT-129
+    status: planned
+    title: >
+      User.name is empty for Clerk users although Clerk has the name — sync
+      it from Clerk
+    notes: >
+      FILED 2026-11-06 by NOTIFY-4-POLISH, on Gary's ruling: "File a ROW:
+      User.name is empty for Clerk users even though Clerk has the name (the
+      sidebar shows “Gary Thomas”); sync the name from Clerk, which fixes both
+      the email and the Messages feed’s fallback to the email address."
+      SEEN: on staging (org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk instance
+      verified-snapper-7) a team message by indianathomas (ADMIN, no staff
+      record) shows "indianathomas" in /messages and "Team member" in the
+      Tasks and Communication email. NOT MEASURED: the User row itself was
+      not queried this session. An empty name is inferred from the email
+      falling to "Team member", which needs both staff and User name absent.
+      IN CODE: the Messages feed's authorName() (src/lib/messages.ts:181)
+      falls back staff displayName -> User.name -> the EMAIL LOCAL PART
+      (authorUser.email.split("@")[0]) -> "Unknown". The email's
+      authorFirstName() (src/lib/notifications/kinds/task-comm.ts) never reads
+      the email column, by ruling, so it falls to "Team member". The Clerk
+      webhook (src/app/api/webhooks/clerk/route.ts,
+      organizationMembership.created) writes User.name on CREATE only, from
+      public_user_data first/last name; its update branch deliberately
+      leaves the name alone ("Ruling 4": an admin's correction must not be
+      reset). A row created by any other path, or before Clerk had a name,
+      keeps a null name forever.
+      OPEN FOR THE BUILD: how a sync coexists with Ruling 4 (fill only a
+      null name, or overwrite whenever Clerk changes); which event carries it
+      (user.updated, or a lazy fill in getCurrentUser()); a backfill for
+      existing null rows on each branch. Once names are filled, the feed's
+      email-local-part fallback should be reconsidered too.
+      RELATED: NOTIFY-4, BUG-2, PERM-7.
 
 rulings:
   - id: R1

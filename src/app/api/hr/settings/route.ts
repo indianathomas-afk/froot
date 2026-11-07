@@ -13,7 +13,7 @@ export async function PUT() {
   return NextResponse.json(
     {
       error:
-        "Signed-acknowledgment recipients moved to Settings → Email notifications. Use PUT /api/notify/recipients/hr.ack.",
+        "Signed-acknowledgment recipients moved to Settings → Email Notification Settings. Use PUT /api/notify/recipients/hr.ack.",
     },
     { status: 410 }
   )

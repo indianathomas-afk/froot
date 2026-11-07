@@ -18,10 +18,11 @@ import { hrAckKind } from "./kinds/hr-ack"
 import { testKind } from "./kinds/test"
 import { milestoneKind } from "./kinds/milestone"
 import { docDigestKind } from "./kinds/doc-digest"
+import { taskCommKind } from "./kinds/task-comm"
 
 export * from "./define"
 
-const KINDS: NotificationKindDef<unknown>[] = [paceAlertKind, hrAckKind, testKind, milestoneKind, docDigestKind]
+const KINDS: NotificationKindDef<unknown>[] = [paceAlertKind, hrAckKind, testKind, milestoneKind, docDigestKind, taskCommKind]
 
 const BY_KIND = new Map(KINDS.map((k) => [k.kind, k]))
 
