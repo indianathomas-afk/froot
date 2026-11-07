@@ -37597,7 +37597,24 @@ debt:
       RELATED: NOTIFY-4, CHK-5, DEBT-26, DEBT-63, DEBT-61.
 
   - id: DEBT-129
-    status: planned
+    # in_progress -> staging 2026-11-06 at the DEBT-129 PRE-PUSH-CHECK (the
+    # commit immediately after 8590610; its own SHA cannot be written inside
+    # itself). Docs SHA: 8590610 (row, DRAFT DECISIONS). The check committed
+    # the prompt of record docs/prompts/DEBT-129.md and wrote the DEPLOY_LOG
+    # UNPROMOTED entry. DECISIONS entry (Rule A, "Froot never invents a
+    # name", Rulings 1 and 2, the implementation choices) RATIFIED by Gary at
+    # this check, "Ratify as written". The notes' "DRAFT" is spent, kept.
+    # NOT pushed at writing.
+    # Rollback: `git revert b479b10`; no migration.
+    status: staging
+    commits:
+      - "b479b10"
+      # + the commit immediately after b479b10: docs(DEBT-129) — this row,
+      # the DRAFT DECISIONS entry
+      - "8590610"
+      # + the commit immediately after 8590610: docs(DEBT-129)
+      # PRE-PUSH-CHECK — DECISIONS ratified, prompt of record, DEPLOY_LOG
+      # UNPROMOTED entry, status -> staging
     title: >
       User.name is empty for Clerk users although Clerk has the name — sync
       it from Clerk
@@ -37629,6 +37646,38 @@ debt:
       existing null rows on each branch. Once names are filled, the feed's
       email-local-part fallback should be reconsidered too.
       RELATED: NOTIFY-4, BUG-2, PERM-7.
+      BUILT 2026-11-06, work commit b479b10 (TIER 2, prompt
+      docs/prompts/DEBT-129.md; rulings in DECISIONS.md 2026-11-06 DEBT-129,
+      DRAFT). Rule A, one helper: clerkDisplayName() in src/lib/user-name.ts
+      (first + last, trimmed; empty or containing "@" -> null; never the
+      username or the email). Webhook user.updated now syncs the name, skipping
+      role STORE (device names stay create-only, Ruling 4), and a missing Clerk
+      name never blanks an existing one; no user.created handler (the row is
+      born on organizationMembership.created). Lazy fill in POST /api/usage
+      inside the 15-minute last-seen throttle: only while User.name is NULL and
+      the row is not STORE, one Clerk getUser call, updateMany re-checks
+      name IS NULL, never throws. Both create sites use the helper; deviceName
+      still wins. DEBT-110's signature code untouched. The "OPEN FOR THE BUILD"
+      questions above are answered by those rulings. No separate backfill was
+      run: the lazy fill fills each unnamed row the next time that person uses
+      Froot.
+      MEASURED: dev br-broad-wave-a6vpjdw0, 2026-11-06: 15 of 15 Users had a
+      NULL name, 0 blank, 0 STORE. Fixture scripts/verify-debt-129.ts on the
+      same branch: 23/23; negative control (the "@" guard disabled) failed 5,
+      restored and re-run green. The fixture exercises the lib functions, not a
+      signed webhook POST or a live beacon; those are the staging tests.
+      STAGING TESTS (after Gary pushes; staging-SHA precondition first):
+      (a) sign in to staging as indianathomas, load any page, then send a
+      Tasks and Communication preview -> a message by you shows "Gary", not
+      "Team member". The fill rides the 15-minute last-seen throttle, so if
+      you used staging in the last 15 minutes, wait it out (or navigate again
+      after it) before loading the page;
+      (b) /messages shows "Gary Thomas" (or "Gary") as author, not
+      "indianathomas";
+      (c) change your first name in Clerk (staging instance) -> within a
+      minute Froot shows the new name; change it back. (c) needs user.updated
+      subscribed on the staging Clerk webhook endpoint; check that in the
+      Clerk dashboard first.
 
 rulings:
   - id: R1

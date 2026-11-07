@@ -2,6 +2,43 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-06 — DEBT-129: User.name kept in step with Clerk (webhook user.updated sync, usage-beacon lazy fill)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`b479b10`; docs commit `8590610`; the PRE-PUSH-CHECK is the commit
+immediately after `8590610`. TIER 2. No migration, no schema change, no
+new route, no dependency. Writes rows: `User.name` only, never on a
+role STORE row, and only from Clerk's own first + last name.
+
+Five files: the new `src/lib/user-name.ts` (`clerkDisplayName()`, the one
+helper every writer uses: first + last, trimmed; empty or containing "@"
+-> null), `src/app/api/webhooks/clerk/route.ts` (`user.updated` now syncs
+the name, skips STORE rows, and a null result never blanks an existing
+name; the membership create uses the helper, deviceName still first),
+`src/app/api/usage/route.ts` (lazy fill inside the 15-minute last-seen
+throttle: one Clerk `getUser` call only while the name is NULL, an
+`updateMany` that re-checks NULL and skips STORE, wrapped so a Clerk
+failure never breaks the beacon), `src/app/(app)/users/page.tsx` (the
+auto-sync create uses the helper), and the fixture
+`scripts/verify-debt-129.ts` (23/23 on dev `br-broad-wave-a6vpjdw0`).
+No backfill was run: each unnamed row fills the next time that person
+uses Froot. Rulings ratified by Gary at this check (DECISIONS.md,
+2026-11-06 DEBT-129).
+
+**Rollback.** `git revert b479b10`; no migration. Names already filled
+by the sync stay filled (they are Clerk's own values); nothing else in
+the database changes.
+
+**Staging test owed (Gary, after push; staging-SHA precondition first).**
+(a) Sign in to staging as indianathomas, load any page, then send a
+Tasks and Communication preview: a message by you shows "Gary", not
+"Team member" (the fill rides the 15-minute throttle; if you used
+staging in the last 15 minutes, wait it out first). (b) /messages shows
+"Gary Thomas" (or "Gary") as author, not "indianathomas". (c) Change your
+first name in Clerk (staging instance): within a minute Froot shows it;
+change it back. (c) needs `user.updated` subscribed on the staging Clerk
+webhook endpoint; check that in the Clerk dashboard first.
+
 ## 0ee6965 — 2026-11-06 — NOTIFY-4 polish: Tasks and Communication email no longer praises stores with nothing due; "ticked above"
 
 **PROMOTED 2026-11-06 in merge `0ee6965`**, together with NOTIFY-4 and
