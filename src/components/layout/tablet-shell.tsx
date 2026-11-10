@@ -44,6 +44,13 @@ import { ViewSwitch } from "./view-switch"
 // and opens the same article. On /help itself (where the "?" hides) it stays,
 // marked active, pointing at the help landing page. Desktop's AppShell still
 // mounts the floating "?" unchanged.
+//
+// TAB-2b fix, 2026-11-10 (Gary's ruling on call b; fixes 007dfd0) — the
+// "shows for the same readers on the same routes" above is SPENT, kept. The
+// rail Help is ALWAYS shown in Tablet mode: it opens the page's article when
+// useContextHelp() finds one, and /help otherwise. Desktop's floating "?"
+// keeps its own rule (hidden where there is no article). Call c stands: on
+// /help it is marked active and links to /help.
 
 export const RAIL_WIDTH = "w-[88px]"
 
@@ -133,11 +140,9 @@ export function TabletShell({
           ))}
         </nav>
         <div className="flex w-full flex-col items-center gap-3 px-2">
-          {(contextHelp || onHelp) && (
-            <RailLink href={contextHelp?.href ?? "/help"} label="Help" active={onHelp}>
-              <HelpCircle className="h-6 w-6" />
-            </RailLink>
-          )}
+          <RailLink href={contextHelp?.href ?? "/help"} label="Help" active={onHelp}>
+            <HelpCircle className="h-6 w-6" />
+          </RailLink>
           {showSettings && (
             <RailLink href="/settings" label="Settings" active={isActive("/settings")}>
               <Settings className="h-6 w-6" />

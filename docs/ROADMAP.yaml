@@ -25227,7 +25227,30 @@ phases:
       # drops the "?" and gains a rail Help item
       # + the commit immediately after 007dfd0: docs(TAB-2b) — this row,
       # DECISIONS DRAFT rider on the 2026-11-10 TAB-2 entry
+      - "0e9768c"
+      # + the commit immediately after 0e9768c: fix(TAB-2b) — Gary's ruling on
+      # call b (rail Help always visible, /help fallback), fixes 007dfd0; this
+      # rider, DECISIONS rider updated
     notes: >
+      ── RIDER 2026-11-10, TAB-2b fix (prepended; nothing below is edited). ──
+      GARY'S RULING ON CALL b, 2026-11-10 (DECISIONS 2026-11-10 TAB-2, TAB-2b
+      rider), built in the commit after 0e9768c, which fixes 007dfd0. Still
+      in_progress, NOT pushed. In Tablet mode the rail Help is ALWAYS shown, for
+      every role: it opens the page's help article when useContextHelp() finds
+      one, and /help otherwise. "Rail Help therefore shows on /dashboard,
+      /checklists and /messages and is absent on /calendar and /settings"
+      below is SPENT, kept: on those two it now links to /help. Desktop's
+      floating "?" keeps its rule (hidden where there is no article). Call c
+      stands as built (on /help: active, links to /help). Rollback is now
+      `git revert <fix> 007dfd0`; no migration.
+      CHECKS: scoped eslint and npm run build green; verify-tab1-today 13/13,
+      verify-tab1c-due-chip 11/11, verify-tab2-messages 23/23 (re-run, local).
+      VERIFIED LOCALLY ONLY on a temporary uncommitted page under /menu
+      (TabletShell, /api/help/search mocked; no org, database or signed-in
+      session): a route with an article — rail Help links to /help/dashboard;
+      a route with none — rail Help shows and links to /help; no floating "?"
+      on either. Page deleted. The prompt's staging test list below is
+      unchanged.
       BUILT 2026-11-10 on staging, NOT pushed. TIER 2. Follows TAB-2 (staging-
       verified by Gary 2026-11-10). Prompt: docs/prompts/TAB-2b.md (untracked
       until PRE-PUSH-CHECK). DECISIONS: DRAFT rider on the 2026-11-10 TAB-2

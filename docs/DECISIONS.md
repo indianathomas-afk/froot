@@ -13,6 +13,23 @@ TAB-2b PRE-PUSH-CHECK. PREPENDED; NOTHING BELOW IS EDITED. ──** Prompt:
 `007dfd0`. The "RATIFIED BY GARY … at the TAB-2 PRE-PUSH-CHECK" paragraph
 below predates this rider and does NOT cover it.
 
+**── GARY'S RULING ON CALL b, 2026-11-10 (prepended to this rider; nothing
+below in it is edited). ──** Built in the fix commit after `0e9768c`, which
+fixes `007dfd0`. Gary's words, verbatim:
+
+> "Ruling on call b: in Tablet mode the rail Help is always visible — it opens
+> the page's help article when one exists, and /help otherwise. Desktop's
+> floating ? keeps its current rule (hidden on pages with no article). Call c
+> stands as built."
+
+Call **(b)** below (rail Help shown only where an article exists, absent on
+`/calendar` and `/settings`) is SUPERSEDED by this ruling, spent, kept. Lean
+item 2's "visible to every role, the same as the floating button is today"
+now reads as: visible on every Tablet-mode page, for every role. Call **(c)**
+is ruled to stand as built (on `/help`, marked active, linking to `/help`).
+Desktop's floating "?" is unchanged. Calls a and d are still awaiting
+ratification, as is the lean itself.
+
 **The defect (Gary, staging, 2026-11-10):** the floating round "?" (HELP-1a,
 fixed bottom-right on every page) sat on top of the Messages column's Send
 button in Tablet mode, landscape and portrait, so a tap meant for Send could
