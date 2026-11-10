@@ -25426,9 +25426,55 @@ phases:
   - id: TAB-5
     track: platform
     size: S
-    status: planned
+    # planned -> in_progress 2026-11-10 at the work commit ab29d62 (NOT
+    # pushed). The docs SHA is the commit immediately after ab29d62 (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
+    # No migration. Rollback: `git revert ab29d62`.
+    status: in_progress
     title: "Tablet home — Tasks panel and header chips go stale (no live refresh)"
+    commits:
+      - "ab29d62"
+      # feat(TAB-5) — one refresh controller (tablet-refresh.tsx), pure rules
+      # (src/lib/tablet-refresh.ts), store-local day rollover, Messages and
+      # strip moved onto the controller, fixture verify-tab5-refresh.ts
+      # + the commit immediately after ab29d62: docs(TAB-5) — this row, the
+      # TAB-7 ROW, DECISIONS DRAFT
     notes: >
+      ── RIDER 2026-11-10, TAB-5 build (prepended; nothing below is edited). ──
+      BUILT, not yet checked on staging. TIER 2: no schema, migration,
+      endpoint or dependency.
+      Rulings 1–5 (Gary answered "OK. Write TAB-5" to the leans) are in
+      DECISIONS 2026-11-10 TAB-5, DRAFT until PRE-PUSH-CHECK. Prompt
+      docs/prompts/TAB-5.md (untracked until PRE-PUSH-CHECK).
+      WHAT SHIPS:
+        - ONE refresh controller for the tablet home
+          (src/app/(app)/dashboard/tablet-refresh.tsx) on TAB-2's
+          TABLET_REFRESH_MS (60s) and visibility rule. Messages and the strip
+          lost their private timers and register with it. The Tasks panel,
+          the overdue chip and the compliance chip now refresh too.
+        - A cycle is skipped whole while anything is busy: name sheet, number
+          pad, partial confirm, overdue sheet, store picker, or a tick /
+          submit / start / Complete / send in flight. Never two at once.
+        - Tasks items are a server render, so the cycle re-reads them with
+          router.refresh(). It does so only right after a client read has
+          just answered: a failed RSC refresh makes Next do a full browser
+          navigation. Local ticks give way once a server read that began after
+          they settled has landed.
+        - Day rollover: each store carries its server `day`. The page moves
+          to a new day only while idle. Moving remounts the Tasks panel
+          (ticks, "Completing as …" chip and Done state cleared) and re-reads
+          today's list. Messages keeps its draft.
+      DOES NOT SHIP: a "partial submitted" panel for a partial submit made on
+      ANOTHER device. A partial submit writes In Progress (or Non-Compliant)
+      and no submitted marker, so it is indistinguishable from ticking; this
+      tablet keeps showing In Progress with the other device's ticks. A
+      remote FULL submit does move the panel to Done. DECISIONS judgement
+      call (d).
+      FIXTURES: verify-tab5-refresh 29/29; verify-tab1-today 13/13,
+      verify-tab1c-due-chip 11/11, verify-tab2-messages 23/23,
+      verify-tab3-layout 28/28 (DB part on dev br-broad-wave-a6vpjdw0, rolled
+      back). Build and scoped eslint green. Local check on a temporary mocked
+      page under /menu with a 5s interval, both reverted before the commit.
       Filed 2026-11-10 by the TAB-2 fix, on Gary's instruction ("File a ROW for
       the same staleness in the Tasks panel and the chips"), alongside his
       ruling 8 that gave the Messages column a live refresh (every 60s while
@@ -25475,6 +25521,33 @@ phases:
       src/lib/display-layout.ts over the draft as labelled blocks. It needs
       no data and no new route. TIER 2 if it stays read-only and
       display-only.
+
+  - id: TAB-7
+    track: platform
+    size: S
+    status: planned
+    title: "Sales comparison — today so far vs last year at the same time of day (desktop + tablet)"
+    notes: >
+      Filed 2026-11-10 by TAB-5 from Gary's ruling 5 (he answered "OK. Write
+      TAB-5" to the lean; the wording is the prompt's): compare today-so-far
+      against last year at the same time of day, on both desktop and tablet.
+      TAB-5 did NOT change the calculation.
+      THE DEFECT. Desktop's Sales Performance headline
+      (sales-performance-card.tsx, DeltaPill) and the tablet Sales tile that
+      mirrors it (tablet-strip.tsx) divide today's net sales SO FAR by last
+      year's FULL-DAY net sales (GET /api/dashboard/summary:
+      sales.lastYear.total = SalesPeriodCache.netSales for the comparison
+      date). Every morning it reads as a large drop even when the store is on
+      pace.
+      Shape (a recommendation, not a ruling): the summary payload already
+      carries both days' hourly series (sales.today.hourly,
+      sales.lastYear.hourly from SalesHourlyCache), so the baseline can be
+      last year's hours up to the current store-local hour, with no new
+      endpoint. Open: whether the partial current hour counts, and how a day
+      with no hourly cache falls back. Touches the desktop headline, so
+      check every DeltaPill caller (sales-performance-card.tsx renders it at
+      two sites) and the tablet tile together. TIER 2 if it stays
+      display-side over the existing payload.
 
 bugs:
   - id: BUG-1

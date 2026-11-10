@@ -5,6 +5,112 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-10 — TAB-5: the tablet home keeps itself current, rulings 1–5 — DRAFT
+
+**DRAFT, awaiting Gary's ratification at the TAB-5 PRE-PUSH-CHECK.** Prompt
+of record: `docs/prompts/TAB-5.md` (untracked until PRE-PUSH-CHECK). Work
+commit: ab29d62. TIER 2: no schema, no migration, no endpoint, no
+dependency.
+
+**Gary's rulings 1–5, 2026-11-10.** Gary's own words were "OK. Write TAB-5",
+in answer to the leans below. The wording is the prompt's, not his:
+
+1. **Refresh the rest of the screen.** The Tasks panel, the overdue chip and
+   the compliance chip refresh on the Messages timer: every 60 seconds while
+   the page is visible, at once when it becomes visible again, never while
+   hidden.
+2. **New day, new screen.** When the store's local date changes, the next
+   refresh reloads the tablet home: header date, today's checklist (re-picked
+   by the TAB-1 rule), the chips, the strip and Messages.
+3. **Never interrupt someone mid-task.** If any sheet is open or a tick,
+   submit or send is in flight, that refresh is skipped and runs on the next
+   cycle. A refresh never closes a sheet, clears typed text or moves a
+   scrolled list.
+4. **Other devices show up.** Items ticked elsewhere appear at the next
+   refresh, with "N done", "n of N" and the progress bar following.
+5. **File the Sales-comparison ROW.** Today-so-far is compared against last
+   year's FULL day on desktop and on the tablet tile. Filed as TAB-7, planned
+   ("compare today-so-far against last year at the same time of day"). The
+   calculation is not changed in TAB-5.
+
+**The controller design.**
+
+- **One controller, one timer.** `useTabletRefreshController`
+  (`src/app/(app)/dashboard/tablet-refresh.tsx`) is owned by `TabletHome`.
+  Each part registers its re-read (`useRefreshLoader`): Messages, the strip
+  and the compliance chip. `TabletHome` runs its own two (the today's list and
+  the due feed). The Messages and strip timers from TAB-2 and TAB-3 are gone.
+  The cadence and visibility rule are TAB-2 ruling 8's, unchanged: one
+  constant, `TABLET_REFRESH_MS`.
+- **Busy.** Each part reports what makes it busy: `useBusyFlag` for an open
+  sheet, `track()` for a write in flight. One busy flag skips the WHOLE
+  cycle. A cycle never starts while the last one is running.
+- **Pure rules** live in `src/lib/tablet-refresh.ts`: `shouldRunCycle`,
+  `isBusy`, `storeLocalDay`, `dayRolledOver`, `nextShownDay` and
+  `pruneOverrides`. They are pinned by `scripts/verify-tab5-refresh.ts`
+  (29/29).
+- **Ticks from elsewhere (ruling 4).** The Tasks panel's items are a server
+  render, and no route returns a checklist's items. So the cycle re-reads them
+  with `router.refresh()`, which keeps client state and scroll. Server reads
+  run one at a time, so each landing is attributed to its own start time. A
+  local tick is retired once a server read that started after the tick's
+  write settled has landed.
+- **Day rollover (ruling 2).** Each `TabletStore` carries `day`: the
+  server's `localDateStr`, which is the `businessDayWindow` day the checklist
+  query and the today's list use. The page shows one day per store and moves
+  to the server's day only while idle (ruling 3). Until it moves, the
+  previous render's stores and checklists are held on screen. Moving remounts
+  the Tasks panel, which clears ticks, the "Completing as …" chip and the
+  Done state, and re-reads today's list. The header date comes from the same
+  render.
+
+**Claude's judgement calls (for ratification).**
+
+- **(a) New module.** I added `src/lib/tablet-refresh.ts` rather than
+  extending `tablet-messages.ts`. `TABLET_REFRESH_MS` and `canRefresh` stay
+  where they are (verify-tab2 pins them). `shouldRunCycle` is `canRefresh`
+  widened from "a send" to "anything busy", plus "not already refreshing".
+- **(b) The server decides the day.** The browser's clock, read in the
+  store's zone (`storeLocalDay`), is used only to hold back a today's list
+  read after the store's midnight until the page has moved. The move itself
+  follows the server's `day`. It is forward-only, so a device clock that is
+  wrong by minutes moves the page minutes late, never early or backwards.
+  `storeLocalDay` restates `reports.localDateStr`, because `reports.ts`
+  imports Prisma. The fixture asserts the two agree on 18 instant/zone pairs,
+  including both 2026 daylight-saving changes.
+- **(c) `router.refresh()` only right after a read answered.** If a
+  refresh's own RSC request fails, Next falls back to a full browser
+  navigation (`fetch-server-response.js`, the catch branch). On a counter
+  iPad with the wifi down, that would leave Safari's error page up until
+  someone touched it. So the cycle calls it only when the today's-list read
+  in the same cycle answered and `navigator.onLine` is not false. This
+  narrows the window but does not close it; see the COMMENT in the report.
+- **(d) Partial submit on another device.** A partial submit writes In
+  Progress (or Non-Compliant) and nothing that marks it as submitted, so a
+  second device cannot tell it from ticking. That device keeps showing In
+  Progress with the remote ticks. A remote FULL submit moves the panel to
+  Done through the lifecycle state. A "partial submitted" marker would need a
+  column, which is out of TIER 2.
+- **(e) What counts as busy.** These are the sheets ruling 3 names: name
+  picker, number pad, partial confirm and overdue sheet. The compliance chip
+  has NO sheet (it is a link to `/my`), so there is nothing there to guard. I
+  added the store picker's open dropdown, which ruling 3 does not name, on
+  the same principle. A Start or a Complete in flight counts as a write.
+- **(f) What a rollover remounts.** Only the Tasks panel. Messages, the
+  chips and the strip re-read on the same cycle instead, so a draft typed in
+  the composer survives midnight (ruling 3 over the letter of ruling 2).
+  Nothing in Messages is day-scoped.
+- **(g) Messages now waits for the whole page.** Under TAB-2 ruling 8 only a
+  send held the Messages refresh. Now any busy part holds it, for example an
+  open name sheet, because ruling 3 skips "that refresh" as a whole.
+- **(h) A failed re-read keeps what is showing.** A failed periodic re-read
+  of the today's list leaves the panel as it was (BUG-6's rule). Only the
+  first load, or the reload after this device's own write, shows "Couldn't
+  load today's checklists".
+- **(i) TAB-7's id.** The Sales-comparison ROW is filed in the TAB series
+  because TAB-5 filed it, as TAB-6 was filed by TAB-3. Its title names both
+  surfaces.
+
 ## 2026-11-10 — TAB-3: Display settings — the Dashboard and Tablet card picker, rulings 1–8 — DRAFT
 
 **RATIFIED BY GARY, 2026-11-10, at the TAB-3 PRE-PUSH-CHECK:** "Ratify as
