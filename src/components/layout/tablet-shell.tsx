@@ -4,13 +4,13 @@ import { useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { CalendarDays, ClipboardCheck, Home, MessageSquare, Settings } from "lucide-react"
+import { CalendarDays, ClipboardCheck, HelpCircle, Home, MessageSquare, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { can, overridesFrom } from "@/lib/permissions"
 import { resolveSingleStore, useSavedStoreId } from "@/lib/dashboard-store"
 import { railBadge } from "@/lib/tablet-messages"
 import { publishUnread, useTabletUnread } from "@/lib/tablet-unread"
-import { ContextHelpButton } from "@/components/help/context-help-button"
+import { useContextHelp } from "@/components/help/context-help-button"
 import { ViewSwitch } from "./view-switch"
 
 // TAB-1 — the tablet shell: a slim icon rail in place of the sidebar, for the
@@ -35,6 +35,15 @@ import { ViewSwitch } from "./view-switch"
 // /messages the rail reads it once per navigation, so a feed read on
 // /messages is reflected after leaving it. Hidden on /messages itself. The
 // rail never marks anything read.
+//
+// TAB-2b, 2026-11-10 — NO FLOATING "?" IN TABLET MODE. HELP-1a's fixed
+// bottom-right "?" sat on the Messages column's Send button, so a tap meant for
+// Send could open Help. Help is a rail item above Settings instead. It asks
+// exactly what the floating "?" asks — useContextHelp() is the same function
+// the "?" renders from — so it shows for the same readers on the same routes
+// and opens the same article. On /help itself (where the "?" hides) it stays,
+// marked active, pointing at the help landing page. Desktop's AppShell still
+// mounts the floating "?" unchanged.
 
 export const RAIL_WIDTH = "w-[88px]"
 
@@ -91,6 +100,8 @@ export function TabletShell({
   ].filter((i) => i.show)
 
   const showSettings = role === "ADMIN" && can(actor, "settings.access")
+  const contextHelp = useContextHelp("app")
+  const onHelp = pathname === "/help" || pathname.startsWith("/help/")
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/")
   // The tablet home owns the whole viewport: two columns that scroll on their
   // own while the page does not. Every other route keeps its existing content
@@ -122,6 +133,11 @@ export function TabletShell({
           ))}
         </nav>
         <div className="flex w-full flex-col items-center gap-3 px-2">
+          {(contextHelp || onHelp) && (
+            <RailLink href={contextHelp?.href ?? "/help"} label="Help" active={onHelp}>
+              <HelpCircle className="h-6 w-6" />
+            </RailLink>
+          )}
           {showSettings && (
             <RailLink href="/settings" label="Settings" active={isActive("/settings")}>
               <Settings className="h-6 w-6" />
@@ -143,7 +159,6 @@ export function TabletShell({
         ) : (
           <div className="max-w-6xl mx-auto px-8 py-8">{children}</div>
         )}
-        <ContextHelpButton surface="app" />
       </main>
     </div>
   )

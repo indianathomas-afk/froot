@@ -58,7 +58,14 @@ function routeMatches(route: string, pathname: string): boolean {
   return new RegExp(`^${pattern}$`).test(pathname)
 }
 
-export function ContextHelpButton({ surface = "app" }: { surface?: "app" | "my" }) {
+/**
+ * TAB-2b — the "?"'s decision, shared. Returns the article link the floating
+ * "?" would render for this reader on this route, or null where it would
+ * render nothing. The tablet rail's Help item (tablet-shell.tsx) calls this
+ * rather than re-deriving it, so the two can never disagree about which
+ * article a page gets or which reader gets one.
+ */
+export function useContextHelp(surface: "app" | "my" = "app"): { href: string; title: string } | null {
   const pathname = usePathname()
   const [rows, setRows] = useState<HelpIndexRow[]>([])
 
@@ -85,11 +92,17 @@ export function ContextHelpButton({ surface = "app" }: { surface?: "app" | "my" 
   if (!match) return null
 
   const base = surface === "my" ? "/my/help" : "/help"
+  return { href: `${base}/${match.id}`, title: match.title }
+}
+
+export function ContextHelpButton({ surface = "app" }: { surface?: "app" | "my" }) {
+  const help = useContextHelp(surface)
+  if (!help) return null
   return (
     <Link
-      href={`${base}/${match.id}`}
-      title={`Help: ${match.title}`}
-      aria-label={`Help: ${match.title}`}
+      href={help.href}
+      title={`Help: ${help.title}`}
+      aria-label={`Help: ${help.title}`}
       className="fixed bottom-6 right-6 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-muted-foreground)] shadow-sm transition-colors hover:text-[var(--color-primary)]"
     >
       <HelpCircle className="h-5 w-5" />
