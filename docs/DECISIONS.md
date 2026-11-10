@@ -7,6 +7,50 @@ decisions too.)
 
 ## 2026-11-09 — TAB-1: Tablet mode — rulings 1–8, the cookie, the today's-checklist rule
 
+**── RIDER 2026-11-09 (TAB-1b) — DRAFT, awaiting Gary's ratification at the
+TAB-1b PRE-PUSH-CHECK. PREPENDED; NOTHING BELOW IS EDITED. ──** Prompt:
+`docs/prompts/TAB-1b.md`. Work commit `9f3c944`.
+
+1. **Ruling 6's premise was wrong.** It said tablet attribution would be "same
+   as today", meaning no per-person name. Desktop already records one: the
+   execution page asks "Who completed this task?" on every tick whenever the
+   store has staff, and writes `TaskLog.completedByStaffId` under CHK-15's
+   rules. The PREMISE is corrected here; the ruling's text below is unchanged.
+   **Gary, 2026-11-09, verbatim:** "Agreed, fix it." TAB-1b makes the tablet
+   follow desktop's rule exactly — same list (Team Member, Manager, then the
+   store's ACTIVE staff by name), same condition (asked only when the store
+   has staff, and required then: closing the sheet ticks nothing), same field,
+   same untick (no name sent). TAB-4 is narrowed to anything beyond that
+   parity, such as a per-person PIN.
+2. **The sticky person (planning-chat lean, not yet a ruling).** The tablet
+   asks once per checklist rather than once per tick. The first tick opens
+   "Who's completing these?" (desktop's list, two-column touch grid, a search
+   box above 12 names); the pick ticks that item and sticks as a "Completing
+   as <name> · Change" chip under the banner, and following ticks use it
+   without asking. Change reopens the sheet. The chip lives in React state
+   only — never a cookie or storage — and clears on submit, on reload, and
+   when the panel moves to another checklist. A temperature task with nobody
+   chosen shows the name sheet, then the number pad. Claude details inside
+   it: the search threshold (12 names) and that Change with no tick pending
+   only switches the person.
+3. **Partial submit (Gary's words to be added at PRE-PUSH-CHECK).** A
+   "Submit partial (n of N)" text link shows while some but not all items are
+   ticked. It opens a confirm sheet, "Submit with M tasks unfinished?", whose
+   Submit partial button sends the same `POST /api/checklists/[id]/submit`
+   desktop's "Submit Partial" sends (desktop sends it with no confirm). An
+   answer of In Progress or Non-Compliant shows a calm "Submitted partial ·
+   n of N" panel; Completed (finished on another device) shows the normal
+   Done panel; anything else, or a failed request, shows the error and keeps
+   the sheet open — c83a5c3's rule. Claude additions: a "Keep working on it"
+   button on the partial panel, so the crew can tick more without reloading.
+   **For Gary, not yet decided:** a partial submit does not keep the row out
+   of Missed. Day close files every row that is not Completed as Missed,
+   Non-Compliant included (`api/cron/checklist-day-close/route.ts`), so the
+   partial submit records the status and rate now and day close still closes
+   the row as Missed. That is also what desktop's Submit Partial does today.
+4. **The overdue chip is paused per Gary, 2026-11-09** — he could not
+   reproduce the reported problem. TAB-1b does not touch it.
+
 **RATIFIED BY GARY, 2026-11-09, at the TAB-1 PRE-PUSH-CHECK:**
 "Ratify as written". This covers the whole entry, including rulings 1–8, the
 cookie note, the today's-checklist rule and the two further choices; the

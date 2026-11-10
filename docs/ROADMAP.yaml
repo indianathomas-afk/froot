@@ -24702,6 +24702,11 @@ phases:
         task?"; the tablet posts as the logged-in account with no name, per
         Gary's ruling 6. Per-person attribution is TAB-4.
     notes: >
+      ── RIDER 2026-11-09, TAB-1b (prepended; nothing below is edited). ──
+      The `deferred` entry "THE STAFF-NAME PICKER" above is SPENT, kept:
+      ruling 6's premise was wrong (desktop already records a person) and
+      TAB-1b (9f3c944) brings the tablet to desktop's rule. Partial submit,
+      which this row never offered, is TAB-1b too.
       ── RIDER 2026-11-09, TAB-1 PRE-PUSH-CHECK (prepended on Gary's
       go-ahead, "Yes, fold it in"; nothing below is edited). ── STAGING TEST
       (3) below ("the last item moves the panel to Done") describes adec345
@@ -24784,6 +24789,92 @@ phases:
       real iPad if available; (6) Add to Home Screen on an iPad — expect to
       sign in again and set Tablet again inside the home-screen app.
 
+  - id: TAB-1b
+    track: platform
+    size: S
+    # -> in_progress 2026-11-09 at the work commit 9f3c944 (NOT pushed). The
+    # docs SHA is the commit immediately after 9f3c944 (its own SHA cannot be
+    # written inside itself). PRE-PUSH-CHECK moves it to staging.
+    # Rollback: `git revert 9f3c944`; no migration.
+    status: in_progress
+    title: "Tablet mode — \"who completed this\" parity with desktop + partial submit"
+    commits:
+      - "9f3c944"
+      # feat(TAB-1b) — name sheet, sticky person chip, partial submit
+      # + the commit immediately after 9f3c944: docs(TAB-1b) — these rows,
+      # DECISIONS DRAFT rider
+    notes: >
+      BUILT 2026-11-09 on staging, NOT pushed. TIER 2. Follows TAB-1
+      (adec345, c83a5c3, check 9a4d607). Prompt: docs/prompts/TAB-1b.md
+      (untracked until PRE-PUSH-CHECK). Staging testing on 2026-11-09 found two
+      tablet/desktop gaps on /store-view/checklist/[id]; this closes both.
+      (1) ATTRIBUTION. TAB-1 ruling 6's premise ("same as today") was wrong:
+      desktop already asks "Who completed this task?" on each tick (Gary:
+      "Agreed, fix it."). The tablet now uses DESKTOP'S RULE EXACTLY — the
+      picker is inline in checklist-execution-client.tsx; list = "Team Member"
+      and "Manager" (both send "manager", which task-log saves as null) then
+      the store's ACTIVE staff by displayName (store-view/checklist/[id]/
+      page.tsx query, now also read server-side in dashboard/tablet-data.ts as
+      TabletStore.staff); asked only when the store has staff, and required
+      then (closing the sheet ticks nothing, like desktop's Cancel); no
+      template or task setting; field = completedByStaffId on POST
+      /api/checklists/[id]/task-log; untick sends no name. Only HOW it asks
+      differs (planning-chat lean, DECISIONS DRAFT rider): the first tick of a
+      checklist opens "Who's completing these?" (two-column touch grid,
+      search box above 12 names); the pick ticks the item in one tap and
+      sticks as a "Completing as <name> · Change" chip under the banner;
+      React state only, cleared on submit, reload, and when the panel moves
+      to another checklist. A temperature task with nobody chosen shows the
+      name sheet, then the TAB-1 number pad (desktop has no temperature entry
+      at all — Task.requiresTemp is declared there and never rendered — so
+      there was no desktop ordering to copy). (2) PARTIAL SUBMIT. "Submit
+      partial (n of N)" text link while some but not all items are ticked;
+      confirm sheet "Submit with M tasks unfinished?" → Submit partial / Keep
+      going; sends the same POST /api/checklists/[id]/submit desktop's Submit
+      Partial sends (desktop has no confirm). Server answers In Progress, or
+      Non-Compliant when a critical task is open → calm "Submitted partial ·
+      n of N" panel with "Keep working on it"; Completed (finished elsewhere)
+      → the normal Done panel; anything else or a failed request → error in
+      the sheet, sheet stays open (c83a5c3's rule). NOT CHANGED: the overdue
+      chip (paused by Gary 2026-11-09, could not reproduce). WRITES: none new
+      — task-log and submit as before; no schema, no route, no dependency.
+      VERIFIED LOCALLY ONLY: a temporary uncommitted page under the public
+      /menu route rendered TabletHome with fetch mocked at 1180×820 — first
+      tick opens the sheet; picking ticked k1 as staff-0; chip appeared;
+      second tick posted staff-0 with no sheet; Change → Manager, next tick
+      posted "manager"; after reload a temperature task showed the sheet then
+      the pad and posted staff-1 + value; untick posted null; search filtered;
+      Keep going sent nothing; a forced 500 kept the sheet open with the
+      error; success showed "Submitted partial · 3 of 5" and the chip was
+      gone after. Found and fixed during that pass: the new sheet and the
+      value sheet were sibling elements both keyed "closed", which made the
+      name sheet close itself. Nothing ran against a database or a
+      signed-in session. scripts/verify-tab1-today.ts 13/13.
+      SUBMIT PARTIAL DOES NOT STOP MISSED — read before relying on it. Day
+      close files every row that is not Completed as Missed, Non-Compliant
+      included (api/cron/checklist-day-close/route.ts, "Non-Compliant is
+      treated as not-Completed and becomes Missed"). A partial submit records
+      the status and completionRate now; day close still closes the row as
+      Missed with the rate recomputed. The prompt's context read partial
+      submit as the way out of Missed; that is not what desktop's Submit
+      Partial does either. And nothing persists "submitted": after a reload
+      the row reads In Progress and the tablet shows it in progress again,
+      exactly as desktop would. Raised for Gary at PRE-PUSH-CHECK.
+      STAGING TESTS (Gary, after push; staging-SHA precondition first) — the
+      prompt's list, unchanged: (1) As Tommy in Tablet mode, open a checklist
+      that hasn't been started and tick one item. The name sheet opens. Pick
+      a name. The item ticks, and the "Completing as …" chip appears. (2) Tick
+      two more items. No sheet appears. On desktop, open the same checklist
+      and confirm all three items show that name. (3) Tap Change, pick a
+      different name, and tick one more item. Desktop shows the new name on
+      that item only. (4) If there's a temperature task, tick it. The number
+      pad opens. Enter a value, and desktop shows the value and the name.
+      (5) With some items unticked, tap "Submit partial" → Keep going: nothing
+      is sent. Tap it again → Submit partial: the panel shows "Submitted
+      partial · n of N", and desktop shows the checklist submitted as
+      partial. (6) Reload. The chip is gone, and the next tick on a new
+      checklist asks again.
+
   - id: TAB-2
     track: platform
     size: M
@@ -24819,6 +24910,16 @@ phases:
     status: planned
     title: "Per-person attribution on shared tablets"
     notes: >
+      ── RIDER 2026-11-09, TAB-1b (prepended; nothing below is edited). ──
+      NARROWED. The per-task attribution mechanism already exists on desktop
+      — "Who completed this task?" writes TaskLog.completedByStaffId under
+      CHK-15's rules — and TAB-1b (9f3c944) brings the tablet to parity with
+      it (name sheet on the first tick, sticky "Completing as …" chip). The
+      sentence below that "TAB-1 deliberately sends no name" is spent, kept.
+      This row is now only what goes BEYOND parity: proving who the picked
+      person is (for example a per-person PIN), attribution for messages, and
+      anything else a shared device needs that the picker cannot give. Still
+      a permission/identity design, still TIER 3.
       Filed 2026-11-09 by TAB-1 from Gary's ruling 6: "v1 checks off and posts
       as the logged-in account, same as today. Per-person attribution is a
       planned row." (the ruling as worded in the TAB-1 prompt; Gary's own
