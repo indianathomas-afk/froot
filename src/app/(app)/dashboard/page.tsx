@@ -8,6 +8,9 @@ import { BuildInfo } from "@/components/build-info"
 import { DashboardClient } from "./dashboard-client"
 import { ComplianceBanner } from "./compliance-banner"
 import { CalendarDueBanner } from "@/components/calendar-due-banner"
+import { getViewMode } from "@/lib/view-mode-server"
+import { loadTabletData } from "./tablet-data"
+import { TabletHome } from "./tablet-home"
 
 // Store Dashboard (Phase D-1) — the landing page after login. Layout and
 // styling follow froot_docs/dashboard-design/ (README.md is the spec).
@@ -98,13 +101,23 @@ async function getDashboardData() {
       })) > 0
   }
 
-  return { stores, countRecency, laborEnabled, canViewForecasting, canViewChecklists }
+  return { orgId: org.id, stores, countRecency, laborEnabled, canViewForecasting, canViewChecklists }
 }
 
 export default async function DashboardPage() {
   const data = await getDashboardData()
   if (!data) return null
   const { stores, countRecency, laborEnabled, canViewForecasting, canViewChecklists } = data
+
+  // TAB-1 — Tablet view (this device's `froot_view` cookie). The tablet home
+  // replaces the desktop dashboard on this route only: Tasks + Team Messages,
+  // no Sales/Goal/Labor cards (Gary's ruling 4), and no full-width due banner —
+  // the overdue chip in the tablet header opens the same list as a sheet
+  // (ruling 7). Desktop below is unchanged.
+  if ((await getViewMode()) === "tablet") {
+    const tablet = await loadTabletData(data.orgId, stores)
+    return <TabletHome stores={tablet.stores} checklists={tablet.checklists} />
+  }
 
   // BUG-15. The header date is formatted HERE, in each store's own zone, and
   // handed down as a string — never read off the clock in the client, where the

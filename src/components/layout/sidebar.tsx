@@ -38,6 +38,7 @@ import { can, overridesFrom, type Capability } from "@/lib/permissions"
 import { useClerk, useUser } from "@clerk/nextjs"
 import { setSidebarCollapsed, useSidebarCollapsed } from "./use-sidebar-collapsed"
 import { GlobalSearch } from "./global-search"
+import { ViewSwitch } from "./view-switch"
 
 type IconComponent = React.ComponentType<{ className?: string }>
 
@@ -638,6 +639,11 @@ export function Sidebar({
 
       {/* User info */}
       <div className="border-t border-[var(--color-border)] px-3 py-3">
+        {/* TAB-1 — the Tablet/Desktop switch, every role. This sidebar only
+            renders in Desktop view, so `current` is always desktop here. */}
+        <div className="mb-3">
+          <ViewSwitch current="desktop" layout={collapsed ? "icon" : "row"} />
+        </div>
         {collapsed ? (
           <button
             onClick={() => signOut({ redirectUrl: "/sign-in" })}

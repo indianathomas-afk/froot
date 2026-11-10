@@ -1,0 +1,124 @@
+import { prisma } from "@/lib/prisma"
+import { tasksForChecklist } from "@/lib/checklist-tasks"
+import { groupTasksBySection } from "@/lib/sections"
+import { businessDayWindow, dashboardHeaderDate } from "@/lib/reports"
+
+// TAB-1 — the item lists behind the tablet Tasks panel. READ-ONLY.
+//
+// WHY THIS IS A SERVER READ AND NOT AN API CALL. No existing route returns a
+// checklist's tasks grouped by section with their logs — the execution page
+// (store-view/checklist/[id]/page.tsx) reads them server-side too — and TAB-1
+// adds no API routes. So /dashboard loads today's rows here, for every store
+// this login can see, and the client picks the selected store's. WHICH
+// checklists a store has today still comes from GET /api/stores/[id]/templates
+// (the Start Daily Checklist list); this only supplies the items of rows that
+// already exist, joined to that list by checklist id.
+//
+// Every task filter is the one the other checklist surfaces apply: TPL-3's
+// tasksForChecklist (src/lib/checklist-tasks.ts), the per-store excludedStoreIds
+// skip /api/dashboard/summary applies, and CHK-1's section grouping with the
+// as-executed snapshot (src/lib/sections.ts).
+
+export type TabletTask = {
+  id: string
+  label: string
+  requiresTemp: boolean
+  isCritical: boolean
+  done: boolean
+  value: number | null
+}
+
+export type TabletChecklist = {
+  id: string
+  storeId: string
+  name: string
+  status: string
+  completedAt: string | null
+  sections: { key: string; name: string; tasks: TabletTask[] }[]
+}
+
+export type TabletStore = { id: string; name: string; timezone: string; headerDate: string }
+
+export async function loadTabletData(
+  organizationId: string,
+  stores: { id: string; name: string; timezone: string }[]
+): Promise<{ stores: TabletStore[]; checklists: TabletChecklist[] }> {
+  const now = new Date()
+  const byTz = new Map<string, string[]>()
+  for (const s of stores) byTz.set(s.timezone, [...(byTz.get(s.timezone) ?? []), s.id])
+
+  // "Today" is each store's local business day, never the server's UTC day —
+  // the same OR-by-timezone shape GET /api/checklists?today=1 uses.
+  const rows = stores.length
+    ? await prisma.checklist.findMany({
+        where: {
+          organizationId,
+          OR: [...byTz.entries()].map(([tz, ids]) => {
+            const w = businessDayWindow(now, tz)
+            return { storeId: { in: ids }, date: { gte: w.gte, lt: w.lt } }
+          }),
+        },
+        select: {
+          id: true,
+          storeId: true,
+          status: true,
+          completedAt: true,
+          closedAt: true,
+          sectionsSnapshot: true,
+          template: {
+            select: {
+              name: true,
+              tasks: {
+                orderBy: { orderIndex: "asc" },
+                select: {
+                  id: true,
+                  description: true,
+                  requiresTemp: true,
+                  isCritical: true,
+                  retiredAt: true,
+                  excludedStoreIds: true,
+                  sectionId: true,
+                  sectionName: true,
+                  section: { select: { name: true, sortOrder: true } },
+                },
+              },
+            },
+          },
+          taskLogs: { select: { taskId: true, temperatureValue: true } },
+        },
+      })
+    : []
+
+  const checklists: TabletChecklist[] = rows.map((c) => {
+    const logs = new Map(c.taskLogs.map((l) => [l.taskId, l]))
+    const tasks = tasksForChecklist(c.template.tasks, {
+      completedAt: c.completedAt,
+      closedAt: c.closedAt,
+      loggedTaskIds: logs.keys(),
+    }).filter((t) => !t.excludedStoreIds.includes(c.storeId))
+    return {
+      id: c.id,
+      storeId: c.storeId,
+      name: c.template.name,
+      status: c.status,
+      completedAt: c.completedAt?.toISOString() ?? null,
+      sections: groupTasksBySection(tasks, c.sectionsSnapshot).map((g) => ({
+        key: g.key,
+        name: g.name,
+        tasks: g.tasks.map((t) => ({
+          id: t.id,
+          label: t.description,
+          requiresTemp: t.requiresTemp,
+          isCritical: t.isCritical,
+          done: logs.has(t.id),
+          value: logs.get(t.id)?.temperatureValue ?? null,
+        })),
+      })),
+    }
+  })
+
+  return {
+    stores: stores.map((s) => ({ ...s, headerDate: dashboardHeaderDate(now, s.timezone) })),
+    checklists,
+  }
+}

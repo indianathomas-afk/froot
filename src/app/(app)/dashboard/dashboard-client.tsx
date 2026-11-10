@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { ChevronLeft, ChevronRight, ClipboardList, Megaphone, StickyNote } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -15,6 +15,7 @@ import { SalesPerformanceCard } from "./sales-performance-card"
 import { LaborBudgetCard } from "./labor-budget-card"
 import { LaborCoverageCard } from "./labor-coverage-card"
 import { RollupView } from "./rollup-view"
+import { ALL_STORES, saveStoreId, useSavedStoreId } from "@/lib/dashboard-store"
 import { LaborNotes, LaborPctLine } from "./labor-pct"
 import type { LaborBlock } from "@/lib/labor-judgment"
 
@@ -68,7 +69,7 @@ type ShiftNote = {
   attachments: FeedAttachment[]
 }
 
-type Comms = {
+export type Comms = {
   shiftNotes: ShiftNote[]
   teamMessagesPreview: {
     messages: {
@@ -126,14 +127,7 @@ const usd = (n: number | null | undefined, digits = 0) =>
     ? "—"
     : n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: digits, minimumFractionDigits: digits })
 
-// ─── Persisted store selection (same external-store pattern as the sidebar) ──
-
-const STORE_KEY = "froot.dashboard.store"
-const STORE_EVENT = "froot-dashboard-store"
-
-// Sentinel picker value for the all-locations rollup (Phase F-4) — only
-// offered when the user can see more than one store.
-const ALL_STORES = "all"
+// ─── Persisted store selection — src/lib/dashboard-store.ts (TAB-1 lift) ───
 
 // BUG-6: /api/dashboard/summary and /api/dashboard/sales refresh a stale sales
 // cache AFTER their response (BUG-1 step 4), so the payload that triggers the
@@ -144,28 +138,6 @@ const ALL_STORES = "all"
 // A single delayed re-fetch was the first design and was wrong: it can land
 // before the refresh completes, and the guard then blocks the retry that would
 // have caught it — the same staleness with extra steps.
-
-function subscribeStoreKey(callback: () => void) {
-  window.addEventListener("storage", callback)
-  window.addEventListener(STORE_EVENT, callback)
-  return () => {
-    window.removeEventListener("storage", callback)
-    window.removeEventListener(STORE_EVENT, callback)
-  }
-}
-
-function useSavedStoreId(): string | null {
-  return useSyncExternalStore(
-    subscribeStoreKey,
-    () => localStorage.getItem(STORE_KEY),
-    () => null
-  )
-}
-
-function saveStoreId(id: string) {
-  localStorage.setItem(STORE_KEY, id)
-  window.dispatchEvent(new Event(STORE_EVENT))
-}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -672,7 +644,7 @@ function MonthlyGoalCard({
 
 // ─── Team Messages (live — Phase I-14) ────────────────────────────────────────
 
-function TeamMessagesCard({
+export function TeamMessagesCard({
   loading,
   failed,
   onRetry,

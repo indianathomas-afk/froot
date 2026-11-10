@@ -9,6 +9,8 @@ import { actorFor, hrModuleAvailable, laborModuleAvailable } from "@/lib/auth"
 import { resolveSelfStaff } from "@/lib/hr"
 import { can } from "@/lib/permissions"
 import { UsageBeacon } from "@/components/usage-beacon"
+import { TabletShell } from "@/components/layout/tablet-shell"
+import { getViewMode } from "@/lib/view-mode-server"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { orgId, userId } = await auth()
@@ -141,6 +143,41 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           where: { storeId: { in: storeIds }, status: { in: ["Pending", "In Progress"] } },
         })) > 0
     }
+  }
+
+  // TAB-1 — the per-device Tablet/Desktop switch (Gary's ruling 2). Read from
+  // the `froot_view` cookie HERE so the right shell is on first paint; absent
+  // means desktop, and the desktop branch below is unchanged.
+  const viewMode = await getViewMode()
+  if (viewMode === "tablet") {
+    // The rail shows the store name from the dashboard's own store selection,
+    // so it needs the stores this login can see — the same scope rule as
+    // /dashboard (ADMIN: every active store; otherwise assigned ones).
+    const tabletStores = org
+      ? await prisma.store.findMany({
+          where: {
+            organizationId: org.id,
+            isActive: true,
+            ...(dbUser?.role === "ADMIN" ? {} : { id: { in: dbUser?.storeAssignments.map((a) => a.storeId) ?? [] } }),
+          },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true },
+        })
+      : []
+    return (
+      <>
+        <TabletShell
+          role={dbUser?.role ?? "STAFF"}
+          deniedCapabilities={dbUser?.deniedCapabilities ?? []}
+          calendarEnabled={!!org?.calendarEnabled}
+          staffHasChecklists={staffHasChecklists}
+          stores={tabletStores}
+        >
+          {children}
+        </TabletShell>
+        <UsageBeacon />
+      </>
+    )
   }
 
   return (
