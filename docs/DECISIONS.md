@@ -7,6 +7,17 @@ decisions too.)
 
 ## 2026-11-10 — TAB-2: Tablet mode — the Messages column, rulings 1–8 — DRAFT
 
+**TAB-2b RIDER RATIFIED BY GARY, 2026-11-10, at the TAB-2b PRE-PUSH-CHECK:**
+"Ratify as written". This covers the whole TAB-2b rider below: the lean
+(items 1–3, with item 2 read as his ruling on call b restates it), the
+audit's finding, and Claude's judgement calls a and d, which are now ratified
+as his. His ruling on call b stands as his own words; call b stays
+SUPERSEDED, spent, kept. Call c was already ruled to stand as built. The
+rider's "DRAFT, awaiting Gary's ratification", "awaiting ratification" and
+"(untracked until PRE-PUSH-CHECK)" markers are spent, kept; the prompt of
+record `docs/prompts/TAB-2b.md` is committed at this check. Wording
+untouched.
+
 **── RIDER 2026-11-10 (TAB-2b) — DRAFT, awaiting Gary's ratification at the
 TAB-2b PRE-PUSH-CHECK. PREPENDED; NOTHING BELOW IS EDITED. ──** Prompt:
 `docs/prompts/TAB-2b.md` (untracked until PRE-PUSH-CHECK). Work commit

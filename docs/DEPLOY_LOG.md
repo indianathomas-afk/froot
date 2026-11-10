@@ -2,6 +2,42 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-10 — TAB-2b: Tablet mode — no floating help button over Send; Help moves to the rail
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`007dfd0`; docs commit `0e9768c`; fix commit `318af62` (Gary's ruling on
+call b, fixes `007dfd0`); the PRE-PUSH-CHECK is the commit immediately after
+`318af62`. TIER 2. No migration, no schema change, no new route, no new
+dependency, no API change. Tablet mode is not promoted until the series
+through TAB-3 is done (Gary, 2026-11-10).
+
+What ships: in Tablet mode the floating round "?" (HELP-1a, fixed
+bottom-right) is no longer mounted, because it sat on the Messages column's
+Send button in landscape and portrait. The tablet rail gains a Help item
+directly above Settings, shown on every Tablet-mode page for every role. It
+opens the page's help article when one exists, and `/help` otherwise; on
+`/help` itself it is marked active. The "?"'s decision moved unchanged into
+`useContextHelp()` in `src/components/help/context-help-button.tsx`, so the
+floating "?" and the rail Help pick the same article. Desktop is unchanged:
+AppShell still mounts the floating "?", hidden where there is no article.
+
+Files: edited `src/components/help/context-help-button.tsx`,
+`src/components/layout/tablet-shell.tsx`. Checks: scoped eslint and
+`npm run build` green; verify-tab1-today 13/13, verify-tab1c-due-chip
+11/11, verify-tab2-messages 23/23. Verified locally only on a mocked
+temporary page (no org, no database, no signed-in session), since deleted.
+DECISIONS 2026-11-10 TAB-2, TAB-2b rider RATIFIED by Gary at this check.
+
+**Rollback.** `git revert 318af62 007dfd0` (fix first, then work); no
+migration. Tablet mode gets the floating "?" back, over Send again, and the
+rail loses its Help item. Nothing is stored, so nothing is left behind.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+(1) In Tablet mode, landscape and portrait: there is no floating ? button,
+and nothing covers Send. (2) Tap Help in the rail. Help opens, the same as
+the floating button did. (3) Switch to Desktop mode. The floating ? button is
+back in its usual place and works.
+
 ## UNPROMOTED — 2026-11-10 — TAB-2: Tablet mode — the Messages column (pinned Corporate Update, chat-order thread, composer, live refresh)
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit

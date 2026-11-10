@@ -25219,7 +25219,18 @@ phases:
     # docs SHA is the commit immediately after 007dfd0 (its own SHA cannot be
     # written inside itself). PRE-PUSH-CHECK moves it to staging.
     # Rollback: `git revert 007dfd0`; no migration.
-    status: in_progress
+    # in_progress -> staging 2026-11-10 at the TAB-2b PRE-PUSH-CHECK (the
+    # commit immediately after 318af62; its own SHA cannot be written inside
+    # itself). Docs SHA: 0e9768c (this row, DECISIONS DRAFT rider). Fix SHA:
+    # 318af62 (Gary's ruling on call b, fixes 007dfd0). The check committed
+    # the prompt of record docs/prompts/TAB-2b.md and wrote the DEPLOY_LOG
+    # UNPROMOTED entry. DECISIONS 2026-11-10 TAB-2, TAB-2b rider (the lean,
+    # the audit, calls a and d; b superseded by Gary's ruling, c ruled to
+    # stand) RATIFIED by Gary at this check, "Ratify as written". The notes'
+    # "DECISIONS: DRAFT rider" / "untracked until PRE-PUSH-CHECK" are spent,
+    # kept. The rider's "Rollback is now `git revert <fix> 007dfd0`" resolves
+    # to `git revert 318af62 007dfd0`; no migration. NOT pushed at writing.
+    status: staging
     title: "Tablet mode — the floating help button no longer covers Send; Help moves to the rail"
     commits:
       - "007dfd0"
@@ -25231,6 +25242,10 @@ phases:
       # + the commit immediately after 0e9768c: fix(TAB-2b) — Gary's ruling on
       # call b (rail Help always visible, /help fallback), fixes 007dfd0; this
       # rider, DECISIONS rider updated
+      - "318af62"
+      # + the commit immediately after 318af62: docs(TAB-2b) PRE-PUSH-CHECK —
+      # DECISIONS rider ratified, prompt of record, DEPLOY_LOG UNPROMOTED
+      # entry, status -> staging
     notes: >
       ── RIDER 2026-11-10, TAB-2b fix (prepended; nothing below is edited). ──
       GARY'S RULING ON CALL b, 2026-11-10 (DECISIONS 2026-11-10 TAB-2, TAB-2b
