@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, ArrowRight, Check, ChevronDown, ChevronRight, Clock, Delete } from "lucide-react"
+import { AlertTriangle, ArrowRight, Check, ChevronDown, ChevronRight, Clock, Delete, GraduationCap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { BottomSheet } from "@/components/ui/bottom-sheet"
@@ -13,6 +13,9 @@ import { cn } from "@/lib/utils"
 import { formatWindowTime } from "@/lib/checklist-status-display"
 import { resolveSingleStore, saveStoreId, useSavedStoreId } from "@/lib/dashboard-store"
 import { pickTodayChecklist, type TodayEntry } from "@/lib/tablet-today"
+import { dueChipFor, dueRowSuffix } from "@/lib/tablet-due"
+import { formatInstant } from "@/lib/display-time"
+import type { OwedSummary } from "@/lib/hr-compliance"
 import { fetchCard } from "./card-fetch"
 import { TeamMessagesCard, type Comms } from "./dashboard-client"
 import type { TabletChecklist, TabletStore, TabletTask } from "./tablet-data"
@@ -192,7 +195,10 @@ export function TabletHome({ stores, checklists }: { stores: TabletStore[]; chec
           )}
           <p className="text-lg text-[var(--color-muted-foreground)]">{store.headerDate}</p>
         </div>
-        <DueChip items={(due ?? []).filter((i) => i.storeId === store.id)} onChanged={loadDue} />
+        <div className="flex flex-wrap items-center gap-3">
+          <ComplianceChip />
+          <DueChip feed={due ?? []} storeId={store.id} onChanged={loadDue} />
+        </div>
       </header>
 
       <div className="grid min-h-0 gap-4 landscape:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] portrait:grid-rows-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -1064,14 +1070,16 @@ function ValueSheet({
 
 // ─── Overdue chip + the due list as a bottom sheet (ruling 7) ────────────────
 
-function DueChip({ items, onChanged }: { items: DueItem[]; onChanged: () => Promise<void> }) {
+function DueChip({ feed, storeId, onChanged }: { feed: DueItem[]; storeId: string; onChanged: () => Promise<void> }) {
   const [open, setOpen] = useState(false)
   const [completing, setCompleting] = useState<string | null>(null)
-  if (items.length === 0) return null
 
-  // Overdue is `dueAt <= now` — ruling 8 of CAL-1, the banner's own rule.
+  // TAB-1c: the filter and count live in src/lib/tablet-due.ts (pinned by
+  // scripts/verify-tab1c-due-chip.ts). Overdue is `dueAt <= now` — ruling 8 of
+  // CAL-1, the banner's own rule.
   const nowIso = new Date().toISOString()
-  const overdue = items.filter((i) => i.dueAt <= nowIso).length
+  const { items, overdue, label } = dueChipFor(feed, storeId, nowIso)
+  if (!label) return null
 
   async function complete(id: string) {
     setCompleting(id)
@@ -1097,7 +1105,7 @@ function DueChip({ items, onChanged }: { items: DueItem[]; onChanged: () => Prom
         )}
       >
         <AlertTriangle className="h-5 w-5" />
-        {overdue > 0 ? `${overdue} overdue` : `${items.length} due`}
+        {label}
         <ChevronRight className="h-5 w-5" />
       </button>
       <BottomSheet open={open} onClose={() => setOpen(false)} title="Due at this store">
@@ -1108,11 +1116,7 @@ function DueChip({ items, onChanged }: { items: DueItem[]; onChanged: () => Prom
                 <p className="text-lg font-semibold text-[var(--color-foreground)]">{item.title}</p>
                 <p className="text-base text-[var(--color-muted-foreground)]">
                   {item.categoryLabel}
-                  {item.dueAt <= nowIso
-                    ? item.daysOverdue > 0
-                      ? ` · ${item.daysOverdue} ${item.daysOverdue === 1 ? "day" : "days"} overdue`
-                      : " · overdue"
-                    : " · due today"}
+                  {dueRowSuffix(item, nowIso)}
                 </p>
               </div>
               {item.templateId ? (
@@ -1133,5 +1137,61 @@ function DueChip({ items, onChanged }: { items: DueItem[]; onChanged: () => Prom
         </ul>
       </BottomSheet>
     </>
+  )
+}
+
+// ─── TAB-1c: the SELF-1 compliance banner, as a header chip ──────────────────
+//
+// TAB-1 dropped the desktop dashboard's ComplianceBanner (compliance-banner.tsx)
+// from the tablet along with the calendar banner, and no ruling covered it, so a
+// person's own overdue training or documents became invisible on the tablet.
+// TAB-1c brings it back as a chip (Gary chose this over filing a row,
+// 2026-11-10; DECISIONS DRAFT rider on the 2026-11-09 TAB-1 entry):
+// the same endpoint, the same rule (renders only when the signed-in person owes
+// something), the same words, the same colours (red when anything is overdue,
+// amber otherwise), the same /my link, and no dismiss. A device login resolves
+// to no staff member and the route answers owed: null, so it stays silent.
+function ComplianceChip() {
+  const [owed, setOwed] = useState<OwedSummary | null>(null)
+
+  useEffect(() => {
+    let live = true
+    fetchCard<{ owed: OwedSummary | null }>("my compliance", "/api/dashboard/my-compliance").then((data) => {
+      if (live && data?.owed) setOwed(data.owed)
+    })
+    return () => {
+      live = false
+    }
+  }, [])
+
+  if (!owed) return null
+  const overdue = owed.overdueCount > 0
+  const plural = owed.openCount === 1 ? "" : "s"
+
+  return (
+    <Link
+      href="/my"
+      aria-label={`${owed.openCount} outstanding training or document item${plural}. Go to your portal.`}
+      className={cn(
+        "flex min-h-14 items-center gap-2 rounded-full px-6 py-2",
+        overdue
+          ? "bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)]"
+          : "border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] text-[var(--color-warning-text)]"
+      )}
+    >
+      {overdue ? <AlertTriangle className="h-5 w-5 shrink-0" /> : <GraduationCap className="h-5 w-5 shrink-0" />}
+      <span className="min-w-0">
+        <span className="block text-lg font-bold leading-tight">
+          You have {owed.openCount} item{plural} to complete
+          {overdue ? ` · ${owed.overdueCount} overdue` : ""}
+        </span>
+        {owed.nearestDueDate && (
+          <span className="block text-sm opacity-90">
+            Nearest due {formatInstant(owed.nearestDueDate, owed.timeZone, "monthDay")}
+          </span>
+        )}
+      </span>
+      <ChevronRight className="h-5 w-5 shrink-0" />
+    </Link>
   )
 }
