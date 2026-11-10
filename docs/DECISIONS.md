@@ -7,6 +7,14 @@ decisions too.)
 
 ## 2026-11-10 — TAB-2: Tablet mode — the Messages column, rulings 1–8 — DRAFT
 
+**RATIFIED BY GARY, 2026-11-10, at the TAB-2 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: rulings 1–8, the audit's
+resolution of rulings 3 and 5, and Claude's judgement calls b, d, e, f and
+g–k, which are now ratified as his. Calls a and c stay SUPERSEDED (by rulings
+6 and 7), spent, kept. The heading's "DRAFT" and the "DRAFT — awaiting
+Gary's ratification" / "awaiting ratification" markers below are spent,
+kept. Wording untouched.
+
 **── RIDER 2026-11-10 (2) — Gary's rulings on the report's three RULING NOW
 items, numbered 6–8 here. PREPENDED; NOTHING BELOW IS EDITED. ──** Built in
 the fix commit after `b1dafbd` (fixes `ab80e5b`). The heading's "rulings 1–5"

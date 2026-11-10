@@ -25075,7 +25075,17 @@ phases:
     # Rollback: `git revert ab80e5b`; no migration.
     # Title was "Tablet mode — Messages column + stat strip" until 2026-11-10;
     # the stat strip moved to TAB-3 (rider below).
-    status: in_progress
+    # in_progress -> staging 2026-11-10 at the TAB-2 PRE-PUSH-CHECK (the
+    # commit immediately after 35fb734; its own SHA cannot be written inside
+    # itself). Docs SHA: b1dafbd (this row, TAB-3 rider, DECISIONS DRAFT
+    # entry). Fix SHA: 35fb734 (rulings 6-8, fixes ab80e5b). The check
+    # committed the prompt of record docs/prompts/TAB-2.md and wrote the
+    # DEPLOY_LOG UNPROMOTED entry. DECISIONS 2026-11-10 TAB-2 (rulings 1-8,
+    # calls b and d-k; a and c superseded) RATIFIED by Gary at this check,
+    # "Ratify as written". The notes' "DECISIONS ... DRAFT" / "untracked until
+    # PRE-PUSH-CHECK" are spent, kept. Rollback is now
+    # `git revert 35fb734 ab80e5b`; no migration. NOT pushed at writing.
+    status: staging
     title: "Tablet mode — Messages column"
     commits:
       - "ab80e5b"
@@ -25087,6 +25097,10 @@ phases:
       # + the commit immediately after b1dafbd: fix(TAB-2) — Gary's rulings on
       # the three RULING NOW items (chat order, rendered = read, live
       # refresh), fixes ab80e5b; this rider, TAB-5 filed, DECISIONS updated
+      - "35fb734"
+      # + the commit immediately after 35fb734: docs(TAB-2) PRE-PUSH-CHECK —
+      # DECISIONS entry ratified, prompt of record, DEPLOY_LOG UNPROMOTED
+      # entry, status -> staging
     notes: >
       ── RIDER 2026-11-10 (2), TAB-2 fix (prepended; nothing below is edited). ──
       GARY'S RULINGS ON THE REPORT'S THREE RULING NOW ITEMS, 2026-11-10

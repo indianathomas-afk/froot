@@ -2,6 +2,64 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-10 — TAB-2: Tablet mode — the Messages column (pinned Corporate Update, chat-order thread, composer, live refresh)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`ab80e5b`; docs commit `b1dafbd`; fix commit `35fb734` (Gary's rulings 6–8,
+fixes `ab80e5b`); the PRE-PUSH-CHECK is the commit immediately after
+`35fb734`. TIER 2. No migration, no schema change, no new route, no new
+dependency. Existing endpoints only: GET /api/dashboard/comms, GET and POST
+/api/messages, POST /api/messages/mark-read. Tablet mode is not promoted
+until the series through TAB-3 is done (Gary, 2026-11-10).
+
+What ships: the tablet home's right column, which TAB-1 left as the desktop
+Team Messages card, becomes the Messages column (new
+`src/app/(app)/dashboard/tablet-messages.tsx`). The Corporate Update is pinned
+at the top. The thread below it is in chat order: oldest at the top, newest at
+the bottom beside the composer, and it scrolls to the bottom on load and after
+posting. A large composer is fixed at the bottom, with quick replies On it /
+Done / Thanks that post to the store feed as ordinary messages, because
+TeamMessage has no reply field. Messages come from the logged-in account, and
+one in-flight guard means a double tap posts once. Unread reuses desktop's
+MessageRead: the count shows on the column header and the rail's Messages
+icon. **The tablet now WRITES MessageRead rows:** what the column renders
+counts as read, through the existing POST /api/messages/mark-read only. The
+column refetches every 60s while visible and at once on returning to visible,
+never while hidden or while a send is in flight. On the iPad keyboard, the
+composer lifts and the header folds away (simulated only). Portrait stacks
+Messages under Tasks. Desktop is unchanged; `timeAgo` in
+`dashboard-client.tsx` is only exported.
+
+Files: new `src/app/(app)/dashboard/tablet-messages.tsx`,
+`src/lib/tablet-messages.ts`, `src/lib/tablet-unread.ts`,
+`scripts/verify-tab2-messages.ts`; edited `tablet-home.tsx`,
+`dashboard-client.tsx`, `src/components/layout/tablet-shell.tsx`. Checks:
+verify-tab2-messages 23/23 (pure), verify-tab1-today 13/13,
+verify-tab1c-due-chip 11/11. Verified locally only on a mocked temporary page
+(no org, no database), since deleted. DECISIONS 2026-11-10 TAB-2 (rulings
+1–8, calls b and d–k) RATIFIED by Gary at this check.
+
+**Rollback.** `git revert 35fb734 ab80e5b` (fix first, then work); no
+migration. The tablet's right column goes back to the desktop Team Messages
+card, and the rail loses its unread badge. MessageRead rows the tablet wrote
+stay. They are the same rows `/messages` writes, so desktop reads them as
+normal.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+The full list is on the ROADMAP TAB-2 row. (1) In Tablet mode as
+indianathomas, the Corporate Update is pinned at the top, the thread shows
+the same messages as the desktop card, and the newest is at the bottom. (2)
+Type and Send: the message appears last in the thread and on desktop's card.
+(3) Tap On it, then double-tap Thanks: each posts to the feed exactly once.
+(4) As Tommy (STORE), post from the tablet: desktop shows Tommy's account as
+the sender. (5) A message from another account appears within 60s and is
+marked read as it renders, so the column count returns to zero. The count
+rises on the rail on another tablet route, and on desktop's card until the
+tablet has rendered the message. (6) In Safari Responsive Design Mode at
+1180×820 and 820×1180, the column fits, portrait stacks it under Tasks, and
+the composer is reachable. (7) On a real iPad, tap the composer: the
+composer stays visible above the keyboard.
+
 ## UNPROMOTED — 2026-11-10 — TAB-1c: Tablet overdue chip characterized; SELF-1 compliance chip on the tablet
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
