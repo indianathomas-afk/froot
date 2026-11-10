@@ -24756,6 +24756,14 @@ phases:
         task?"; the tablet posts as the logged-in account with no name, per
         Gary's ruling 6. Per-person attribution is TAB-4.
     notes: >
+      ── RIDER 2026-11-10, TAB-1c (prepended; nothing below is edited). ──
+      See TAB-1c (1f03674). The overdue chip below was correct; the staging
+      "no chip" reports were an empty due feed (no materialise cron on
+      staging) and the SELF-1 compliance banner, which this row dropped from
+      tablet mode without a ruling. TAB-1c adds a compliance chip to the
+      tablet header and pins the due chip in scripts/verify-tab1c-due-chip.ts.
+      "the full-width banner does not render in tablet mode" below is still
+      true; the tablet now also carries the SELF-1 banner as a chip.
       ── RIDER 2026-11-09, TAB-1b (prepended; nothing below is edited). ──
       The `deferred` entry "THE STAFF-NAME PICKER" above is SPENT, kept:
       ruling 6's premise was wrong (desktop already records a person) and
@@ -24963,6 +24971,87 @@ phases:
       partial · n of N", and desktop shows the checklist submitted as
       partial. (6) Reload. The chip is gone, and the next tick on a new
       checklist asks again.
+
+  - id: TAB-1c
+    track: platform
+    size: S
+    # -> in_progress 2026-11-10 at the work commit 1f03674 (NOT pushed). The
+    # docs SHA is the commit immediately after 1f03674 (its own SHA cannot be
+    # written inside itself). PRE-PUSH-CHECK moves it to staging.
+    # Rollback: `git revert 1f03674`; no migration.
+    status: in_progress
+    title: "Tablet mode — overdue chip characterized; SELF-1 compliance chip on the tablet"
+    commits:
+      - "1f03674"
+      # fix(TAB-1c) — chip rule to src/lib/tablet-due.ts + fixture, ComplianceChip
+      # + the commit immediately after 1f03674: docs(TAB-1c) — this row, TAB-1
+      # rider, DECISIONS DRAFT rider
+    notes: >
+      BUILT 2026-11-10 on staging, NOT pushed. TIER 2. Follows TAB-1 (adec345).
+      Prompt: docs/prompts/TAB-1c.md (untracked until PRE-PUSH-CHECK).
+      Reported: the tablet overdue chip never appears (Tommy at Las Brisas,
+      2026-11-09/10; Gary's repro 2026-11-10 with a Las Brisas reminder dated
+      yesterday).
+      ROOT CAUSE — THE CHIP WAS NOT BROKEN. Two causes, neither in the chip:
+      (1) GARY'S REPRO HAD AN EMPTY FEED. A reminder gets its CalendarOccurrence
+      row only from /api/cron/calendar-materialize (events POST: "NOT
+      MATERIALISED HERE"), and Vercel never fires crons on preview deployments
+      (docs/WORKFLOW.md § 1). So GET /api/calendar/due had nothing for Las
+      Brisas, and the desktop calendar banner would have been empty too. (2)
+      TOMMY'S BANNER WAS SELF-1, NOT THE CALENDAR. "You have 2 items to
+      complete · 2 overdue" is compliance-banner.tsx (his own HR training and
+      documents); the calendar banner reads "N items due · N overdue". TAB-1
+      dropped ComplianceBanner from tablet mode with no ruling (ruling 7
+      covered only the calendar banner), so his overdue training was invisible
+      on the tablet. That was the real regression.
+      DIAGNOSIS POINTS (read, no DB queries): the chip is DueChip in
+      tablet-home.tsx; its only hide is "no feed items for this store"
+      (loading, error and a 404 module-off all resolve to an empty feed). The
+      feed is GET /api/calendar/due with no storeId, fetched once on mount and
+      after a Complete; gated by requireCalendar("calendar.view") (calendar
+      module toggle → 404, capability → 403), store-scoped server-side by
+      resolveStoreScope (ADMIN all, else assignments). Store filter: the item's
+      flat `storeId` (CalendarOccurrence.storeId, a required String) against
+      resolveSingleStore(stores, localStorage) from dashboard-store.ts, both
+      cuid strings; a fan-out reminder is one occurrence per store with its own
+      storeId; an unset localStorage key falls back to the first store, as the
+      desktop dropdown does. Overdue: `dueAt <= now` (CAL-1 ruling 8), the
+      banner's chipsFor() rule exactly, so a reminder past close at 0 days
+      counts. No mismatch on any point; dashboard-store.ts unchanged.
+      FIX. Calendar chip: its filter, count and row wording moved UNCHANGED to
+      src/lib/tablet-due.ts (dueChipFor, dueRowSuffix), pinned by
+      scripts/verify-tab1c-due-chip.ts 11/11 (pure, no DB): store-specific
+      overdue, fan-out reminder, another store's item not counted, due today
+      not yet overdue (listed, counted in "N due", amber, as the banner does),
+      a calendar-generated checklist occurrence, overdue at 0 days.
+      scripts/verify-tab1-today.ts re-run 13/13. Compliance chip (Gary chose
+      this over filing a row, 2026-11-10): ComplianceChip in the tablet header
+      beside the due chip; same endpoint (/api/dashboard/my-compliance), same
+      render rule, wording, colours and /my link as the banner, no dismiss;
+      silent for a device login. DECISIONS: DRAFT rider on the 2026-11-09
+      TAB-1 entry. No schema, no new route, no new dependency; calendar banner
+      and due route untouched.
+      VERIFIED LOCALLY ONLY: a temporary uncommitted page under /menu rendered
+      TabletShell + TabletHome with fetch mocked at 1180×820 and 820×1180 —
+      compliance chip and "3 overdue" for Las Brisas with the other store's
+      two items excluded; sheet listed four items (Complete / Open checklist);
+      Complete dropped it to 2; switching store showed the other store's own
+      "2 overdue". Page deleted. Nothing ran against a database or a
+      signed-in session.
+      STAGING PRECONDITION, NOT IN THE PROMPT'S LIST: tests 1, 2 and 5 need the
+      Las Brisas occurrence to EXIST, so fire calendar-materialize by hand
+      first (Preview CRON_SECRET, docs/WORKFLOW.md § 1). Until that curl, an
+      empty chip is expected and proves nothing.
+      STAGING TESTS (Gary, after push; staging-SHA precondition first) — the
+      prompt's list, unchanged: (1) As indianathomas, with the Las Brisas
+      reminder dated yesterday still open, switch to Tablet and select Las
+      Brisas. The chip shows the same overdue count the desktop banner shows
+      for Las Brisas. (2) Tap the chip. The sheet lists the reminder, and its
+      actions work the same as on desktop. (3) Switch the tablet store to one
+      with no overdue items. The chip disappears. (4) As Tommy (STORE) at Las
+      Brisas in Tablet mode, the chip appears with the same count as Tommy's
+      desktop banner. (5) Complete the reminder from the sheet. The chip count
+      drops, or the chip disappears at zero.
 
   - id: TAB-2
     track: platform

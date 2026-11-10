@@ -7,6 +7,29 @@ decisions too.)
 
 ## 2026-11-09 — TAB-1: Tablet mode — rulings 1–8, the cookie, the today's-checklist rule
 
+**── RIDER 2026-11-10 (TAB-1c) — DRAFT, awaiting Gary's ratification at the
+TAB-1c PRE-PUSH-CHECK. PREPENDED; NOTHING BELOW IS EDITED. ──** Prompt:
+`docs/prompts/TAB-1c.md`. Work commit `1f03674`.
+
+1. **THE SELF-1 COMPLIANCE BANNER COMES TO THE TABLET AS A HEADER CHIP.**
+   Ruling 7 replaced the full-width CALENDAR due banner with the overdue chip.
+   It said nothing about the SELF-1 `ComplianceBanner`, which TAB-1 also
+   dropped from tablet mode, so a person's own overdue training and documents
+   became invisible there. Tommy's "You have 2 items to complete · 2 overdue"
+   was that banner, not the calendar's. **Gary, 2026-11-10:** asked in session
+   whether to add a compliance chip or file a row, he chose the chip. The chip
+   is Claude's design and is what this rider asks to ratify: same endpoint
+   (`/api/dashboard/my-compliance`), same render rule (only when the
+   signed-in person owes something), the banner's words and nearest-due line,
+   red when anything is overdue and amber otherwise, links to `/my`, no
+   dismiss. It sits in the tablet header beside the calendar chip and shows on
+   the tablet home only, as the banner shows on `/dashboard` only.
+2. **NO CHANGE TO THE CALENDAR CHIP'S RULES.** TAB-1c found the chip correct;
+   its filter and count were moved unchanged into `src/lib/tablet-due.ts` and
+   pinned. Due-today items keep the banner's treatment (listed, counted in
+   "N due", amber), so no new rule was needed there. Recorded so the absence
+   of a due-today ruling is read as deliberate.
+
 **RATIFIED BY GARY, 2026-11-09, at the TAB-1b PRE-PUSH-CHECK:** "Ratify as
 written". This covers the whole TAB-1b rider below, items 1–4, including the
 sticky-person design and the Claude details and additions in it (the
