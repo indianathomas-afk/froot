@@ -89,7 +89,9 @@ export type Comms = {
   } | null
 }
 
-function timeAgo(iso: string): string {
+// Exported for the tablet Messages column (TAB-2), so its times read exactly
+// as the desktop card's do.
+export function timeAgo(iso: string): string {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
   if (mins < 1) return "just now"
   if (mins < 60) return `${mins}m ago`

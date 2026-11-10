@@ -17,7 +17,7 @@ import { dueChipFor, dueRowSuffix } from "@/lib/tablet-due"
 import { formatInstant } from "@/lib/display-time"
 import type { OwedSummary } from "@/lib/hr-compliance"
 import { fetchCard } from "./card-fetch"
-import { TeamMessagesCard, type Comms } from "./dashboard-client"
+import { MessagesColumn } from "./tablet-messages"
 import type { TabletChecklist, TabletStore, TabletTask } from "./tablet-data"
 
 /** TAB-1b — one button on the name sheet. `id` is what goes in
@@ -43,6 +43,11 @@ function pickerOptions(store: TabletStore): PickerOption[] {
 // Left: the Tasks panel — Not started / In progress / Done. Right: the existing
 // Team Messages card, unchanged (TAB-2 replaces it). No Sales, Goal or Labor
 // (Gary's ruling 4). Each column scrolls on its own; the page does not.
+// TAB-2, 2026-11-10 — appended; the line above describing the right column is
+// spent. The right column is now the Messages column (./tablet-messages.tsx):
+// Corporate Update pinned, the thread, a composer fixed at the bottom. In
+// portrait it stacks below Tasks. The stat strip moved to TAB-3 (Gary,
+// 2026-11-10).
 //
 // EVERY WRITE IS AN EXISTING ENDPOINT, CALLED THE WAY ITS EXISTING SCREEN CALLS IT:
 //   tick / untick   POST /api/checklists/[id]/task-log   (the execution page)
@@ -126,13 +131,6 @@ export function TabletHome({ stores, checklists }: { stores: TabletStore[]; chec
       .then((rows) => setToday({ storeId, rows }))
   }, [storeId])
 
-  // ── Team Messages (the desktop card's own endpoint) ──
-  const [comms, setComms] = useState<{ storeId: string; data: Comms | null } | null>(null)
-  const loadComms = useCallback(() => {
-    if (!storeId) return
-    fetchCard<Comms>("comms", `/api/dashboard/comms?storeId=${storeId}`).then((data) => setComms({ storeId, data }))
-  }, [storeId])
-
   // ── The due feed behind the calendar banner ──
   const [due, setDue] = useState<DueItem[] | null>(null)
   const loadDue = useCallback((): Promise<void> => {
@@ -144,8 +142,7 @@ export function TabletHome({ stores, checklists }: { stores: TabletStore[]; chec
 
   useEffect(() => {
     void loadToday()
-    loadComms()
-  }, [loadToday, loadComms])
+  }, [loadToday])
   useEffect(() => {
     void loadDue()
   }, [loadDue])
@@ -158,9 +155,6 @@ export function TabletHome({ stores, checklists }: { stores: TabletStore[]; chec
   }, [loadToday, router])
 
   const rows = today && today.storeId === storeId ? today.rows : undefined
-  const commsData = comms && comms.storeId === storeId ? comms.data : null
-  const commsLoading = !!storeId && (comms === null || comms.storeId !== storeId)
-  const commsFailed = !commsLoading && commsData === null
   const checklistsById = useMemo(() => new Map(checklists.map((c) => [c.id, c])), [checklists])
 
   if (!store) {
@@ -212,9 +206,7 @@ export function TabletHome({ stores, checklists }: { stores: TabletStore[]; chec
             onChanged={refresh}
           />
         </section>
-        <section className="min-h-0 overflow-y-auto overscroll-contain rounded-3xl">
-          <TeamMessagesCard loading={commsLoading} failed={commsFailed} onRetry={loadComms} comms={commsData} />
-        </section>
+        <MessagesColumn key={store.id} storeId={store.id} />
       </div>
     </div>
   )

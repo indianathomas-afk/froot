@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
@@ -7,6 +8,8 @@ import { CalendarDays, ClipboardCheck, Home, MessageSquare, Settings } from "luc
 import { cn } from "@/lib/utils"
 import { can, overridesFrom } from "@/lib/permissions"
 import { resolveSingleStore, useSavedStoreId } from "@/lib/dashboard-store"
+import { railBadge } from "@/lib/tablet-messages"
+import { publishUnread, useTabletUnread } from "@/lib/tablet-unread"
 import { ContextHelpButton } from "@/components/help/context-help-button"
 import { ViewSwitch } from "./view-switch"
 
@@ -24,6 +27,14 @@ import { ViewSwitch } from "./view-switch"
 //                still hides it.
 // These are hand-written JSX, not NavItem literals, so
 // scripts/verify-nav1-url-sets.ts (which parses sidebar.tsx only) is unaffected.
+//
+// TAB-2, 2026-11-10 — the Messages icon carries the desktop Team Messages
+// unread count (GET /api/dashboard/comms `teamMessagesPreview.unreadCount`),
+// the same number the tablet Messages column shows. On /dashboard the column
+// reads it and shares it (src/lib/tablet-unread.ts); on any other route but
+// /messages the rail reads it once per navigation, so a feed read on
+// /messages is reflected after leaving it. Hidden on /messages itself. The
+// rail never marks anything read.
 
 export const RAIL_WIDTH = "w-[88px]"
 
@@ -46,6 +57,26 @@ export function TabletShell({
   const savedStoreId = useSavedStoreId()
   const store = resolveSingleStore(stores, savedStoreId)
   const actor = { role, overrides: overridesFrom(deniedCapabilities) }
+  const canMessage = can(actor, "messages.use")
+  const unread = useTabletUnread()
+  const storeId = store?.id ?? null
+
+  useEffect(() => {
+    // /dashboard: the Messages column reads it. /messages: the badge is hidden
+    // and that page is marking the feed read as it loads.
+    if (!canMessage || !storeId || pathname === "/dashboard" || pathname.startsWith("/messages")) return
+    let live = true
+    fetch(`/api/dashboard/comms?storeId=${storeId}`, { signal: AbortSignal.timeout(12_000) })
+      .then((res) => (res.ok ? (res.json() as Promise<{ teamMessagesPreview?: { unreadCount?: number } }>) : null))
+      .then((body) => {
+        const count = body?.teamMessagesPreview?.unreadCount
+        if (live && typeof count === "number") publishUnread(storeId, count)
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [canMessage, storeId, pathname])
 
   const items = [
     { href: "/dashboard", label: "Home", Icon: Home, show: true },
@@ -55,7 +86,7 @@ export function TabletShell({
       Icon: ClipboardCheck,
       show: can(actor, "checklists.view") && !(role === "STAFF" && !staffHasChecklists),
     },
-    { href: "/messages", label: "Messages", Icon: MessageSquare, show: can(actor, "messages.use") },
+    { href: "/messages", label: "Messages", Icon: MessageSquare, show: canMessage },
     { href: "/calendar", label: "Calendar", Icon: CalendarDays, show: can(actor, "calendar.view") && calendarEnabled },
   ].filter((i) => i.show)
 
@@ -79,7 +110,13 @@ export function TabletShell({
         </div>
         <nav className="flex w-full flex-1 flex-col items-center gap-2 px-2">
           {items.map(({ href, label, Icon }) => (
-            <RailLink key={href} href={href} label={label} active={isActive(href)}>
+            <RailLink
+              key={href}
+              href={href}
+              label={label}
+              active={isActive(href)}
+              badge={href === "/messages" ? railBadge(unread, storeId, pathname) : null}
+            >
               <Icon className="h-6 w-6" />
             </RailLink>
           ))}
@@ -116,11 +153,14 @@ function RailLink({
   href,
   label,
   active,
+  badge = null,
   children,
 }: {
   href: string
   label: string
   active: boolean
+  /** TAB-2 — an unread count over the icon; null shows nothing. */
+  badge?: string | null
   children: React.ReactNode
 }) {
   return (
@@ -134,7 +174,17 @@ function RailLink({
           : "text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)] hover:text-[var(--color-foreground)]"
       )}
     >
-      {children}
+      <span className="relative">
+        {children}
+        {badge && (
+          <span
+            data-testid="rail-unread"
+            className="absolute -top-2 -right-3 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-primary)] px-1 text-[11px] font-bold leading-none text-white"
+          >
+            {badge}
+          </span>
+        )}
+      </span>
       {label}
     </Link>
   )
