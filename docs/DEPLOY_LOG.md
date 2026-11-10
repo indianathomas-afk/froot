@@ -2,6 +2,51 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-09 — TAB-1b: Tablet "who completed this" parity with desktop + partial submit
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`9f3c944`; docs commit `2757c9d`; fix commit `2e21b02`; the PRE-PUSH-CHECK
+is the commit immediately after `2e21b02`. TIER 2. No migration, no schema
+change, no new route, no new dependency. Writes go through existing
+endpoints only (POST /api/checklists/[id]/task-log, POST
+/api/checklists/[id]/submit), sent as desktop sends them. Two files:
+`src/app/(app)/dashboard/tablet-data.ts`, `tablet-home.tsx`.
+
+What ships: tablet ticks now record a person, by DESKTOP'S RULE — same
+list ("Team Member", "Manager", then the store's ACTIVE staff by name),
+asked only when the store has staff and required then, same field
+(`completedByStaffId`), untick sends no name. TAB-1 (`adec345`) ticked with
+no person on ruling 6's wrong premise. How the tablet asks: the first tick
+of a checklist opens "Who's completing these?" (two-column touch grid,
+search above 12 names); the pick ticks the item and sticks as a
+"Completing as <name> · Change" chip, React state only, cleared on submit,
+reload, and moving to another checklist. A temperature task with nobody
+chosen shows the name sheet, then the number pad. Partial submit: a
+"Submit partial (n of N)" link while some but not all items are ticked →
+confirm sheet → the same submit request as desktop's Submit Partial → a
+"Partial submitted · n of N" panel with "Unfinished checklists are still
+marked Missed at day close." Day close is UNCHANGED (Gary: "partial submit
+stays at desktop parity — do not change day-close behaviour in TAB-1b.");
+the open question is CHK-18. The TAB-1b DECISIONS rider (2026-11-09 TAB-1
+entry) RATIFIED by Gary at this check. The overdue chip is untouched
+(paused by Gary).
+
+**Rollback.** `git revert 2e21b02 9f3c944`; no migration. Tablet ticks
+then go back to recording no person; task-log rows already written keep
+their `completedByStaffId`. Nothing in the schema changes.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+(1) As Tommy in Tablet mode, open an unstarted checklist and tick one
+item: the name sheet opens; pick a name; the item ticks and the
+"Completing as …" chip appears. (2) Tick two more: no sheet; desktop shows
+that name on all three. (3) Change → a different name → tick one more:
+desktop shows the new name on that item only. (4) Temperature task: the pad
+opens; desktop shows the NAME — no desktop surface shows a saved value
+(CHK-19), so this half-passes by design. (5) "Submit partial" → Keep going
+sends nothing; again → Submit partial: the panel shows "Partial submitted ·
+n of N" and desktop shows the checklist submitted as partial. (6) Reload:
+the chip is gone, and the next tick on a new checklist asks again.
+
 ## UNPROMOTED — 2026-11-09 — TAB-1: Tablet mode (Tablet/Desktop switch, rail shell, touch sizes, Tasks column, explicit Submit)
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit

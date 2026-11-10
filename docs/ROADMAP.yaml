@@ -24850,7 +24850,19 @@ phases:
     # docs SHA is the commit immediately after 9f3c944 (its own SHA cannot be
     # written inside itself). PRE-PUSH-CHECK moves it to staging.
     # Rollback: `git revert 9f3c944`; no migration.
-    status: in_progress
+    # in_progress -> staging 2026-11-09 at the TAB-1b PRE-PUSH-CHECK (the
+    # commit immediately after 2e21b02; its own SHA cannot be written inside
+    # itself). Docs SHA: 2757c9d (row, TAB-1/TAB-4 riders, DECISIONS DRAFT
+    # rider); fix SHA: 2e21b02 (partial panel copy per Gary's ruling, CHK-18 /
+    # BUG-28 / CHK-19 filed). The check committed the prompt of record
+    # docs/prompts/TAB-1b.md and wrote the DEPLOY_LOG UNPROMOTED entry.
+    # DECISIONS 2026-11-09 TAB-1, TAB-1b rider (items 1-4, the sticky person
+    # included) RATIFIED by Gary at this check, "Ratify as written". The notes'
+    # "DECISIONS DRAFT rider" / "untracked until PRE-PUSH-CHECK" are spent,
+    # kept. NOT pushed at writing.
+    # Rollback: `git revert 2e21b02 9f3c944`; no migration (the ROADMAP rows
+    # 2e21b02 filed stay).
+    status: staging
     title: "Tablet mode — \"who completed this\" parity with desktop + partial submit"
     commits:
       - "9f3c944"
@@ -24861,6 +24873,10 @@ phases:
       # + the commit immediately after 2757c9d: fix(TAB-1b) — partial panel
       # copy per Gary's ruling, CHK-18 / BUG-28 / CHK-19 filed, DECISIONS
       # rider updated
+      - "2e21b02"
+      # + the commit immediately after 2e21b02: docs(TAB-1b) PRE-PUSH-CHECK —
+      # DECISIONS rider ratified, prompt of record, DEPLOY_LOG UNPROMOTED
+      # entry, status -> staging
     notes: >
       ── RIDER 2026-11-09, TAB-1b fix (prepended; nothing below is edited). ──
       Gary's ruling on the RULING NOW, verbatim: "partial submit stays at

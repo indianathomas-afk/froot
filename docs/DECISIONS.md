@@ -7,6 +7,13 @@ decisions too.)
 
 ## 2026-11-09 — TAB-1: Tablet mode — rulings 1–8, the cookie, the today's-checklist rule
 
+**RATIFIED BY GARY, 2026-11-09, at the TAB-1b PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole TAB-1b rider below, items 1–4, including the
+sticky-person design and the Claude details and additions in it (the
+12-name search threshold, Change with no tick pending, "Keep working on
+it"); those are now ratified as his. The rider's "DRAFT, awaiting Gary's
+ratification" header is spent, kept. Wording untouched.
+
 **── RIDER 2026-11-09 (TAB-1b) — DRAFT, awaiting Gary's ratification at the
 TAB-1b PRE-PUSH-CHECK. PREPENDED; NOTHING BELOW IS EDITED. ──** Prompt:
 `docs/prompts/TAB-1b.md`. Work commit `9f3c944`.
