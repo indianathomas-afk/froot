@@ -3823,6 +3823,60 @@ phases:
 
   # ---- Inventory ----
 
+  - id: CHK-18
+    track: checklists
+    size: M
+    status: planned
+    title: "Decide what day close does with a partially submitted checklist"
+    notes: >
+      FILED 2026-11-09 by TAB-1b, on Gary's ruling at the TAB-1b report:
+      "partial submit stays at desktop parity — do not change day-close
+      behaviour in TAB-1b." NOT DESIGNED; a product decision first.
+      TODAY: "Submit Partial" (desktop, store-view/checklist/[id]) and
+      "Submit partial" (tablet, TAB-1b) send the same POST
+      /api/checklists/[id]/submit, which recomputes status from the saved
+      task logs — In Progress, or Non-Compliant when a critical task is open —
+      and writes completionRate. Nothing records that the crew SUBMITTED: a
+      partially submitted row and a row nobody filed look the same. Day close
+      then files every row that is not Completed as Missed, Non-Compliant
+      included, recomputing the rate (api/cron/checklist-day-close/route.ts:
+      "Non-Compliant is treated as not-Completed and becomes Missed"). So a
+      partial submit changes nothing about how the day is recorded. The
+      tablet's partial panel says so in words since TAB-1b: "Unfinished
+      checklists are still marked Missed at day close."
+      SCOPE OF THE DECISION — it touches all of these, which is why it is
+      its own row and not a TAB-1b rider: desktop AND tablet submit; the CHK
+      lifecycle (src/lib/checklist-lifecycle.ts — CHK-3/CHK-4's states and
+      Gary's R1 "closed, not actionable"); the Operations Report
+      (src/lib/operations-report.ts buckets by lifecycle state, so a partial
+      is a miss there); and anything else that reads Missed (the Tasks and
+      Communication email, CAL-2 occurrences, which ruling 4 makes a MISS for
+      any partial). Options to weigh when it is designed: keep as is; a
+      "submitted partial" fact on the row (schema — TIER 3); a distinct
+      closed status. Any of them except the first is TIER 3.
+
+  - id: CHK-19
+    track: checklists
+    size: S
+    status: planned
+    title: "Desktop checklist has no temperature entry, although Task.requiresTemp exists"
+    notes: >
+      FILED 2026-11-09 by TAB-1b (audit point 4), on Gary's instruction.
+      Task.requiresTemp is set in the template editor and import/export, and
+      POST /api/checklists/[id]/task-log has accepted temperatureValue since
+      Phase 1. The desktop execution page (store-view/checklist/[id]/
+      checklist-execution-client.tsx) declares requiresTemp on its Task type
+      and never renders it: no input, and it never sends temperatureValue.
+      The only writer of a value is the tablet's number pad (TAB-1). NO
+      SURFACE DISPLAYS A RECORDED VALUE EITHER — only tablet-data.ts reads
+      temperatureValue (for the tablet's own done list); the execution page,
+      the print checklist (print/checklist/[id], which reads requiresTemp)
+      and the reports do not. CONSEQUENCE FOR TAB-1b's STAGING TEST (4): "desktop
+      shows the value and the name" can pass only on the NAME today; the
+      value is saved but nothing on desktop shows it. Scope when built: an
+      entry on desktop that matches the tablet (value + the tick's name), and
+      showing a saved value wherever a tick is reviewed.
+
   - id: I-1
     track: inventory
     size: M-L
@@ -24803,7 +24857,26 @@ phases:
       # feat(TAB-1b) — name sheet, sticky person chip, partial submit
       # + the commit immediately after 9f3c944: docs(TAB-1b) — these rows,
       # DECISIONS DRAFT rider
+      - "2757c9d"
+      # + the commit immediately after 2757c9d: fix(TAB-1b) — partial panel
+      # copy per Gary's ruling, CHK-18 / BUG-28 / CHK-19 filed, DECISIONS
+      # rider updated
     notes: >
+      ── RIDER 2026-11-09, TAB-1b fix (prepended; nothing below is edited). ──
+      Gary's ruling on the RULING NOW, verbatim: "partial submit stays at
+      desktop parity — do not change day-close behaviour in TAB-1b." The
+      partial panel now reads "Partial submitted · n of N" with the second
+      line "Unfinished checklists are still marked Missed at day close." The
+      "Submitted partial" wording below (the build note, the verification
+      line, and staging test 5) describes 9f3c944 and is spent, kept; test 5
+      now expects "Partial submitted · n of N". "Raised for Gary at
+      PRE-PUSH-CHECK" below is answered: day close is unchanged, and the
+      decision is filed as CHK-18. Also filed on Gary's instruction: BUG-28
+      (desktop submit never checks the response) and CHK-19 (desktop has no
+      temperature entry). STAGING TEST (4) WILL HALF-PASS: desktop shows the
+      NAME on a temperature tick, but no desktop surface displays a saved
+      temperatureValue at all (CHK-19), so "desktop shows the value" cannot
+      pass on this code.
       BUILT 2026-11-09 on staging, NOT pushed. TIER 2. Follows TAB-1
       (adec345, c83a5c3, check 9a4d607). Prompt: docs/prompts/TAB-1b.md
       (untracked until PRE-PUSH-CHECK). Staging testing on 2026-11-09 found two
@@ -27679,6 +27752,23 @@ bugs:
       selected". Table view was not checked in a browser; the fixture covers
       it. Production (Gary, verbatim): "Ready, not looked" — e647573 went
       Ready; neither Archived tab was looked at on www.usefroot.com.
+
+  - id: BUG-28
+    status: planned
+    title: "Desktop checklist submit never checks the response"
+    notes: >
+      FILED 2026-11-09 by TAB-1b (audit point 3), on Gary's instruction.
+      handleSubmit in store-view/checklist/[id]/checklist-execution-client.tsx
+      awaits POST /api/checklists/[id]/submit and then router.push
+      ("/store-view") WITHOUT READING res.ok OR THE STATUS. So a 409 (the
+      day has closed, or a CAL-2 occurrence is already submitted), a 403 or
+      a 500 navigates away as if it had worked, and the crew is never told.
+      A dropped connection throws inside the try/finally: no navigation, no
+      message, the button simply re-enables. The same file's task-log write
+      was fixed for exactly this in CHK-7 ("Silent refusal was half this
+      bug"); submit was not. The tablet does check (c83a5c3 for Submit,
+      TAB-1b for Submit partial): error shown, button or sheet kept. Fix is
+      desktop-only and copies that rule.
 
 # COST OF DOING NOTHING — THE DEFINITION, so nobody re-derives a different one.
 # Ruled by Gary 2026-08-02, applied by DEBT-TRIAGE-2 to every open row below.

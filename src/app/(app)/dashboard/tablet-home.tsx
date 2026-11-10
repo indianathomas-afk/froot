@@ -924,7 +924,6 @@ function DonePanel({
   const finished = checklist.completedAt ? formatWindowTime(new Date(checklist.completedAt), timeZone) : null
   const nextDueNow = upNext && (upNext.lifecycleState === "active" || upNext.lifecycleState === "overdue")
   const nextDue = upNext ? dueLabel(upNext) : null
-  const unfinished = partial ? partial.total - partial.done : 0
 
   return (
     <div
@@ -945,11 +944,13 @@ function DonePanel({
       </span>
       <div>
         <h2 className="text-4xl font-extrabold text-[var(--color-foreground)]">
-          {partial ? `Submitted partial · ${partial.done} of ${partial.total}` : `${checklist.name} done`}
+          {partial ? `Partial submitted · ${partial.done} of ${partial.total}` : `${checklist.name} done`}
         </h2>
         <p className="mt-2 text-xl text-[var(--color-muted-foreground)]">
+          {/* Gary, 2026-11-09: partial submit stays at desktop parity, and day
+              close still files any unfinished checklist Missed — so say so. */}
           {partial
-            ? `${checklist.name} · ${unfinished} ${unfinished === 1 ? "task" : "tasks"} left unfinished`
+            ? "Unfinished checklists are still marked Missed at day close."
             : `All ${all.length} tasks checked off${finished ? ` · finished ${finished}` : ""}`}
         </p>
       </div>

@@ -33,21 +33,29 @@ TAB-1b PRE-PUSH-CHECK. PREPENDED; NOTHING BELOW IS EDITED. ──** Prompt:
    chosen shows the name sheet, then the number pad. Claude details inside
    it: the search threshold (12 names) and that Change with no tick pending
    only switches the person.
-3. **Partial submit (Gary's words to be added at PRE-PUSH-CHECK).** A
-   "Submit partial (n of N)" text link shows while some but not all items are
-   ticked. It opens a confirm sheet, "Submit with M tasks unfinished?", whose
-   Submit partial button sends the same `POST /api/checklists/[id]/submit`
-   desktop's "Submit Partial" sends (desktop sends it with no confirm). An
-   answer of In Progress or Non-Compliant shows a calm "Submitted partial ·
-   n of N" panel; Completed (finished on another device) shows the normal
-   Done panel; anything else, or a failed request, shows the error and keeps
-   the sheet open — c83a5c3's rule. Claude additions: a "Keep working on it"
-   button on the partial panel, so the crew can tick more without reloading.
-   **For Gary, not yet decided:** a partial submit does not keep the row out
-   of Missed. Day close files every row that is not Completed as Missed,
-   Non-Compliant included (`api/cron/checklist-day-close/route.ts`), so the
-   partial submit records the status and rate now and day close still closes
-   the row as Missed. That is also what desktop's Submit Partial does today.
+3. **Partial submit — stays at desktop parity.** **Gary, 2026-11-09,
+   verbatim:** "partial submit stays at desktop parity — do not change
+   day-close behaviour in TAB-1b." A "Submit partial (n of N)" text link
+   shows while some but not all items are ticked. It opens a confirm sheet,
+   "Submit with M tasks unfinished?", whose Submit partial button sends the
+   same `POST /api/checklists/[id]/submit` desktop's "Submit Partial" sends
+   (desktop sends it with no confirm). An answer of In Progress or
+   Non-Compliant shows a calm panel reading **"Partial submitted · n of N"**
+   with the second line **"Unfinished checklists are still marked Missed at
+   day close."** (Gary's copy, same message). Completed (finished on another
+   device) shows the normal Done panel; anything else, or a failed request,
+   shows the error and keeps the sheet open — c83a5c3's rule. Claude
+   addition: a "Keep working on it" button on the partial panel, so the crew
+   can tick more without reloading. Why the second line: day close files
+   every row that is not Completed as Missed, Non-Compliant included
+   (`api/cron/checklist-day-close/route.ts`), so a partial submit records the
+   status and rate and the row is still closed as Missed. Desktop's Submit
+   Partial behaves the same. What day close SHOULD do with a partially
+   submitted checklist is filed as **CHK-18** and is not decided here.
+   Two neighbouring gaps found by the audit are filed on Gary's instruction
+   and left alone here: **BUG-28** (desktop submit never checks the response)
+   and **CHK-19** (desktop has no temperature entry although
+   `Task.requiresTemp` exists, and no desktop surface shows a saved value).
 4. **The overdue chip is paused per Gary, 2026-11-09** — he could not
    reproduce the reported problem. TAB-1b does not touch it.
 
