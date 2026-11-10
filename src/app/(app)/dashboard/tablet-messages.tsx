@@ -18,6 +18,7 @@ import {
   postBody,
   unreadBadge,
   withPosted,
+  TABLET_REFRESH_MS,
 } from "@/lib/tablet-messages"
 import { publishUnread } from "@/lib/tablet-unread"
 import { fetchCard } from "./card-fetch"
@@ -57,7 +58,9 @@ import { timeAgo, type Comms } from "./dashboard-client"
 //     again (visibilitychange / focus); never while hidden or while a send is
 //     in flight.
 
-const REFRESH_MS = 60_000
+// TAB-3: the one definition now lives in src/lib/tablet-messages.ts, shared
+// with the stat strip so the two can't drift (the DEBT-32 shape).
+const REFRESH_MS = TABLET_REFRESH_MS
 
 export function MessagesColumn({ storeId }: { storeId: string }) {
   // ── Pinned Corporate Update + unread count (the desktop card's endpoint) ──

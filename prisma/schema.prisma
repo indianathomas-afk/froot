@@ -170,6 +170,14 @@ model Organization {
   // NULL means "use the default", so every existing org needs no backfill).
   // An item's own servingFlOz (NutritionItemServing) beats it.
   nutritionServingFlOz    Float?
+  // TAB-3 (Gary, 2026-11-10, rulings 2–4). The ADMIN's card picker, one layout
+  // per org: an ordered array of { key, enabled }. NULL = Froot's defaults, so
+  // every existing org needs no backfill and nothing changes until an ADMIN
+  // edits; "Reset to defaults" writes NULL back. The registry, the merge rule
+  // and the validation live in src/lib/display-layout.ts — never read these
+  // raw, always through resolveLayout().
+  dashboardLayout         Json?
+  tabletLayout            Json?
   createdAt               DateTime  @default(now())
 
   stores                        Store[]

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { ChevronLeft, ChevronRight, ClipboardList, Megaphone, StickyNote } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -18,6 +18,9 @@ import { RollupView } from "./rollup-view"
 import { ALL_STORES, saveStoreId, useSavedStoreId } from "@/lib/dashboard-store"
 import { LaborNotes, LaborPctLine } from "./labor-pct"
 import type { LaborBlock } from "@/lib/labor-judgment"
+import { dashboardSpan, enabledKeys, packRows } from "@/lib/display-layout"
+
+const DEFAULT_DASHBOARD_KEYS = enabledKeys("dashboard", null)
 
 // ─── Types (mirror /api/dashboard/summary) ────────────────────────────────────
 
@@ -150,6 +153,7 @@ export function DashboardClient({
   laborEnabled = false,
   canViewForecasting = false,
   canViewChecklists = false,
+  layoutKeys = DEFAULT_DASHBOARD_KEYS,
 }: {
   stores: { id: string; name: string; location: string; headerDate: string }[]
   rollupHeaderDate: string
@@ -162,6 +166,10 @@ export function DashboardClient({
   // canViewForecasting — a caller that forgets to pass it hides the button
   // rather than showing a door that redirects.
   canViewChecklists?: boolean
+  // TAB-3: the org's enabled dashboard cards in order (enabledKeys() in
+  // page.tsx). Defaults to Froot's defaults, so a caller that forgets it
+  // renders exactly the pre-TAB-3 dashboard.
+  layoutKeys?: string[]
 }) {
   const savedStoreId = useSavedStoreId()
   const storeId =
@@ -274,6 +282,106 @@ export function DashboardClient({
   // Frozen at page load, as the old useMemo([]) was.
   const headerDate = isRollup ? rollupHeaderDate : store?.headerDate ?? ""
 
+  // TAB-3 — the ADMIN's enabled cards, in order, MINUS what this viewer could
+  // never see. These are the gates this file already applied, unchanged:
+  // laborEnabled (page.tsx: env availability + the org's labor module) and a
+  // non-empty countRecency (inventory module + inventory.analytics.view).
+  // Every other gate lives inside the card or its route and still fires there.
+  // Filtering BEFORE packing is what keeps a labor-less org's rows identical
+  // to today's (no empty labor row). Runtime collapses — Corporate Update with
+  // no active update, handoff notes all acknowledged — are NOT filtered: they
+  // hold their slot and render nothing, exactly as before.
+  const visibleKeys = layoutKeys.filter((k) => {
+    if (k === "labor-coverage" || k === "labor-budget") return laborEnabled
+    if (k === "inventory-count") return countRecency.length > 0
+    return true
+  })
+  const rows = packRows(visibleKeys, dashboardSpan)
+
+  // One slot per card key. Each wrapper className is the string the
+  // hard-coded rows used, so a card keeps its width wherever it is placed.
+  function slot(key: string) {
+    switch (key) {
+      case "sales-performance":
+        return (
+          <div className="flex-[2] min-w-[320px] md:min-w-[420px]">
+            <SalesPerformanceCard storeId={storeId} />
+          </div>
+        )
+      case "monthly-goal":
+        return (
+          <div className="flex-1 min-w-[260px]">
+            <MonthlyGoalCard loading={loading} failed={summaryFailed} onRetry={retrySummary} summary={current} onSaved={loadSummary} canViewForecasting={canViewForecasting} />
+          </div>
+        )
+      // Coverage was placed directly beneath Sales (aligned hourly axes) and
+      // the Budget hero beneath Monthly Goal; the default order keeps that.
+      case "labor-coverage":
+        return (
+          <div className="flex-[2] min-w-[320px] md:min-w-[420px]">
+            <LaborCoverageCard storeId={storeId} />
+          </div>
+        )
+      case "labor-budget":
+        return (
+          <div className="flex-1 min-w-[260px]">
+            <LaborBudgetCard storeId={storeId} />
+          </div>
+        )
+      case "team-messages":
+        return (
+          <div className="flex-1 min-w-[280px]">
+            <TeamMessagesCard loading={commsLoading} failed={commsFailed} onRetry={retryComms} comms={comms} />
+          </div>
+        )
+      case "corporate-update":
+        // The corporate box collapses entirely when no update is active.
+        return (commsLoading || comms?.corporateUpdate) ? (
+          <div className="flex-1 min-w-[280px]">
+            <CorporateUpdateCard loading={commsLoading} update={comms?.corporateUpdate ?? null} />
+          </div>
+        ) : null
+      case "shift-checklist":
+        // TAB-3 F2: handoff notes ride in this slot, stacked above the
+        // checklist, and collapse to nothing once every note is acknowledged.
+        return (
+          <div className="flex-1 min-w-[280px] space-y-4">
+            <ShiftNotesCard
+              notes={comms?.shiftNotes ?? []}
+              onAcknowledged={(id) =>
+                setCommsRes((prev) =>
+                  prev?.data
+                    ? { ...prev, data: { ...prev.data, shiftNotes: prev.data.shiftNotes.filter((n) => n.id !== id) } }
+                    : prev
+                )
+              }
+            />
+            <ShiftChecklistCard
+              loading={loading}
+              failed={summaryFailed}
+              onRetry={retrySummary}
+              summary={current}
+              checkedOverride={checkedOverride}
+              onToggle={(id) =>
+                setCheckedOverride((prev) => {
+                  const item = current?.checklist.items.find((i) => i.id === id)
+                  const base = item?.checked ?? false
+                  const cur = prev[id] ?? base
+                  return { ...prev, [id]: !cur }
+                })
+              }
+            />
+          </div>
+        )
+      case "instagram":
+        return <InstagramStrip />
+      case "inventory-count":
+        return <InventoryCountSection countRecency={countRecency} />
+      default:
+        return null
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Page header */}
@@ -317,105 +425,60 @@ export function DashboardClient({
       </div>
 
       {isRollup ? (
-        /* All-locations rollup: company totals + store ranking (F-4) */
-        <RollupView canViewForecasting={canViewForecasting} />
-      ) : (
         <>
-          {/* Sales row: Performance (2) + Monthly Goal (1). */}
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-[2] min-w-[320px] md:min-w-[420px]">
-              <SalesPerformanceCard storeId={storeId} />
-            </div>
-            <div className="flex-1 min-w-[260px]">
-              <MonthlyGoalCard loading={loading} failed={summaryFailed} onRetry={retrySummary} summary={current} onSaved={loadSummary} canViewForecasting={canViewForecasting} />
-            </div>
-          </div>
-
-          {/* Labor row (both gates): its own row — NOT stacked inside the
-              sales-row columns, whose h-full cards would push these below and
-              hide them. Same column widths so Coverage sits directly beneath
-              Sales (aligned hourly axes) and the Budget hero beneath Monthly Goal. */}
-          {laborEnabled && (
-            <div className="flex flex-wrap gap-4">
-              <div className="flex-[2] min-w-[320px] md:min-w-[420px]">
-                <LaborCoverageCard storeId={storeId} />
-              </div>
-              <div className="flex-1 min-w-[260px]">
-                <LaborBudgetCard storeId={storeId} />
-              </div>
-            </div>
-          )}
-
-          {/* Three equal cards */}
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[280px]">
-              <TeamMessagesCard loading={commsLoading} failed={commsFailed} onRetry={retryComms} comms={comms} />
-            </div>
-            {/* The corporate box collapses entirely when no update is active */}
-            {(commsLoading || comms?.corporateUpdate) && (
-              <div className="flex-1 min-w-[280px]">
-                <CorporateUpdateCard loading={commsLoading} update={comms?.corporateUpdate ?? null} />
-              </div>
-            )}
-            <div className="flex-1 min-w-[280px] space-y-4">
-              {/* Unacknowledged handoff notes sit above the checklist box and
-                  collapse to nothing once every note is acknowledged. */}
-              <ShiftNotesCard
-                notes={comms?.shiftNotes ?? []}
-                onAcknowledged={(id) =>
-                  setCommsRes((prev) =>
-                    prev?.data
-                      ? { ...prev, data: { ...prev.data, shiftNotes: prev.data.shiftNotes.filter((n) => n.id !== id) } }
-                      : prev
-                  )
-                }
-              />
-              <ShiftChecklistCard
-                loading={loading}
-                failed={summaryFailed}
-                onRetry={retrySummary}
-                summary={current}
-                checkedOverride={checkedOverride}
-                onToggle={(id) =>
-                  setCheckedOverride((prev) => {
-                    const item = current?.checklist.items.find((i) => i.id === id)
-                    const base = item?.checked ?? false
-                    const cur = prev[id] ?? base
-                    return { ...prev, [id]: !cur }
-                  })
-                }
-              />
-            </div>
-          </div>
-
-          {/* Instagram strip */}
-          <InstagramStrip />
+          {/* All-locations rollup: company totals + store ranking (F-4). TAB-3
+              F3: the layout does not reach the rollup; only the count section,
+              which has always rendered below it, follows its toggle here. */}
+          <RollupView canViewForecasting={canViewForecasting} />
+          {visibleKeys.includes("inventory-count") && <InventoryCountSection countRecency={countRecency} />}
         </>
+      ) : (
+        /* TAB-3 — the ADMIN's order, packed into rows (src/lib/display-layout.ts
+           packRows). A NULL layout packs to exactly the rows this file used to
+           hard-code — [Sales, Goal] [Coverage, Budget] [Messages, Corporate,
+           Checklist] then Instagram and the count section bare — with every
+           wrapper class unchanged (slot() below). Rows are never nested: the
+           labor row once hid inside the sales-row columns, whose h-full cards
+           pushed it out of sight. */
+        rows.map((row) =>
+          row.kind === "full" ? (
+            <Fragment key={row.key}>{slot(row.key)}</Fragment>
+          ) : (
+            <div key={row.keys[0]} className="flex flex-wrap gap-4">
+              {row.keys.map((key) => (
+                <Fragment key={key}>{slot(key)}</Fragment>
+              ))}
+            </div>
+          )
+        )
       )}
+    </div>
+  )
+}
 
-      {/* Days since last count (kept from I-4) */}
-      {countRecency.length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold text-[var(--color-foreground)] mb-2">Days since last inventory count</h2>
-          <div className="flex flex-wrap gap-3">
-            {countRecency.map(({ storeId: sid, storeName, days }) => (
-              <Link key={sid} href="/inventory/counts" className="flex-1 min-w-[160px]">
-                <Card className="hover:shadow-md transition-shadow h-full">
-                  <CardContent className="p-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-[var(--color-muted-foreground)] truncate">{storeName}</p>
-                      <p className="text-lg font-bold text-[var(--color-foreground)]">
-                        {days === null ? "Never" : days === 0 ? "Today" : `${days}d`}
-                      </p>
-                    </div>
-                    <ClipboardList className="h-4 w-4 text-[var(--color-muted-foreground)]" />
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
+// ─── Days since last count (kept from I-4) ────────────────────────────────────
+
+function InventoryCountSection({ countRecency }: { countRecency: { storeId: string; storeName: string; days: number | null }[] }) {
+  return (
+    <div>
+      <h2 className="text-sm font-semibold text-[var(--color-foreground)] mb-2">Days since last inventory count</h2>
+      <div className="flex flex-wrap gap-3">
+        {countRecency.map(({ storeId: sid, storeName, days }) => (
+          <Link key={sid} href="/inventory/counts" className="flex-1 min-w-[160px]">
+            <Card className="hover:shadow-md transition-shadow h-full">
+              <CardContent className="p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-[var(--color-muted-foreground)] truncate">{storeName}</p>
+                  <p className="text-lg font-bold text-[var(--color-foreground)]">
+                    {days === null ? "Never" : days === 0 ? "Today" : `${days}d`}
+                  </p>
+                </div>
+                <ClipboardList className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
     </div>
   )
 }

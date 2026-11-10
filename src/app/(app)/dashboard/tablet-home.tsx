@@ -17,6 +17,7 @@ import { dueChipFor, dueRowSuffix } from "@/lib/tablet-due"
 import { formatInstant } from "@/lib/display-time"
 import type { OwedSummary } from "@/lib/hr-compliance"
 import { fetchCard } from "./card-fetch"
+import { StatStrip } from "./tablet-strip"
 import { MessagesColumn } from "./tablet-messages"
 import type { TabletChecklist, TabletStore, TabletTask } from "./tablet-data"
 
@@ -113,7 +114,18 @@ async function readError(res: Response): Promise<string | null> {
   }
 }
 
-export function TabletHome({ stores, checklists }: { stores: TabletStore[]; checklists: TabletChecklist[] }) {
+export function TabletHome({
+  stores,
+  checklists,
+  stripTiles = [],
+}: {
+  stores: TabletStore[]
+  checklists: TabletChecklist[]
+  /** TAB-3 — the stat strip's enabled tiles in the ADMIN's order (stripTileKeys
+   *  in page.tsx). Empty — the default — renders no strip and leaves this
+   *  layout byte-identical to TAB-2b's. */
+  stripTiles?: string[]
+}) {
   const router = useRouter()
   const savedStoreId = useSavedStoreId()
   const store = resolveSingleStore(stores, savedStoreId)
@@ -195,21 +207,40 @@ export function TabletHome({ stores, checklists }: { stores: TabletStore[]; chec
         </div>
       </header>
 
-      <div className="grid min-h-0 gap-4 landscape:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] portrait:grid-rows-[minmax(0,3fr)_minmax(0,2fr)]">
+      {/* TAB-3 — the stat strip, below both columns (ruling 4). With no tile
+          enabled (the default) the columns render exactly as in TAB-2b. With
+          tiles enabled, columns and strip share a flex column: a flex gap only
+          falls BETWEEN rendered children, so when no tile is visible to this
+          viewer StatStrip renders null and leaves no strip container and no
+          gap (Gary, 2026-11-10). Each tile still asks its own gate. */}
+      {stripTiles.length > 0 ? (
+        <div className="flex min-h-0 flex-col gap-4">
+          {columns("min-h-0 flex-1")}
+          <StatStrip key={store.id} storeId={store.id} tiles={stripTiles} />
+        </div>
+      ) : (
+        columns("min-h-0")
+      )}
+    </div>
+  )
+
+  function columns(sizing: string) {
+    return (
+      <div className={`grid ${sizing} gap-4 landscape:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] portrait:grid-rows-[minmax(0,3fr)_minmax(0,2fr)]`}>
         <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)]">
           <TasksPanel
-            key={store.id}
-            store={store}
+            key={store!.id}
+            store={store!}
             rows={rows}
             checklistsById={checklistsById}
             onRetry={() => void loadToday()}
             onChanged={refresh}
           />
         </section>
-        <MessagesColumn key={store.id} storeId={store.id} />
+        <MessagesColumn key={store!.id} storeId={store!.id} />
       </div>
-    </div>
-  )
+    )
+  }
 }
 
 // ─── Tasks panel ──────────────────────────────────────────────────────────────

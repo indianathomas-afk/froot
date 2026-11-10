@@ -11,6 +11,7 @@ import { CalendarDueBanner } from "@/components/calendar-due-banner"
 import { getViewMode } from "@/lib/view-mode-server"
 import { loadTabletData } from "./tablet-data"
 import { TabletHome } from "./tablet-home"
+import { enabledKeys, stripTileKeys } from "@/lib/display-layout"
 
 // Store Dashboard (Phase D-1) — the landing page after login. Layout and
 // styling follow froot_docs/dashboard-design/ (README.md is the spec).
@@ -101,7 +102,18 @@ async function getDashboardData() {
       })) > 0
   }
 
-  return { orgId: org.id, stores, countRecency, laborEnabled, canViewForecasting, canViewChecklists }
+  // TAB-3: the org's card picker. Raw JSON here; enabledKeys()/stripTileKeys()
+  // below apply the merge rule (src/lib/display-layout.ts). NULL = today.
+  return {
+    orgId: org.id,
+    stores,
+    countRecency,
+    laborEnabled,
+    canViewForecasting,
+    canViewChecklists,
+    dashboardLayout: org.dashboardLayout,
+    tabletLayout: org.tabletLayout,
+  }
 }
 
 export default async function DashboardPage() {
@@ -116,7 +128,9 @@ export default async function DashboardPage() {
   // (ruling 7). Desktop below is unchanged.
   if ((await getViewMode()) === "tablet") {
     const tablet = await loadTabletData(data.orgId, stores)
-    return <TabletHome stores={tablet.stores} checklists={tablet.checklists} />
+    // TAB-3: the stat strip's tiles, in the ADMIN's order (all off by default).
+    // Per-viewer gates are the summary payload's, applied in the strip.
+    return <TabletHome stores={tablet.stores} checklists={tablet.checklists} stripTiles={stripTileKeys(data.tabletLayout)} />
   }
 
   // BUG-15. The header date is formatted HERE, in each store's own zone, and
@@ -150,6 +164,7 @@ export default async function DashboardPage() {
         laborEnabled={laborEnabled}
         canViewForecasting={canViewForecasting}
         canViewChecklists={canViewChecklists}
+        layoutKeys={enabledKeys("dashboard", data.dashboardLayout)}
       />
       <BuildInfo />
     </>

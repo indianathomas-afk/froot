@@ -92,6 +92,10 @@ export function markReadUpTo(thread: Stamped[], lastMarked: string | null): stri
   return newest
 }
 
+/** Ruling 8: the live-refresh cadence. TAB-3: shared by the Messages column
+ *  and the stat strip, so both refresh on the same visibility-aware timer. */
+export const TABLET_REFRESH_MS = 60_000
+
 /** Ruling 8: refetch only while the page is visible and no send is in flight. */
 export function canRefresh(visibilityState: string, sending: boolean): boolean {
   return visibilityState === "visible" && !sending
