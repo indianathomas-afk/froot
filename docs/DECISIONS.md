@@ -7,6 +7,17 @@ decisions too.)
 
 ## 2026-11-10 — TAB-3: Display settings — the Dashboard and Tablet card picker, rulings 1–8 — DRAFT
 
+**RATIFIED BY GARY, 2026-11-10, at the TAB-3 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: rulings 1–8, audit forks F1–F9
+(F6 as he refined it), his strip ruling (c′), the storage choice, the merge
+rule, the validation rules, and Claude's judgement calls a–g, which are now
+ratified as his. Call (c′)'s departure from § Design System's skeleton rule
+(no loading skeleton on the stat strip) is ratified with it. The heading's
+"DRAFT", the "DRAFT, awaiting Gary's ratification" line, "for ratification"
+and "(both untracked until PRE-PUSH-CHECK)" are spent, kept; the prompts of
+record `docs/prompts/TAB-3.md` and `docs/prompts/TAB-3_AUDIT.md` are
+committed at this check. Wording untouched.
+
 **DRAFT, awaiting Gary's ratification at the TAB-3 PRE-PUSH-CHECK.** Prompt
 of record: `docs/prompts/TAB-3.md`; audit: `docs/prompts/TAB-3_AUDIT.md` (both
 untracked until PRE-PUSH-CHECK). Work commit: c38d998. Migration

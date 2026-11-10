@@ -25325,7 +25325,17 @@ phases:
     # Migration 20261110200000_tab3_display_layouts (two nullable JSONB
     # columns on Organization), applied to dev by Gary before the work commit.
     # Rollback: `git revert c38d998`; the columns stay (additive only).
-    status: in_progress
+    # in_progress -> staging 2026-11-10 at the TAB-3 PRE-PUSH-CHECK (the
+    # commit immediately after d09aa17; its own SHA cannot be written inside
+    # itself). Docs SHA: d09aa17 (this row, TAB-6 ROW, TAB-1 rider, DECISIONS
+    # DRAFT, MIGRATIONS entry). The check committed the prompts of record
+    # docs/prompts/TAB-3.md and docs/prompts/TAB-3_AUDIT.md and wrote the
+    # DEPLOY_LOG UNPROMOTED entry. DECISIONS 2026-11-10 TAB-3 (rulings 1–8,
+    # F1–F9 with F6 as refined, c′, calls a–g) RATIFIED by Gary at this check,
+    # "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" is spent,
+    # kept. Migration owed on staging at the Vercel build on Gary's push;
+    # production at promotion. NOT pushed at writing.
+    status: staging
     title: "Tablet mode — Settings card picker (one layout per org, schema)"
     commits:
       - "c38d998"
@@ -25334,6 +25344,10 @@ phases:
       # follows dashboardLayout, tablet stat strip, migration, fixture
       # + the commit immediately after c38d998: docs(TAB-3) — this row, the
       # TAB-6 ROW, the TAB-1 rider, DECISIONS DRAFT, MIGRATIONS entry
+      - "d09aa17"
+      # + the commit immediately after d09aa17: docs(TAB-3) PRE-PUSH-CHECK —
+      # DECISIONS ratified, prompts of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
     notes: >
       ── RIDER 2026-11-10, TAB-3 build (prepended; nothing below is edited). ──
       BUILT, not yet checked on staging.

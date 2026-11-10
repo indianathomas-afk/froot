@@ -2,6 +2,75 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-10 — TAB-3: Display settings — Dashboard and Tablet card picker, tablet stat strip
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`c38d998`; docs commit `d09aa17`; the PRE-PUSH-CHECK is the commit
+immediately after `d09aa17`. TIER 3. **One migration**
+(`20261110200000_tab3_display_layouts`), one new route
+(`PUT /api/display/settings`), no new dependency (`@dnd-kit` was already in
+the repo). Tablet mode is not promoted until the series through TAB-3 is done
+(Gary, 2026-11-10). DECISIONS 2026-11-10 TAB-3 RATIFIED by Gary at this check.
+
+**Migration.** Two nullable JSONB columns, `Organization.dashboardLayout` and
+`Organization.tabletLayout`; additive only, no default, no backfill. NULL means
+today's defaults, so every existing org renders exactly as before until an
+ADMIN edits. Dev `br-broad-wave-a6vpjdw0` applied 2026-11-10 18:14:08 UTC
+(Gary). Staging `br-square-feather-a63z92vz` gets it from the Vercel build on
+Gary's push; production at promotion. **Blast radius:** every
+`prisma.organization` read without a `select` now selects both columns, so on
+a branch the migration has not reached nearly every page fails. The Vercel
+build applies it before the new code serves. Details: `docs/MIGRATIONS.md`.
+
+What ships: `/settings/display` (ADMIN only, `settings.access`; link card on
+the `/settings` Integrations tab after Message Center), with Dashboard and
+Tablet tabs. Each row has a toggle, 44px up/down arrows and a drag handle;
+locked tablet rows (Tasks, Messages) show a lock. "Reset to defaults" asks
+first and stores NULL. `PUT /api/display/settings` re-checks ADMIN, validates
+with Zod and `validateLayout()`, refuses unknown keys, partial lists, Tasks or
+Messages off, and a desktop layout with none of Sales performance, Monthly
+goal, Team messages or Shift checklist on (F6 as refined), and stores the
+normalised list. The desktop dashboard packs the enabled cards into rows of 3
+width units with today's wrapper classes; a NULL layout gives today's rows
+exactly. The tablet gains a stat strip below the columns (Sales today,
+Monthly goal %, month-to-date Labor %), all off by default, read from
+`GET /api/dashboard/summary`, each gated by that payload, on the Messages
+column's 60 s visibility-aware timer. No strip container and no gap when no
+tile is visible to the viewer, and therefore no loading skeleton (Gary's
+ruling c′).
+
+Files: new `prisma/migrations/20261110200000_tab3_display_layouts/`,
+`src/lib/display-layout.ts`, `src/app/api/display/settings/route.ts`,
+`src/app/(app)/settings/display/` (page + client),
+`src/app/(app)/dashboard/tablet-strip.tsx`, `scripts/verify-tab3-layout.ts`;
+edited `prisma/schema.prisma`, `src/app/(app)/settings/page.tsx`,
+`src/app/(app)/dashboard/{page,dashboard-client,tablet-home,tablet-messages}.tsx`,
+`src/lib/tablet-messages.ts` (`TABLET_REFRESH_MS` now shared). Checks:
+verify-tab3-layout 28/28 (part 7 on the applied schema, dev
+`br-broad-wave-a6vpjdw0`, rolled back), verify-tab1-today 13/13,
+verify-tab1c-due-chip 11/11, verify-tab2-messages 23/23; scoped eslint and
+`npm run build` green. UI verified locally only on a mocked temporary page,
+since deleted.
+
+**Rollback.** `git revert c38d998`. The columns STAY on every branch
+(additive-only schema); the reverted code stops reading them, the desktop
+dashboard returns to its fixed order, the tablet loses the strip, and
+`/settings/display` and its route are gone. Any layouts ADMINs saved sit
+unread in the columns, harmless, and come back if the work is re-applied.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+(0) Neon console, staging: `_prisma_migrations` has
+`20261110200000_tab3_display_layouts` with a `finished_at`. (1) As ADMIN,
+Settings → Integrations → Display opens with Dashboard and Tablet tabs; as a
+non-ADMIN there is no way in. (2) Dashboard tab: turn a card off and move
+another; Save; the desktop dashboard follows. (3) Turn off all four of Sales
+performance, Monthly goal, Team messages and Shift checklist: Save is refused
+with the "Keep at least one…" message. (4) Reset to defaults asks first, then
+the dashboard is back to today's layout. (5) Tablet tab: Tasks and Messages
+show locked; turn on Sales, Goal and Labor % and reorder them; the tablet
+shows the strip below the columns in that order. (6) Turn all three off: no
+strip and no gap below the columns.
+
 ## UNPROMOTED — 2026-11-10 — TAB-2b: Tablet mode — no floating help button over Send; Help moves to the rail
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
