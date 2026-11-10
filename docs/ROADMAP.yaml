@@ -25430,7 +25430,20 @@ phases:
     # pushed). The docs SHA is the commit immediately after ab29d62 (its own
     # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
     # No migration. Rollback: `git revert ab29d62`.
-    status: in_progress
+    # in_progress -> staging 2026-11-10 at the TAB-5 PRE-PUSH-CHECK (the
+    # commit immediately after 81cb5f0; its own SHA cannot be written inside
+    # itself). Docs SHA: 573da37 (this row, TAB-7 ROW, DECISIONS DRAFT); fix
+    # SHA: 81cb5f0 (offline guard, fixture 5d–5g, TAB-8 ROW, DECISIONS
+    # addition). The check committed the prompt of record docs/prompts/TAB-5.md
+    # and wrote the DEPLOY_LOG UNPROMOTED entry. DECISIONS 2026-11-10 TAB-5
+    # (rulings 1–5, controller design, calls (a)–(j), offline-guard addition)
+    # RATIFIED by Gary at this check, "Ratify as written". The notes' "DRAFT
+    # until PRE-PUSH-CHECK" and "(untracked until PRE-PUSH-CHECK)" are spent,
+    # kept. The rollback above is superseded: `git revert 81cb5f0 ab29d62`
+    # (fix first, then work); 81cb5f0 also carries docs, so revert its src/
+    # and scripts/ paths only if the rows should stay. No migration. NOT
+    # pushed at writing.
+    status: staging
     title: "Tablet home — Tasks panel and header chips go stale (no live refresh)"
     commits:
       - "ab29d62"
@@ -25443,6 +25456,10 @@ phases:
       # + the commit immediately after 573da37: fix(TAB-5) — the offline
       # guard, its fixture cases, the TAB-8 ROW, this rider, DECISIONS DRAFT
       # addition
+      - "81cb5f0"
+      # + the commit immediately after 81cb5f0: docs(TAB-5) PRE-PUSH-CHECK —
+      # DECISIONS ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
     notes: >
       ── RIDER 2026-11-10, TAB-5 offline guard (prepended; nothing below is
       edited). ── Gary, before PRE-PUSH-CHECK: "the controller skips any

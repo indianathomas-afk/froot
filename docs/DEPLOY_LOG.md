@@ -2,6 +2,87 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-10 — TAB-5: Tablet home keeps itself current (one refresh controller, store-local day rollover, offline guard)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`ab29d62`; docs commit `573da37`; fix commit `81cb5f0` (Gary's offline
+guard, fixes `ab29d62`); the PRE-PUSH-CHECK is the commit immediately after
+`81cb5f0`. TIER 2. No migration, no schema change, no new route, no new
+dependency. Tablet mode (TAB-1 through TAB-5) is not promoted until TAB-5
+passes on staging; the series ships together (Gary, 2026-11-10). DECISIONS
+2026-11-10 TAB-5 RATIFIED by Gary at this check, "Ratify as written".
+
+What ships: ONE refresh controller for the tablet home
+(`src/app/(app)/dashboard/tablet-refresh.tsx`) on TAB-2's `TABLET_REFRESH_MS`
+(60 s) and visibility rule: every 60 s while visible, at once on becoming
+visible again, never while hidden. Messages and the stat strip lost their
+private timers and register with it; the Tasks panel, the overdue chip and the
+compliance chip now refresh too. A cycle is skipped whole while anything is
+busy (name sheet, number pad, partial confirm, overdue sheet, store picker, or
+a tick / submit / start / Complete / send in flight), and never two run at
+once. A refresh never remounts, so sheets, typed text, "N done" expansion and
+scroll are untouched. Ticks made on another device appear: the Tasks items are
+a server render, so the cycle re-reads them with `router.refresh()`,
+serialized, and local tick overrides give way once a server read that began
+after they settled has landed. Day rollover: each `TabletStore` carries its
+server `day` (`localDateStr`, the `businessDayWindow` day); the page moves to a
+new day only while idle, remounting the Tasks panel (ticks, "Completing as …"
+chip and Done state cleared) and re-reading today's list. Messages keeps its
+draft across midnight.
+
+**Offline guard (`81cb5f0`, Gary).** If `router.refresh()`'s own RSC request
+fails, Next falls back to a full browser navigation, which would leave
+Safari's error page on an unattended tablet. No cycle starts while
+`navigator.onLine` is false, and `refreshServer()` checks again before every
+`router.refresh()`, including the one after this device's own writes. The
+browser's `online` event runs a cycle at once. **Residual risk:** a network
+that drops while `navigator.onLine` still reads true can still hit the
+full-navigation fallback; TAB-8 (planned, a read-only checklist-items
+endpoint) is the row that removes it.
+
+**Does not ship:** a "partial submitted" panel for a partial submit made on
+ANOTHER device. A partial submit writes In Progress (or Non-Compliant) and no
+submitted marker, so this tablet keeps showing In Progress with the other
+device's ticks; a remote FULL submit does move it to Done (DECISIONS call (d)).
+The Sales-comparison fix is filed as TAB-7 (planned); the calculation is
+unchanged here.
+
+Files: new `src/app/(app)/dashboard/tablet-refresh.tsx`,
+`src/lib/tablet-refresh.ts`, `scripts/verify-tab5-refresh.ts`; edited
+`src/app/(app)/dashboard/{tablet-data.ts,tablet-home,tablet-messages,tablet-strip}.tsx`.
+Checks: verify-tab5-refresh 32/32 (28/28 at `ab29d62`; its "29/29" was a
+miscount), verify-tab1-today 13/13, verify-tab1c-due-chip 11/11,
+verify-tab2-messages 23/23, verify-tab3-layout 28/28 (DB part on dev
+`br-broad-wave-a6vpjdw0`, rolled back); scoped eslint and `npm run build`
+green. Verified locally only on a mocked temporary page with a 5 s interval,
+both reverted before the commit.
+
+**Rollback.** `git revert 81cb5f0 ab29d62` (fix first, then work); no
+migration. `81cb5f0` also carries ROADMAP/DECISIONS lines, so revert only its
+`src/` and `scripts/` paths if the rows should stay. The tablet goes back to
+TAB-3's behaviour: Messages and the strip on their own timers, the Tasks panel
+and chips stale until a reload, the header date stuck on yesterday after
+midnight. Nothing is stored, so nothing is left behind.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+Tests (1)–(6) are the TAB-5 prompt's list, unchanged. (1) Safari as
+`indianathomas` in Tablet mode on Las Brisas, with today's checklist started.
+In Chrome, tick two items on the same checklist from desktop. Without touching
+Safari, both appear ticked within about a minute. (2) In Safari, tick an item
+so the name sheet opens, and leave it open for 2 minutes. It stays open and
+nothing resets. Pick a name; the tick saves. (3) Type a message in the
+composer without sending, and wait 2 minutes. The text is still there.
+(4) Scroll the task list down, and wait 2 minutes. It stays where you left it.
+(5) Overdue chip: as `indianathomas`, create a Las Brisas reminder dated
+yesterday, then run the calendar-materialize curl against staging. Without
+reloading Safari, the chip appears within about a minute. (6) Overnight: leave
+Safari open in Tablet mode on Las Brisas tonight. Tomorrow morning, without
+touching it, the header shows tomorrow's date and today's checklist ("Not
+started" for the Opener). Added by this check for `81cb5f0`: (7) Turn the
+iPad's wifi off for 2 minutes with Safari in Tablet mode. The page stays as it
+was (no Safari error page). Turn wifi back on; ticks made elsewhere meanwhile
+appear within a few seconds.
+
 ## UNPROMOTED — 2026-11-10 — TAB-3: Display settings — Dashboard and Tablet card picker, tablet stat strip
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit

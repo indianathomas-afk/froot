@@ -7,6 +7,16 @@ decisions too.)
 
 ## 2026-11-10 — TAB-5: the tablet home keeps itself current, rulings 1–5 — DRAFT
 
+**RATIFIED BY GARY, 2026-11-10, at the TAB-5 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: rulings 1–5, the controller
+design, Claude's judgement calls (a)–(i), the offline-guard addition (his own
+words, quoted there) and judgement call (j), which are now ratified as his.
+The heading's "DRAFT", the "DRAFT, awaiting Gary's ratification" line, "for
+ratification" and "(untracked until PRE-PUSH-CHECK)" are spent, kept; the
+prompt of record `docs/prompts/TAB-5.md` is committed at this check. The
+"29/29" in "The controller design" stays as written; the addition's
+correction (28/28 at ab29d62, 32/32 after 81cb5f0) stands. Wording untouched.
+
 **DRAFT, awaiting Gary's ratification at the TAB-5 PRE-PUSH-CHECK.** Prompt
 of record: `docs/prompts/TAB-5.md` (untracked until PRE-PUSH-CHECK). Work
 commit: ab29d62. TIER 2: no schema, no migration, no endpoint, no
