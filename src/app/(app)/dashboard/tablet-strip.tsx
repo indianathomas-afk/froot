@@ -1,11 +1,11 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
-import { canRefresh, TABLET_REFRESH_MS } from "@/lib/tablet-messages"
 import { formatLaborPct, judgeLaborPct, laborVerdictClass, type LaborBlock } from "@/lib/labor-judgment"
 import { laborNoValueLabel } from "./labor-pct"
 import { fetchCard } from "./card-fetch"
+import { useRefreshLoader } from "./tablet-refresh"
 
 // TAB-3 — the Tablet stat strip, below the Tasks and Messages columns (ruling
 // 4; moved here from TAB-2 by its ruling 1). Optional tiles, ADMIN-ordered and
@@ -35,6 +35,9 @@ import { fetchCard } from "./card-fetch"
 // TABLET_REFRESH_MS while visible, at once on becoming visible again, never
 // while hidden. A failed refresh keeps the numbers on screen (BUG-6's rule:
 // never flip real numbers into an error state).
+// ── TAB-5, 2026-11-10: the strip no longer runs its own timer; the tablet
+// home's one refresh controller (./tablet-refresh.tsx) runs `load` on its
+// cycle, under the same rule, and skips the cycle while the page is busy.
 
 type StripSummary = {
   salesAvailable: boolean
@@ -54,32 +57,10 @@ export function StatStrip({ storeId, tiles }: { storeId: string; tiles: string[]
     })
   }, [storeId])
 
-  const refreshing = useRef(false)
-  const lastRefresh = useRef(0)
   useEffect(() => {
     void load()
-    const refresh = () => {
-      if (!canRefresh(document.visibilityState, false) || refreshing.current) return
-      // visibilitychange and focus usually fire together on return; one read.
-      if (Date.now() - lastRefresh.current < 1_000) return
-      refreshing.current = true
-      lastRefresh.current = Date.now()
-      void load().finally(() => {
-        refreshing.current = false
-      })
-    }
-    const onBack = () => {
-      if (document.visibilityState === "visible") refresh()
-    }
-    const id = window.setInterval(refresh, TABLET_REFRESH_MS)
-    document.addEventListener("visibilitychange", onBack)
-    window.addEventListener("focus", onBack)
-    return () => {
-      window.clearInterval(id)
-      document.removeEventListener("visibilitychange", onBack)
-      window.removeEventListener("focus", onBack)
-    }
   }, [load])
+  useRefreshLoader(load)
 
   const data = res && res.storeId === storeId ? res.data : null
 

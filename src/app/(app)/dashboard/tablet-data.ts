@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { tasksForChecklist } from "@/lib/checklist-tasks"
 import { groupTasksBySection } from "@/lib/sections"
-import { businessDayWindow, dashboardHeaderDate } from "@/lib/reports"
+import { businessDayWindow, dashboardHeaderDate, localDateStr } from "@/lib/reports"
 
 // TAB-1 — the item lists behind the tablet Tasks panel. READ-ONLY.
 // TAB-1b adds each store's picker names (still read-only, still no route).
@@ -46,6 +46,11 @@ export type TabletStore = {
   name: string
   timezone: string
   headerDate: string
+  /** TAB-5 — the store-local business day this render called "today"
+   *  (YYYY-MM-DD, businessDayWindow's `day`, the same instant as headerDate
+   *  and as the checklist query above). The tablet's refresh controller shows
+   *  this day until the server's answer moves on (ruling 2). */
+  day: string
   /** TAB-1b — the desktop picker's staff list for this store, same query. */
   staff: TabletStaff[]
 }
@@ -151,7 +156,12 @@ export async function loadTabletData(
       .map((m) => ({ id: m.id, displayName: m.displayName }))
 
   return {
-    stores: stores.map((s) => ({ ...s, headerDate: dashboardHeaderDate(now, s.timezone), staff: staffFor(s.id) })),
+    stores: stores.map((s) => ({
+      ...s,
+      headerDate: dashboardHeaderDate(now, s.timezone),
+      day: localDateStr(now, s.timezone),
+      staff: staffFor(s.id),
+    })),
     checklists,
   }
 }

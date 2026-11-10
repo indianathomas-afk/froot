@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils"
 import { MessageAttachments, type FeedAttachment, type FeedMessage } from "@/app/(app)/messages/messages-client"
 import {
   QUICK_REPLIES,
-  canRefresh,
   chatOrder,
   isNearBottom,
   keyboardInset,
@@ -18,10 +17,10 @@ import {
   postBody,
   unreadBadge,
   withPosted,
-  TABLET_REFRESH_MS,
 } from "@/lib/tablet-messages"
 import { publishUnread } from "@/lib/tablet-unread"
 import { fetchCard } from "./card-fetch"
+import { useRefreshLoader, useTabletRefresh } from "./tablet-refresh"
 import { timeAgo, type Comms } from "./dashboard-client"
 
 // TAB-2 — the tablet home's Messages column (Direction 1 · Status Stage),
@@ -60,7 +59,12 @@ import { timeAgo, type Comms } from "./dashboard-client"
 
 // TAB-3: the one definition now lives in src/lib/tablet-messages.ts, shared
 // with the stat strip so the two can't drift (the DEBT-32 shape).
-const REFRESH_MS = TABLET_REFRESH_MS
+// ── TAB-5, 2026-11-10: the column no longer runs its own timer. The tablet
+// home's one refresh controller (./tablet-refresh.tsx) runs this column's
+// re-read on its cycle, together with the Tasks panel, the chips and the
+// strip, under the same ruling 8 rule; a send in flight now holds the whole
+// page's cycle, not just this column's. The REFRESH_MS line that stood here
+// is spent.
 
 export function MessagesColumn({ storeId }: { storeId: string }) {
   // ── Pinned Corporate Update + unread count (the desktop card's endpoint) ──
@@ -154,32 +158,10 @@ export function MessagesColumn({ storeId }: { storeId: string }) {
   // mid-send.
   const sendingRef = useRef(false)
 
-  // ── Ruling 8: live refresh ──
-  const refreshing = useRef(false)
-  const lastRefresh = useRef(0)
-  useEffect(() => {
-    const refresh = () => {
-      if (!canRefresh(document.visibilityState, sendingRef.current) || refreshing.current) return
-      // visibilitychange and focus usually fire together on return; one read.
-      if (Date.now() - lastRefresh.current < 1_000) return
-      refreshing.current = true
-      lastRefresh.current = Date.now()
-      void Promise.all([loadThread(true), loadComms()]).finally(() => {
-        refreshing.current = false
-      })
-    }
-    const onBack = () => {
-      if (document.visibilityState === "visible") refresh()
-    }
-    const id = window.setInterval(refresh, REFRESH_MS)
-    document.addEventListener("visibilitychange", onBack)
-    window.addEventListener("focus", onBack)
-    return () => {
-      window.clearInterval(id)
-      document.removeEventListener("visibilitychange", onBack)
-      window.removeEventListener("focus", onBack)
-    }
-  }, [loadThread, loadComms])
+  // ── Ruling 8: live refresh, on the tablet home's one timer (TAB-5) ──
+  const ctl = useTabletRefresh()
+  const refreshColumn = useCallback(() => Promise.all([loadThread(true), loadComms()]), [loadThread, loadComms])
+  useRefreshLoader(refreshColumn)
 
   // ── The composer ──
   const [draft, setDraft] = useState("")
@@ -192,6 +174,7 @@ export function MessagesColumn({ storeId }: { storeId: string }) {
     const payload = postBody(storeId, text)
     if (!payload) return
     sendingRef.current = true
+    ctl?.setBusy("messages:send", true)
     setSending(source === "composer" ? "composer" : payload.body)
     setError(null)
     try {
@@ -225,6 +208,7 @@ export function MessagesColumn({ storeId }: { storeId: string }) {
       showNewest()
     } finally {
       sendingRef.current = false
+      ctl?.setBusy("messages:send", false)
       setSending(null)
     }
   }

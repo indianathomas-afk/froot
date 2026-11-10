@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AlertTriangle, ArrowRight, Check, ChevronDown, ChevronRight, Clock, Delete, GraduationCap } from "lucide-react"
@@ -15,10 +15,19 @@ import { resolveSingleStore, saveStoreId, useSavedStoreId } from "@/lib/dashboar
 import { pickTodayChecklist, type TodayEntry } from "@/lib/tablet-today"
 import { dueChipFor, dueRowSuffix } from "@/lib/tablet-due"
 import { formatInstant } from "@/lib/display-time"
+import { dayRolledOver, nextShownDay, pruneOverrides, type TickOverride } from "@/lib/tablet-refresh"
 import type { OwedSummary } from "@/lib/hr-compliance"
 import { fetchCard } from "./card-fetch"
 import { StatStrip } from "./tablet-strip"
 import { MessagesColumn } from "./tablet-messages"
+import {
+  TabletRefreshProvider,
+  useBusyFlag,
+  useRefreshLoader,
+  useTabletRefresh,
+  useTabletRefreshController,
+  type RefreshCycle,
+} from "./tablet-refresh"
 import type { TabletChecklist, TabletStore, TabletTask } from "./tablet-data"
 
 /** TAB-1b — one button on the name sheet. `id` is what goes in
@@ -103,7 +112,18 @@ type DueItem = {
   checklistId: string | null
 }
 
-type Override = { done: boolean; value: number | null }
+type Override = TickOverride
+
+/** TAB-5 — `value` while `usable`, otherwise the last value that was usable.
+ *  How the tablet home keeps showing the day it is on while the server has
+ *  already moved to the next one but the page is busy (ruling 3): the new
+ *  day's data waits, it never replaces the old day's under an open sheet.
+ *  `value` must be referentially stable between renders. */
+function useHeld<T>(value: T, usable: boolean): T {
+  const [held, setHeld] = useState(value)
+  if (usable && held !== value) setHeld(value)
+  return usable ? value : held
+}
 
 async function readError(res: Response): Promise<string | null> {
   try {
@@ -128,20 +148,59 @@ export function TabletHome({
 }) {
   const router = useRouter()
   const savedStoreId = useSavedStoreId()
-  const store = resolveSingleStore(stores, savedStoreId)
-  const storeId = store?.id ?? ""
+  // The latest server render's store. What the page SHOWS may be held one day
+  // behind it (TAB-5, below).
+  const latestStore = resolveSingleStore(stores, savedStoreId)
+  const storeId = latestStore?.id ?? ""
+  const storeTimeZone = latestStore?.timezone ?? ""
+
+  // ── TAB-5: the day the tablet home is showing, per store (ruling 2) ──
+  // Starts as the server's day for each store. Moves only to a day the SERVER
+  // has rendered (nextShownDay), and only while nothing is busy (ruling 3).
+  // Until it moves, the previous render's stores and checklists stay on screen.
+  const [shown, setShown] = useState<Record<string, string>>(() =>
+    Object.fromEntries(stores.map((s) => [s.id, s.day]))
+  )
+  const shownDay = latestStore ? (shown[latestStore.id] ?? latestStore.day) : ""
+  const server = useMemo(() => ({ stores, checklists }), [stores, checklists])
+  const view = useHeld(server, !latestStore || latestStore.day === shownDay)
+  const store = latestStore ? (view.stores.find((s) => s.id === latestStore.id) ?? latestStore) : undefined
+
+  // What the controller's callbacks read: the latest values, not the ones
+  // their closure saw.
+  const serverDay = latestStore?.day ?? ""
+  const latest = useRef({ storeId, serverDay, shownDay })
+  useLayoutEffect(() => {
+    latest.current = { storeId, serverDay, shownDay }
+  })
 
   // ── Today's checklists for this store (the Start Daily Checklist list) ──
+  // TAB-5: a list read after the store's midnight belongs to the NEXT day. It
+  // is not shown until the page has moved to that day (ruling 2, only while
+  // idle — ruling 3), so it never lands under yesterday's checklist; moving
+  // re-reads it (the effect below keys on shownDay).
   const [today, setToday] = useState<{ storeId: string; rows: TodayRow[] | null } | null>(null)
   // Promise chains rather than async/await so every setState sits in a
-  // callback — the same shape the desktop dashboard's loaders use.
-  const loadToday = useCallback((): Promise<void> => {
-    if (!storeId) return Promise.resolve()
-    return fetch(`/api/stores/${storeId}/templates`)
-      .then((res) => (res.ok ? (res.json() as Promise<TodayRow[]>) : null))
-      .catch(() => null)
-      .then((rows) => setToday({ storeId, rows }))
-  }, [storeId])
+  // callback — the same shape the desktop dashboard's loaders use. Resolves
+  // true when the list answered. A failed RE-read (refresh) keeps what is
+  // showing — BUG-6's rule, never flip real data into an error state.
+  const loadToday = useCallback(
+    (refresh = false): Promise<boolean> => {
+      if (!storeId) return Promise.resolve(false)
+      const fetchedAt = new Date()
+      return fetch(`/api/stores/${storeId}/templates`)
+        .then((res) => (res.ok ? (res.json() as Promise<TodayRow[]>) : null))
+        .catch(() => null)
+        .then((rows) => {
+          if (rows === null && refresh) return false
+          if (rows !== null && dayRolledOver(latest.current.shownDay, fetchedAt, storeTimeZone)) return true
+          setToday({ storeId, rows })
+          return rows !== null
+        })
+    },
+    [storeId, storeTimeZone]
+  )
+  const shownToday = today && today.storeId === storeId ? today : null
 
   // ── The due feed behind the calendar banner ──
   const [due, setDue] = useState<DueItem[] | null>(null)
@@ -152,9 +211,85 @@ export function TabletHome({
       .then((body) => setDue(body.items))
   }, [])
 
+  // ── TAB-5: the one refresh controller ──
+  const cycleRef = useRef<RefreshCycle | null>(null)
+  const ctl = useTabletRefreshController(cycleRef)
+
+  // The server half (the Tasks panel's items and ticks, the header date) is a
+  // server render: no route returns a checklist's items (tablet-data.ts), so
+  // it is re-read with router.refresh(), which keeps client state and scroll.
+  // ONE AT A TIME: each waits for the last to land, so `syncedFrom` is always
+  // the start of the read that produced the props on screen. A read "lands"
+  // when new server props arrive; one that never does is let go after 20s.
+  const [syncedFrom, setSyncedFrom] = useState(0)
+  const landing = useRef<(() => void) | null>(null)
+  const serverChain = useRef<Promise<void>>(Promise.resolve())
+  const refreshServer = useCallback((): Promise<void> => {
+    const next = serverChain.current.then(
+      () =>
+        new Promise<void>((resolve) => {
+          const startedAt = Date.now()
+          const timer = window.setTimeout(() => {
+            landing.current = null
+            resolve()
+          }, 20_000)
+          landing.current = () => {
+            window.clearTimeout(timer)
+            landing.current = null
+            setSyncedFrom(startedAt)
+            resolve()
+          }
+          router.refresh()
+        })
+    )
+    serverChain.current = next
+    return next
+  }, [router])
+  useEffect(() => {
+    landing.current?.()
+  }, [stores, checklists])
+
+  // Ruling 2: move to the server's day if it has moved on and nothing is busy.
+  const acceptDay = useCallback(() => {
+    const { storeId: id, serverDay: day, shownDay: cur } = latest.current
+    if (!id) return
+    const next = nextShownDay(cur, day, ctl.busy())
+    if (next === cur) return
+    setShown((prev) => ({ ...prev, [id]: next }))
+    // Yesterday's list goes with yesterday: a skeleton until the new day's
+    // list is read (the loadToday effect keys on shownDay).
+    setToday(null)
+  }, [ctl, setShown, setToday])
+  // Switching stores is a tap, not a refresh: show that store's current day.
+  useLayoutEffect(() => {
+    acceptDay()
+  }, [storeId, acceptDay])
+
+  /** One cycle (ruling 1). The controller calls it only while the page is
+   *  visible, idle and not already refreshing. */
+  const cycle = useCallback<RefreshCycle>(async (loaders) => {
+    // A day the server reached while the page was busy is adopted first.
+    acceptDay()
+    const [answered] = await Promise.all([
+      loadToday(true),
+      loadDue(),
+      ...loaders.map((load) => load().catch(() => undefined)),
+    ])
+    // Ruling 4: re-read the items, so ticks made elsewhere show. ONLY right
+    // after a read has just answered: when a refresh's own request fails, Next
+    // falls back to a full browser navigation, which with the store's wifi
+    // down would leave Safari's error page on the counter.
+    if (!answered || navigator.onLine === false) return
+    await refreshServer()
+    acceptDay()
+  }, [acceptDay, loadToday, loadDue, refreshServer])
+  useLayoutEffect(() => {
+    cycleRef.current = cycle
+  }, [cycle])
+
   useEffect(() => {
     void loadToday()
-  }, [loadToday])
+  }, [loadToday, shownDay])
   useEffect(() => {
     void loadDue()
   }, [loadDue])
@@ -163,11 +298,11 @@ export function TabletHome({
    *  and re-render the server half for the new row's items / completedAt. */
   const refresh = useCallback(async () => {
     await loadToday()
-    router.refresh()
-  }, [loadToday, router])
+    await refreshServer()
+  }, [loadToday, refreshServer])
 
-  const rows = today && today.storeId === storeId ? today.rows : undefined
-  const checklistsById = useMemo(() => new Map(checklists.map((c) => [c.id, c])), [checklists])
+  const rows = shownToday ? shownToday.rows : undefined
+  const checklistsById = useMemo(() => new Map(view.checklists.map((c) => [c.id, c])), [view.checklists])
 
   if (!store) {
     return (
@@ -180,11 +315,12 @@ export function TabletHome({
   }
 
   return (
+    <TabletRefreshProvider value={ctl}>
     <div className="grid h-full grid-rows-[auto_minmax(0,1fr)] gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-baseline gap-3">
           {stores.length > 1 ? (
-            <Select value={store.id} onValueChange={saveStoreId}>
+            <Select value={store.id} onValueChange={saveStoreId} onOpenChange={(open) => ctl.setBusy("store-select", open)}>
               <SelectTrigger className="h-14 w-auto min-w-56 rounded-xl border-none bg-transparent px-2 text-2xl font-bold shadow-none">
                 <SelectValue />
               </SelectTrigger>
@@ -222,17 +358,23 @@ export function TabletHome({
         columns("min-h-0")
       )}
     </div>
+    </TabletRefreshProvider>
   )
 
   function columns(sizing: string) {
     return (
       <div className={`grid ${sizing} gap-4 landscape:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] portrait:grid-rows-[minmax(0,3fr)_minmax(0,2fr)]`}>
         <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)]">
+          {/* TAB-5: keyed by the day too, so a new day starts the panel clean —
+              no ticks, "Completing as …" chip or Done state carried over. */}
           <TasksPanel
-            key={store!.id}
+            key={`${store!.id}:${shownDay}`}
             store={store!}
             rows={rows}
             checklistsById={checklistsById}
+            // While the previous day is held on screen, nothing on it has
+            // been re-read, so no local tick may be retired yet.
+            syncedFrom={view === server ? syncedFrom : 0}
             onRetry={() => void loadToday()}
             onChanged={refresh}
           />
@@ -249,6 +391,7 @@ function TasksPanel({
   store,
   rows,
   checklistsById,
+  syncedFrom,
   onRetry,
   onChanged,
 }: {
@@ -256,6 +399,8 @@ function TasksPanel({
   /** undefined = loading, null = the list failed to load. */
   rows: TodayRow[] | null | undefined
   checklistsById: Map<string, TabletChecklist>
+  /** TAB-5 — when the server read behind `checklistsById` started (ms). */
+  syncedFrom: number
   onRetry: () => void
   onChanged: () => Promise<void>
 }) {
@@ -285,6 +430,21 @@ function TasksPanel({
   const [partialFor, setPartialFor] = useState<string | null>(null)
   const [partialError, setPartialError] = useState<string | null>(null)
   const [partialFinished, setPartialFinished] = useState<{ id: string; done: number; total: number } | null>(null)
+
+  // ── TAB-5: tell the refresh controller when this panel is busy (ruling 3) ──
+  const ctl = useTabletRefresh()
+  const track = <T,>(p: Promise<T>): Promise<T> => (ctl ? ctl.track(p) : p)
+  useBusyFlag("tasks:sheet", !!valueFor || !!nameSheet || !!partialFor)
+  useBusyFlag("tasks:write", busy !== null)
+  // Ruling 4: once a server read that began after a tick settled has landed,
+  // that tick's local copy is redundant — drop it, so a later change made on
+  // another device shows through instead of being masked by it.
+  useEffect(() => {
+    const pruned = pruneOverrides(overridesRef.current, syncedFrom)
+    if (pruned === overridesRef.current) return
+    overridesRef.current = pruned
+    setOverrides(pruned)
+  }, [syncedFrom])
 
   if (rows === undefined) return <PanelSkeleton />
   if (rows === null) {
@@ -416,7 +576,7 @@ function TasksPanel({
     setError(null)
     let res: Response
     try {
-      res = await fetch(`/api/checklists/${c.id}/task-log`, {
+      res = await track(fetch(`/api/checklists/${c.id}/task-log`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // TAB-1b: the picked name rides on a tick, exactly as desktop sends it
@@ -427,7 +587,7 @@ function TasksPanel({
           completedByStaffId: next.done ? staffId : null,
           temperatureValue: next.done ? value : null,
         }),
-      })
+      }))
     } catch {
       res = new Response(null, { status: 0 })
     }
@@ -447,6 +607,13 @@ function TasksPanel({
       )
       return
     }
+    // TAB-5: the write is saved; stamp when, so the first server read that
+    // starts after this moment retires the local copy (pruneOverrides). Only
+    // if the tap is still the latest one for this item.
+    const settled: Override = { ...next, settledAt: Date.now() }
+    const settle = (prev: Record<string, Override>) => (prev[key] === next ? { ...prev, [key]: settled } : prev)
+    overridesRef.current = settle(overridesRef.current)
+    setOverrides(settle)
     // No submit here — ticking the last item only reveals the Submit button.
   }
 
@@ -1096,6 +1263,8 @@ function ValueSheet({
 function DueChip({ feed, storeId, onChanged }: { feed: DueItem[]; storeId: string; onChanged: () => Promise<void> }) {
   const [open, setOpen] = useState(false)
   const [completing, setCompleting] = useState<string | null>(null)
+  // TAB-5 ruling 3: the sheet open, or a Complete in flight, holds the refresh.
+  useBusyFlag("due:sheet", open || completing !== null)
 
   // TAB-1c: the filter and count live in src/lib/tablet-due.ts (pinned by
   // scripts/verify-tab1c-due-chip.ts). Overdue is `dueAt <= now` — ruling 8 of
@@ -1174,18 +1343,27 @@ function DueChip({ feed, storeId, onChanged }: { feed: DueItem[]; storeId: strin
 // something), the same words, the same colours (red when anything is overdue,
 // amber otherwise), the same /my link, and no dismiss. A device login resolves
 // to no staff member and the route answers owed: null, so it stays silent.
+//
+// TAB-5 — re-read on every refresh cycle (ruling 1). The answer replaces the
+// chip: owing nothing now clears it. A failed read keeps what is showing.
 function ComplianceChip() {
   const [owed, setOwed] = useState<OwedSummary | null>(null)
-
+  const live = useRef(true)
+  const load = useCallback(
+    () =>
+      fetchCard<{ owed: OwedSummary | null }>("my compliance", "/api/dashboard/my-compliance").then((data) => {
+        if (live.current && data) setOwed(data.owed ?? null)
+      }),
+    []
+  )
   useEffect(() => {
-    let live = true
-    fetchCard<{ owed: OwedSummary | null }>("my compliance", "/api/dashboard/my-compliance").then((data) => {
-      if (live && data?.owed) setOwed(data.owed)
-    })
+    live.current = true
+    void load()
     return () => {
-      live = false
+      live.current = false
     }
-  }, [])
+  }, [load])
+  useRefreshLoader(load)
 
   if (!owed) return null
   const overdue = owed.overdueCount > 0
