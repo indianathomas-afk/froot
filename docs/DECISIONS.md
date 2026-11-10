@@ -5,6 +5,73 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-09 — TAB-1: Tablet mode — rulings 1–8, the cookie, the today's-checklist rule — DRAFT
+
+**DRAFT — awaiting Gary's ratification at PRE-PUSH-CHECK.** Nothing below is
+ratified yet.
+
+Prompt of record: `docs/prompts/TAB-1.md`. Work commit `adec345`.
+
+**Gary's words, 2026-11-09, verbatim:** "I agree yes to all" — his answer to
+the eight leans below. The wording of each lean is the planning chat's (as
+carried in the TAB-1 prompt), not Gary's; his agreement is what makes them
+rulings.
+
+1. Direction: Status Stage.
+2. The Tablet/Desktop switch is saved per device. It defaults to Desktop and
+   never switches on its own.
+3. Card layout is one per org, set by ADMIN; per-store layouts are deferred.
+   (TAB-3.)
+4. Sales, Goal and Labor are off by default in Tablet mode; ADMIN can turn
+   them on. (TAB-2/3.)
+5. Messages and Tasks are locked on in Tablet mode.
+6. Attribution: v1 checks off and posts as the logged-in account, same as
+   today. Per-person attribution is a planned row. (TAB-4.)
+7. The overdue chip shows this store's count; tapping it opens the existing
+   due list as a bottom sheet.
+8. The Settings gear is ADMIN only.
+
+**The cookie (prompt's implementation note, not a ruling).** Ruling 2 is
+stored in a cookie, `froot_view` = `tablet` | `desktop`, one-year expiry, set
+from the client — not localStorage — so the server reads it in the (app)
+layout and renders the right shell on first paint with no flash. Still per
+device. Absent = desktop. The switch is its only writer.
+
+**The today's-checklist rule, as applied (Claude — awaiting ratification).**
+The audit found no existing rule for picking ONE checklist. The SET of a
+store's checklists today is reused from `GET /api/stores/[id]/templates` (the
+Start Daily Checklist list). From that set, `src/lib/tablet-today.ts`:
+
+1. Current = the earliest-due checklist that is due now and not completed
+   (lifecycle `active` or `overdue`). Earliest-due = `expectedEndAt`
+   ascending; no window sorts last; name breaks ties.
+2. Nothing due now, something completed today → Done, headlining the
+   latest-due completed checklist, with the earliest `upcoming` one as Up next.
+3. Nothing due now, nothing completed, something upcoming → that upcoming
+   checklist is current (an early crew can start it, as Start Daily Checklist
+   allows).
+4. Nothing → "No checklists today".
+
+This is the prompt's lean with one reading made explicit: an `upcoming`
+checklist does not count as "isn't completed" for rule 1. Without that, the
+lean's own Done state ("with the next upcoming checklist") could never show
+while a later checklist existed. Pinned by `scripts/verify-tab1-today.ts`.
+
+**Two further Claude choices, for ratification:**
+
+- **The tick that empties the list sends submit.** The prompt says the last
+  item moves the panel to Done, through existing endpoints. A checklist only
+  becomes `Completed` through `POST /api/checklists/[id]/submit`, and the
+  day-close cron files every row that is not `Completed` as `Missed` —
+  fully ticked or not (`api/cron/checklist-day-close/route.ts`). A Done panel
+  over a row that would be filed Missed that night would be false, so the
+  tablet sends the same submit the execution page's Submit button sends. If
+  submit fails, the panel stays in progress with a Finish button.
+- **`appleWebApp.capable` is now an explicit `true`** (was an explicit
+  `false`), matching the manifest's `display: "standalone"` (28bbd8a), so
+  "Add to Home Screen" opens full screen on iOS versions that read the meta
+  tag rather than the manifest.
+
 ## 2026-11-06 — DEBT-129: User.name comes from Clerk; Froot never invents a name
 
 **RATIFIED BY GARY, 2026-11-06, at the DEBT-129 PRE-PUSH-CHECK:**

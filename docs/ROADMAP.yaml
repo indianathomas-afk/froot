@@ -24659,6 +24659,142 @@ phases:
       everything deployed" line above is spent for staging, kept.
 
 
+  - id: TAB-1
+    track: platform
+    size: M
+    # -> in_progress 2026-11-09 at the work commit adec345 (NOT pushed). The
+    # docs SHA is the commit immediately after adec345 (its own SHA cannot be
+    # written inside itself).
+    status: in_progress
+    title: "Tablet mode — Tablet/Desktop switch, rail shell, touch sizes, Tasks column"
+    commits:
+      - "adec345"
+      # feat(TAB-1) — switch, shell, library touch sizes, tablet home, fixture
+      # + the commit immediately after adec345: docs(TAB-1) — these rows,
+      # DECISIONS draft
+    deferred:
+      - >
+        PHOTO CAPTURE ON THE TABLET. A requiresPhoto task ticks on the tablet
+        without a photo — the same as the execution page, where the photo is
+        optional (CHK-7) — but the tablet offers no camera button. Capture
+        stays on the full checklist (Review checked items / /store-view).
+        Folded here rather than filed: it is a gap in this surface, not a new
+        feature, and nothing is lost by its absence.
+      - >
+        THE STAFF-NAME PICKER. The execution page asks "who completed this
+        task?"; the tablet posts as the logged-in account with no name, per
+        Gary's ruling 6. Per-person attribution is TAB-4.
+    notes: >
+      BUILT 2026-11-09 on staging, NOT pushed. TIER 2. Prompt of record:
+      docs/prompts/TAB-1.md. Design: froot_docs/design/Froot Tablet Mode.pdf,
+      Direction 1 · Status Stage (pages 1–3 landscape, page 11 portrait).
+      Rulings 1–8 (Gary, 2026-11-09, "I agree yes to all") + the cookie note +
+      the today's-checklist rule: DECISIONS 2026-11-09 TAB-1, DRAFT until
+      PRE-PUSH-CHECK.
+      SWITCH: cookie froot_view (tablet | desktop, one year, set client-side by
+      src/components/layout/view-switch.tsx, the only writer), read in
+      src/app/(app)/layout.tsx via src/lib/view-mode-server.ts. Absent =
+      desktop and the desktop branch is unchanged. Switch in the sidebar
+      footer (icon-only when collapsed) and the tablet rail, every role.
+      SHELL: src/components/layout/tablet-shell.tsx — rail entries ask the
+      sidebar's own capability per destination (checklists.view + STAFF-1
+      proxy, messages.use, calendar.view + calendarEnabled); Settings gear is
+      role ADMIN AND settings.access. Other routes render unchanged in the
+      normal container. Hand-written JSX, not NavItem literals —
+      scripts/verify-nav1-url-sets.ts PASS, unaffected.
+      LIBRARY: Button sizes touch (56px, 18px text), touch-lg (96px hero),
+      touch-icon; TouchRow (64/76px whole-row target) + TouchCheck;
+      BottomSheet. Tokens only.
+      TABLET HOME (/dashboard only): src/app/(app)/dashboard/tablet-home.tsx.
+      Tasks panel left (Not started orange / In progress dark banner, sticky
+      section headers, "N done" expander / Done green with Up next), existing
+      TeamMessagesCard right; 3fr/2fr landscape, stacked portrait; columns
+      scroll independently (overscroll-contain, scroll-snap on headers). No
+      Sales/Goal/Labor. Overdue chip = this store's /api/calendar/due items
+      (overdue = dueAt <= now, CAL-1 ruling 8), sheet mirrors the banner's
+      rows and actions; the full-width banner does not render in tablet mode.
+      DATA: which checklists = GET /api/stores/[id]/templates (the Start Daily
+      Checklist list — reused, audit point 3); their items = a server read in
+      tablet-data.ts (tasksForChecklist + excludedStoreIds + section snapshot,
+      the filters every checklist surface applies). Picking ONE = new code,
+      src/lib/tablet-today.ts; fixture scripts/verify-tab1-today.ts 13/13
+      (pure, no DB).
+      WRITES — existing endpoints, called as their existing screens call them:
+      task-log (tick/untick; temperatureValue from the value-entry sheet for
+      requiresTemp tasks — audit point 6 put it IN scope, so no value-entry
+      row is filed), POST /api/checklists (Start when today's row does not
+      exist yet, exactly as Start Daily Checklist; STAFF lacks
+      checklists.create there and here), submit (sent by the tick that
+      empties the list — see DECISIONS: day close files every non-Completed
+      row Missed, so a Done panel without submit would be false), calendar
+      occurrence complete (due sheet). No schema, no new route, no new
+      dependency.
+      HOME SCREEN: manifest.ts (standalone) and apple-icon already existed;
+      appleWebApp.capable flipped from an explicit false to an explicit true in
+      src/app/layout.tsx so older iOS honours the manifest's standalone.
+      VERIFIED LOCALLY ONLY: a temporary uncommitted page under the public
+      /menu route rendered the real TabletShell + TabletHome with fetch mocked
+      at 1180×820 and 820×1180 — Not started → Start → value sheet posted
+      temperatureValue 28 → "N done" → last tick posted submit with all seven
+      ids → Done; Done-on-load with Up next; overdue sheet. Nothing ran against
+      a database or a signed-in session.
+      STAGING TESTS (Gary, after push; staging-SHA precondition first) — the
+      prompt's list, unchanged: (1) desktop with no cookie looks exactly as
+      before; (2) switch to Tablet → rail + tablet home; reload stays Tablet;
+      back to Desktop stays Desktop; (3) as Tommy (STORE) on a store with
+      today's checklist: Not started → Start → check items → "N done" expands
+      → the last item moves the panel to Done; (4) overdue chip shows that
+      store's count and opens the sheet, no full-width banner in Tablet mode;
+      (5) Safari Responsive Design Mode iPad 1180×820 and 820×1180, plus a
+      real iPad if available; (6) Add to Home Screen on an iPad — expect to
+      sign in again and set Tablet again inside the home-screen app.
+
+  - id: TAB-2
+    track: platform
+    size: M
+    status: planned
+    title: "Tablet mode — Messages column + stat strip"
+    notes: >
+      Filed 2026-11-09 by TAB-1. Replaces the Team Messages card TAB-1 left in
+      the tablet home's right column with the design's Messages column (pinned
+      corporate update, thread, quick replies "On it" / "Done" / "Thanks",
+      composer posting as the store), and adds the bottom stat strip (Sales
+      today, Monthly goal, Labor) — OFF by default in Tablet mode, ADMIN turns
+      them on (Gary's ruling 4, 2026-11-09). Messages stays locked on
+      (ruling 5). Design: Direction 1 · Status Stage, froot_docs/design/Froot
+      Tablet Mode.pdf pages 1–3 and 11.
+
+  - id: TAB-3
+    track: platform
+    size: M
+    status: planned
+    title: "Tablet mode — Settings card picker (one layout per org, schema)"
+    notes: >
+      Filed 2026-11-09 by TAB-1. The ADMIN-only Settings card picker from the
+      design (pages 12–13): which cards each screen shows, drag to reorder,
+      reset to default. One layout per org, set by ADMIN; per-store layouts
+      deferred (Gary's ruling 3). Messages and Tasks locked on (ruling 5);
+      Sales/Goal/Labor off by default (ruling 4). NEEDS A SCHEMA CHANGE (the
+      org's layout has to persist) — TIER 3 by definition. The rail's Settings
+      gear (TAB-1) is ADMIN-only already (ruling 8).
+
+  - id: TAB-4
+    track: platform
+    size: M
+    status: planned
+    title: "Per-person attribution on shared tablets"
+    notes: >
+      Filed 2026-11-09 by TAB-1 from Gary's ruling 6: "v1 checks off and posts
+      as the logged-in account, same as today. Per-person attribution is a
+      planned row." (the ruling as worded in the TAB-1 prompt; Gary's own
+      words were "I agree yes to all"). On a shared counter iPad every tick and
+      post is the device login. Today the execution page's staff picker is the
+      only per-person signal (TaskLog.completedByStaffId, CHK-15 rules); TAB-1
+      deliberately sends no name. This row decides how a person identifies
+      themselves on a shared device — the picker, a PIN, or something else —
+      and how that reaches TaskLog and messages. A permission/identity design,
+      so TIER 3.
+
 bugs:
   - id: BUG-1
     title: "Dashboard cards intermittently fail to load"
