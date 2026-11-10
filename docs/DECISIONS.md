@@ -5,6 +5,150 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-10 — TAB-3: Display settings — the Dashboard and Tablet card picker, rulings 1–8 — DRAFT
+
+**DRAFT, awaiting Gary's ratification at the TAB-3 PRE-PUSH-CHECK.** Prompt
+of record: `docs/prompts/TAB-3.md`; audit: `docs/prompts/TAB-3_AUDIT.md` (both
+untracked until PRE-PUSH-CHECK). Work commit: c38d998. Migration
+`20261110200000_tab3_display_layouts` (`docs/MIGRATIONS.md`).
+
+**Gary's rulings 1–8, 2026-11-10.** The TAB-3 prompt records that Gary
+answered "yes to all" to these leans. Their wording below is the prompt's,
+not Gary's own:
+
+1. **Where.** A Display sub-page at `/settings/display`, ADMIN only, on the
+   `/settings/labor` / `/settings/notifications` pattern. It has a link card
+   on `/settings` and two tabs, Dashboard and Tablet.
+2. **Storage.** One layout per org (TAB-1 ruling 3), stored on the
+   organization. Empty or absent means today's defaults.
+3. **Dashboard tab.** Every desktop card gets an on/off toggle and a
+   position. Cards keep their widths and flow in the chosen order. No card is
+   locked, but at least one must stay on.
+4. **Tablet tab.** Tasks and Messages are locked on as the two columns, Tasks
+   left. **This simplifies TAB-1 ruling 5**, which let them be reordered.
+   Below the columns is the stat strip: Sales, Monthly Goal and Labor %, each
+   with a toggle and an order, all off by default.
+5. **Permissions still apply** on both surfaces.
+6. **Reordering** is touch-size up/down arrows, plus drag handles if the repo
+   already has a drag-and-drop library. It does (`@dnd-kit`), so both were
+   built.
+7. **Reset to defaults** on each tab, with a confirmation step.
+8. **No live preview in v1.** It is filed as a ROW (TAB-6).
+
+**Audit forks F1–F9 (`TAB-3_AUDIT.md`).** Gary's words in chat,
+2026-11-10: "Yes to all, go". Every lean below is therefore his ruling.
+
+- **F1.** The two banners above the dashboard (ComplianceBanner, and
+  CalendarDueBanner, which is the design's "Overdue alerts") are NOT in the
+  picker. They stay pinned and cannot be hidden.
+- **F2.** Handoff notes ride inside the `shift-checklist` slot, stacked above
+  it, with no key of their own. Turning Shift checklist off also hides them
+  on the desktop dashboard.
+- **F3.** The All-locations rollup is untouched. Only `inventory-count`
+  follows its toggle in both modes.
+- **F4.** The Labor % tile shows month-to-date labor %, from the summary
+  payload. It matches the Monthly Goal card's line and is labelled with the
+  month.
+- **F5.** A save carries the full list for its surface, every key exactly
+  once.
+- **F6.** "At least one desktop card on" is counted against the registry, not
+  against the org's modules. **REFINED BY GARY, 2026-11-10, before the work
+  commit** (the line before this one is kept, but this ruling supersedes it).
+  His words, verbatim:
+
+  > "F6 refinement — the "at least one card on" rule counts only cards that
+  > are never module-gated (sales-performance, monthly-goal, team-messages,
+  > shift-checklist); a save with none of those enabled is refused."
+
+  Built as follows:
+  - The four cards carry `anchor: true` in the registry.
+  - `hasAnchorOn()` is the test, shared by `validateLayout()` (the route) and
+    the page's Save button.
+  - The error reads "Keep at least one of Sales performance, Monthly goal,
+    Team messages or Shift checklist on."
+  - Fixture cases 12b (only Inventory count on → refused; the same for Labor
+    coverage, Labor budget, Instagram and Corporate update alone) and 12c (any
+    one of the four alone → accepted).
+- **F7.** The link card goes on the `/settings` Integrations tab, after
+  Message Center.
+- **F8.** The Sales tile is hidden when the store has no sales (no Square
+  link, or the Inventory module is off).
+- **F9.** The Goal tile reads "No goal set" when no goal is set.
+
+**Storage (Claude, from ruling 2).** There are two nullable JSONB columns,
+`Organization.dashboardLayout` and `Organization.tabletLayout`. Each holds an
+ordered `[{ key, enabled }]`. NULL means the defaults. **"Reset to defaults"
+writes NULL, not the default array**, so a card Froot adds later still
+reaches a reset org at its default place.
+
+**The merge rule (Claude; `resolveLayout()` in
+`src/lib/display-layout.ts`).** It is forgiving on read:
+
+1. A null or non-array value gives the defaults.
+2. The saved order is kept for known keys, and the first occurrence of a key
+   wins.
+3. Unknown keys and duplicates are dropped. A non-boolean `enabled` falls
+   back to the card's default.
+4. A registry key missing from a saved layout is inserted directly after the
+   nearest preceding default-order key that is present (or at the start),
+   with its default state.
+5. Locked keys are forced on and pinned to the front in registry order.
+
+**Validation (Claude; `validateLayout()` and `canEditDisplayLayout()`,
+applied by `PUT /api/display/settings`).** It is strict on write:
+
+- ADMIN only. The route re-checks it even though the page is gated on
+  `settings.access` (PERM-2).
+- Zod checks the shape.
+- Known keys only.
+- Every key for the surface exactly once.
+- At least one desktop card enabled.
+- Tasks and Messages enabled on Tablet.
+- The NORMALISED list is what gets stored.
+
+**Judgement calls (Claude, for ratification):**
+
+- **(a) Row packing.** Desktop cards are packed greedily into rows of 3
+  width units: Sales and Coverage take 2, a full-width card takes 3, every
+  other card takes 1. Each card keeps today's wrapper class. A single
+  flex-wrap container was rejected because it would have put Sales, Goal and
+  Coverage on one line on wide screens, breaking the null-layout guarantee.
+  Packing today's order reproduces today's rows exactly (fixture cases 2–3).
+- **(b) Filtering.** The viewer-side filters applied before packing are
+  exactly the gates the dashboard already had: `laborEnabled` and a
+  non-empty `countRecency`. Runtime collapses are not filtered (Corporate
+  Update with no active update, notes all acknowledged). They hold their
+  slot and render nothing, as before.
+- **(c) One endpoint for the strip.** All three tiles read
+  `GET /api/dashboard/summary`, and there is no new endpoint. Sales =
+  `sales.today.total`, plus ▲/▼ against the same weekday last year using
+  DeltaPill's formula. Goal = MTD ÷ goal, capped at 100%. Labor = the
+  `labor` block, which is absent unless `laborVisible`. That makes a tile
+  disappear, never render empty. The strip renders nothing when no tile is
+  on, or when none survives its gate.
+- **(c′) Strip with no visible tile — GARY'S RULING, 2026-11-10, before the
+  work commit.** His words, verbatim: "When no stat-strip tile is visible to
+  the viewer, render no strip container (no gap)."
+  - With tiles enabled, the columns and the strip share a flex column. A flex
+    gap only falls between rendered children, so a strip that renders null
+    leaves nothing behind.
+  - With no tile enabled, the original TAB-2b markup is untouched.
+  - For the same reason the strip has **no loading skeleton**. A placeholder
+    would show a strip to a viewer who then gets none. This departs from
+    § Design System's skeleton rule, and Gary's ruling is the reason.
+- **(d) Refresh timer.** The strip refreshes on the Messages column's
+  visibility-aware timer. Its 60 s constant was lifted to
+  `TABLET_REFRESH_MS` in `src/lib/tablet-messages.ts`, so the two cannot
+  drift. A failed refresh keeps the numbers on screen.
+- **(e) Save model.** Each tab edits a draft and saves with one Save
+  button. The page disables Save and shows the F6 error when none of the four
+  never-gated cards is on. The route refuses that independently.
+- **(f) Drag sensor.** The drag handles use template-form's
+  `PointerSensor(distance 8)` with `touch-action: none`. Locked tablet rows
+  have no handle, arrows or switch, just a lock and "Locked on".
+- **(g) Page copy.** The page says changes apply "to everyone in your
+  organization". The design's "everyone at this store" contradicts ruling 2.
+
 ## 2026-11-10 — TAB-2: Tablet mode — the Messages column, rulings 1–8 — DRAFT
 
 **TAB-2b RIDER RATIFIED BY GARY, 2026-11-10, at the TAB-2b PRE-PUSH-CHECK:**

@@ -24756,6 +24756,14 @@ phases:
         task?"; the tablet posts as the logged-in account with no name, per
         Gary's ruling 6. Per-person attribution is TAB-4.
     notes: >
+      ── RIDER 2026-11-10, TAB-3 (prepended; nothing below is edited). ──
+      TAB-3 ruling 4 (Gary, "yes to all", 2026-11-10; DECISIONS 2026-11-10
+      TAB-3, DRAFT) SIMPLIFIES ruling 5 here: Tasks and Messages are locked on
+      AND fixed as the two columns, Tasks on the left. They are no longer
+      reorderable. In the TAB-3 card picker they show as locked rows. Only the
+      stat strip's tiles (Sales, Monthly Goal, Labor %) take a toggle and an
+      order. Ruling 5's "Messages and Tasks locked on" still holds as written;
+      the reorder it allowed is spent, kept.
       ── RIDER 2026-11-10, TAB-1c (prepended; nothing below is edited). ──
       See TAB-1c (1f03674). The overdue chip below was correct; the staging
       "no chip" reports were an empty due feed (no materialise cron on
@@ -25311,9 +25319,54 @@ phases:
   - id: TAB-3
     track: platform
     size: M
-    status: planned
+    # planned -> in_progress 2026-11-10 at the work commit c38d998 (NOT
+    # pushed). The docs SHA is the commit immediately after c38d998 (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
+    # Migration 20261110200000_tab3_display_layouts (two nullable JSONB
+    # columns on Organization), applied to dev by Gary before the work commit.
+    # Rollback: `git revert c38d998`; the columns stay (additive only).
+    status: in_progress
     title: "Tablet mode — Settings card picker (one layout per org, schema)"
+    commits:
+      - "c38d998"
+      # feat(TAB-3) — /settings/display (Dashboard + Tablet tabs), PUT
+      # /api/display/settings, src/lib/display-layout.ts, desktop dashboard
+      # follows dashboardLayout, tablet stat strip, migration, fixture
+      # + the commit immediately after c38d998: docs(TAB-3) — this row, the
+      # TAB-6 ROW, the TAB-1 rider, DECISIONS DRAFT, MIGRATIONS entry
     notes: >
+      ── RIDER 2026-11-10, TAB-3 build (prepended; nothing below is edited). ──
+      BUILT, not yet checked on staging.
+      Rulings 1–8 (Gary's "yes to all", per the prompt) and audit forks F1–F9
+      (Gary: "Yes to all, go") are in DECISIONS 2026-11-10 TAB-3, DRAFT
+      until PRE-PUSH-CHECK. Prompt docs/prompts/TAB-3.md; audit
+      docs/prompts/TAB-3_AUDIT.md.
+      WHAT SHIPS:
+        - /settings/display, ADMIN only (settings.access), with a link card on
+          /settings Integrations.
+        - Each row has a toggle, 44px up/down arrows and a dnd-kit drag handle.
+          Locked tablet rows show a lock.
+        - "Reset to defaults" asks first and stores NULL.
+        - PUT /api/display/settings re-checks ADMIN, refuses unknown keys,
+          partial lists, zero desktop cards on, and Tasks/Messages off, and
+          stores the normalised list.
+        - The desktop dashboard packs the enabled cards into rows of 3 units.
+          A NULL layout gives today's rows exactly.
+        - The tablet stat strip sits below the columns. Its tiles come from
+          GET /api/dashboard/summary (no new endpoint), each gated by the
+          payload, on the Messages column's 60s visibility-aware timer.
+      GARY'S RULINGS AT THE STOP (DECISIONS F6 and judgement call c′):
+        - "at least one card on" counts only the four never-module-gated cards
+          (Sales performance, Monthly goal, Team messages, Shift checklist).
+        - When no strip tile is visible to the viewer, there is no strip
+          container and no gap. The strip therefore has no loading skeleton.
+      MIGRATION 20261110200000_tab3_display_layouts was applied to dev
+      br-broad-wave-a6vpjdw0 at 2026-11-10 18:14:08 UTC, and the empty-diff
+      check is clean. Staging and production get it at the Vercel build.
+      FIXTURES: verify-tab3-layout 28/28 (cases 21–26 on the applied schema,
+      dev, rolled back), verify-tab1-today 13/13, verify-tab1c-due-chip 11/11,
+      verify-tab2-messages 23/23. Build and scoped eslint green. The temporary
+      mocked page under /menu was deleted before the commit.
       ── RIDER 2026-11-10, TAB-2 (prepended; nothing below is edited). ──
       SCOPE WIDENED by Gary's ruling 1, 2026-11-10 ("Yes", DECISIONS 2026-11-10
       TAB-2): the bottom stat strip (Sales today, Monthly goal, Labor) moved
@@ -25387,6 +25440,27 @@ phases:
       skipping a refresh while a tick, value entry, name sheet or submit is in
       flight or open, so a refresh can't undo an optimistic tick. TIER 2 if it
       stays reads only.
+
+  - id: TAB-6
+    track: platform
+    size: S
+    status: planned
+    title: "Display settings — live preview of the Dashboard and Tablet layouts"
+    notes: >
+      Filed 2026-11-10 by TAB-3 from its ruling 8 ("No live preview in v1.
+      File a ROW for it." — the prompt's wording; Gary answered "yes to all").
+      The design's Settings artboards (froot_docs/design/Froot Tablet Mode.pdf
+      pages 12–13) show a PREVIEW pane beside the card list. It mirrors the
+      draft layout before Save: the desktop grid as packed rows, and the
+      tablet's two columns plus the strip.
+      WHY IT MATTERS. A desktop reorder changes how cards pack into rows (TAB-3
+      judgement call a). For example, moving Labor Coverage away from beneath
+      Sales Performance loses the aligned hourly axes. An ADMIN can only see
+      that after saving.
+      Shape (a recommendation, not a ruling): render packRows() from
+      src/lib/display-layout.ts over the draft as labelled blocks. It needs
+      no data and no new route. TIER 2 if it stays read-only and
+      display-only.
 
 bugs:
   - id: BUG-1
