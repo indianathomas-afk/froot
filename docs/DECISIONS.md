@@ -57,16 +57,24 @@ checklist does not count as "isn't completed" for rule 1. Without that, the
 lean's own Done state ("with the next upcoming checklist") could never show
 while a later checklist existed. Pinned by `scripts/verify-tab1-today.ts`.
 
-**Two further Claude choices, for ratification:**
+**Two further choices, for ratification:**
 
-- **The tick that empties the list sends submit.** The prompt says the last
-  item moves the panel to Done, through existing endpoints. A checklist only
-  becomes `Completed` through `POST /api/checklists/[id]/submit`, and the
-  day-close cron files every row that is not `Completed` as `Missed` —
-  fully ticked or not (`api/cron/checklist-day-close/route.ts`). A Done panel
-  over a row that would be filed Missed that night would be false, so the
-  tablet sends the same submit the execution page's Submit button sends. If
-  submit fails, the panel stays in progress with a Finish button.
+- **Submit is a deliberate tap, not a side effect of the last tick (Gary,
+  2026-11-09, after adec345).** adec345 sent submit automatically on the tick
+  that emptied the list. Gary's instruction replaced that: "ticking the last
+  item must NOT submit. When every item is ticked, the In progress panel shows
+  a full-width touch-lg "Submit <NAME> checklist" button (same submit request
+  the desktop Submit button sends). The Done state appears only after that
+  submit succeeds; on failure, show an error and keep the button. Unticking an
+  item before submit hides the button again." Built that way. Why Done still
+  waits for submit: a checklist only becomes `Completed` through
+  `POST /api/checklists/[id]/submit`, and the day-close cron files every row
+  that is not `Completed` as `Missed`, fully ticked or not
+  (`api/cron/checklist-day-close/route.ts`). Two Claude details inside it: a
+  submit that returns OK but a status other than `Completed` (an item unticked
+  on another device) counts as a failure and keeps the button; and a trailing
+  "checklist" in the template name is dropped from the label, so "Mid-day
+  checklist" reads "Submit Mid-day checklist", not "… checklist checklist".
 - **`appleWebApp.capable` is now an explicit `true`** (was an explicit
   `false`), matching the manifest's `display: "standalone"` (28bbd8a), so
   "Add to Home Screen" opens full screen on iOS versions that read the meta

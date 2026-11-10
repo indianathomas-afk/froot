@@ -24672,6 +24672,8 @@ phases:
       # feat(TAB-1) — switch, shell, library touch sizes, tablet home, fixture
       # + the commit immediately after adec345: docs(TAB-1) — these rows,
       # DECISIONS draft
+      # + docs(TAB-1) d5a9094, then fix(TAB-1): Submit button replaces the
+      # last-tick submit — SHAs recorded at PRE-PUSH-CHECK
     deferred:
       - >
         PHOTO CAPTURE ON THE TABLET. A requiresPhoto task ticks on the tablet
@@ -24685,6 +24687,16 @@ phases:
         task?"; the tablet posts as the logged-in account with no name, per
         Gary's ruling 6. Per-person attribution is TAB-4.
     notes: >
+      ── RIDER 2026-11-09, TAB-1 fix (prepended; nothing below is edited). ──
+      The last tick NO LONGER SUBMITS (Gary, 2026-11-09, before
+      PRE-PUSH-CHECK). When every item is ticked the In progress panel shows a
+      full-width touch-lg "Submit <NAME> checklist" button that sends the same
+      submit request the desktop Submit button sends; unticking an item hides
+      it; Done appears only after submit answers Completed, and a failure
+      shows an error and keeps the button. The "submit (sent by the tick that
+      empties the list)" WRITES entry and the "last tick posted submit"
+      verification line below describe adec345 and are spent. DECISIONS draft
+      updated. Fix commit: the commit after the TAB-1 docs commit d5a9094.
       BUILT 2026-11-09 on staging, NOT pushed. TIER 2. Prompt of record:
       docs/prompts/TAB-1.md. Design: froot_docs/design/Froot Tablet Mode.pdf,
       Direction 1 · Status Stage (pages 1–3 landscape, page 11 portrait).

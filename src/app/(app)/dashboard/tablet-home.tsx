@@ -27,16 +27,21 @@ import type { TabletChecklist, TabletStore, TabletTask } from "./tablet-data"
 //   tick / untick   POST /api/checklists/[id]/task-log   (the execution page)
 //   value entry     the same route's `temperatureValue`  (accepted since Phase 1)
 //   Start, no row   POST /api/checklists {templateId, storeId} (Start Daily Checklist)
-//   last item       POST /api/checklists/[id]/submit     (the execution page's Submit)
+//   Submit button   POST /api/checklists/[id]/submit     (the execution page's Submit)
 //   due list        POST /api/calendar/occurrences/[id]/complete (the due banner)
 // Ticks post as the logged-in account with no staff name (ruling 6), exactly
 // as the execution page does when its picker's "Team Member" is chosen.
 //
-// WHY THE LAST TICK SUBMITS. A checklist only becomes Completed through submit;
-// the day-close cron sweeps every row that is not Completed to Missed —
-// fully ticked or not (api/cron/checklist-day-close). A "Done" panel over a row
-// that will be filed Missed tonight would be a lie, so the tick that empties
-// the list sends the same submit the desktop Submit button sends.
+// SUBMIT IS A DELIBERATE TAP, NEVER A SIDE EFFECT OF A TICK (Gary, 2026-11-09,
+// TAB-1 fix — replaces adec345's last-tick submit). When every item is ticked
+// the In progress panel shows one full-width "Submit <NAME> checklist" button,
+// which sends the same submit the desktop Submit button sends. Unticking an
+// item hides it again. Done appears ONLY after that submit succeeds with
+// status Completed; on failure the error shows and the button stays.
+// Why Done waits for submit: a checklist only becomes Completed through submit,
+// and the day-close cron files every row that is not Completed as Missed —
+// fully ticked or not (api/cron/checklist-day-close). A Done panel over an
+// unsubmitted row would be false.
 
 /** One row of GET /api/stores/[id]/templates — the Start Daily Checklist list. */
 type TodayRow = TodayEntry & {
@@ -255,15 +260,22 @@ function TasksPanel({
           body: JSON.stringify({ completedTaskIds }),
         })
       } catch {
-        setError("Every item is saved, but finishing the checklist didn't go through — no connection. Tap Finish to try again.")
+        setError("Every item is saved, but the checklist didn't submit — no connection. Check the store's wifi and tap Submit again.")
         return
       }
       if (!res.ok) {
-        setError((await readError(res)) ?? `Every item is saved, but finishing the checklist failed (error ${res.status}). Tap Finish to try again.`)
+        setError((await readError(res)) ?? `Every item is saved, but the checklist didn't submit (error ${res.status}). Tap Submit again.`)
         return
       }
-      const body = (await res.json()) as { status?: string }
-      if (body.status === "Completed") setJustFinished(c.id)
+      const body = (await res.json().catch(() => ({}))) as { status?: string }
+      // Done only on a Completed answer. Anything else (an item unticked on
+      // another device in the meantime) is a failure: say so, keep the button.
+      if (body.status !== "Completed") {
+        setError("The checklist didn't submit as complete — an item may have been unticked elsewhere. Check the list and tap Submit again.")
+        await onChanged()
+        return
+      }
+      setJustFinished(c.id)
       setError(null)
       await onChanged()
     } finally {
@@ -305,8 +317,7 @@ function TasksPanel({
       )
       return
     }
-    // The tick that empties the list finishes the checklist (see the header).
-    if (next.done && tasksOf(c).every((t) => t.done)) await submit(c)
+    // No submit here — ticking the last item only reveals the Submit button.
   }
 
   async function start(entry: TodayRow) {
@@ -406,7 +417,7 @@ function TasksPanel({
             if (!t.done && t.requiresTemp) setValueFor({ checklistId: view.id, task: t })
             else void toggle(view, t)
           }}
-          onFinish={() => void submit(view)}
+          onSubmit={() => void submit(view)}
         />
       )
     } else {
@@ -489,13 +500,13 @@ function InProgressPanel({
   entry,
   busy,
   onTap,
-  onFinish,
+  onSubmit,
 }: {
   checklist: TabletChecklist
   entry: TodayRow
   busy: string | null
   onTap: (t: TabletTask) => void
-  onFinish: () => void
+  onSubmit: () => void
 }) {
   const [showDone, setShowDone] = useState(false)
   const all = checklist.sections.flatMap((s) => s.tasks)
@@ -503,7 +514,9 @@ function InProgressPanel({
   const doneTasks = all.filter((t) => t.done)
   const left = total - doneTasks.length
   const due = dueLabel(entry)
-  const finishing = busy === `submit:${checklist.id}`
+  const submitting = busy === `submit:${checklist.id}`
+  // "Submit Opening checklist", not "Submit Mid-day checklist checklist".
+  const submitName = checklist.name.replace(/\s+checklist\s*$/i, "")
 
   return (
     <>
@@ -539,7 +552,7 @@ function InProgressPanel({
             </TouchRow>
             {showDone &&
               doneTasks.map((t) => (
-                <TouchRow key={t.id} state="done" onClick={() => onTap(t)} title="Tap to undo">
+                <TouchRow key={t.id} state="done" onClick={() => onTap(t)} title="Tap to undo" disabled={submitting}>
                   <span className="min-w-0 flex-1">{t.label}</span>
                   {t.value !== null && <span className="text-base no-underline">{t.value}°F</span>}
                   <TouchCheck checked />
@@ -558,7 +571,7 @@ function InProgressPanel({
                 <span>{open.length} left</span>
               </div>
               {open.map((t) => (
-                <TouchRow key={t.id} size="roomy" onClick={() => onTap(t)} disabled={finishing}>
+                <TouchRow key={t.id} size="roomy" onClick={() => onTap(t)} disabled={submitting}>
                   <span className={cn("min-w-0 flex-1", t.isCritical && "font-semibold text-[var(--color-destructive)]")}>
                     {t.label}
                   </span>
@@ -574,10 +587,12 @@ function InProgressPanel({
           )
         })}
 
-        {left === 0 && (
+        {/* Every item ticked and not yet submitted. Unticking any item makes
+            `left` non-zero and the button goes away again. */}
+        {total > 0 && left === 0 && (
           <div className="p-6">
-            <Button size="touch-lg" onClick={onFinish} disabled={finishing}>
-              {finishing ? "Finishing…" : "Finish checklist"}
+            <Button size="touch-lg" onClick={onSubmit} disabled={submitting}>
+              {submitting ? "Submitting…" : `Submit ${submitName} checklist`}
             </Button>
           </div>
         )}
