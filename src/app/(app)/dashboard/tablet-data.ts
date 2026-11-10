@@ -4,6 +4,7 @@ import { groupTasksBySection } from "@/lib/sections"
 import { businessDayWindow, dashboardHeaderDate } from "@/lib/reports"
 
 // TAB-1 — the item lists behind the tablet Tasks panel. READ-ONLY.
+// TAB-1b adds each store's picker names (still read-only, still no route).
 //
 // WHY THIS IS A SERVER READ AND NOT AN API CALL. No existing route returns a
 // checklist's tasks grouped by section with their logs — the execution page
@@ -37,7 +38,17 @@ export type TabletChecklist = {
   sections: { key: string; name: string; tasks: TabletTask[] }[]
 }
 
-export type TabletStore = { id: string; name: string; timezone: string; headerDate: string }
+/** TAB-1b — one name on the "Who's completing these?" sheet. */
+export type TabletStaff = { id: string; displayName: string }
+
+export type TabletStore = {
+  id: string
+  name: string
+  timezone: string
+  headerDate: string
+  /** TAB-1b — the desktop picker's staff list for this store, same query. */
+  staff: TabletStaff[]
+}
 
 export async function loadTabletData(
   organizationId: string,
@@ -117,8 +128,30 @@ export async function loadTabletData(
     }
   })
 
+  // TAB-1b — "WHO COMPLETED THIS TASK?", THE DESKTOP LIST EXACTLY. The same
+  // filter as the execution page's picker (store-view/checklist/[id]/page.tsx):
+  // this org, ACTIVE only (CHK-15 — the task-log route refuses anyone else),
+  // assigned to the store, displayName ascending. One query for every store
+  // this login can see, split per store below. The generic "Team Member" /
+  // "Manager" options are not rows; the client prepends them, as desktop does.
+  const staffRows = stores.length
+    ? await prisma.staffMember.findMany({
+        where: {
+          organizationId,
+          status: "ACTIVE",
+          storeAssignments: { some: { storeId: { in: stores.map((s) => s.id) } } },
+        },
+        select: { id: true, displayName: true, storeAssignments: { select: { storeId: true } } },
+        orderBy: { displayName: "asc" },
+      })
+    : []
+  const staffFor = (storeId: string): TabletStaff[] =>
+    staffRows
+      .filter((m) => m.storeAssignments.some((a) => a.storeId === storeId))
+      .map((m) => ({ id: m.id, displayName: m.displayName }))
+
   return {
-    stores: stores.map((s) => ({ ...s, headerDate: dashboardHeaderDate(now, s.timezone) })),
+    stores: stores.map((s) => ({ ...s, headerDate: dashboardHeaderDate(now, s.timezone), staff: staffFor(s.id) })),
     checklists,
   }
 }

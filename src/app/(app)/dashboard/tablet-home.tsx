@@ -17,6 +17,24 @@ import { fetchCard } from "./card-fetch"
 import { TeamMessagesCard, type Comms } from "./dashboard-client"
 import type { TabletChecklist, TabletStore, TabletTask } from "./tablet-data"
 
+/** TAB-1b — one button on the name sheet. `id` is what goes in
+ *  `completedByStaffId`: "manager" for both generic options, as on desktop. */
+type PickerOption = { key: string; id: string; label: string }
+
+/** TAB-1b — who the following ticks are credited to, for one checklist. */
+type Person = { checklistId: string; id: string; label: string }
+
+/** The desktop picker's list, in its order: the two generic options (both send
+ *  "manager", which the task-log route saves as no name), then the store's
+ *  ACTIVE staff by name (src/app/(app)/store-view/checklist/[id]/page.tsx). */
+function pickerOptions(store: TabletStore): PickerOption[] {
+  return [
+    { key: "generic:team", id: "manager", label: "Team Member" },
+    { key: "generic:manager", id: "manager", label: "Manager" },
+    ...store.staff.map((s) => ({ key: s.id, id: s.id, label: s.displayName })),
+  ]
+}
+
 // TAB-1 — the tablet home on /dashboard (Direction 1 · Status Stage).
 //
 // Left: the Tasks panel — Not started / In progress / Done. Right: the existing
@@ -31,6 +49,21 @@ import type { TabletChecklist, TabletStore, TabletTask } from "./tablet-data"
 //   due list        POST /api/calendar/occurrences/[id]/complete (the due banner)
 // Ticks post as the logged-in account with no staff name (ruling 6), exactly
 // as the execution page does when its picker's "Team Member" is chosen.
+//
+// TAB-1b, 2026-11-09 — appended; the two lines above describe adec345 and are
+// spent. Ruling 6's premise ("same as today") was wrong: desktop already asks
+// "Who completed this task?" on every tick whenever the store has staff (Gary:
+// "Agreed, fix it."). The tablet now follows DESKTOP'S RULE EXACTLY — the same
+// list (Team Member, Manager, then the store's ACTIVE staff by name), the same
+// condition (asked only when the store has staff; required then, since closing
+// the sheet ticks nothing, like desktop's Cancel), the same field
+// (`completedByStaffId`, with "manager" for both generic options) and the same
+// untick (no name sent). Only HOW it asks differs: the first tick of a
+// checklist opens "Who's completing these?", the pick sticks as a "Completing
+// as …" chip for the following ticks, and it lives in React state only — gone
+// on submit, on reload, and when the panel moves to another checklist.
+// PARTIAL SUBMIT sends the same submit desktop's "Submit Partial" sends, after
+// a confirm sheet; desktop sends it with no confirm.
 //
 // SUBMIT IS A DELIBERATE TAP, NEVER A SIDE EFFECT OF A TICK (Gary, 2026-11-09,
 // TAB-1 fix — replaces adec345's last-tick submit). When every item is ticked
@@ -212,6 +245,17 @@ function TasksPanel({
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [valueFor, setValueFor] = useState<{ checklistId: string; task: TabletTask } | null>(null)
+  // TAB-1b — the sticky person. React state ONLY: never a cookie or storage, so
+  // it cannot outlive a reload, a day or a device.
+  const [person, setPerson] = useState<Person | null>(null)
+  // The name sheet. `task` is the tap that opened it (ticked once a name is
+  // picked); null when Change opened it.
+  const [nameSheet, setNameSheet] = useState<{ checklistId: string; task: TabletTask | null } | null>(null)
+  // The partial-submit confirm sheet, its in-sheet error, and the calm done
+  // state shown after it lands.
+  const [partialFor, setPartialFor] = useState<string | null>(null)
+  const [partialError, setPartialError] = useState<string | null>(null)
+  const [partialFinished, setPartialFinished] = useState<{ id: string; done: number; total: number } | null>(null)
 
   if (rows === undefined) return <PanelSkeleton />
   if (rows === null) {
@@ -276,6 +320,7 @@ function TasksPanel({
         return
       }
       setJustFinished(c.id)
+      setPerson(null)
       setError(null)
       await onChanged()
     } finally {
@@ -283,7 +328,57 @@ function TasksPanel({
     }
   }
 
-  async function toggle(c: TabletChecklist, task: TabletTask, value: number | null = null) {
+  // TAB-1b — PARTIAL SUBMIT. The same request as desktop's "Submit Partial"
+  // (and as submit() above). The server recomputes status from the saved logs:
+  // a partial lands In Progress, or Non-Compliant when a critical task is
+  // open. Completed means the rest was ticked elsewhere meanwhile, so the
+  // normal Done panel shows. Anything else is a failure, c83a5c3's rule: say so
+  // and keep the sheet open.
+  async function submitPartial(c: TabletChecklist) {
+    setBusy(`partial:${c.id}`)
+    setPartialError(null)
+    try {
+      const tasks = tasksOf(c)
+      const completedTaskIds = tasks.filter((t) => t.done).map((t) => t.id)
+      let res: Response
+      try {
+        res = await fetch(`/api/checklists/${c.id}/submit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ completedTaskIds }),
+        })
+      } catch {
+        setPartialError("The ticked items are saved, but the checklist didn't submit — no connection. Check the store's wifi and try again.")
+        return
+      }
+      if (!res.ok) {
+        setPartialError((await readError(res)) ?? `The ticked items are saved, but the checklist didn't submit (error ${res.status}). Try again.`)
+        return
+      }
+      const body = (await res.json().catch(() => ({}))) as { status?: string }
+      if (body.status === "Completed") {
+        setPartialFor(null)
+        setPerson(null)
+        setJustFinished(c.id)
+        await onChanged()
+        return
+      }
+      if (body.status !== "In Progress" && body.status !== "Non-Compliant") {
+        setPartialError("The checklist didn't submit as expected. Check the list and try again.")
+        await onChanged()
+        return
+      }
+      setPartialFor(null)
+      setPerson(null)
+      setError(null)
+      setPartialFinished({ id: c.id, done: completedTaskIds.length, total: tasks.length })
+      await onChanged()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function toggle(c: TabletChecklist, task: TabletTask, value: number | null = null, staffId: string | null = null) {
     const key = `${c.id}:${task.id}`
     const next: Override = task.done ? { done: false, value: null } : { done: true, value }
     const prior = overridesRef.current[key]
@@ -295,8 +390,14 @@ function TasksPanel({
       res = await fetch(`/api/checklists/${c.id}/task-log`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Ruling 6: posts as the logged-in account, no per-person name.
-        body: JSON.stringify({ taskId: task.id, completedByStaffId: null, temperatureValue: next.done ? value : null }),
+        // TAB-1b: the picked name rides on a tick, exactly as desktop sends it
+        // ("manager" for Team Member / Manager). An untick sends none — desktop
+        // doesn't, and the route never reads it on an untick.
+        body: JSON.stringify({
+          taskId: task.id,
+          completedByStaffId: next.done ? staffId : null,
+          temperatureValue: next.done ? value : null,
+        }),
       })
     } catch {
       res = new Response(null, { status: 0 })
@@ -360,12 +461,61 @@ function TasksPanel({
     }
   }
 
+  // ── TAB-1b: who a tick is credited to ──
+  const options = pickerOptions(store)
+  // Desktop's condition: the picker opens only when the store has staff; with
+  // none, a tick saves no name without asking.
+  const asksForName = store.staff.length > 0
+
+  function tapTask(view: TabletChecklist, t: TabletTask) {
+    if (t.done) return void toggle(view, t) // untick: no name, as desktop
+    const who = person?.checklistId === view.id ? person : null
+    if (asksForName && !who) {
+      // First tick of this checklist: the name comes first, then (for a
+      // temperature task) the number pad.
+      setNameSheet({ checklistId: view.id, task: t })
+      return
+    }
+    if (t.requiresTemp) setValueFor({ checklistId: view.id, task: t })
+    else void toggle(view, t, null, who?.id ?? null)
+  }
+
+  function pickName(o: PickerOption) {
+    const target = nameSheet
+    setNameSheet(null)
+    if (!target) return
+    setPerson({ checklistId: target.checklistId, id: o.id, label: o.label })
+    if (!target.task) return // Change: nothing to tick
+    if (target.task.requiresTemp) {
+      setValueFor({ checklistId: target.checklistId, task: target.task })
+      return
+    }
+    const c = checklistsById.get(target.checklistId)
+    if (c) void toggle(c, target.task, null, o.id)
+  }
+
   // ── Which state ──
   const finishedRow = justFinished ? checklistsById.get(justFinished) : undefined
   const finishedEntry = justFinished ? rows.find((r) => r.existingChecklistId === justFinished) : undefined
+  const partialRow = partialFinished ? checklistsById.get(partialFinished.id) : undefined
+  const partialEntry = partialFinished ? rows.find((r) => r.existingChecklistId === partialFinished.id) : undefined
+  // The checklist the In progress panel is showing, if it is showing one.
+  let shownId: string | null = null
 
   let body: React.ReactNode
-  if (finishedRow && finishedEntry) {
+  if (partialFinished && partialRow && partialEntry) {
+    body = (
+      <DonePanel
+        checklist={withOverrides(partialRow)}
+        timeZone={partialEntry.timeZone}
+        upNext={null}
+        onStartNext={(e) => void start(e)}
+        busy={busy}
+        partial={{ done: partialFinished.done, total: partialFinished.total }}
+        onKeepGoing={() => setPartialFinished(null)}
+      />
+    )
+  } else if (finishedRow && finishedEntry) {
     const upNext = pick.mode === "current" ? pick.current : pick.mode === "done" ? pick.upNext : null
     body = (
       <DonePanel
@@ -408,22 +558,37 @@ function TasksPanel({
     if (entry.existingChecklistId && !row && started.has(entry.existingChecklistId)) {
       body = <PanelSkeleton />
     } else if (view && inProgress) {
+      shownId = view.id
       body = (
         <InProgressPanel
           checklist={view}
           entry={entry}
           busy={busy}
-          onTap={(t) => {
-            if (!t.done && t.requiresTemp) setValueFor({ checklistId: view.id, task: t })
-            else void toggle(view, t)
-          }}
+          person={person?.checklistId === view.id ? person.label : null}
+          onChangePerson={() => setNameSheet({ checklistId: view.id, task: null })}
+          onTap={(t) => tapTask(view, t)}
           onSubmit={() => void submit(view)}
+          onSubmitPartial={() => {
+            setPartialError(null)
+            setPartialFor(view.id)
+          }}
         />
       )
     } else {
       body = <NotStartedPanel entry={entry} busy={busy === `start:${entry.id}`} onStart={() => void start(entry)} />
     }
   }
+
+  // The chip clears when the panel moves to a different checklist (or off the
+  // In progress panel altogether). A state update during render, React's
+  // documented pattern for resetting state when an input changes.
+  if (person && person.checklistId !== shownId) setPerson(null)
+
+  const partialRowForSheet = partialFor ? checklistsById.get(partialFor) : undefined
+  const partialOpen = partialRowForSheet
+    ? withOverrides(partialRowForSheet).sections.flatMap((s) => s.tasks).filter((t) => !t.done).length
+    : 0
+  const partialBusy = busy === `partial:${partialFor}`
 
   return (
     <>
@@ -441,10 +606,104 @@ function TasksPanel({
           const target = valueFor
           setValueFor(null)
           const c = target ? checklistsById.get(target.checklistId) : undefined
-          if (c && target) void toggle(c, target.task, v)
+          const who = target && person?.checklistId === target.checklistId ? person.id : null
+          if (c && target) void toggle(c, target.task, v, who)
         }}
       />
+      <NameSheet
+        key={nameSheet ? `name:${nameSheet.checklistId}:${nameSheet.task?.id ?? "change"}` : "name:closed"}
+        open={!!nameSheet}
+        options={options}
+        onClose={() => setNameSheet(null)}
+        onPick={pickName}
+      />
+      <BottomSheet
+        open={!!partialRowForSheet}
+        onClose={() => {
+          if (!partialBusy) setPartialFor(null)
+        }}
+        title={`Submit with ${partialOpen} ${partialOpen === 1 ? "task" : "tasks"} unfinished?`}
+      >
+        <div className="mx-auto flex max-w-md flex-col gap-4 pb-2">
+          <p className="text-lg text-[var(--color-muted-foreground)]">
+            The ticked items are already saved. Submitting files this checklist as it stands.
+          </p>
+          {partialError && (
+            <p role="alert" className="rounded-xl border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] px-4 py-3 text-base font-medium text-[var(--color-warning-text)]">
+              {partialError}
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <Button size="touch" variant="outline" onClick={() => setPartialFor(null)} disabled={partialBusy}>
+              Keep going
+            </Button>
+            <Button
+              size="touch"
+              onClick={() => partialRowForSheet && void submitPartial(partialRowForSheet)}
+              disabled={partialBusy}
+            >
+              {partialBusy ? "Submitting…" : "Submit partial"}
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
     </>
+  )
+}
+
+// ─── TAB-1b: "Who's completing these?" ───────────────────────────────────────
+
+/** Above this many names a search box appears — past ~12 the two-column grid
+ *  outgrows the sheet's height on a landscape iPad and starts to scroll. */
+const NAME_SEARCH_AT = 12
+
+function NameSheet({
+  open,
+  options,
+  onClose,
+  onPick,
+}: {
+  open: boolean
+  options: PickerOption[]
+  onClose: () => void
+  onPick: (o: PickerOption) => void
+}) {
+  // Remounted per opening (keyed by the caller), so the search starts empty.
+  const [query, setQuery] = useState("")
+  const q = query.trim().toLowerCase()
+  const shown = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options
+
+  return (
+    <BottomSheet open={open} onClose={onClose} title="Who's completing these?">
+      <div className="flex flex-col gap-4 pb-2">
+        {options.length > NAME_SEARCH_AT && (
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search names"
+            aria-label="Search names"
+            className="h-14 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-4 text-lg text-[var(--color-foreground)] outline-none focus:border-[var(--color-primary)]"
+          />
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          {shown.map((o) => (
+            <Button
+              key={o.key}
+              size="touch"
+              variant="outline"
+              className="h-16 justify-start truncate"
+              onClick={() => onPick(o)}
+            >
+              {o.label}
+            </Button>
+          ))}
+        </div>
+        {shown.length === 0 && (
+          <p className="text-lg text-[var(--color-muted-foreground)]">No name matches “{query}”.</p>
+        )}
+      </div>
+    </BottomSheet>
   )
 }
 
@@ -499,14 +758,21 @@ function InProgressPanel({
   checklist,
   entry,
   busy,
+  person,
+  onChangePerson,
   onTap,
   onSubmit,
+  onSubmitPartial,
 }: {
   checklist: TabletChecklist
   entry: TodayRow
   busy: string | null
+  /** TAB-1b — the sticky person's name, or null when nobody is chosen yet. */
+  person: string | null
+  onChangePerson: () => void
   onTap: (t: TabletTask) => void
   onSubmit: () => void
+  onSubmitPartial: () => void
 }) {
   const [showDone, setShowDone] = useState(false)
   const all = checklist.sections.flatMap((s) => s.tasks)
@@ -536,6 +802,24 @@ function InProgressPanel({
           />
         </div>
       </div>
+
+      {/* TAB-1b — the sticky person. Outside the scroll area, so it stays put
+          under the banner while the list scrolls. */}
+      {person && (
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--color-border)] bg-[var(--color-accent)] px-5 py-1">
+          <p className="min-w-0 truncate text-lg text-[var(--color-foreground)]">
+            Completing as <span className="font-bold">{person}</span>
+          </p>
+          <button
+            type="button"
+            onClick={onChangePerson}
+            disabled={submitting}
+            className="flex min-h-14 shrink-0 items-center px-3 text-lg font-semibold text-[var(--color-primary)] underline underline-offset-4 disabled:opacity-50"
+          >
+            Change
+          </button>
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 snap-y snap-proximity overflow-y-auto overscroll-contain">
         {doneTasks.length > 0 && (
@@ -596,6 +880,20 @@ function InProgressPanel({
             </Button>
           </div>
         )}
+
+        {/* TAB-1b — partial submit: a quiet link while some but not all items
+            are ticked. The big Submit above stays for the all-ticked case. */}
+        {doneTasks.length > 0 && left > 0 && (
+          <div className="flex justify-center px-6 py-4">
+            <button
+              type="button"
+              onClick={onSubmitPartial}
+              className="flex min-h-14 items-center px-3 text-lg font-semibold text-[var(--color-muted-foreground)] underline underline-offset-4"
+            >
+              Submit partial ({doneTasks.length} of {total})
+            </button>
+          </div>
+        )}
       </div>
     </>
   )
@@ -609,34 +907,62 @@ function DonePanel({
   upNext,
   onStartNext,
   busy,
+  partial,
+  onKeepGoing,
 }: {
   checklist: TabletChecklist
   timeZone: string
   upNext: TodayRow | null
   onStartNext: (e: TodayRow) => void
   busy: string | null
+  /** TAB-1b — set after a partial submit: the calm, not-green variant. */
+  partial?: { done: number; total: number }
+  /** TAB-1b — back to the In progress panel after a partial submit. */
+  onKeepGoing?: () => void
 }) {
   const all = checklist.sections.flatMap((s) => s.tasks)
   const finished = checklist.completedAt ? formatWindowTime(new Date(checklist.completedAt), timeZone) : null
   const nextDueNow = upNext && (upNext.lifecycleState === "active" || upNext.lifecycleState === "overdue")
   const nextDue = upNext ? dueLabel(upNext) : null
+  const unfinished = partial ? partial.total - partial.done : 0
 
   return (
-    <div className="flex flex-1 flex-col items-center gap-6 overflow-y-auto overscroll-contain bg-[var(--color-success-bg)] p-8 text-center">
-      <span className="mt-4 flex size-24 shrink-0 items-center justify-center rounded-full bg-[var(--color-success)] text-[var(--color-primary-foreground)]">
+    <div
+      className={cn(
+        "flex flex-1 flex-col items-center gap-6 overflow-y-auto overscroll-contain p-8 text-center",
+        partial ? "bg-[var(--color-muted)]" : "bg-[var(--color-success-bg)]"
+      )}
+    >
+      <span
+        className={cn(
+          "mt-4 flex size-24 shrink-0 items-center justify-center rounded-full",
+          partial
+            ? "border-4 border-[var(--color-muted-foreground)] bg-[var(--color-card)] text-[var(--color-muted-foreground)]"
+            : "bg-[var(--color-success)] text-[var(--color-primary-foreground)]"
+        )}
+      >
         <Check className="size-14" strokeWidth={3} />
       </span>
       <div>
-        <h2 className="text-4xl font-extrabold text-[var(--color-foreground)]">{checklist.name} done</h2>
+        <h2 className="text-4xl font-extrabold text-[var(--color-foreground)]">
+          {partial ? `Submitted partial · ${partial.done} of ${partial.total}` : `${checklist.name} done`}
+        </h2>
         <p className="mt-2 text-xl text-[var(--color-muted-foreground)]">
-          All {all.length} tasks checked off{finished ? ` · finished ${finished}` : ""}
+          {partial
+            ? `${checklist.name} · ${unfinished} ${unfinished === 1 ? "task" : "tasks"} left unfinished`
+            : `All ${all.length} tasks checked off${finished ? ` · finished ${finished}` : ""}`}
         </p>
       </div>
       <div className="flex flex-wrap justify-center gap-2">
         {checklist.sections.map((s) => (
           <span
             key={s.key}
-            className="rounded-full border border-[var(--color-success-border)] bg-[var(--color-card)] px-4 py-2 text-base font-semibold text-[var(--color-success-text)]"
+            className={cn(
+              "rounded-full border bg-[var(--color-card)] px-4 py-2 text-base font-semibold",
+              partial
+                ? "border-[var(--color-border)] text-[var(--color-foreground)]"
+                : "border-[var(--color-success-border)] text-[var(--color-success-text)]"
+            )}
           >
             {s.name} {s.tasks.filter((t) => t.done).length}/{s.tasks.length}
           </span>
@@ -661,9 +987,18 @@ function DonePanel({
         </div>
       )}
 
+      {partial && onKeepGoing && (
+        <Button size="touch" variant="outline" onClick={onKeepGoing}>
+          Keep working on it
+        </Button>
+      )}
+
       <Link
         href={`/store-view/checklist/${checklist.id}`}
-        className="flex min-h-14 items-center text-lg font-semibold text-[var(--color-success-text)] underline underline-offset-4"
+        className={cn(
+          "flex min-h-14 items-center text-lg font-semibold underline underline-offset-4",
+          partial ? "text-[var(--color-foreground)]" : "text-[var(--color-success-text)]"
+        )}
       >
         Review checked items
       </Link>
