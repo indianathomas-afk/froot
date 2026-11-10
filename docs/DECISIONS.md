@@ -111,6 +111,39 @@ in answer to the leans below. The wording is the prompt's, not his:
   because TAB-5 filed it, as TAB-6 was filed by TAB-3. Its title names both
   surfaces.
 
+**Addition, 2026-11-10, before PRE-PUSH-CHECK: the offline guard (Gary).**
+His words, verbatim: "the controller skips any cycle that would call
+router.refresh() while navigator.onLine is false (other client fetches may
+still skip naturally); add fixture cases for offline → skip and back online →
+runs." And: "File a planned ROW: a read-only checklist-items endpoint so the
+Tasks panel can refresh without router.refresh(), removing the
+failed-refresh full-navigation risk on an unattended tablet." (Filed as
+TAB-8.) Nothing above is edited; call (c)'s "narrows the window but does not
+close it" still describes the residual risk, and TAB-8 is the row that
+closes it.
+
+Built (commit immediately after 573da37):
+
+- **The cycle.** Every cycle can end in `router.refresh()`, so
+  `shouldRunCycle()` now takes `online` (`navigator.onLine`), and no cycle
+  starts while it is false. All of the cycle's reads wait with it, so the
+  chips, Messages and the strip also pause while offline. They would have
+  failed anyway, and a failed re-read already keeps what is showing.
+- **The single refresh.** `refreshServer()` checks again with
+  `mayRefreshServer()` right before every `router.refresh()`. That covers
+  the refresh after this device's own writes, which runs outside a cycle,
+  and a refresh that waited behind another. The cycle's own check after its
+  reads is kept for a network that drops mid-cycle.
+- **Back online.** **Claude's judgement call (j):** the browser's `online`
+  event runs a cycle at once, the way becoming visible does, rather than
+  waiting up to 60s.
+- **Fixture.** Cases 5d–5g (offline → skips, back online → runs, for both
+  the cycle and the single refresh). `verify-tab5-refresh` is 32/32.
+- **Correction to a number above.** "29/29" in "The controller design" is
+  wrong. The fixture at ab29d62 had 28 checks and passed 28/28. It was a
+  miscount in the report, not a missing check. The ab29d62 commit message
+  carries the same "29/29". The paragraph is kept as written.
+
 ## 2026-11-10 — TAB-3: Display settings — the Dashboard and Tablet card picker, rulings 1–8 — DRAFT
 
 **RATIFIED BY GARY, 2026-11-10, at the TAB-3 PRE-PUSH-CHECK:** "Ratify as

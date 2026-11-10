@@ -20,6 +20,11 @@ import { isBusy, shouldRunCycle, TABLET_REFRESH_MS } from "@/lib/tablet-refresh"
 // while visible, at once on becoming visible again (visibilitychange / focus,
 // which usually fire together, so a second call within 1s is dropped), never
 // while hidden.
+//
+// OFFLINE GUARD (Gary, 2026-11-10): no cycle starts while navigator.onLine is
+// false, because a cycle can end in router.refresh() and a failed refresh is a
+// full browser navigation. The browser's `online` event runs a cycle at once,
+// the way becoming visible does.
 
 type Loader = () => Promise<unknown>
 export type RefreshCycle = (loaders: Loader[]) => Promise<void>
@@ -100,7 +105,12 @@ export function useTabletRefreshController(cycle: RefObject<RefreshCycle | null>
 
   useEffect(() => {
     const run = () => {
-      const state = { visibilityState: document.visibilityState, busy: ctl.busy(), refreshing: refreshing.current }
+      const state = {
+        visibilityState: document.visibilityState,
+        busy: ctl.busy(),
+        refreshing: refreshing.current,
+        online: navigator.onLine !== false,
+      }
       const work = cycle.current
       if (!work || !shouldRunCycle(state)) return
       if (Date.now() - lastRun.current < 1_000) return
@@ -118,10 +128,12 @@ export function useTabletRefreshController(cycle: RefObject<RefreshCycle | null>
     const id = window.setInterval(run, TABLET_REFRESH_MS)
     document.addEventListener("visibilitychange", onBack)
     window.addEventListener("focus", onBack)
+    window.addEventListener("online", onBack)
     return () => {
       window.clearInterval(id)
       document.removeEventListener("visibilitychange", onBack)
       window.removeEventListener("focus", onBack)
+      window.removeEventListener("online", onBack)
     }
   }, [ctl, cycle])
 

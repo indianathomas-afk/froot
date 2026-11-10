@@ -17,16 +17,32 @@
 // module re-exports the constant so the controller has one import, and
 // shouldRunCycle() is canRefresh() widened from "a send" to "anything busy",
 // plus "not already refreshing".
+//
+// OFFLINE GUARD (Gary, 2026-11-10, before PRE-PUSH-CHECK): "the controller
+// skips any cycle that would call router.refresh() while navigator.onLine is
+// false". Every cycle can end in router.refresh() (the Tasks panel's items
+// are a server render), and a refresh whose request fails makes Next do a
+// full browser navigation — on an unattended counter iPad with the wifi down,
+// Safari's error page stays up until someone touches it. So a cycle does not
+// start while the browser reports itself offline; it runs again once online.
 
 import { TABLET_REFRESH_MS, canRefresh } from "@/lib/tablet-messages"
 
 export { TABLET_REFRESH_MS }
 
 /** Ruling 1 + 3: run this cycle only while the page is visible, nothing is
- *  busy (a sheet open or a write in flight, anywhere on the tablet home), and
- *  no refresh is still running (never two at once). */
-export function shouldRunCycle(s: { visibilityState: string; busy: boolean; refreshing: boolean }): boolean {
-  return canRefresh(s.visibilityState, s.busy) && !s.refreshing
+ *  busy (a sheet open or a write in flight, anywhere on the tablet home), no
+ *  refresh is still running (never two at once), and — the offline guard —
+ *  the browser does not report itself offline (`online` is
+ *  navigator.onLine). */
+export function shouldRunCycle(s: { visibilityState: string; busy: boolean; refreshing: boolean; online: boolean }): boolean {
+  return canRefresh(s.visibilityState, s.busy) && !s.refreshing && s.online
+}
+
+/** The offline guard for a single router.refresh() (also reached after this
+ *  device's own writes, outside a cycle): refresh only while not offline. */
+export function mayRefreshServer(online: boolean): boolean {
+  return online
 }
 
 /** True when any registered busy flag is on, or any write is in flight. */

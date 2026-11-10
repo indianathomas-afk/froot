@@ -15,7 +15,7 @@ import { resolveSingleStore, saveStoreId, useSavedStoreId } from "@/lib/dashboar
 import { pickTodayChecklist, type TodayEntry } from "@/lib/tablet-today"
 import { dueChipFor, dueRowSuffix } from "@/lib/tablet-due"
 import { formatInstant } from "@/lib/display-time"
-import { dayRolledOver, nextShownDay, pruneOverrides, type TickOverride } from "@/lib/tablet-refresh"
+import { dayRolledOver, mayRefreshServer, nextShownDay, pruneOverrides, type TickOverride } from "@/lib/tablet-refresh"
 import type { OwedSummary } from "@/lib/hr-compliance"
 import { fetchCard } from "./card-fetch"
 import { StatStrip } from "./tablet-strip"
@@ -228,6 +228,13 @@ export function TabletHome({
     const next = serverChain.current.then(
       () =>
         new Promise<void>((resolve) => {
+          // The offline guard, checked as the refresh is about to go out (it
+          // may have waited behind another): never a router.refresh() while
+          // the browser reports itself offline. The next cycle catches up.
+          if (!mayRefreshServer(navigator.onLine !== false)) {
+            resolve()
+            return
+          }
           const startedAt = Date.now()
           const timer = window.setTimeout(() => {
             landing.current = null
@@ -278,8 +285,10 @@ export function TabletHome({
     // Ruling 4: re-read the items, so ticks made elsewhere show. ONLY right
     // after a read has just answered: when a refresh's own request fails, Next
     // falls back to a full browser navigation, which with the store's wifi
-    // down would leave Safari's error page on the counter.
-    if (!answered || navigator.onLine === false) return
+    // down would leave Safari's error page on the counter. (The controller
+    // does not start a cycle while offline; this catches the wifi dropping
+    // during the reads above, and refreshServer checks once more.)
+    if (!answered || !mayRefreshServer(navigator.onLine !== false)) return
     await refreshServer()
     acceptDay()
   }, [acceptDay, loadToday, loadDue, refreshServer])

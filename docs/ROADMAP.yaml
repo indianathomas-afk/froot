@@ -25439,7 +25439,24 @@ phases:
       # strip moved onto the controller, fixture verify-tab5-refresh.ts
       # + the commit immediately after ab29d62: docs(TAB-5) — this row, the
       # TAB-7 ROW, DECISIONS DRAFT
+      - "573da37"
+      # + the commit immediately after 573da37: fix(TAB-5) — the offline
+      # guard, its fixture cases, the TAB-8 ROW, this rider, DECISIONS DRAFT
+      # addition
     notes: >
+      ── RIDER 2026-11-10, TAB-5 offline guard (prepended; nothing below is
+      edited). ── Gary, before PRE-PUSH-CHECK: "the controller skips any
+      cycle that would call router.refresh() while navigator.onLine is
+      false". Built: shouldRunCycle() takes `online`, so no cycle starts while
+      the browser reports itself offline, and the browser's `online` event
+      runs one at once. refreshServer() checks again before every
+      router.refresh() (mayRefreshServer), covering the post-write path.
+      Fixture cases 5d–5g added: verify-tab5-refresh 32/32. CORRECTION: the
+      rider below (and the ab29d62 commit message, and the DECISIONS draft)
+      says "29/29"; the fixture at ab29d62 had 28 checks and passed 28/28 —
+      a miscount in the report, not a missing check. The rider below is
+      otherwise accurate; its "29/29" is wrong, kept. The residual risk (the network
+      drops while navigator.onLine still reads true) is what TAB-8 removes.
       ── RIDER 2026-11-10, TAB-5 build (prepended; nothing below is edited). ──
       BUILT, not yet checked on staging. TIER 2: no schema, migration,
       endpoint or dependency.
@@ -25548,6 +25565,37 @@ phases:
       check every DeltaPill caller (sales-performance-card.tsx renders it at
       two sites) and the tablet tile together. TIER 2 if it stays
       display-side over the existing payload.
+
+  - id: TAB-8
+    track: platform
+    size: S
+    status: planned
+    title: "Read-only checklist-items endpoint so the tablet Tasks panel refreshes without router.refresh()"
+    notes: >
+      Filed 2026-11-10 by TAB-5, on Gary's instruction before PRE-PUSH-CHECK:
+      "File a planned ROW: a read-only checklist-items endpoint so the Tasks
+      panel can refresh without router.refresh(), removing the
+      failed-refresh full-navigation risk on an unattended tablet."
+      WHY. The Tasks panel's items and ticks are a server render
+      (src/app/(app)/dashboard/tablet-data.ts, loadTabletData) because no
+      route returns a checklist's items, so TAB-5's refresh controller re-reads
+      them with router.refresh(). When that request fails, Next falls back to
+      a full browser navigation (fetch-server-response.js, the catch branch),
+      and on a counter iPad with the wifi down Safari's error page stays up
+      until someone touches it. TAB-5's offline guard skips the refresh while
+      navigator.onLine is false; it cannot catch a network that drops while
+      the browser still reports itself online.
+      Shape (a recommendation, not a ruling): a GET that returns, for the
+      store's checklists today, exactly what loadTabletData returns per
+      checklist — the same tasksForChecklist / excludedStoreIds /
+      groupTasksBySection filters, so the panel cannot drift from the
+      execution page — scoped by org and by the caller's store access the way
+      GET /api/stores/[id]/templates is. The controller then fetches it like
+      every other part (a failed fetch keeps what is showing), and
+      router.refresh() is left only for the day rollover, or dropped if the
+      header date moves client-side too. A new read-only endpoint is TIER 2
+      (CLAUDE.md § Session Tiers); its permission scoping must still be
+      enumerated against the existing checklist routes.
 
 bugs:
   - id: BUG-1

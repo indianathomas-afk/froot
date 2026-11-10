@@ -11,6 +11,10 @@
  *   - A CYCLE THAT RUNS WHEN IT MUST NOT: while hidden (ruling 1), while a
  *     sheet is open or a write is in flight (ruling 3), or while the previous
  *     cycle is still running (never two at once). Cases 1-5.
+ *   - A router.refresh() WHILE OFFLINE (the offline guard, Gary 2026-11-10):
+ *     a failed refresh is a full browser navigation, which leaves Safari's
+ *     error page on an unattended tablet. Offline skips the cycle and the
+ *     single refresh; back online runs again. Cases 5d-5g.
  *   - A ROLLOVER THAT FIRES ON THE WRONG CLOCK: on UTC's midnight instead of
  *     the store's (5:30 PM Pacific is already tomorrow in UTC), on the
  *     browser's zone, a fixed UTC offset that breaks across a daylight-saving
@@ -33,6 +37,7 @@
 import {
   dayRolledOver,
   isBusy,
+  mayRefreshServer,
   nextShownDay,
   pruneOverrides,
   shouldRunCycle,
@@ -57,7 +62,7 @@ const LA = "America/Los_Angeles"
 const NY = "America/New_York"
 
 console.log("\n1 · Should this cycle run? (rulings 1 and 3)")
-const idle = { visibilityState: "visible", busy: false, refreshing: false }
+const idle = { visibilityState: "visible", busy: false, refreshing: false, online: true }
 check("1  visible and idle → runs", shouldRunCycle(idle), true)
 check("2  hidden → skips", shouldRunCycle({ ...idle, visibilityState: "hidden" }), false)
 check(
@@ -70,6 +75,10 @@ check("5  already refreshing → skips", shouldRunCycle({ ...idle, refreshing: t
 check("5a nothing registered and no write → not busy", isBusy([], 0), false)
 check("5b a flag turned off → not busy", isBusy([false], 0), false)
 check("5c the cadence is TAB-2's 60s", TABLET_REFRESH_MS, 60_000)
+check("5d offline (navigator.onLine false), otherwise visible and idle → skips", shouldRunCycle({ ...idle, online: false }), false)
+check("5e back online → runs", shouldRunCycle({ ...idle, online: true }), true)
+check("5f offline → no single router.refresh() either (the post-write path)", mayRefreshServer(false), false)
+check("5g online → the single refresh goes out", mayRefreshServer(true), true)
 
 console.log("\n2 · Has the store-local date changed? (ruling 2)")
 // 2026-11-10 10:00 PST.
