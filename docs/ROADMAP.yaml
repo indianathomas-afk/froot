@@ -24979,13 +24979,26 @@ phases:
     # docs SHA is the commit immediately after 1f03674 (its own SHA cannot be
     # written inside itself). PRE-PUSH-CHECK moves it to staging.
     # Rollback: `git revert 1f03674`; no migration.
-    status: in_progress
+    # in_progress -> staging 2026-11-10 at the TAB-1c PRE-PUSH-CHECK (the
+    # commit immediately after d35d034; its own SHA cannot be written inside
+    # itself). Docs SHA: d35d034 (this row, TAB-1 rider, DECISIONS DRAFT
+    # rider). The check committed the prompt of record docs/prompts/TAB-1c.md
+    # and wrote the DEPLOY_LOG UNPROMOTED entry. DECISIONS 2026-11-09 TAB-1,
+    # TAB-1c rider (items 1-2, the compliance chip design included) RATIFIED
+    # by Gary at this check, "Ratify as written". The notes' "DECISIONS DRAFT
+    # rider" / "untracked until PRE-PUSH-CHECK" are spent, kept. NOT pushed at
+    # writing.
+    status: staging
     title: "Tablet mode — overdue chip characterized; SELF-1 compliance chip on the tablet"
     commits:
       - "1f03674"
       # fix(TAB-1c) — chip rule to src/lib/tablet-due.ts + fixture, ComplianceChip
       # + the commit immediately after 1f03674: docs(TAB-1c) — this row, TAB-1
       # rider, DECISIONS DRAFT rider
+      - "d35d034"
+      # + the commit immediately after d35d034: docs(TAB-1c) PRE-PUSH-CHECK —
+      # DECISIONS rider ratified, prompt of record, DEPLOY_LOG UNPROMOTED
+      # entry, status -> staging
     notes: >
       BUILT 2026-11-10 on staging, NOT pushed. TIER 2. Follows TAB-1 (adec345).
       Prompt: docs/prompts/TAB-1c.md (untracked until PRE-PUSH-CHECK).

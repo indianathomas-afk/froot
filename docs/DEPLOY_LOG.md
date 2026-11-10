@@ -2,6 +2,50 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-10 — TAB-1c: Tablet overdue chip characterized; SELF-1 compliance chip on the tablet
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`1f03674`; docs commit `d35d034`; the PRE-PUSH-CHECK is the commit
+immediately after `d35d034`. TIER 2. No migration, no schema change, no new
+route, no new dependency; reads only, through existing endpoints
+(GET /api/calendar/due, GET /api/dashboard/my-compliance). Three files:
+`src/app/(app)/dashboard/tablet-home.tsx`, new `src/lib/tablet-due.ts`, new
+`scripts/verify-tab1c-due-chip.ts`.
+
+What ships: the TAB-1 (`adec345`) calendar overdue chip was found CORRECT.
+The staging "no chip" reports had two causes outside it: Gary's repro had
+an empty due feed (a new reminder has no CalendarOccurrence until
+/api/cron/calendar-materialize runs, and Vercel never fires crons on
+preview deployments), and Tommy's "You have 2 items to complete · 2
+overdue" was the SELF-1 ComplianceBanner, which TAB-1 had dropped from
+tablet mode with no ruling. The calendar chip's filter, count and row
+wording move UNCHANGED into `src/lib/tablet-due.ts`, pinned by
+`scripts/verify-tab1c-due-chip.ts` (11/11, pure, no DB);
+`verify-tab1-today.ts` re-run 13/13. New: ComplianceChip in the tablet
+header beside the due chip, same endpoint, render rule, words, colours and
+`/my` link as the desktop banner, no dismiss, silent for a device login.
+The TAB-1c DECISIONS rider (2026-11-09 TAB-1 entry, items 1-2) RATIFIED by
+Gary at this check. Calendar banner and due route untouched.
+
+**Rollback.** `git revert 1f03674`; no migration. The tablet loses the
+compliance chip again (overdue HR training and documents go back to being
+invisible in tablet mode); the calendar chip behaves exactly as before,
+since its logic only moved.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+PRECONDITION: fire /api/cron/calendar-materialize by hand first (Preview
+CRON_SECRET, docs/WORKFLOW.md § 1) so the Las Brisas occurrence exists;
+until then an empty chip is expected and proves nothing for tests 1, 2, 5.
+(1) As indianathomas, with the Las Brisas reminder dated yesterday still
+open, switch to Tablet and select Las Brisas: the chip shows the same
+overdue count the desktop banner shows for Las Brisas. (2) Tap the chip:
+the sheet lists the reminder, and its actions work the same as on desktop.
+(3) Switch the tablet store to one with no overdue items: the chip
+disappears. (4) As Tommy (STORE) at Las Brisas in Tablet mode, the chip
+appears with the same count as Tommy's desktop banner. (5) Complete the
+reminder from the sheet: the chip count drops, or the chip disappears at
+zero.
+
 ## UNPROMOTED — 2026-11-09 — TAB-1b: Tablet "who completed this" parity with desktop + partial submit
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit

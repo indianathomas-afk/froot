@@ -7,6 +7,13 @@ decisions too.)
 
 ## 2026-11-09 — TAB-1: Tablet mode — rulings 1–8, the cookie, the today's-checklist rule
 
+**RATIFIED BY GARY, 2026-11-10, at the TAB-1c PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole TAB-1c rider below, items 1–2, including the
+compliance chip's design (Claude's: same endpoint, render rule, words and
+nearest-due line, red/amber, `/my` link, no dismiss, tablet home only); that
+design is now ratified as his. The rider's "DRAFT, awaiting Gary's
+ratification" header is spent, kept. Wording untouched.
+
 **── RIDER 2026-11-10 (TAB-1c) — DRAFT, awaiting Gary's ratification at the
 TAB-1c PRE-PUSH-CHECK. PREPENDED; NOTHING BELOW IS EDITED. ──** Prompt:
 `docs/prompts/TAB-1c.md`. Work commit `1f03674`.
