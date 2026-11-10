@@ -2,6 +2,46 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-09 — TAB-1: Tablet mode (Tablet/Desktop switch, rail shell, touch sizes, Tasks column, explicit Submit)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`adec345`; docs commit `d5a9094`; fix commit `c83a5c3`; the PRE-PUSH-CHECK
+is the commit immediately after `c83a5c3`. TIER 2. No migration, no schema
+change, no new route, no new dependency. Writes go through existing
+endpoints only (task-log, POST /api/checklists, checklist submit, calendar
+occurrence complete), called as their existing screens call them.
+
+What ships: a per-device Tablet/Desktop switch (cookie `froot_view`, one
+year, set client-side, read by the (app) layout so the right shell renders
+on first paint; absent = desktop, and the desktop branch is unchanged).
+Tablet mode is a rail shell (`tablet-shell.tsx`, entries gated by the
+sidebar's own capabilities, Settings gear ADMIN only) and, on /dashboard
+only, the tablet home: today's checklist Tasks panel (Not started / In
+progress / Done with Up next) beside the existing Team Messages card, plus
+an overdue chip that opens the due list as a bottom sheet. No
+Sales/Goal/Labor in tablet mode. Library gains Button sizes touch /
+touch-lg / touch-icon, TouchRow + TouchCheck, BottomSheet. Ticking the
+last item does NOT submit (c83a5c3): a full-width "Submit <NAME>
+checklist" button sends the same submit as desktop, and Done appears only
+when submit answers Completed. `appleWebApp.capable` flipped to `true`.
+Rulings 1–8, the cookie, the today's-checklist rule and the Submit button
+RATIFIED by Gary at this check (DECISIONS.md, 2026-11-09 TAB-1).
+
+**Rollback.** `git revert c83a5c3 adec345`; no migration. A leftover
+`froot_view` cookie is then ignored; nothing in the database changes.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+(1) Desktop with no cookie looks exactly as before. (2) Switch to Tablet →
+rail + tablet home; reload stays Tablet; back to Desktop stays Desktop.
+(3) As Tommy (STORE) on a store with today's checklist: Not started →
+Start → check items → "N done" expands → ticking the last item shows the
+"Submit <NAME> checklist" button (no submit yet); unticking hides it;
+tap Submit → Done. (4) Overdue chip shows that store's count and opens the
+sheet; no full-width banner in Tablet mode. (5) Safari Responsive Design
+Mode iPad 1180×820 and 820×1180, plus a real iPad if available. (6) Add to
+Home Screen on an iPad — expect to sign in again and set Tablet again
+inside the home-screen app.
+
 ## de8e428 — 2026-11-06 — DEBT-129: User.name kept in step with Clerk (webhook user.updated sync, usage-beacon lazy fill)
 
 **PROMOTED 2026-11-06 in merge `de8e428`** ("Merge branch 'staging'",

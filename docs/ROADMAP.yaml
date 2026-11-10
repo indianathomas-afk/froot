@@ -24665,7 +24665,17 @@ phases:
     # -> in_progress 2026-11-09 at the work commit adec345 (NOT pushed). The
     # docs SHA is the commit immediately after adec345 (its own SHA cannot be
     # written inside itself).
-    status: in_progress
+    # in_progress -> staging 2026-11-09 at the TAB-1 PRE-PUSH-CHECK (the
+    # commit immediately after c83a5c3; its own SHA cannot be written inside
+    # itself). Docs SHA: d5a9094 (rows, DRAFT DECISIONS); fix SHA: c83a5c3
+    # (explicit Submit button). The check committed the prompt of record
+    # docs/prompts/TAB-1.md and wrote the DEPLOY_LOG UNPROMOTED entry.
+    # DECISIONS 2026-11-09 TAB-1 (rulings 1-8, the cookie, the
+    # today's-checklist rule, the Submit button, appleWebApp.capable)
+    # RATIFIED by Gary at this check, "Ratify as written". The notes' "DRAFT
+    # until PRE-PUSH-CHECK" is spent, kept. NOT pushed at writing.
+    # Rollback: `git revert c83a5c3 adec345`; no migration.
+    status: staging
     title: "Tablet mode — Tablet/Desktop switch, rail shell, touch sizes, Tasks column"
     commits:
       - "adec345"
@@ -24674,6 +24684,11 @@ phases:
       # DECISIONS draft
       # + docs(TAB-1) d5a9094, then fix(TAB-1): Submit button replaces the
       # last-tick submit — SHAs recorded at PRE-PUSH-CHECK
+      - "d5a9094"
+      - "c83a5c3"
+      # + the commit immediately after c83a5c3: docs(TAB-1) PRE-PUSH-CHECK —
+      # DECISIONS ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
     deferred:
       - >
         PHOTO CAPTURE ON THE TABLET. A requiresPhoto task ticks on the tablet
@@ -24687,6 +24702,14 @@ phases:
         task?"; the tablet posts as the logged-in account with no name, per
         Gary's ruling 6. Per-person attribution is TAB-4.
     notes: >
+      ── RIDER 2026-11-09, TAB-1 PRE-PUSH-CHECK (prepended on Gary's
+      go-ahead, "Yes, fold it in"; nothing below is edited). ── STAGING TEST
+      (3) below ("the last item moves the panel to Done") describes adec345
+      and is spent, kept. Since c83a5c3 it reads: as Tommy (STORE) on a store
+      with today's checklist: Not started → Start → check items → "N done"
+      expands → ticking the last item shows the "Submit <NAME> checklist"
+      button (no submit yet); unticking hides it; tap Submit → Done. The
+      DEPLOY_LOG UNPROMOTED entry carries the corrected list.
       ── RIDER 2026-11-09, TAB-1 fix (prepended; nothing below is edited). ──
       The last tick NO LONGER SUBMITS (Gary, 2026-11-09, before
       PRE-PUSH-CHECK). When every item is ticked the In progress panel shows a

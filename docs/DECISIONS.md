@@ -5,7 +5,13 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-09 — TAB-1: Tablet mode — rulings 1–8, the cookie, the today's-checklist rule — DRAFT
+## 2026-11-09 — TAB-1: Tablet mode — rulings 1–8, the cookie, the today's-checklist rule
+
+**RATIFIED BY GARY, 2026-11-09, at the TAB-1 PRE-PUSH-CHECK:**
+"Ratify as written". This covers the whole entry, including rulings 1–8, the
+cookie note, the today's-checklist rule and the two further choices; the
+Claude choices in it are now ratified as his. The "DRAFT" paragraph below is
+spent, kept; the heading's "— DRAFT" suffix was removed at this check.
 
 **DRAFT — awaiting Gary's ratification at PRE-PUSH-CHECK.** Nothing below is
 ratified yet.
