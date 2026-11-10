@@ -25212,6 +25212,64 @@ phases:
       (ruling 5). Design: Direction 1 · Status Stage, froot_docs/design/Froot
       Tablet Mode.pdf pages 1–3 and 11.
 
+  - id: TAB-2b
+    track: platform
+    size: S
+    # -> in_progress 2026-11-10 at the work commit 007dfd0 (NOT pushed). The
+    # docs SHA is the commit immediately after 007dfd0 (its own SHA cannot be
+    # written inside itself). PRE-PUSH-CHECK moves it to staging.
+    # Rollback: `git revert 007dfd0`; no migration.
+    status: in_progress
+    title: "Tablet mode — the floating help button no longer covers Send; Help moves to the rail"
+    commits:
+      - "007dfd0"
+      # TAB-2b — useContextHelp() extracted from the floating "?"; TabletShell
+      # drops the "?" and gains a rail Help item
+      # + the commit immediately after 007dfd0: docs(TAB-2b) — this row,
+      # DECISIONS DRAFT rider on the 2026-11-10 TAB-2 entry
+    notes: >
+      BUILT 2026-11-10 on staging, NOT pushed. TIER 2. Follows TAB-2 (staging-
+      verified by Gary 2026-11-10). Prompt: docs/prompts/TAB-2b.md (untracked
+      until PRE-PUSH-CHECK). DECISIONS: DRAFT rider on the 2026-11-10 TAB-2
+      entry — the help-in-rail lean is the planning chat's, for Gary to ratify.
+      DEFECT: the floating round "?" (HELP-1a, fixed bottom-6 right-6) sat on
+      the Messages column's Send button in Tablet mode, landscape and portrait.
+      The dark round button mid-height on the right edge in Gary's report is
+      Vercel's preview toolbar (staging only), not Froot.
+      AUDIT: the "?" is ContextHelpButton (src/components/help/
+      context-help-button.tsx), mounted separately by AppShell (desktop) and
+      TabletShell (tablet). It NAVIGATES — a Link to /help/<article> for the
+      longest route match among the articles this reader may see — and opens no
+      panel; it renders nothing where no article matches and on /help itself.
+      WHAT SHIPPED: the "?"'s decision moved unchanged into useContextHelp();
+      ContextHelpButton renders from it (desktop behaviour unchanged).
+      TabletShell no longer mounts the "?" and adds a rail Help item above
+      Settings that shows wherever useContextHelp() returns an article, links
+      to the same /help/<article>, and on /help stays marked active, linking to
+      /help. Rail Help therefore shows on /dashboard, /checklists and /messages
+      and is absent on /calendar and /settings (no article; the "?" was absent
+      there too — DECISIONS rider call b). No schema, no migration, no new
+      route, no new dependency.
+      CHECKS: scoped eslint and npm run build green; verify-tab1-today 13/13,
+      verify-tab1c-due-chip 11/11, verify-tab2-messages 23/23 (re-run, local).
+      VERIFIED LOCALLY ONLY: a temporary uncommitted page under /menu rendered
+      TabletShell + TabletHome, and AppShell for desktop, with
+      /api/help/search mocked (no org, no database, no signed-in session). At
+      1180×820 and 820×1180: no floating "?", no fixed element in the
+      bottom-right, and every point sampled inside the Send circle hit-tests
+      as Send (with a draft typed, so Send is enabled); the old "?" box
+      (bottom 24, right 24, 40×40) would have overlapped Send at both sizes.
+      The rail Help linked to /help/dashboard and tapping it navigated there
+      (the unauthenticated harness was then sent to sign-in, as expected).
+      Desktop showed the floating "?" fixed at bottom 24 / right 24, 40×40,
+      same href. NOT CHECKED LOCALLY: the active state on /help (needs a
+      signed-in /help page). Page deleted.
+      STAGING TESTS (Gary, after push; staging-SHA precondition first) — the
+      prompt's list, unchanged: (1) In Tablet mode, landscape and portrait:
+      there is no floating ? button, and nothing covers Send. (2) Tap Help in
+      the rail. Help opens, the same as the floating button did. (3) Switch to
+      Desktop mode. The floating ? button is back in its usual place and works.
+
   - id: TAB-3
     track: platform
     size: M

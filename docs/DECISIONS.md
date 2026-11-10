@@ -7,6 +7,54 @@ decisions too.)
 
 ## 2026-11-10 — TAB-2: Tablet mode — the Messages column, rulings 1–8 — DRAFT
 
+**── RIDER 2026-11-10 (TAB-2b) — DRAFT, awaiting Gary's ratification at the
+TAB-2b PRE-PUSH-CHECK. PREPENDED; NOTHING BELOW IS EDITED. ──** Prompt:
+`docs/prompts/TAB-2b.md` (untracked until PRE-PUSH-CHECK). Work commit
+`007dfd0`. The "RATIFIED BY GARY … at the TAB-2 PRE-PUSH-CHECK" paragraph
+below predates this rider and does NOT cover it.
+
+**The defect (Gary, staging, 2026-11-10):** the floating round "?" (HELP-1a,
+fixed bottom-right on every page) sat on top of the Messages column's Send
+button in Tablet mode, landscape and portrait, so a tap meant for Send could
+open Help.
+
+**The lean — the planning chat's, carried in the TAB-2b prompt, NOT a ruling
+of Gary's until he ratifies it:**
+
+1. Tablet mode only: the floating help button does not render.
+2. Help moves into the tablet rail as a Help icon above Settings, visible to
+   every role the same as the floating button is today, and tapping it does
+   exactly what the floating button does.
+3. Desktop mode is unchanged; the floating button stays where it is.
+
+**What the audit found (fact, not a choice).** The "?" is
+`ContextHelpButton` (`src/components/help/context-help-button.tsx`), mounted
+separately by `AppShell` (desktop) and `TabletShell` (tablet). It opens no
+panel: it is a link to `/help/<article>` for the longest-matching article
+the reader may see on the current route, and it renders nothing on a route
+with no such article or on `/help` itself. So the rail needed no new
+plumbing, only the same decision, shared.
+
+**Claude's judgement calls under the lean — awaiting ratification.**
+
+a. **One decision, two renderers.** The "?"'s logic was extracted UNCHANGED
+   into `useContextHelp()`; the floating "?" and the rail Help both render
+   from it, so they cannot disagree about which article or which reader.
+b. **"Visible to every role, the same as the floating button" is taken
+   literally,** including where the "?" was absent: the rail Help shows only
+   where `useContextHelp()` returns an article. On the rail's own routes that
+   is `/dashboard`, `/checklists` and `/messages` (each has an article);
+   `/calendar` and `/settings` have none, so Help is absent there — exactly as
+   the "?" was. The alternative, a fallback link to the `/help` landing page
+   there, would be a change of what Help does, so it was not taken.
+c. **On `/help` itself the rail Help stays, marked active, linking to
+   `/help`.** The "?" hides on its own destination; a rail item that vanished
+   the moment you tapped it would not read as navigation.
+d. **Placement:** the rail's bottom group, directly above Settings. Settings
+   is ADMIN-only, so for every other role Help sits directly above the store
+   name. The bottom group is anchored to the bottom, so Help appearing or not
+   never moves Settings.
+
 **RATIFIED BY GARY, 2026-11-10, at the TAB-2 PRE-PUSH-CHECK:** "Ratify as
 written". This covers the whole entry below: rulings 1–8, the audit's
 resolution of rulings 3 and 5, and Claude's judgement calls b, d, e, f and
