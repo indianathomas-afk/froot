@@ -25069,9 +25069,80 @@ phases:
   - id: TAB-2
     track: platform
     size: M
-    status: planned
-    title: "Tablet mode — Messages column + stat strip"
+    # planned -> in_progress 2026-11-10 at the work commit ab80e5b (NOT
+    # pushed). The docs SHA is the commit immediately after ab80e5b (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
+    # Rollback: `git revert ab80e5b`; no migration.
+    # Title was "Tablet mode — Messages column + stat strip" until 2026-11-10;
+    # the stat strip moved to TAB-3 (rider below).
+    status: in_progress
+    title: "Tablet mode — Messages column"
+    commits:
+      - "ab80e5b"
+      # TAB-2 — MessagesColumn, rail unread badge, src/lib/tablet-messages.ts
+      # + scripts/verify-tab2-messages.ts
+      # + the commit immediately after ab80e5b: docs(TAB-2) — this row, TAB-3
+      # rider, DECISIONS DRAFT entry
     notes: >
+      ── RIDER 2026-11-10, TAB-2 (prepended; nothing below is edited). ──
+      SCOPE NARROWED by Gary's ruling 1, 2026-11-10 ("Yes"): TAB-2 is the
+      Messages column only. The Sales/Goal/Labor stat strip, and the setting
+      that turns it on, moved to TAB-3. The sentence below that this row "adds
+      the bottom stat strip" is spent, kept. The words "composer posting as the
+      store" below now read as ruling 4: the logged-in account, as on desktop.
+      BUILT 2026-11-10 on staging, NOT pushed. TIER 2. Prompt:
+      docs/prompts/TAB-2.md (untracked until PRE-PUSH-CHECK). DECISIONS:
+      2026-11-10 TAB-2 DRAFT entry (rulings 1–5 + judgement calls a–f).
+      WHAT SHIPPED: src/app/(app)/dashboard/tablet-messages.tsx replaces the
+      desktop Team Messages card in the tablet home's right column. Pinned
+      Corporate Update (desktop's source and visibility, /api/dashboard/comms;
+      YouTube thumbnail, tap plays desktop's embed; absent when none is
+      current). Thread: GET /api/messages first page (25, store-scoped,
+      newest FIRST, matching desktop's order, so the newest sits at the top
+      under the pinned card), 18px text, name and time, own scroll with
+      overscroll-behavior contain, "Open the feed" to /messages. Composer fixed
+      at the bottom: text field + Send, quick replies On it / Done / Thanks.
+      Every post is POST /api/messages, type general, no staff name (ruling 4).
+      Quick replies post to the FEED: TeamMessage has no reply field (ruling
+      3's fallback). One in-flight guard + disabled buttons: a double tap posts
+      once. On failure the typed text stays and an error shows. Unread:
+      desktop's count (comms unreadCount) on the column header and the rail's
+      Messages icon; nothing on the tablet marks read; it clears by opening
+      /messages, exactly as on desktop (ruling 5; no ROW needed). iPad
+      keyboard: visualViewport lifts the composer; while typing the header,
+      pinned update and quick replies fold away. Portrait stacks Messages under
+      Tasks (TAB-1's grid). No schema, no migration, no new endpoint, no new
+      dependency.
+      CHECKS: verify-tab2-messages 14/14 (new, pure), verify-tab1-today 13/13,
+      verify-tab1c-due-chip 11/11; scoped eslint and npm run build green.
+      VERIFIED LOCALLY ONLY: a temporary uncommitted page under /menu rendered
+      TabletShell + MessagesColumn with fetch mocked (no org, no database, no
+      signed-in session), at 1180×820 and 820×1180. It checked: the pinned
+      update renders, and is absent with none; the thread opens at the newest
+      and returns to it after posting; a typed message posts (button and
+      Return); On it, Thanks and Done each posted once when double-tapped;
+      a forced 500 kept the text and showed the error; portrait stacks under
+      Tasks; with a simulated keyboard (fake visualViewport, 398px landscape,
+      320px portrait), Send sat above it. The first keyboard pass FAILED (Send
+      ended under the keyboard), which is why the fold-away exists. Page deleted.
+      NEEDS A REAL iPAD: the keyboard behaviour is simulated only; iPad Safari
+      and the Home Screen app must be checked by hand (staging test 7).
+      STAGING TESTS (Gary, after push; staging-SHA precondition first) — the
+      prompt's list, unchanged: (1) Tablet mode, as indianathomas: the
+      Corporate Update is pinned at the top of the Messages column, the thread
+      shows the same messages as the desktop card, and the newest message is
+      visible. (2) Type a message and tap Send. It appears in the thread, and
+      on desktop's Team Messages card from the same account. (3) Tap On it,
+      then double-tap Thanks. Each one posts exactly once, as a reply or to the
+      feed as the report says. (4) As Tommy (STORE), post from the tablet. The
+      message shows Tommy's account as the sender on desktop. (5) Unread: if
+      the report says desktop tracks unread, a new message from another account
+      raises the count on the column and the rail icon, and reading it clears
+      the count the way desktop does. (6) Safari Responsive Design Mode, at
+      iPad 1180×820 and 820×1180: the column fits, portrait stacks it under
+      Tasks, and the composer is reachable. (7) On a real iPad, if you have
+      one: tap the composer. The keyboard opens, and the composer stays visible
+      above it.
       Filed 2026-11-09 by TAB-1. Replaces the Team Messages card TAB-1 left in
       the tablet home's right column with the design's Messages column (pinned
       corporate update, thread, quick replies "On it" / "Done" / "Thanks",
@@ -25087,6 +25158,13 @@ phases:
     status: planned
     title: "Tablet mode — Settings card picker (one layout per org, schema)"
     notes: >
+      ── RIDER 2026-11-10, TAB-2 (prepended; nothing below is edited). ──
+      SCOPE WIDENED by Gary's ruling 1, 2026-11-10 ("Yes", DECISIONS 2026-11-10
+      TAB-2): the bottom stat strip (Sales today, Monthly goal, Labor) moved
+      here from TAB-2, together with the setting that turns it on. Ruling 4 of
+      2026-11-09 still holds: off by default in Tablet mode, ADMIN turns it on.
+      Design: froot_docs/design/Froot Tablet Mode.pdf pages 1–3 and 11 (the
+      strip under both columns). The title below predates this and is kept.
       Filed 2026-11-09 by TAB-1. The ADMIN-only Settings card picker from the
       design (pages 12–13): which cards each screen shows, drag to reorder,
       reset to default. One layout per org, set by ADMIN; per-store layouts

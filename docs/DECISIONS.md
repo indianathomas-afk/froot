@@ -5,6 +5,69 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-10 — TAB-2: Tablet mode — the Messages column, rulings 1–5 — DRAFT
+
+**DRAFT — awaiting Gary's ratification at the TAB-2 PRE-PUSH-CHECK.** Nothing
+below is ratified yet.
+
+Prompt of record: `docs/prompts/TAB-2.md` (untracked until PRE-PUSH-CHECK).
+Work commit `ab80e5b`.
+
+**Gary's word, 2026-11-10, verbatim:** "Yes" — his answer to the five leans
+below. The wording of each lean is the planning chat's (as carried in the
+TAB-2 prompt), not Gary's; his "Yes" is what makes them rulings.
+
+1. **Scope:** TAB-2 is the Messages column only. The Sales/Goal/Labor strip
+   moves to TAB-3, together with the setting that turns it on.
+2. **Layout:** the Corporate Update pinned at the top, the thread below it,
+   and a large composer fixed at the bottom, matching the Status Stage design.
+3. **Quick replies:** "On it", "Done" and "Thanks" post as an ordinary
+   message. They reply to the latest message if Froot's messages support
+   replies; otherwise they post to the feed.
+4. **Sender:** tablet messages come from the logged-in account, the same as
+   desktop. The "Completing as" chip stays for tasks only.
+5. **Unread:** reuse desktop's unread tracking if it exists. If it doesn't,
+   TAB-2 adds none, and a ROW is filed.
+
+**How the audit resolved the two conditional rulings (fact, not a choice).**
+Ruling 3: `TeamMessage` has no reply-to or thread field, so quick replies
+take the fallback and post to the store feed as ordinary `general` messages.
+Ruling 5: desktop does track unread (`MessageRead`, one row per message per
+user; the desktop card's count is `/api/dashboard/comms`
+`teamMessagesPreview.unreadCount`; the only thing that marks read is
+`POST /api/messages/mark-read`, fired when `/messages` loads, plus the
+author's own read on posting). So TAB-2 reuses it and no unread ROW is filed.
+
+**Claude's judgement calls — awaiting ratification.**
+
+a. **Thread order: newest at the TOP.** The prompt said newest-at-the-bottom
+   only "if that matches how desktop reads"; it does not. The desktop card and
+   the `/messages` feed both read newest first (`orderBy: createdAt desc`), so
+   the tablet matches desktop, not the artboards (which read oldest to newest,
+   chat-style, with the newest beside the composer). "Scrolls so the newest is
+   visible" therefore means the top of the thread.
+b. **The thread is the feed's first page, not the card's three.** The desktop
+   card previews only the latest 3, truncated to 140 characters; a scrolling
+   column of three would not be a thread. The column reads `GET /api/messages`
+   with no filters (25 newest, full text): the same store, the same
+   `deletedAt: null` set and the same order as the card, so its top three are
+   the card's three. Older messages and attachments are reached through "Open
+   the feed".
+c. **The tablet never marks anything read** (ruling 5's "no new read rules").
+   The count on the column and the rail clears the way desktop's does: by
+   opening `/messages`. The rail hides its badge while on `/messages`, because
+   that page marks the feed read as it loads.
+d. **The rail's count** is the same read as the column's, shared in memory
+   (`src/lib/tablet-unread.ts`); off the home page the rail re-reads it once
+   per navigation from the same endpoint.
+e. **The iPad keyboard.** `visualViewport` lifts the composer by the height
+   the keyboard covers. While the keyboard is up, the header, pinned update
+   and quick replies fold away. Without that, the composer did not fit above
+   the keyboard in a simulated check: landscape 398px keyboard, Send ended
+   180px under it; portrait 320px keyboard, 18px under it. Simulated only.
+f. **Quick replies and Send share one in-flight guard**, so a double tap, or
+   a quick reply tapped while a typed message is sending, posts once.
+
 ## 2026-11-09 — TAB-1: Tablet mode — rulings 1–8, the cookie, the today's-checklist rule
 
 **RATIFIED BY GARY, 2026-11-10, at the TAB-1c PRE-PUSH-CHECK:** "Ratify as
