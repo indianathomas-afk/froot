@@ -16,6 +16,17 @@
  *     has no reply field, so ruling 3's fallback applies: the feed. Case 5.
  *   - A JUST-POSTED MESSAGE LANDING AT THE WRONG END of the newest-first
  *     thread, or SHOWN TWICE when a reload raced the post. Cases 6-7.
+ *     (2026-11-10, Gary's ruling 6: the thread is now CHAT ORDER — oldest at
+ *     the top, newest at the bottom — so cases 6-7 now expect the post at the
+ *     BOTTOM. The line above is spent, kept.)
+ *   - THE API PAGE NOT TURNED ROUND to chat order, or turned round in place
+ *     (mutating the caller's array). Case 6a.
+ *   - A REFRESH THAT ERASES A JUST-SENT MESSAGE, duplicates one, or keeps a
+ *     stale local copy the server has since returned. Cases 15-17.
+ *   - MARK-READ CALLED WITH THE WRONG upTo (anything but the newest RENDERED
+ *     message), or called again when nothing new was rendered. Cases 18-20.
+ *   - A REFRESH WHILE HIDDEN OR MID-SEND (ruling 8). Case 21.
+ *   - A REFRESH YANKING SOMEONE WHO SCROLLED UP to read. Case 22.
  *   - THE UNREAD BADGE drifting from the desktop card's ("99+" cap, nothing at
  *     zero). Case 8.
  *   - THE RAIL BADGE showing another store's count, or showing on /messages,
@@ -33,6 +44,11 @@ import {
   postBody,
   quickReplyTarget,
   railBadge,
+  chatOrder,
+  mergeRefresh,
+  markReadUpTo,
+  canRefresh,
+  isNearBottom,
   unreadBadge,
   withPosted,
 } from "../src/lib/tablet-messages"
@@ -69,15 +85,20 @@ check(
 check("4. blank, whitespace-only, or no store → nothing to send", [postBody(LB, ""), postBody(LB, "  \n "), postBody("", "Hi")], [null, null, null])
 check("5. quick replies go to the feed (no reply field exists)", quickReplyTarget(), "feed")
 
-console.log("\n2 · The newest-first thread")
-const older = { id: "m1", body: "Truck is late" }
-const newer = { id: "m2", body: "Truck is here" }
-const posted = { id: "m3", body: "On it" }
-check("6. a post lands at the top, above the newest", withPosted([newer, older], posted).map((m) => m.id), ["m3", "m2", "m1"])
+console.log("\n2 · The chat-order thread (ruling 6: oldest top, newest bottom)")
+const older = { id: "m1", body: "Truck is late", createdAt: "2026-11-10T14:00:00.000Z" }
+const newer = { id: "m2", body: "Truck is here", createdAt: "2026-11-10T15:00:00.000Z" }
+const posted = { id: "m3", body: "On it", createdAt: "2026-11-10T15:05:00.000Z" }
+const apiPage = [newer, older] // GET /api/messages answers newest first
+check("6a. the API page turned round, input untouched", [chatOrder(apiPage).map((m) => m.id), apiPage.map((m) => m.id)], [
+  ["m1", "m2"],
+  ["m2", "m1"],
+])
+check("6. a post lands at the bottom, below the newest", withPosted([older, newer], posted).map((m) => m.id), ["m1", "m2", "m3"])
 check(
-  "7. a post already in the thread (a reload raced it) shows once, at the top",
-  withPosted([newer, posted, older], posted).map((m) => m.id),
-  ["m3", "m2", "m1"]
+  "7. a post already in the thread (a refresh raced it) shows once, at the bottom",
+  withPosted([older, posted, newer], posted).map((m) => m.id),
+  ["m1", "m2", "m3"]
 )
 
 console.log("\n3 · Unread — desktop's count, desktop's badge")
@@ -104,6 +125,44 @@ check(
   "14. no keyboard, a toolbar's few pixels, or no visualViewport → 0",
   [keyboardInset(820, { height: 820, offsetTop: 0 }), keyboardInset(820, { height: 790, offsetTop: 0 }), keyboardInset(820, null)],
   [0, 0, 0]
+)
+
+console.log("\n5 · Live refresh (ruling 8)")
+const fromOther = { id: "m4", body: "New from Old Town", createdAt: "2026-11-10T15:10:00.000Z" }
+check(
+  "15. the refresh page replaces the thread and brings the new message",
+  mergeRefresh([older, newer, posted, fromOther], [older, newer, posted]).map((m) => m.id),
+  ["m1", "m2", "m3", "m4"]
+)
+const sentAfter = { id: "m5", body: "Thanks", createdAt: "2026-11-10T15:20:00.000Z" }
+check(
+  "16. a message sent after the refresh's read began stays, at the bottom",
+  mergeRefresh([older, newer], [older, newer, sentAfter]).map((m) => m.id),
+  ["m1", "m2", "m5"]
+)
+check(
+  "17. an older local message the page no longer holds is dropped, not kept (deleted elsewhere)",
+  mergeRefresh([newer, posted], [older, newer, posted]).map((m) => m.id),
+  ["m2", "m3"]
+)
+
+console.log("\n6 · Mark read once rendered (ruling 7, the /messages mark-read)")
+check("18. upTo is the newest rendered message", markReadUpTo([older, newer, posted], null), posted.createdAt)
+check("19. nothing newer than last marked → no request", markReadUpTo([older, newer, posted], posted.createdAt), null)
+check(
+  "20. a newer message rendered → upTo moves to it; empty thread → no request",
+  [markReadUpTo([older, newer, posted, fromOther], posted.createdAt), markReadUpTo([], null)],
+  [fromOther.createdAt, null]
+)
+check(
+  "21. refresh only when visible and not sending",
+  [canRefresh("visible", false), canRefresh("hidden", false), canRefresh("visible", true), canRefresh("prerender", false)],
+  [true, false, false, false]
+)
+check(
+  "22. at the bottom (or within 80px) follows new messages; scrolled up does not",
+  [isNearBottom(600, 400, 1000), isNearBottom(540, 400, 1000), isNearBottom(200, 400, 1000)],
+  [true, true, false]
 )
 
 console.log(failures === 0 ? "\n✓ ALL PASS\n" : `\n✗ ${failures} CHECK(S) FAILED\n`)

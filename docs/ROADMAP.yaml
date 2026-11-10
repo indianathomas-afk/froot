@@ -25083,7 +25083,53 @@ phases:
       # + scripts/verify-tab2-messages.ts
       # + the commit immediately after ab80e5b: docs(TAB-2) — this row, TAB-3
       # rider, DECISIONS DRAFT entry
+      - "b1dafbd"
+      # + the commit immediately after b1dafbd: fix(TAB-2) — Gary's rulings on
+      # the three RULING NOW items (chat order, rendered = read, live
+      # refresh), fixes ab80e5b; this rider, TAB-5 filed, DECISIONS updated
     notes: >
+      ── RIDER 2026-11-10 (2), TAB-2 fix (prepended; nothing below is edited). ──
+      GARY'S RULINGS ON THE REPORT'S THREE RULING NOW ITEMS, 2026-11-10
+      (DECISIONS 2026-11-10 TAB-2, rulings 6–8), built in the commit after
+      b1dafbd, which fixes ab80e5b. Still in_progress, NOT pushed.
+      (6) ORDER: the column is now CHAT ORDER — oldest at the top, newest at
+      the bottom beside the composer; it scrolls to the bottom on load and
+      after posting. Desktop unchanged. "newest FIRST … the newest sits at the
+      top under the pinned card" below is SPENT, kept. "Open the feed" moved
+      into the column header (the thread's bottom belongs to the newest).
+      (7) READ: what the column renders counts as read, through the SAME
+      POST /api/messages/mark-read /messages uses (upTo = the newest rendered
+      message's createdAt); the count is re-read after it lands, so the column
+      and rail clear. "nothing on the tablet marks read; it clears by opening
+      /messages" below is SPENT, kept. The tablet now WRITES MessageRead rows,
+      through that existing endpoint only (no new endpoint; Gary's ruling named
+      the write). (8) LIVE: thread + pinned update + count refetch every 60s
+      while document.visibilityState is visible, at once on visibilitychange /
+      focus back to visible, never while hidden, never while a send is in
+      flight. A refresh follows new messages down only if the reader was at
+      the bottom; a failed refresh keeps what is showing.
+      STAGING TEST 5, AS IT NOW PLAYS (the list below is unchanged): on the
+      tablet home a message from another account appears within 60s and is
+      marked read as it renders, so the column's count returns to zero almost
+      at once; the count RISES where the column is not rendering — the rail
+      on another tablet route (re-read once per navigation), and desktop's
+      Team Messages card until the tablet has rendered the message.
+      CHECKS: verify-tab2-messages 23/23 (cases 6–7 flipped to chat order; 6a
+      and 15–22 new), verify-tab1-today 13/13, verify-tab1c-due-chip 11/11;
+      scoped eslint and npm run build green. VERIFIED LOCALLY ONLY on a
+      temporary page under /menu, fetch mocked with server-side state (no
+      org, no database, no signed-in session), 1180×820: oldest at top,
+      newest last, opens at the bottom; one mark-read with upTo = newest
+      rendered, unread 3 → 0, column and rail badges cleared; with the
+      interval scaled to 2s: refetches while visible, ZERO in 6.5s hidden,
+      exactly ONE on visibilitychange + focus together, the hidden-time
+      message rendered last and marked read; a reader scrolled up stays put,
+      a reader at the bottom follows; ZERO refetches during a 5s send, the
+      post lands last and shows once. One REAL 60s tick: no refetch at 50s,
+      one by 64s. FOUND AND FIXED IN PASSING: scroll-to-newest ran in
+      requestAnimationFrame, which a backgrounded page defers (the hidden
+      browser pane read scrollTop 0); it now runs in a layout effect after
+      the thread commits. Page deleted.
       ── RIDER 2026-11-10, TAB-2 (prepended; nothing below is edited). ──
       SCOPE NARROWED by Gary's ruling 1, 2026-11-10 ("Yes"): TAB-2 is the
       Messages column only. The Sales/Goal/Labor stat strip, and the setting
@@ -25199,6 +25245,38 @@ phases:
       themselves on a shared device — the picker, a PIN, or something else —
       and how that reaches TaskLog and messages. A permission/identity design,
       so TIER 3.
+
+  - id: TAB-5
+    track: platform
+    size: S
+    status: planned
+    title: "Tablet home — Tasks panel and header chips go stale (no live refresh)"
+    notes: >
+      Filed 2026-11-10 by the TAB-2 fix, on Gary's instruction ("File a ROW for
+      the same staleness in the Tasks panel and the chips"), alongside his
+      ruling 8 that gave the Messages column a live refresh (every 60s while
+      visible, at once on becoming visible again, never while hidden or
+      mid-write). A counter iPad is left open all day; the rest of the tablet
+      home reads ONCE and then only after this device's own writes, so it
+      drifts from the truth:
+      TASKS PANEL — today's checklist list (GET /api/stores/[id]/templates) on
+      mount and after this device's ticks/submits (refresh(): loadToday +
+      router.refresh()). A tick, Start or Submit on another device or on
+      desktop does not show until a reload; the current-checklist pick
+      (pickTodayChecklist) does not move on when the next checklist's window
+      opens.
+      OVERDUE / DUE CHIP — GET /api/calendar/due on mount and after a Complete
+      from its own sheet only.
+      COMPLIANCE CHIP (TAB-1c) — GET /api/dashboard/my-compliance once on
+      mount.
+      HEADER DATE — store.headerDate is computed server-side at render
+      (tablet-data.ts), so it is yesterday's date after midnight until a
+      reload. Not a chip, noted because it is the same staleness.
+      Shape of the likely fix (a recommendation, not a ruling): the same
+      visibility-gated refresh the Messages column uses, with the Tasks panel
+      skipping a refresh while a tick, value entry, name sheet or submit is in
+      flight or open, so a refresh can't undo an optimistic tick. TIER 2 if it
+      stays reads only.
 
 bugs:
   - id: BUG-1

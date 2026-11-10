@@ -1,13 +1,24 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { ArrowRight, Paperclip, Pin, Play, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { MessageAttachments, type FeedAttachment, type FeedMessage } from "@/app/(app)/messages/messages-client"
-import { QUICK_REPLIES, keyboardInset, postBody, unreadBadge, withPosted } from "@/lib/tablet-messages"
+import {
+  QUICK_REPLIES,
+  canRefresh,
+  chatOrder,
+  isNearBottom,
+  keyboardInset,
+  markReadUpTo,
+  mergeRefresh,
+  postBody,
+  unreadBadge,
+  withPosted,
+} from "@/lib/tablet-messages"
 import { publishUnread } from "@/lib/tablet-unread"
 import { fetchCard } from "./card-fetch"
 import { timeAgo, type Comms } from "./dashboard-client"
@@ -32,47 +43,145 @@ import { timeAgo, type Comms } from "./dashboard-client"
 //
 // ORDER: newest first, as the desktop card and the feed read (src/lib/
 // tablet-messages.ts says why). "Scroll to the newest" therefore means the top.
+//
+// ── 2026-11-10, Gary's rulings on the three RULING NOW items (6-8 here; the
+// two paragraphs above are spent, kept): ──
+//   6 ORDER: chat order — oldest at the top, newest at the bottom beside the
+//     composer; scrolls to the bottom on load and after posting. Desktop
+//     unchanged.
+//   7 READ: what the column has rendered counts as read, through the SAME
+//     POST /api/messages/mark-read /messages uses (upTo = the newest rendered
+//     message). After it lands the count is re-read, so the column and the
+//     rail clear.
+//   8 LIVE: refetch every 60s while visible, at once on becoming visible
+//     again (visibilitychange / focus); never while hidden or while a send is
+//     in flight.
+
+const REFRESH_MS = 60_000
 
 export function MessagesColumn({ storeId }: { storeId: string }) {
   // ── Pinned Corporate Update + unread count (the desktop card's endpoint) ──
   // undefined = loading, null = failed. A failure only hides the pinned card
-  // and the count; the thread has its own read.
+  // and the count; the thread has its own read. A failed REFRESH keeps what
+  // is showing. Only the latest-issued read is applied, so an early read
+  // finishing late can't put back a count that mark-read has since cleared.
   const [comms, setComms] = useState<Comms | null | undefined>(undefined)
-  useEffect(() => {
-    let live = true
-    fetchCard<Comms>("comms", `/api/dashboard/comms?storeId=${storeId}`).then((data) => {
-      if (!live) return
-      setComms(data)
+  const commsSeq = useRef(0)
+  const loadComms = useCallback(() => {
+    const seq = ++commsSeq.current
+    return fetchCard<Comms>("comms", `/api/dashboard/comms?storeId=${storeId}`).then((data) => {
+      if (seq !== commsSeq.current) return
+      setComms((prev) => data ?? (prev === undefined ? null : prev))
       if (data) publishUnread(storeId, data.teamMessagesPreview.unreadCount)
     })
-    return () => {
-      live = false
-    }
   }, [storeId])
 
-  // ── The thread (the feed's own endpoint) ──
+  // ── The thread (the feed's own endpoint), in chat order ──
   const [thread, setThread] = useState<FeedMessage[] | null | undefined>(undefined)
   const threadRef = useRef<HTMLDivElement>(null)
+  // Asks for a scroll to the newest (the bottom). Applied in the layout
+  // effect below, right after the thread that holds the new messages commits,
+  // so it never depends on an animation frame firing (a backgrounded page
+  // defers those indefinitely).
+  const scrollPending = useRef(false)
   const showNewest = useCallback(() => {
-    requestAnimationFrame(() => threadRef.current?.scrollTo({ top: 0 }))
+    scrollPending.current = true
   }, [])
-  const loadThread = useCallback((): Promise<void> => {
-    return fetchCard<{ messages: FeedMessage[] }>("messages", `/api/messages?storeId=${storeId}`).then((data) => {
-      setThread(data ? data.messages : null)
-      showNewest()
-    })
-  }, [storeId, showNewest])
+  const loadThread = useCallback(
+    (refresh: boolean): Promise<void> => {
+      const el = threadRef.current
+      const atBottom = !el || isNearBottom(el.scrollTop, el.clientHeight, el.scrollHeight)
+      return fetchCard<{ messages: FeedMessage[] }>("messages", `/api/messages?storeId=${storeId}`).then((data) => {
+        if (!data) {
+          // First load: show the error. Refresh: keep what is showing.
+          if (!refresh) setThread(null)
+          return
+        }
+        const fetched = chatOrder(data.messages)
+        setThread((prev) => (refresh && prev ? mergeRefresh(fetched, prev) : fetched))
+        // Load: always to the newest. Refresh: follow new messages down only
+        // when the reader was already at the bottom, never yank someone who
+        // scrolled up to read.
+        if (!refresh || atBottom) showNewest()
+      })
+    },
+    [storeId, showNewest]
+  )
+
+  useLayoutEffect(() => {
+    if (!scrollPending.current) return
+    scrollPending.current = false
+    const el = threadRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [thread])
+
   useEffect(() => {
-    void loadThread()
-  }, [loadThread])
+    void loadComms()
+    void loadThread(false)
+  }, [loadComms, loadThread])
+
+  // ── Ruling 7: rendered = read. Runs after the render that put the messages
+  // on screen. One request per newer message rendered, none otherwise. ──
+  const lastMarked = useRef<string | null>(null)
+  useEffect(() => {
+    if (!thread) return
+    const upTo = markReadUpTo(thread, lastMarked.current)
+    if (!upTo) return
+    const before = lastMarked.current
+    lastMarked.current = upTo
+    fetch("/api/messages/mark-read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storeId, upTo }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`mark-read ${res.status}`)
+        return loadComms()
+      })
+      .catch((err) => {
+        // Try again on the next render or refresh.
+        console.error("[tablet messages] mark-read failed:", err)
+        if (lastMarked.current === upTo) lastMarked.current = before
+      })
+  }, [thread, storeId, loadComms])
+
+  // The composer's synchronous send guard (used below by the composer too):
+  // a second tap lands before React re-renders the disabled buttons, so state
+  // alone can't stop a double post. Ruling 8 reads it to skip a refresh
+  // mid-send.
+  const sendingRef = useRef(false)
+
+  // ── Ruling 8: live refresh ──
+  const refreshing = useRef(false)
+  const lastRefresh = useRef(0)
+  useEffect(() => {
+    const refresh = () => {
+      if (!canRefresh(document.visibilityState, sendingRef.current) || refreshing.current) return
+      // visibilitychange and focus usually fire together on return; one read.
+      if (Date.now() - lastRefresh.current < 1_000) return
+      refreshing.current = true
+      lastRefresh.current = Date.now()
+      void Promise.all([loadThread(true), loadComms()]).finally(() => {
+        refreshing.current = false
+      })
+    }
+    const onBack = () => {
+      if (document.visibilityState === "visible") refresh()
+    }
+    const id = window.setInterval(refresh, REFRESH_MS)
+    document.addEventListener("visibilitychange", onBack)
+    window.addEventListener("focus", onBack)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener("visibilitychange", onBack)
+      window.removeEventListener("focus", onBack)
+    }
+  }, [loadThread, loadComms])
 
   // ── The composer ──
   const [draft, setDraft] = useState("")
   // Which control is sending, for its label; null when idle.
   const [sending, setSending] = useState<string | null>(null)
-  // The synchronous guard: a second tap lands before React re-renders the
-  // disabled buttons, so state alone can't stop a double post.
-  const sendingRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
 
   async function send(text: string, source: "composer" | "quick") {
@@ -137,12 +246,25 @@ export function MessagesColumn({ storeId }: { storeId: string }) {
       style={inset > 0 ? { paddingBottom: inset } : undefined}
     >
       <header className={cn("flex shrink-0 items-center justify-between gap-3 px-5 pt-4 pb-3", typing && "hidden")}>
-        <h2 className="text-2xl font-bold text-[var(--color-foreground)]">Messages</h2>
-        {badge && (
-          <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-[var(--color-primary)] px-2.5 text-sm font-semibold text-white">
-            {badge} new
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold text-[var(--color-foreground)]">Messages</h2>
+          {badge && (
+            <span
+              data-testid="column-unread"
+              className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-[var(--color-primary)] px-2.5 text-sm font-semibold text-white"
+            >
+              {badge} new
+            </span>
+          )}
+        </div>
+        {/* In chat order the bottom of the thread belongs to the newest
+            message, so the link to the full feed lives up here (ruling 6). */}
+        <Link
+          href="/messages"
+          className="inline-flex min-h-12 items-center gap-1.5 text-lg font-bold text-[var(--color-primary)]"
+        >
+          Open the feed <ArrowRight className="h-5 w-5" />
+        </Link>
       </header>
 
       {typing ? null : comms === undefined ? (
@@ -158,13 +280,7 @@ export function MessagesColumn({ storeId }: { storeId: string }) {
         data-testid="tablet-thread"
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-2"
       >
-        <Thread thread={thread} onRetry={() => void loadThread()} />
-        <Link
-          href="/messages"
-          className="mt-4 mb-2 inline-flex min-h-12 items-center gap-1.5 text-lg font-bold text-[var(--color-primary)]"
-        >
-          Open the feed <ArrowRight className="h-5 w-5" />
-        </Link>
+        <Thread thread={thread} onRetry={() => void loadThread(false)} />
       </div>
 
       <div className="shrink-0 space-y-3 border-t border-[var(--color-border)] px-4 pt-3 pb-4">

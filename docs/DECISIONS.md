@@ -5,7 +5,59 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-10 — TAB-2: Tablet mode — the Messages column, rulings 1–5 — DRAFT
+## 2026-11-10 — TAB-2: Tablet mode — the Messages column, rulings 1–8 — DRAFT
+
+**── RIDER 2026-11-10 (2) — Gary's rulings on the report's three RULING NOW
+items, numbered 6–8 here. PREPENDED; NOTHING BELOW IS EDITED. ──** Built in
+the fix commit after `b1dafbd` (fixes `ab80e5b`). The heading's "rulings 1–5"
+became "1–8" at this rider; nothing else in the entry was reworded.
+
+**Gary's words, 2026-11-10, verbatim:**
+
+6. "(1) Thread order: switch the tablet column to chat order — oldest at top,
+   newest at the bottom next to the composer; scroll to the bottom on load
+   and after posting. Desktop is unchanged."
+7. "(2) Unread: messages count as read once they've been rendered in the
+   tablet column, using the same mark-read mechanism /messages already uses;
+   no new endpoint — if it needs one, STOP."
+8. "(3) Live refresh: refetch the column every 60s while
+   document.visibilityState is visible, and immediately on
+   visibilitychange/focus back to visible; no refetch while hidden; don't
+   refetch while a send is in flight. File a ROW for the same staleness in
+   the Tasks panel and the chips." (Filed: TAB-5.)
+
+**What they supersede.** Claude's call **(a)** below (newest at the top) is
+SUPERSEDED by ruling 6. Call **(c)** (the tablet never marks anything read) is
+SUPERSEDED by ruling 7. Both are spent, kept. Ruling 7 needed no new endpoint:
+it is `POST /api/messages/mark-read`, the call `/messages` makes. It does mean
+the tablet now WRITES `MessageRead` rows, and only through that endpoint.
+
+**Claude's judgement calls under rulings 6–8 — awaiting ratification.**
+
+g. **`upTo` is the newest RENDERED message, not "now".** `/messages` sends
+   `upTo: now`. The tablet sends the `createdAt` of the newest message it has
+   actually rendered, so a message that arrives between the read and the
+   render is not marked. It is the same endpoint, and the route marks
+   everything at or before `upTo`, older pages included, exactly as
+   `/messages` does when only its first page has loaded. Mark-read fires
+   once per newer message rendered and not otherwise. After it lands the
+   count is re-read, so the column and rail clear. On failure it is retried
+   on the next render or refresh.
+h. **A refresh does not yank the reader.** Load and posting always scroll to
+   the bottom (ruling 6). A refresh that brings new messages follows them
+   down only if the reader was already at the bottom (within 80px). Someone
+   who scrolled up to read stays put.
+i. **What a refresh refetches:** the thread, plus `/api/dashboard/comms`
+   (pinned update and count), so the pinned update is live too. A failed
+   refresh keeps what is showing rather than blanking it. A message this
+   device sent after a refresh's read began is kept at the bottom
+   (`mergeRefresh`). When visibilitychange and focus fire together, one read
+   is made (1s window).
+j. **"Open the feed" moved into the column header.** In chat order the
+   bottom of the thread belongs to the newest message.
+k. **Scroll runs in a layout effect after the thread commits,** not in
+   `requestAnimationFrame`. A backgrounded page defers animation frames, and
+   the mocked check caught the scroll not happening.
 
 **DRAFT — awaiting Gary's ratification at the TAB-2 PRE-PUSH-CHECK.** Nothing
 below is ratified yet.

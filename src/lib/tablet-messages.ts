@@ -14,11 +14,26 @@
 //     NEWEST FIRST (GET /api/messages and /api/dashboard/comms both
 //     `orderBy: { createdAt: "desc" }`), so the tablet thread does too: the
 //     newest message at the top, under the pinned Corporate Update.
+//     ── SUPERSEDED 2026-11-10 (Gary's TAB-2 ruling 6): the tablet column reads
+//     in CHAT ORDER — oldest at the top, newest at the bottom beside the
+//     composer. Desktop is unchanged. The API still answers newest first;
+//     chatOrder() turns the page round. The paragraph above is spent, kept.
 //   - UNREAD. The count is the desktop card's count, from /api/dashboard/comms
 //     (`teamMessagesPreview.unreadCount`), rendered with the desktop card's own
 //     "99+" cap. The tablet never marks anything read; desktop marks read only
 //     when /messages loads (POST /api/messages/mark-read), and "Open the feed"
 //     is how the tablet gets there.
+//     ── SUPERSEDED 2026-11-10 (Gary's TAB-2 ruling 7): messages count as read
+//     once the tablet column has rendered them, through the SAME
+//     POST /api/messages/mark-read /messages uses. upTo is the newest RENDERED
+//     message's createdAt (markReadUpTo), not "now", so a message that arrives
+//     between the read and the render is never marked. The route marks every
+//     message at or before upTo, the older pages included, exactly as /messages
+//     marks everything when only its first page has loaded. The "never marks
+//     anything read" sentence above is spent, kept.
+//   - LIVE REFRESH (Gary's TAB-2 ruling 8, 2026-11-10). Every 60s while the
+//     page is visible, at once when it becomes visible again, never while
+//     hidden, never while a send is in flight (canRefresh).
 
 export const QUICK_REPLIES = ["On it", "Done", "Thanks"] as const
 export type QuickReply = (typeof QUICK_REPLIES)[number]
@@ -39,10 +54,54 @@ export function quickReplyTarget(): "feed" {
   return "feed"
 }
 
-/** A just-posted message lands at the top of a newest-first thread. A message
- *  already present (a reload raced the post) is not shown twice. */
+/** The API's newest-first page, turned round to chat order: oldest at the
+ *  top, newest at the bottom beside the composer (ruling 6). A copy; the
+ *  input is not mutated. */
+export function chatOrder<T>(newestFirst: T[]): T[] {
+  return [...newestFirst].reverse()
+}
+
+/** A just-posted message lands at the BOTTOM of the chat-order thread
+ *  (ruling 6; it landed at the top until then). A message already present (a
+ *  refresh raced the post) is not shown twice. */
 export function withPosted<T extends { id: string }>(thread: T[], posted: T): T[] {
-  return [posted, ...thread.filter((m) => m.id !== posted.id)]
+  return [...thread.filter((m) => m.id !== posted.id), posted]
+}
+
+type Stamped = { id: string; createdAt: string }
+
+/** A refresh's chat-order page replaces the thread, except that a message
+ *  this device posted AFTER the refresh's read began (newer than anything in
+ *  the page, and not in it) is kept at the bottom, so a refresh landing just
+ *  after a send never makes the sent message vanish. */
+export function mergeRefresh<T extends Stamped>(fetched: T[], current: T[]): T[] {
+  const ids = new Set(fetched.map((m) => m.id))
+  const newest = fetched.length > 0 ? Date.parse(fetched[fetched.length - 1].createdAt) : -Infinity
+  const kept = current.filter((m) => !ids.has(m.id) && Date.parse(m.createdAt) > newest)
+  return [...fetched, ...kept]
+}
+
+/** The `upTo` for POST /api/messages/mark-read after a render: the newest
+ *  rendered message's createdAt, or null when there is nothing newer than what
+ *  was already marked (no request at all). Ruling 7. */
+export function markReadUpTo(thread: Stamped[], lastMarked: string | null): string | null {
+  let newest: string | null = null
+  for (const m of thread) if (newest === null || Date.parse(m.createdAt) > Date.parse(newest)) newest = m.createdAt
+  if (newest === null) return null
+  if (lastMarked !== null && Date.parse(newest) <= Date.parse(lastMarked)) return null
+  return newest
+}
+
+/** Ruling 8: refetch only while the page is visible and no send is in flight. */
+export function canRefresh(visibilityState: string, sending: boolean): boolean {
+  return visibilityState === "visible" && !sending
+}
+
+/** Whether the reader is at the bottom of the thread (within a message's
+ *  height), so a refresh that brings new messages may follow them down
+ *  without yanking someone who scrolled up to read older ones. */
+export function isNearBottom(scrollTop: number, clientHeight: number, scrollHeight: number): boolean {
+  return scrollHeight - (scrollTop + clientHeight) <= 80
 }
 
 /** The desktop card's badge text: nothing at zero, the number, or "99+". */
