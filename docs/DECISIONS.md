@@ -5,6 +5,88 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-10 — TAB-8: read-only route for the tablet's Tasks refresh — DRAFT
+
+**DRAFT, awaiting Gary's ratification at the TAB-8 PRE-PUSH-CHECK.** Prompt of
+record: `docs/prompts/TAB-8.md` (untracked until PRE-PUSH-CHECK). Work commit
+`c18b0d7`. TIER 2. The leans in the prompt are **Claude's design choices**,
+not Gary's rulings; nothing below quotes him.
+
+**Audit (brief, no artifact).** The tablet's 60-second refresh and TAB-5's
+date-change reload did not call an API route for the items: they called
+`router.refresh()`, which re-renders `/dashboard` and re-runs
+`loadTabletData` (`dashboard/tablet-data.ts`). That path writes nothing. A new
+day's checklist is created by Start (`POST /api/checklists`) or the calendar
+materialise cron, never by a read, so a read-only refresh cannot break the
+overnight rollover. No escalation trigger fired.
+
+**The leans as built.**
+
+1. **One new GET route that only reads:** `GET /api/stores/[id]/tablet-tasks`
+   (`src/app/api/stores/[id]/tablet-tasks/route.ts`, body in `read.ts`). It
+   returns `{ store, checklists }` for one store: the store's day, header date
+   and picker names (TAB-4's `hasPin`), and today's checklists with items and
+   ticks. *(design choice: store-scoped, not `/api/checklists/[id]/items`.
+   The panel's refresh also carries the store's day, header date and staff
+   list, and the date-change reload needs the server's day. A per-checklist
+   route could not carry those without keeping `router.refresh()`.)*
+2. **Gates in task-log's order:** orgId 401, org 404, store in this org and
+   active 404, store scope 403 (`getUserStoreScope`, asked only after the
+   store is found). The store stands where task-log has the checklist. These
+   are also the exact gates of `GET /api/stores/[id]/templates`, which the
+   panel already calls. No capability added; DEBT-107 stays open. *(design
+   choice: `isActive: true` in the store lookup, because the page lists only
+   active stores.)*
+3. **Zero writes.** `verify-tab8` checks the route, `read.ts`, `tablet-data.ts`
+   and the libs they call for every write shape, and measures on dev that
+   reads change no checklist, tick, AuditLog row or `startedAt`.
+4. **Reads through `tasksForChecklist`, by delegation.** `read.ts` calls
+   `loadTabletData`, the function `/dashboard` renders the tablet with, so the
+   payload is identical by construction. *(design choice: delegation rather
+   than a second task query. `verify-tpl3` now lists `tablet-data.ts` as a
+   checklist reader (it called `tasksForChecklist` since TAB-1 and was never
+   on the list) and pins that `read.ts` has no task query of its own.)*
+5. **The 60-second refresh and the date-change reload use the new route**, as
+   does the re-read after this device's own Start / tick / submit. Those
+   writes keep their routes. First load is still the server render.
+   *(design choice: the post-write re-read moved too, so the tablet home has
+   no `router.refresh()` left and one source for the server half. Also, the
+   items read now runs every cycle, not only after the list answered: that
+   gate existed because a failed `router.refresh()` navigated the page, and a
+   failed fetch does not.)*
+6. **A failed refresh keeps the last good list.** TAB-5's offline guard shows
+   nothing, so one quiet line was added under the header date:
+   "Not updated since 10:42 AM" (store time), after 2 refreshes in a row that
+   did not land, cleared on the next success. *(design choice: a cycle the
+   offline guard skips counts as a refresh that did not land, via
+   `skippedOnlyForOffline`. Otherwise the line could never show while the
+   browser reports itself offline, the commonest outage.)*
+7. **`redirect: "manual"`.** An opaque redirect, status 0 or any 3xx is an
+   expired sign-in and shows TAB-4's message word for word ("This device's
+   sign-in has expired. Reload the page, sign in again, and try once more.")
+   while keeping the list. *(design choice: a 401, or a 200 that is not JSON,
+   is treated as expired too. The second is TAB-4's own `verifyPin` rule.)*
+8. **TAB-5's rules unchanged:** the 60-second timer, the store-local day
+   rollover (the route's `store.day` moves the page, while idle), the busy
+   skip, and the offline guard.
+9. **Desktop and every other caller unchanged.** `verify-tab8` A5 diffs
+   `page.tsx`, `tablet-data.ts`, the execution page and every write route
+   against the TAB-8 base `29abe48`: empty.
+
+**Departures from the prompt, all (design choice):** the route name and store
+scope (1), delegation instead of a direct `tasksForChecklist` call in the
+route file (4), the post-write re-read moving too (5), offline-skipped cycles
+counting toward the line (6), 401 and non-JSON 200 read as expired (7).
+
+**Evidence.** `verify-tab8` 86/86, part C on dev `br-broad-wave-a6vpjdw0`
+(branch id from `neon.branch_id` in the same run): payload equal to the
+render's field for field for an open, a fresh and a past checklist; 403 for a
+store outside scope. Local check on a temporary mocked page under `/menu`,
+deleted before the commit: ok → merged, fail ×2 → line, ok → cleared,
+expired → TAB-4 message with the list kept, offline ×2 → line with no fetch.
+Not observed: a real Clerk expiry against this route (CHK-8 observed the same
+opaque-redirect arm on staging for its own route), and a real iPad.
+
 ## 2026-11-10 — TAB-4: per-person PIN on shared tablets, rulings Q1–Q11 — DRAFT
 
 **RATIFIED BY GARY, 2026-11-10, at the TAB-4 PRE-PUSH-CHECK:** "I ratify

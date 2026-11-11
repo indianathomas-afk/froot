@@ -25881,9 +25881,58 @@ phases:
   - id: TAB-8
     track: platform
     size: S
-    status: planned
+    # planned -> in_progress 2026-11-10 at the work commit c18b0d7 (NOT
+    # pushed). The docs SHA is the commit immediately after c18b0d7 (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
+    # No migration. Rollback: `git revert c18b0d7`.
+    status: in_progress
     title: "Read-only checklist-items endpoint so the tablet Tasks panel refreshes without router.refresh()"
+    commits:
+      - "c18b0d7"
+      # feat(TAB-8) — GET /api/stores/[id]/tablet-tasks (route.ts + read.ts),
+      # src/lib/tablet-tasks-refresh.ts, tablet home and controller switched,
+      # verify-tab8, verify-tpl3 reader list
+      # + the commit immediately after c18b0d7: docs(TAB-8) — this row,
+      # DECISIONS DRAFT
     notes: >
+      ── RIDER 2026-11-10, TAB-8 build (prepended; nothing below is edited). ──
+      BUILT, not yet checked on staging. TIER 2: no schema, migration,
+      permission, env var or cron. Prompt docs/prompts/TAB-8.md (untracked
+      until PRE-PUSH-CHECK). Leans as built, with departures marked (design
+      choice), in DECISIONS 2026-11-10 TAB-8, DRAFT until PRE-PUSH-CHECK.
+      AUDIT: the 60s refresh and the date-change reload re-read the items
+      with router.refresh() of /dashboard (loadTabletData). That path writes
+      nothing; a new day's checklist comes from Start or the calendar
+      materialise cron, so no trigger fired.
+      WHAT SHIPS:
+        - GET /api/stores/[id]/tablet-tasks (body in read.ts): one store's
+          day, header date, picker names and today's checklists, built by
+          loadTabletData itself, so it equals the first render by
+          construction. Gates in task-log's order: 401, org 404, store
+          (in org, active) 404, scope 403. No capability added. Zero writes.
+        - The tablet home re-reads through it on every cycle, on the day
+          rollover and after its own writes; no router.refresh() is left in
+          it. Start, tick, untick and submit keep their routes.
+        - redirect: "manual"; an expired sign-in shows TAB-4's message and
+          keeps the list. A failure keeps the list; a quiet "Not updated
+          since <time>" line shows after 2 refreshes in a row that did not
+          land (offline-skipped cycles count), cleared on the next success.
+        - TAB-5's timer, rollover, busy skip and offline guard unchanged.
+          Desktop and every other caller unchanged.
+      FIXTURES: verify-tab8 86/86 (part C on dev br-broad-wave-a6vpjdw0),
+      verify-tpl3 44/44 (tablet-data.ts added to the reader list, which it
+      was missing from), verify-tab1-today 13/13, verify-tab1c-due-chip 11/11,
+      verify-tab2-messages 23/23, verify-tab3-layout 28/28, verify-tab4-pin
+      78/78, verify-tab5-refresh 32/32, verify-tab9-cards 84/84, verify-chk15
+      28/28. Build green; scoped eslint 0 errors (2 unused-var warnings in
+      verify-tab8). Local check on a temporary mocked page under /menu,
+      deleted before the commit.
+      STAGING TESTS (Gary, after push; staging-SHA precondition first):
+      (1) tablet home loads as before; (2) tick on desktop, the tablet shows
+      it within a minute; (3) turn the iPad's wifi off for 2+ minutes: the
+      list stays and "Not updated since <time>" appears, no Safari error
+      page; wifi back on: the line clears; (4) clear the __session cookie:
+      within a minute the sign-in message shows and the list stays.
       Filed 2026-11-10 by TAB-5, on Gary's instruction before PRE-PUSH-CHECK:
       "File a planned ROW: a read-only checklist-items endpoint so the Tasks
       panel can refresh without router.refresh(), removing the
