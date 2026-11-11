@@ -5,6 +5,89 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-11 — TAB-10: transactions and average sale on the tablet's expanded Sales card — DRAFT
+
+**DRAFT, awaiting Gary's ratification at the TAB-10 PRE-PUSH-CHECK.** Prompt of
+record: `docs/prompts/TAB-10.md` (untracked until PRE-PUSH-CHECK). Work commit
+`e12bc2d`. TIER 2. The leans in the prompt are **Claude's design choices**,
+not Gary's rulings; nothing below quotes him. The prompt's "settled" items
+(TAB-7's same-time basis and helper, last year = today − 364, the desktop
+card's definitions, no new Square calls) are built as written.
+
+**Audit (brief, no artifact).**
+1. *Desktop's source.* The Sales Performance card reads
+   `/api/dashboard/sales`. Transactions = `selected.orders` (Σ
+   `SalesPeriodCache.orderCount` over the window; on Today, today's row).
+   Average sale = `selected.avgSale` = net ÷ orders, null at 0. The
+   comparisons use the route's `comparisonBasis` (TAB-7 `compareSelection` →
+   `compareTodayWithDay`, hourly rows carrying `orderCount`): the card's
+   `compOrders = basis.orders` (pro-rated to the time of day, so possibly
+   fractional) and `compAvg = basis.net ÷ basis.orders` (null at 0), both
+   through `DeltaPill` → `pctChange`.
+2. *Tablet's source.* `/api/dashboard/summary` answered `sales.today.total`,
+   today's and last year's hourly net, `sales.lastYear` (whole day), and
+   `sales.comparison` — TAB-7's `DayComparison`, which ALREADY carries last
+   year's same-time order count (`comparison.orders`, built from
+   `lastYearDay.orderCount` and the hourly `orderCount`). Missing: today's
+   order count. Whole-day and hourly order counts are not on the payload.
+3. *Where the rows go.* The expanded card (`SalesBody`,
+   `tablet-strip.tsx`) shows Today so far, Same weekday last year by <time>
+   (same-time only), Same weekday last year (<date>), whole day, then the
+   hour-by-hour table (Hour · bars · Today · Last year). The page scrolls
+   (TAB-9), so two more rows fit on an iPad either way.
+No trigger fired: the caches hold every figure; desktop's route is not
+touched; only the summary route's answer and the expanded card change (plus
+the pure helper in `src/lib/tablet-cards.ts` that the card reads through).
+
+**The leans as built.**
+
+1. **Two rows below the dollar rows**, "Transactions" and "Average sale",
+   each with today's figure and a ▲/▼ against last year at the same time.
+   The pill is the tile's own: the tile's inline span became one
+   `DeltaText` component that the tile and both rows render, same classes,
+   same output. Last year's figure 0 → "—", not a percentage; no comparison
+   day at all → no pill (the tile's rule: no aside).
+2. **The collapsed tile is unchanged** — dollars and the headline ▲/▼.
+3. **Same fields and helper as desktop.** The summary route adds one field,
+   `sales.today.orders` = today's `SalesPeriodCache.orderCount`. The
+   same-time comparison order count was already there (`comparison.orders`),
+   so nothing else was added. `salesCounts` (`src/lib/tablet-cards.ts`)
+   computes the desktop card's `compOrders` / `compAvg` from it through the
+   one `pctChange`. Desktop's route, card and `src/lib/sales-same-time.ts`
+   are byte-identical to `885d65f`.
+4. **Past days and the whole-day row unchanged.** (The summary route is
+   always today.)
+5. **Refresh on the existing cycle.** The rows read the same
+   `useStripSummary` answer the card already re-reads on the TAB-5 / TAB-8
+   cycle. No timer, no new fetch.
+6. **No Transactions column in the hour-by-hour table.** *(design choice:
+   a comparison table would need two more columns — today and last year —
+   beside four already, which crowds iPad portrait, and the hourly order
+   counts would be two more route fields. Skipped.)*
+
+**Departures and calls.**
+- *(design choice)* With 0 transactions today the Average sale reads "—"
+  and so does its pill. Desktop computes the pill as `pctChange(avgSale ?? 0,
+  compAvg)`, so on Today before the first sale (when last year had one by
+  then) it shows "—" next to **▼100.0%**. The tablet does not copy that.
+- *(design choice)* A payload without `today.orders` (an older answer)
+  leaves both rows out rather than reading 0, the same refusal TAB-8 uses
+  for a field it cannot trust.
+- *(design choice)* Average sale shows cents ("$11.88"), as desktop does;
+  the tablet's other dollar rows stay whole dollars.
+- Known difference kept: desktop's small pills render NOTHING at a 0
+  baseline; the tablet renders "—" (the prompt's lean 1 and TAB-7 lean 5's
+  tile rule). The numbers are the same; only the empty state differs.
+
+**Fixture.** `scripts/verify-tab10.ts` 41/41: the route's order count
+(NC against `885d65f`), the maths, the card reading `salesCounts(data)` from
+the summary answer (NC: `885d65f`, and a mutant feeding the card from page
+props), desktop byte-unchanged (NC: the same check flags the summary route),
+no new Square call or timer, and on dev (`br-broad-wave-a6vpjdw0`, read-only)
+7 stores × 4 store-local moments = 28 comparisons of the tablet's figures
+against the desktop's for the same store and moment, 0 mismatches (NC: a
+whole-day order baseline differs from the same-time one).
+
 ## 2026-11-11 — TAB-7: today's sales vs last year at the same time of day — DRAFT
 
 **RATIFIED BY GARY, 2026-11-11, at the TAB-7 PRE-PUSH-CHECK:** "Ratify as

@@ -26265,9 +26265,66 @@ phases:
   - id: TAB-10
     track: platform
     size: S
-    status: planned
+    # planned -> in_progress 2026-11-11 at the work commit e12bc2d (NOT
+    # pushed). The docs SHA is the commit immediately after e12bc2d (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
+    # No migration. Rollback: `git revert e12bc2d`.
+    status: in_progress
     title: "Tablet expanded Sales card — transactions and average sale"
+    commits:
+      - "e12bc2d"
+      # feat(TAB-10) — /api/dashboard/summary sales.today.orders,
+      # src/lib/tablet-cards.ts salesCounts, tablet-strip.tsx Transactions
+      # and Average sale rows + DeltaText, verify-tab10
+      # + the commit immediately after e12bc2d: docs(TAB-10) — this row,
+      # DECISIONS DRAFT
     notes: >
+      ── RIDER 2026-11-11, TAB-10 build (prepended; nothing below is edited). ──
+      BUILT, not yet checked on staging. TIER 2: no schema, migration,
+      permission, env var, cron or new Square call. Prompt
+      docs/prompts/TAB-10.md (untracked until PRE-PUSH-CHECK). Leans as built,
+      with departures marked (design choice), in DECISIONS 2026-11-11 TAB-10,
+      DRAFT until PRE-PUSH-CHECK.
+      AUDIT: desktop's Transactions / Average sale are /api/dashboard/sales
+      selected.orders and net ÷ orders, compared through comparisonBasis
+      (TAB-7) as compOrders = basis.orders and compAvg = basis.net ÷
+      basis.orders. The summary payload already carried last year's
+      same-time order count (sales.comparison.orders); only today's order
+      count was missing. No trigger fired.
+      WHAT SHIPS:
+        - /api/dashboard/summary adds sales.today.orders (today's
+          SalesPeriodCache.orderCount). Additive; no new Square, sync or
+          gap-fill call. Desktop's route, card and sales-same-time.ts
+          byte-unchanged.
+        - The expanded Sales card adds "Transactions" and "Average sale"
+          rows below the dollar rows, each with a ▲/▼ against last year at
+          the same time (salesCounts, src/lib/tablet-cards.ts). Last year 0
+          → "—"; no comparison day → no pill; 0 transactions → average "—"
+          and its pill "—" (design choice; desktop shows ▼100.0% there).
+        - The tile's pill is one DeltaText component for the tile and both
+          rows; the collapsed tile, whole-day row and hour table unchanged.
+          No Transactions column in the hour table (design choice: crowds
+          iPad portrait).
+        - Refreshes on the existing TAB-5 / TAB-8 cycle; no new timer.
+      FIXTURES: verify-tab10 41/41 (dev br-broad-wave-a6vpjdw0, read-only:
+      7 stores x 4 store-local moments, tablet = desktop, 0 mismatches; NCs
+      against 885d65f and a props-fed mutant). Re-run unchanged:
+      verify-tab1-today 13/13, verify-tab1c-due-chip 11/11,
+      verify-tab2-messages 23/23, verify-tab3-layout 28/28, verify-tab4-pin
+      78/78, verify-tab5-refresh 32/32, verify-tab7 88/88, verify-tab8
+      114/114, verify-tab9-cards 84/84, verify-goal-engine 15/15,
+      verify-f4-rollup-webhook 24/24, verify-bug20 21/21. Build green; scoped
+      eslint 0 problems. Local check on a temporary mocked page under /menu
+      at 820x1180, deleted before the commit: 9 transactions, $11.88 average,
+      ▲5.9% / ▲1.0%; 0 transactions; last year 0; no comparison day.
+      STAGING TESTS (Gary, after push; staging-SHA precondition first):
+      (1) during opening hours, tap the tablet Sales tile: "Transactions" and
+      "Average sale" rows appear under the whole-day row, each with a ▲/▼;
+      (2) open desktop Sales Performance on Today for the same store in the
+      same minute: the same Transactions and Average sale, the same ▲/▼
+      (a minute apart they can drift by the pro-rated hour); (3) the
+      collapsed Sales tile looks as before; (4) leave the card open past a
+      refresh (about a minute): the rows follow new sales without a reload.
       Filed 2026-11-10 by TAB-9 from its ruling 5 ("Sales: today hour by hour
       against last year hour by hour, plus transactions and average sale if
       the payload carries them … Anything that would need new data is filed
