@@ -58,9 +58,11 @@ type SalesResponse = {
   granularity: "hourly" | "daily"
   selected: WindowData | null
   compareData: WindowData | null
-  // TAB-7 — set for a SINGLE-DAY selection: what that day is measured against
-  // (today: the comparison day up to the same store-local time; a past day:
-  // its full day). Null for a range, which compares window totals as before.
+  // TAB-7 — what the selection is measured against. A single day today: the
+  // comparison day up to the same store-local time; a past single day: its
+  // full day; a RANGE ENDING TODAY (TAB-7 fix): the matching window with its
+  // last day cut at the same time. Null for a range ending before today,
+  // which compares window totals as before.
   comparisonBasis: DayComparison | null
   // AL-2 — ABSENT, not null, when the Advanced Labor overlay is off or the viewer
   // lacks labor.actuals.view. An org without the overlay gets a payload with no
@@ -309,7 +311,8 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
   const compareData = data?.compareData
   const hasCompare = !!compareData?.hasData
   // TAB-7: the comparison figures come from the route's comparisonBasis when
-  // it has one (single day), else the window totals (range). On a same-time
+  // it has one (a single day, or a range ending today), else the window
+  // totals (a range ending before today). On a same-time
   // basis there is no hourly GROSS in the cache, so the gross pill is hidden
   // rather than measured against a whole day; orders and average sale use the
   // same-time order count.

@@ -30,6 +30,13 @@
  *   9  DATABASE (dev): Σ hourly = the period net within a cent for every
  *      cached day; for each store's comparison day, the helper's full-day,
  *      after-close and same-time figures against the cached rows.
+ *  10  TAB-7 FIX (Gary, 2026-11-11: "Cut it."): a RANGE ENDING TODAY compares
+ *      with the matching window, its last day cut at the same time of day;
+ *      a range ending before today is unchanged (null basis). Maths, the
+ *      fallback and missing-day cases, two zones, compareSelection's four
+ *      branches, the route on compareSelection — with negative controls
+ *      against the TAB-7 work commit 316ffd4, where ranges were not cut —
+ *      and, on dev, 7-day windows ending on each store's comparison day.
  *
  * WHAT IT CANNOT DETECT: the rendered pages (the local check covers those),
  * the TAB-5/TAB-8 refresh cycle actually re-running the summary fetch (that
@@ -40,7 +47,9 @@ import { execFileSync } from "node:child_process"
 import { readFileSync, readdirSync, statSync } from "node:fs"
 import { join } from "node:path"
 import {
+  compareSelection,
   compareTodayWithDay,
+  compareWindowEndingToday,
   comparisonSuffix,
   formatTimeOfDay,
   pctChange,
@@ -51,6 +60,8 @@ import {
 import { salesDetail, salesTileComparison, type StripSummary } from "../src/lib/tablet-cards"
 
 const PRE_TAB7 = "8365e0a"
+/** The TAB-7 work commit — single days cut, ranges NOT cut (the fix's NC). */
+const TAB7_WORK = "316ffd4"
 
 let failures = 0
 let passes = 0
@@ -177,7 +188,7 @@ const SURFACES: { file: string; must: RegExp[]; mustNot: RegExp[] }[] = [
   {
     // Desktop Sales Performance card's source.
     file: "src/app/api/dashboard/sales/route.ts",
-    must: [/from "@\/lib\/sales-same-time"/, /comparisonBasis[^\n]*=[^\n]*\n?\s*\?\s*compareTodayWithDay\(/],
+    must: [/from "@\/lib\/sales-same-time"/, /comparisonBasis: DayComparison \| null = compareSelection\(/],
     mustNot: [],
   },
   {
@@ -199,7 +210,8 @@ const SURFACES: { file: string; must: RegExp[]; mustNot: RegExp[] }[] = [
 function surfaceOk(text: string, s: (typeof SURFACES)[number]): boolean {
   return s.must.every((r) => r.test(text)) && s.mustNot.every((r) => !r.test(text))
 }
-const atPre = (p: string) => execFileSync("git", ["show", `${PRE_TAB7}:${p}`], { encoding: "utf8" })
+const atRev = (rev: string, p: string) => execFileSync("git", ["show", `${rev}:${p}`], { encoding: "utf8" })
+const atPre = (p: string) => atRev(PRE_TAB7, p)
 for (const s of SURFACES) {
   ok(`6 ${s.file} on the helper`, surfaceOk(readFileSync(s.file, "utf8"), s))
   ok(`6 NC ${s.file} at ${PRE_TAB7} FAILS the same check`, !surfaceOk(atPre(s.file), s))
@@ -252,6 +264,75 @@ ok("8a /api/dashboard/rollup reads no comparison day", NO_COMPARISON(readFileSyn
 ok("8a NC the same check fails on the summary route", !NO_COMPARISON(readFileSync("src/app/api/dashboard/summary/route.ts", "utf8")))
 ok("8b rollup route unchanged since " + PRE_TAB7, readFileSync("src/app/api/dashboard/rollup/route.ts", "utf8") === atPre("src/app/api/dashboard/rollup/route.ts"))
 
+// ─── 10. TAB-7 fix: ranges ending today ──────────────────────────────────────
+console.log("10. ranges ending today — last day cut at the same time (TAB-7 fix)")
+const W = [
+  { date: "2025-11-06", total: 1000, orders: 80 },
+  { date: "2025-11-07", total: 2000, orders: 150 },
+  { date: "2025-11-08", total: TOTAL, orders: 105 },
+]
+const AT = { hour: 10, minute: 15 }
+const cut = compareWindowEndingToday(W, "2025-11-08", H, AT)
+check("10a earlier days in full + last day by 10:15: 1000 + 2000 + 750", [cut?.method, cut?.net, cut?.asOfLabel], ["same-time", 3750, "10:15 AM"])
+check("10b orders: 80 + 150 + (10 + 20 + 30 + 40/4)", cut?.orders, 300)
+check("10c NC: the uncut window total (the pre-fix comparison) is 4250, not 3750", W.reduce((s, d) => s + d.total, 0) !== cut?.net, true)
+check("10d before opening on the last day: earlier days only", compareWindowEndingToday(W, "2025-11-08", H, { hour: 6, minute: 0 })?.net, 3000)
+check("10e after close on the last day = the whole window", compareWindowEndingToday(W, "2025-11-08", H, { hour: 21, minute: 30 })?.net, 4250)
+check("10f unsorted window, same answer", compareWindowEndingToday([...W].reverse(), "2025-11-08", H, AT)?.net, 3750)
+const wfb = compareWindowEndingToday(W, "2025-11-08", [], AT)
+check("10g last day has sales but no hourly rows → whole window, \"(full day)\"", [wfb?.method, wfb?.net, comparisonSuffix(wfb!)], ["full-day-fallback", 4250, "(full day)"])
+const wmiss = compareWindowEndingToday(W.slice(0, 2), "2025-11-08", [], AT)
+check("10h last day not cached → earlier days, plain full-day (nothing to cut)", [wmiss?.method, wmiss?.net, wmiss?.asOfLabel], ["full-day", 3000, null])
+check("10i nothing cached → no comparison", compareWindowEndingToday([], "2025-11-08", [], AT), null)
+const wLA = compareWindowEndingToday(W, "2025-11-08", H, storeLocalTime(I, "America/Los_Angeles"))
+const wDEN = compareWindowEndingToday(W, "2025-11-08", H, storeLocalTime(I, "America/Denver"))
+check("10j two zones, one instant: LA cut at 10:15 (3750), Denver at 11:15 (4200)", [wLA?.net, wDEN?.net], [3750, 4200])
+
+const COMP = { start: "2025-11-06", end: "2025-11-08", days: W, lastHourly: H }
+check(
+  "10k compareSelection: range ending today (This week) → window cut",
+  compareSelection({ start: "2026-11-05", end: "2026-11-07", today: "2026-11-07" }, COMP, AT),
+  cut
+)
+check(
+  "10l compareSelection: Month to date (1st → today) → window cut",
+  compareSelection({ start: "2026-11-01", end: "2026-11-07", today: "2026-11-07" }, COMP, AT)?.net,
+  3750
+)
+check(
+  "10m compareSelection: range ending BEFORE today → null (window totals, unchanged)",
+  compareSelection({ start: "2026-11-01", end: "2026-11-06", today: "2026-11-07" }, COMP, AT),
+  null
+)
+check(
+  "10n NC: the same range made to end today IS cut — so 10m's null is the rule, not a dead path",
+  compareSelection({ start: "2026-11-01", end: "2026-11-06", today: "2026-11-06" }, COMP, AT)?.method,
+  "same-time"
+)
+const ONE = { start: "2025-11-08", end: "2025-11-08", days: [W[2]], lastHourly: H }
+check(
+  "10o compareSelection: single day today → same-time (unchanged from TAB-7)",
+  compareSelection({ start: "2026-11-07", end: "2026-11-07", today: "2026-11-07" }, ONE, AT),
+  compareTodayWithDay({ total: TOTAL, orders: 105, hourly: H }, true, AT)
+)
+check(
+  "10p compareSelection: single past day → full-day (unchanged from TAB-7)",
+  [compareSelection({ start: "2026-11-06", end: "2026-11-06", today: "2026-11-07" }, ONE, AT)?.method, compareSelection({ start: "2026-11-06", end: "2026-11-06", today: "2026-11-07" }, ONE, AT)?.net],
+  ["full-day", TOTAL]
+)
+
+const ROUTE = "src/app/api/dashboard/sales/route.ts"
+const rangeWired = (t: string) =>
+  /comparisonBasis: DayComparison \| null = compareSelection\(\s*\{ start, end, today \}/.test(t) &&
+  /const cutsLastDay = hourly \|\| end === today/.test(t) &&
+  /loadWindow\(storeId, compStart, compEnd, hourly, cutsLastDay\)/.test(t) &&
+  !/compareTodayWithDay\(/.test(t)
+ok("10q route: comparisonBasis from compareSelection, last-day hours read when the range ends today", rangeWired(readFileSync(ROUTE, "utf8")))
+ok(`10q NC route at ${TAB7_WORK} (ranges uncut) FAILS the same check`, !rangeWired(atRev(TAB7_WORK, ROUTE)))
+const helperHasCut = (t: string) => /export function compareWindowEndingToday\(/.test(t) && /if \(sel\.end !== sel\.today\) return null/.test(t)
+ok("10r helper: window cut + the ends-before-today guard", helperHasCut(readFileSync("src/lib/sales-same-time.ts", "utf8")))
+ok(`10r NC helper at ${TAB7_WORK} FAILS the same check`, !helperHasCut(atRev(TAB7_WORK, "src/lib/sales-same-time.ts")))
+
 // ─── 9. Database (dev, read-only) ────────────────────────────────────────────
 async function db() {
   console.log("9. database — dev, read-only")
@@ -292,6 +373,20 @@ async function db() {
       const noon = compareTodayWithDay(day, true, { hour: 12, minute: 0 })!
       const noonHand = hourly.filter((h) => h.hour < 12).reduce((a, h) => a + h.net, 0)
       measured++
+      // 10s — a 7-day window ending on this comparison day.
+      const wStart = new Date(d)
+      wStart.setUTCDate(wStart.getUTCDate() - 6)
+      const wRows = await prisma.salesPeriodCache.findMany({ where: { storeId: s.id, date: { gte: wStart, lte: d } } })
+      const lastDate = d.toISOString().slice(0, 10)
+      const wDays = wRows.map((r) => ({ date: r.date.toISOString().slice(0, 10), total: r.netSales, orders: r.orderCount }))
+      const wNoon = compareWindowEndingToday(wDays, lastDate, hourly, { hour: 12, minute: 0 })!
+      const wHand = wDays.filter((x) => x.date !== lastDate).reduce((a, x) => a + x.total, 0) + noonHand
+      const wAll = wDays.reduce((a, x) => a + x.total, 0)
+      const wClose = lastHour < 23 ? compareWindowEndingToday(wDays, lastDate, hourly, { hour: lastHour + 1, minute: 0 })! : null
+      ok(
+        `10s branch_id=${b} store ${s.id} window ${wStart.toISOString().slice(0, 10)}..${lastDate} (${wDays.length} days): by noon=${wNoon.net.toFixed(2)} = earlier days + last-day hours<12 (${wHand.toFixed(2)}); after close=${wClose?.net.toFixed(2)} = window ${wAll.toFixed(2)}`,
+        wNoon.method === "same-time" && near(wNoon.net, wHand) && (wClose === null || near(wClose.net, wAll)) && !near(wNoon.net, wAll)
+      )
       ok(
         `9c branch_id=${b} store ${s.id} ${d.toISOString().slice(0, 10)}: full-day=${full.net.toFixed(2)} = period; after close=${afterClose?.net.toFixed(2)}; by noon=${noon.net.toFixed(2)} = Σ hours<12`,
         near(full.net, period.netSales) && (afterClose === null || near(afterClose.net, period.netSales)) && noon.method === "same-time" && near(noon.net, noonHand)

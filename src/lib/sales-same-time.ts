@@ -20,6 +20,10 @@
 //   - No comparison day cached at all: no comparison.
 //   - A baseline of $0 (before opening, a new store, a closed day) gives NO
 //     percentage — callers render "—", never ∞% or ▼100%.
+//   - TAB-7 fix (Gary, 2026-11-11): a RANGE ending today compares with the
+//     matching comparison window, its last day cut the same way
+//     (compareWindowEndingToday). A range ending before today is unchanged.
+//     compareSelection is the single entry point that picks between these.
 //
 // Both caches are written in one transaction from one aggregation
 // (src/lib/sales-sync.ts writeSalesCache), bucketed by each order's
@@ -128,6 +132,70 @@ export function compareTodayWithDay(
   }
   const upTo = salesUpTo(day.hourly, now)
   return { method: "same-time", net: upTo.net, orders: upTo.orders, asOf: now, asOfLabel: formatTimeOfDay(now) }
+}
+
+/** One cached day of a comparison window (SalesPeriodCache). */
+export type WindowDay = { date: string; total: number; orders: number }
+
+/**
+ * TAB-7 fix (Gary, 2026-11-11: "Cut it."). A RANGE that ends today (This
+ * week, Month to date, any range that includes today) is compared with the
+ * matching comparison window whose LAST day is cut at the same time of day,
+ * through compareTodayWithDay. Every earlier day of the window counts in
+ * full. A range that ends before today is unchanged.
+ *
+ *   days        the comparison window's cached days (any order)
+ *   lastDate    the comparison window's last date (yyyy-mm-dd)
+ *   lastHourly  that last date's hourly rows
+ *
+ * The method and the "by 10:15 AM" / "(full day)" label are the last day's.
+ * Last day not cached: earlier days only, method "full-day" (nothing was cut
+ * — the window has no partial day to cut). Nothing cached: null.
+ */
+export function compareWindowEndingToday(
+  days: WindowDay[],
+  lastDate: string,
+  lastHourly: HourRow[],
+  now: LocalTime
+): DayComparison | null {
+  if (days.length === 0) return null
+  const earlier = days.filter((d) => d.date !== lastDate)
+  const lastRow = days.find((d) => d.date === lastDate) ?? null
+  const last = compareTodayWithDay(
+    lastRow ? { total: lastRow.total, orders: lastRow.orders, hourly: lastHourly } : null,
+    true,
+    now
+  )
+  const net = round2(earlier.reduce((s, d) => s + d.total, 0) + (last?.net ?? 0))
+  const orders = Math.round((earlier.reduce((s, d) => s + d.orders, 0) + (last?.orders ?? 0)) * 100) / 100
+  return last
+    ? { method: last.method, net, orders, asOf: last.asOf, asOfLabel: last.asOfLabel }
+    : { method: "full-day", net, orders, asOf: null, asOfLabel: null }
+}
+
+/**
+ * Which comparison a selection gets — the whole rule in one place, so the
+ * route only loads rows (TAB-7 + fix):
+ *   single day, today            → same time of day
+ *   single day, past             → full day
+ *   range ending today           → window with its last day cut (above)
+ *   range ending before today    → null: window totals, unchanged
+ */
+export function compareSelection(
+  sel: { start: string; end: string; today: string },
+  comp: { start: string; end: string; days: WindowDay[]; lastHourly: HourRow[] },
+  now: LocalTime
+): DayComparison | null {
+  if (sel.start === sel.end) {
+    const day = comp.days.find((d) => d.date === comp.start)
+    return compareTodayWithDay(
+      day ? { total: day.total, orders: day.orders, hourly: comp.lastHourly } : null,
+      sel.start === sel.today,
+      now
+    )
+  }
+  if (sel.end !== sel.today) return null
+  return compareWindowEndingToday(comp.days, comp.end, comp.lastHourly, now)
 }
 
 /** Percentage change of `value` against `baseline`; null (render "—") when
