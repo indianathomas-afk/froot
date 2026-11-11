@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react"
 import Link from "next/link"
-import { AlertTriangle, ArrowRight, Check, ChevronDown, ChevronRight, Clock, Delete, GraduationCap } from "lucide-react"
+import { AlertTriangle, Check, ChevronDown, ChevronRight, Clock, Delete, GraduationCap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { BottomSheet } from "@/components/ui/bottom-sheet"
@@ -13,7 +13,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils"
 import { formatWindowTime } from "@/lib/checklist-status-display"
 import { resolveSingleStore, saveStoreId, useSavedStoreId } from "@/lib/dashboard-store"
-import { pickTodayChecklist, type TodayEntry } from "@/lib/tablet-today"
+import {
+  initialSwitcher,
+  orderTodayChecklists,
+  shownChecklist,
+  switcherReducer,
+  type TodayEntry,
+} from "@/lib/tablet-today"
+import { checklistTypeStyle, normalizeTypeName } from "@/lib/checklist-types"
+import { ChecklistHero, ChecklistTabs } from "./tablet-checklist-switcher"
 import { dueChipFor, dueRowSuffix } from "@/lib/tablet-due"
 import {
   CHIP_TONE_CLASS,
@@ -127,6 +135,8 @@ type Person = { checklistId: string; id: string; label: string }
 
 /** One row of GET /api/stores/[id]/templates — the Start Daily Checklist list. */
 type TodayRow = TodayEntry & {
+  /** TAB-13 — the TemplateType name (route.ts:134; legacy `type` when unset). */
+  type: string
   taskCount: number
   existingStatus: string | null
   timeZone: string
@@ -657,8 +667,13 @@ export function TabletHome({
 
   function columns(sizing: string) {
     return (
-      <div className={`grid ${sizing} gap-4 landscape:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] portrait:grid-rows-[minmax(0,3fr)_minmax(0,2fr)]`}>
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)]">
+      <div className={`grid ${sizing} gap-4 landscape:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] portrait:grid-cols-[minmax(0,1fr)] portrait:grid-rows-[minmax(0,3fr)_minmax(0,2fr)]`}>
+        {/* TAB-13: the card moved inside TasksPanel (TASKS_CARD) so the
+            checklist tabs can sit above it, on the page, as in the mock.
+            portrait:grid-cols-[minmax(0,1fr)] above: portrait had no column
+            template, so the implicit auto column grew to the tab row's
+            unwrapped width and pushed the page sideways. */}
+        <section className="flex min-h-0 min-w-0 flex-col gap-3">
           {/* TAB-5: keyed by the day too, so a new day starts the panel clean —
               no ticks, "Completing as …" chip or Done state carried over. */}
           <TasksPanel
@@ -683,6 +698,20 @@ export function TabletHome({
 }
 
 // ─── Tasks panel ──────────────────────────────────────────────────────────────
+
+// TAB-13 — the card the panel draws in. It used to be the <section> itself;
+// it moved in here so the checklist tabs sit above it, on the page.
+/** TAB-13 — the moment a tick's write settled (toggle(), pruneOverrides).
+ *  Lifted out of the component only for react-hooks/purity: after TAB-13
+ *  reshaped TasksPanel's render branches, the React Compiler's lint began
+ *  reading toggle()'s inline Date.now() as a render-time call. It is not —
+ *  toggle() runs only from a tap or a sheet's save, after an await. */
+function settledNow(): number {
+  return Date.now()
+}
+
+const TASKS_CARD =
+  "flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)]"
 
 function TasksPanel({
   store,
@@ -714,12 +743,14 @@ function TasksPanel({
   // Mirrors `overrides` for reads inside async handlers (the "was that the last
   // item?" check runs after an await). Every write below updates both.
   const overridesRef = useRef<Record<string, Override>>({})
-  // Start on an existing row writes nothing (audit point 4): the row turns In
-  // Progress at its first tick, through task-log. This only remembers the tap.
-  const [started, setStarted] = useState<Set<string>>(new Set())
-  // The checklist this device just finished, shown as Done until the crew
-  // moves on, even when another checklist is already due.
-  const [justFinished, setJustFinished] = useState<string | null>(null)
+  // TAB-13 — which checklist the card shows and whether its tick list or Done
+  // screen is open (src/lib/tablet-today.ts, switcherReducer). This replaces
+  // TAB-1's `started` set and `justFinished`: Start on an existing row still
+  // writes nothing (audit point 4) — it OPENS the tick list, and the row turns
+  // In Progress at its first tick through task-log; a finished checklist's
+  // Done screen is an open "done" view, held until the crew moves on. Opening
+  // is a manual pick, so a re-read never swaps an open card (addition 1).
+  const [sw, dispatch] = useReducer(switcherReducer, initialSwitcher)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [valueFor, setValueFor] = useState<{ checklistId: string; task: TabletTask } | null>(null)
@@ -752,19 +783,29 @@ function TasksPanel({
     setOverrides(pruned)
   }, [syncedFrom])
 
-  if (rows === undefined) return <PanelSkeleton />
-  if (rows === null) {
+  if (rows === undefined) {
     return (
-      <div className="flex flex-1 flex-col items-start justify-center gap-4 p-8">
-        <p className="text-lg text-[var(--color-muted-foreground)]">Couldn&apos;t load today&apos;s checklists.</p>
-        <Button size="touch" variant="outline" onClick={onRetry}>
-          Retry
-        </Button>
+      <div className={TASKS_CARD}>
+        <PanelSkeleton />
       </div>
     )
   }
-
-  const pick = pickTodayChecklist(rows)
+  if (rows === null) {
+    return (
+      <div className={TASKS_CARD}>
+        <div className="flex flex-1 flex-col items-start justify-center gap-4 p-8">
+          <p className="text-lg text-[var(--color-muted-foreground)]">Couldn&apos;t load today&apos;s checklists.</p>
+          <Button size="touch" variant="outline" onClick={onRetry}>
+            Retry
+          </Button>
+        </div>
+      </div>
+    )
+  }
+  // Narrowed for the handlers below, which run after an await.
+  const todayRows: TodayRow[] = rows
+  /** The template-keyed entry for a checklist row id. */
+  const entryIdOf = (checklistId: string) => todayRows.find((r) => r.existingChecklistId === checklistId)?.id ?? null
 
   function tasksOf(c: TabletChecklist): TabletTask[] {
     return c.sections.flatMap((s) =>
@@ -785,6 +826,12 @@ function TasksPanel({
         }),
       })),
     }
+  }
+
+  /** TAB-13 — the Done screen for a checklist this device just submitted. */
+  function openDone(checklistId: string) {
+    const id = entryIdOf(checklistId)
+    if (id) dispatch({ type: "open", id, view: "done" })
   }
 
   async function submit(c: TabletChecklist) {
@@ -814,7 +861,8 @@ function TasksPanel({
         await onChanged()
         return
       }
-      setJustFinished(c.id)
+      openDone(c.id)
+      setPartialFinished(null)
       setPerson(null)
       setError(null)
       await onChanged()
@@ -854,7 +902,7 @@ function TasksPanel({
       if (body.status === "Completed") {
         setPartialFor(null)
         setPerson(null)
-        setJustFinished(c.id)
+        openDone(c.id)
         await onChanged()
         return
       }
@@ -867,6 +915,7 @@ function TasksPanel({
       setPerson(null)
       setError(null)
       setPartialFinished({ id: c.id, done: completedTaskIds.length, total: tasks.length })
+      openDone(c.id)
       await onChanged()
     } finally {
       setBusy(null)
@@ -941,7 +990,7 @@ function TasksPanel({
     // TAB-5: the write is saved; stamp when, so the first server read that
     // starts after this moment retires the local copy (pruneOverrides). Only
     // if the tap is still the latest one for this item.
-    const settled: Override = { ...next, settledAt: Date.now() }
+    const settled: Override = { ...next, settledAt: settledNow() }
     const settle = (prev: Record<string, Override>) => (prev[key] === next ? { ...prev, [key]: settled } : prev)
     overridesRef.current = settle(overridesRef.current)
     setOverrides(settle)
@@ -950,8 +999,7 @@ function TasksPanel({
 
   async function start(entry: TodayRow) {
     if (entry.existingChecklistId) {
-      setStarted((prev) => new Set(prev).add(entry.existingChecklistId!))
-      setJustFinished(null)
+      dispatch({ type: "open", id: entry.id, view: "list" })
       return
     }
     // No row yet: instantiate today's checklist exactly as Start Daily
@@ -979,9 +1027,9 @@ function TasksPanel({
         )
         return
       }
-      const data = (await res.json()) as { id?: string }
-      if (data.id) setStarted((prev) => new Set(prev).add(data.id!))
-      setJustFinished(null)
+      // The tick list opens on the new row once the re-read below brings it
+      // (a skeleton until then), keyed by the template id, which is stable.
+      dispatch({ type: "open", id: entry.id, view: "list" })
       await onChanged()
     } finally {
       setBusy(null)
@@ -1043,39 +1091,43 @@ function TasksPanel({
     applyName({ checklistId: t.checklistId, task: t.task }, t.option, token)
   }
 
-  // ── Which state ──
-  const finishedRow = justFinished ? checklistsById.get(justFinished) : undefined
-  const finishedEntry = justFinished ? rows.find((r) => r.existingChecklistId === justFinished) : undefined
-  const partialRow = partialFinished ? checklistsById.get(partialFinished.id) : undefined
-  const partialEntry = partialFinished ? rows.find((r) => r.existingChecklistId === partialFinished.id) : undefined
+  // ── Which state (TAB-13: every checklist today, one tab each) ──
+  const rowOf = (e: TodayRow) => (e.existingChecklistId ? checklistsById.get(e.existingChecklistId) : undefined)
+  /** Started and not completed: the server says so, or a tick (saved or still
+   *  in flight on this device) does. Status alone misses a Pending row with a
+   *  first tick on its way; ticks alone miss one started on another device
+   *  whose items the re-read has not brought yet. */
+  function inProgress(e: TodayRow): boolean {
+    if (e.lifecycleState === "completed" || !e.existingChecklistId) return false
+    if (e.existingStatus && e.existingStatus !== "Pending") return true
+    const row = rowOf(e)
+    if (!row) return false
+    return row.status !== "Pending" || withOverrides(row).sections.some((s) => s.tasks.some((t) => t.done))
+  }
+  /** The tick list's own numbers when the row exists (per-store exclusions
+   *  applied); the route's template count for a checklist nobody has started. */
+  function countsOf(e: TodayRow): { done: number; total: number } {
+    const row = rowOf(e)
+    if (!row) return { done: 0, total: e.taskCount }
+    const all = withOverrides(row).sections.flatMap((s) => s.tasks)
+    return { done: all.filter((t) => t.done).length, total: all.length }
+  }
+  const ordered = orderTodayChecklists(rows, inProgress)
+  // The tab and hero title are the TYPE name (R5). Two checklists of the same
+  // type today would read identically, so those — and a template with no type
+  // name at all — show the template's own name instead (colour and icon still
+  // come from the type).
+  const typeOf = (e: TodayRow) => e.type?.trim() || e.name
+  const labelOf = (e: TodayRow) =>
+    ordered.some((o) => o.id !== e.id && normalizeTypeName(typeOf(o)) === normalizeTypeName(typeOf(e))) ? e.name : typeOf(e)
+  const shown = shownChecklist(sw, ordered.map((e) => e.id))
+  const entry = shown.id ? ordered.find((e) => e.id === shown.id) : undefined
+  const tabbed = ordered.length > 1
   // The checklist the In progress panel is showing, if it is showing one.
   let shownId: string | null = null
 
   let body: React.ReactNode
-  if (partialFinished && partialRow && partialEntry) {
-    body = (
-      <DonePanel
-        checklist={withOverrides(partialRow)}
-        timeZone={partialEntry.timeZone}
-        upNext={null}
-        onStartNext={(e) => void start(e)}
-        busy={busy}
-        partial={{ done: partialFinished.done, total: partialFinished.total }}
-        onKeepGoing={() => setPartialFinished(null)}
-      />
-    )
-  } else if (finishedRow && finishedEntry) {
-    const upNext = pick.mode === "current" ? pick.current : pick.mode === "done" ? pick.upNext : null
-    body = (
-      <DonePanel
-        checklist={withOverrides(finishedRow)}
-        timeZone={finishedEntry.timeZone}
-        upNext={upNext && upNext.id !== finishedEntry.id ? upNext : null}
-        onStartNext={(e) => void start(e)}
-        busy={busy}
-      />
-    )
-  } else if (pick.mode === "none") {
+  if (!entry) {
     body = (
       <div className="flex flex-1 flex-col items-start justify-center gap-3 p-8">
         <p className="text-2xl font-bold text-[var(--color-foreground)]">No checklists today</p>
@@ -1084,29 +1136,38 @@ function TasksPanel({
         </p>
       </div>
     )
-  } else if (pick.mode === "done") {
-    const row = pick.lastDone.existingChecklistId ? checklistsById.get(pick.lastDone.existingChecklistId) : undefined
+  } else if (shown.view === "done") {
+    const row = rowOf(entry)
+    const partial = partialFinished && row && partialFinished.id === row.id ? partialFinished : null
+    // "Up next": the first checklist still to do, in tab order.
+    const upNext = ordered.find((o) => o.id !== entry.id && o.lifecycleState !== "completed") ?? null
     body = row ? (
       <DonePanel
         checklist={withOverrides(row)}
-        timeZone={pick.lastDone.timeZone}
-        upNext={pick.upNext}
+        timeZone={entry.timeZone}
+        upNext={partial ? null : upNext}
         onStartNext={(e) => void start(e)}
         busy={busy}
+        partial={partial ? { done: partial.done, total: partial.total } : undefined}
+        onKeepGoing={
+          partial
+            ? () => {
+                setPartialFinished(null)
+                dispatch({ type: "open", id: entry.id, view: "list" })
+              }
+            : undefined
+        }
       />
     ) : (
       <PanelSkeleton />
     )
-  } else {
-    const entry = pick.current
-    const row = entry.existingChecklistId ? checklistsById.get(entry.existingChecklistId) : undefined
+  } else if (shown.view === "list") {
+    const row = rowOf(entry)
     const view = row ? withOverrides(row) : undefined
-    const anyDone = view?.sections.some((s) => s.tasks.some((t) => t.done)) ?? false
-    const inProgress =
-      !!view && (started.has(view.id) || anyDone || (row?.status !== "Pending" && row?.status !== undefined))
-    if (entry.existingChecklistId && !row && started.has(entry.existingChecklistId)) {
+    if (!view) {
+      // Just started: the re-read that brings the new row is on its way.
       body = <PanelSkeleton />
-    } else if (view && inProgress) {
+    } else {
       shownId = view.id
       body = (
         <InProgressPanel
@@ -1123,10 +1184,53 @@ function TasksPanel({
           }}
         />
       )
-    } else {
-      body = <NotStartedPanel entry={entry} busy={busy === `start:${entry.id}`} onStart={() => void start(entry)} />
     }
+  } else {
+    // The Option 1 hero. Start / Continue open the tick list in this card;
+    // View opens the Done screen (RN-1, RN-5). Nothing navigates.
+    const completed = entry.lifecycleState === "completed"
+    const started = inProgress(entry)
+    const { done, total } = countsOf(entry)
+    body = (
+      <ChecklistHero
+        label={labelOf(entry)}
+        style={checklistTypeStyle(entry.type)}
+        total={total}
+        done={done}
+        status={completed ? "Completed" : started ? "In progress" : "Not started"}
+        due={dueLabel(entry)}
+        completed={completed}
+        action={completed ? "View" : started ? "Continue" : "Start"}
+        busy={busy === `start:${entry.id}`}
+        onAction={() => {
+          if (completed) dispatch({ type: "open", id: entry.id, view: "done" })
+          else if (started) dispatch({ type: "open", id: entry.id, view: "list" })
+          else void start(entry)
+        }}
+        tabbed={tabbed}
+        tabId={entry.id}
+      />
+    )
   }
+
+  const tabs = tabbed ? (
+    <ChecklistTabs
+      items={ordered.map((e) => {
+        const { done, total } = countsOf(e)
+        return {
+          id: e.id,
+          label: labelOf(e),
+          sub: e.lifecycleState === "completed" ? "Done" : `${done} of ${total}`,
+          style: checklistTypeStyle(e.type),
+        }
+      })}
+      selectedId={entry?.id ?? null}
+      onSelect={(id) => {
+        setPartialFinished(null)
+        dispatch({ type: "tap", id })
+      }}
+    />
+  ) : null
 
   // The chip clears when the panel moves to a different checklist (or off the
   // In progress panel altogether). A state update during render, React's
@@ -1145,12 +1249,15 @@ function TasksPanel({
 
   return (
     <>
-      {body}
-      {error && (
-        <p role="alert" className="border-t border-[var(--color-border)] bg-[var(--color-warning-bg)] px-5 py-3 text-base font-medium text-[var(--color-warning-text)]">
-          {error}
-        </p>
-      )}
+      {tabs}
+      <div className={TASKS_CARD}>
+        {body}
+        {error && (
+          <p role="alert" className="border-t border-[var(--color-border)] bg-[var(--color-warning-bg)] px-5 py-3 text-base font-medium text-[var(--color-warning-text)]">
+            {error}
+          </p>
+        )}
+      </div>
       <ValueSheet
         key={valueFor?.task.id ?? "closed"}
         task={valueFor?.task ?? null}
@@ -1312,34 +1419,6 @@ function dueLabel(entry: TodayRow): string | null {
   if (!entry.expectedEndAt) return null
   const at = formatWindowTime(new Date(entry.expectedEndAt), entry.timeZone)
   return entry.lifecycleState === "overdue" ? `Overdue · was due ${at}` : `Due ${at}`
-}
-
-// ─── Not started: solid orange, the name as a banner, one big Start ─────────
-
-function NotStartedPanel({ entry, busy, onStart }: { entry: TodayRow; busy: boolean; onStart: () => void }) {
-  const due = dueLabel(entry)
-  return (
-    <div className="flex flex-1 flex-col gap-6 overflow-y-auto bg-[var(--color-primary)] p-8 text-[var(--color-primary-foreground)]">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <h2 className="text-4xl font-extrabold uppercase leading-tight tracking-tight">{entry.name}</h2>
-        {due && (
-          <span className="inline-flex items-center gap-2 rounded-full bg-[var(--color-card)] px-4 py-2 text-lg font-bold text-[var(--color-primary)]">
-            <Clock className="h-5 w-5" />
-            {due}
-          </span>
-        )}
-      </div>
-      <p className="text-xl font-semibold">
-        {entry.taskCount} {entry.taskCount === 1 ? "task" : "tasks"}
-      </p>
-      <div className="mt-auto">
-        <Button size="touch-lg" variant="secondary" onClick={onStart} disabled={busy}>
-          {busy ? "Starting…" : "Start"}
-          {!busy && <ArrowRight />}
-        </Button>
-      </div>
-    </div>
-  )
 }
 
 // ─── In progress: dark sticky banner, remaining items under section headers ──

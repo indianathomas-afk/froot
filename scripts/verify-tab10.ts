@@ -155,7 +155,12 @@ ok(
   "3b NC a mutant feeding StripDetail from page props fails",
   !homeFeedsRoute(now(HOME).replace("<StripDetail data={strip}", "<StripDetail data={props.summary}"), now(STRIP))
 )
-ok("3c tablet-home.tsx unchanged by TAB-10 (no new prop, no new timer)", now(HOME) === atPre(HOME))
+// TAB-13 RN-7 (Gary, 2026-11-11): this compared the WORKING TREE with the
+// pre-TAB-10 file, so it failed the moment any later phase edited the home
+// (TAB-13 was the first). What it pins is TAB-10's own diff, so it now reads
+// the file AT TAB-10's work commit. Same claim, no longer time-limited.
+const atWork = (p: string) => execFileSync("git", ["show", `${TAB10_WORK}:${p}`], { encoding: "utf8" })
+ok("3c tablet-home.tsx unchanged by TAB-10 (no new prop, no new timer)", atWork(HOME) === atPre(HOME))
 // The tile's pill, extracted into DeltaText: same classes, same "—" rule.
 const preTileClasses = [
   '"text-sm font-bold"',
