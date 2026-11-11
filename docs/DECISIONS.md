@@ -5,6 +5,139 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-10 — TAB-9: a Tablet home that scrolls, cards that expand, an overdue list that opens in place — DRAFT
+
+**DRAFT, awaiting Gary's ratification at the TAB-9 PRE-PUSH-CHECK.** Prompt
+of record: `docs/prompts/TAB-9.md` (untracked until PRE-PUSH-CHECK). Work
+commit: 44b80c5. TIER 2: no schema, no migration, no endpoint, no
+dependency.
+
+**Gary's feedback, 2026-11-10, verbatim:**
+
+> "I think the cards should be more flexible. For example, when you click the
+> 3 overdue items, the iPad screen is locked. Also sales and labor or any
+> other card could be technically larger. Keeping key data at the top,
+> however, allowing you to flick (scroll down) to see more information. If
+> you made the cards larger, you could make the expandable. For example.
+> Leave sales as it is, however, if you expanded the window it would show
+> more details. Then you could scroll down to see that ino [info]."
+
+**What "locked" means, Gary, 2026-11-10, verbatim:**
+
+> "What locked means is that the entire main screen is static. Becuase each
+> card is predevined, there is no data to scroll through. I think this is a
+> wasted opportunity and that the Tablet view mode is forcing everything onto
+> one screen that is locked. Data should be expansive if needed."
+
+**Rulings 1–7.** Gary answered "yes to all" to these seven leans. The wording
+below is the planning chat's, not his; his agreement is what makes them
+rulings.
+
+1. **The overdue list opens in place.** Tapping the overdue chip expands the
+   "Due at this store" list on the page, under the header. No overlay,
+   nothing frozen; the page scrolls past it. Tapping the chip again closes
+   it. Item actions work as before.
+2. **Cards keep their headline and expand on tap, one at a time.** A tile
+   looks exactly as before until tapped; tapping expands it; tapping again,
+   or "Show less", collapses it; opening one closes any other.
+3. **The home always scrolls.** The first screen opens as before (header,
+   then Tasks and Messages). Below the columns, cards can be as large as
+   their data needs. Collapsing a card returns the page to where it was
+   before that card expanded.
+4. **Idle auto-collapse.** An expanded card or the open overdue list
+   collapses after 5 minutes with no touch, and at the TAB-5 day rollover.
+   Never because of the 60-second refresh; TAB-5's busy registration keeps a
+   refresh from closing or jumping anything open.
+5. **What expanded cards show.** Only data already in the existing payloads.
+   Sales: today hour by hour against last year hour by hour, plus
+   transactions and average sale if the payload carries them; the ▲/▼
+   headline does not change (TAB-7). Monthly goal: month-to-date, the goal,
+   the amount needed per remaining day. Labor: month-to-date %, the target,
+   and the rest of the labor block. Anything needing new data is a ROW.
+6. **The two chips stop clashing.** The personal HR chip (ComplianceChip,
+   SELF-1) gets an amber or neutral look, labelled like "My HR · 2". Only
+   the store's overdue chip (DueChip) stays red and says "overdue".
+7. **Expansion is never saved.** Screen session only: not settings, a
+   cookie or localStorage, not synced.
+
+**How it is built.**
+
+- **The page scroll.** The tablet shell's home container was
+  `h-dvh overflow-hidden p-4`, and `TabletHome` was
+  `grid h-full grid-rows-[auto_minmax(0,1fr)]`: a box exactly one screen tall
+  that clipped everything, so nothing could ever be below the fold. Now the
+  container is `p-4` and the document scrolls. `TabletHome` measures its
+  header and sizes a box of `100dvh − 48px − header` for the columns and the
+  strip row, so the first screen is the same height split the same way as
+  before. The overdue list renders between the header and that box; an
+  expanded card renders below it.
+- **Nested scroll (audit point 2).** The lean was taken: each column keeps
+  one screen's height and its own scroll, and `overscroll-contain` is gone
+  from the Tasks panels (Not started, In progress list, Done) and the
+  Messages thread. With the default `overscroll-behavior: auto`, a flick that
+  starts in a column scrolls the column; once the column is at its end, the
+  next flick carries into the page (the browser latches a gesture to one
+  scroller, which is how iPad Safari behaves too). The In progress list's
+  `snap-proximity` is kept. Checked with wheel input at 1180×820 and
+  820×1180, starting inside each column, in both directions; iPad touch is
+  Gary's staging step 3. The bottom sheet's scrim is `touch-none` so the
+  page never scrolls behind the name picker, number pad or partial-submit
+  sheet; the sheets are otherwise unchanged.
+- **State.** One reducer, `cardsReducer` in `src/lib/tablet-cards.ts`, held
+  in `TabletHome` with `useReducer`: the expanded key, the list open, the
+  last touch, idle, and a scope of `storeId:shownDay`. A new scope (TAB-5
+  rollover, or a store switch) collapses both. A 5-second tick applies the
+  idle rule; touches (`pointerdown`, `touchstart`, `keydown`, `wheel`) update
+  a ref, so a touch never re-renders the page. A `refresh` event is the
+  identity.
+- **Busy.** `cardsBusy()` gives three TAB-5 flags: `cards:expanded`,
+  `due:list`, and `page:scrolled` (scrolled more than 8px AND not idle). A
+  Complete in flight inside the list is `due:complete`.
+- **The strip.** Its fetch moved into `useStripSummary` (owned by
+  `TabletHome`, registered on the TAB-5 controller), because the tile row
+  sits on the first screen and the detail opens below it, both over one
+  payload. `StripRow` renders the tiles exactly as before, as buttons;
+  `StripDetail` renders the expanded card from `salesDetail`, `goalDetail`
+  and `laborDetail`. A tile that does not render for this viewer can never
+  be expanded (`visibleExpanded`).
+- **Fixture.** `scripts/verify-tab9-cards.ts`, 58 checks.
+
+**Judgement calls (Claude), for ratification.**
+
+a. **The strip row stays on the first screen.** Ruling 3 says the first
+   screen opens "exactly as it does today", and today, with tiles on, that
+   includes the strip row under the columns; ruling 2 says a tile looks
+   exactly as before until tapped; Gary's own words were "Leave sales as it
+   is". So the collapsed tiles stay where they were and an expanded card
+   opens BELOW the first screen. Consequence: with nothing open, the page is
+   exactly one screen tall and there is nothing below to flick to; staging
+   step 2 needs a card expanded (or the list open) first.
+b. **Opening a card brings it into view.** After a tap, the page scrolls
+   (smoothly) just far enough to show the detail while keeping the tile row
+   on screen. The scroll position from before the FIRST card opened is what
+   a collapse returns to, even after switching cards.
+c. **A page scrolled away from the top is busy only while in use.** After 5
+   idle minutes it stops holding the refresh, so a counter tablet left
+   scrolled down does not go stale for good. An open card or list holds the
+   refresh until it idles shut, so an expanded card's numbers can be up to
+   5 minutes old; that is ruling 4 working as written.
+d. **No chevron on the collapsed tiles.** Ruling 2 says a tile looks exactly
+   as before until tapped, so none was added. The expanded tile gets a
+   primary-colour border.
+e. **The HR chip drops its second line** ("Nearest due …", 14px) and the
+   word "overdue": it reads "My HR · N" with a graduation-cap icon, amber
+   (warning tokens) when anything is past due, neutral (card and border
+   tokens) otherwise. Its screen-reader label says "past due".
+f. **Goal "per remaining day"** uses the desktop card's day count
+   (`daysInMonth − daysElapsed`, the days after today) and reads "Last day of
+   <Month>" when none are left, "Goal reached" when nothing is to go. No
+   sales block reads month-to-date as $0, as the desktop card does.
+g. **Labor dollars are not shown.** `laborCost` is on the payload for
+   MANAGE-tier viewers only and no desktop surface renders it, so the
+   tablet does not either (RULING NOW in the report).
+h. **Transactions and average sale** are not on `GET /api/dashboard/summary`
+   (they are on `/api/dashboard/sales`), so they are not built: TAB-10.
+
 ## 2026-11-10 — TAB-5: the tablet home keeps itself current, rulings 1–5 — DRAFT
 
 **RATIFIED BY GARY, 2026-11-10, at the TAB-5 PRE-PUSH-CHECK:** "Ratify as

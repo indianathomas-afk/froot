@@ -25614,6 +25614,96 @@ phases:
       (CLAUDE.md § Session Tiers); its permission scoping must still be
       enumerated against the existing checklist routes.
 
+  - id: TAB-9
+    track: platform
+    size: S
+    # planned -> in_progress 2026-11-10 at the work commit 44b80c5 (NOT
+    # pushed). The docs SHA is the commit immediately after 44b80c5 (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
+    # No migration. Rollback: `git revert 44b80c5`.
+    status: in_progress
+    title: "Tablet home — the page scrolls, cards expand in place, the overdue list opens in place"
+    commits:
+      - "44b80c5"
+      # feat(TAB-9) — page scroll, expandable strip cards, in-place overdue
+      # list, idle collapse, HR chip restyle, src/lib/tablet-cards.ts,
+      # fixture verify-tab9-cards.ts
+      # + the commit immediately after 44b80c5: docs(TAB-9) — this row, the
+      # TAB-10 ROW, DECISIONS DRAFT
+    notes: >
+      BUILT, not yet checked on staging. TIER 2: no schema, migration,
+      endpoint or dependency.
+      Gary's feedback, 2026-11-10, verbatim: "I think the cards should be
+      more flexible. For example, when you click the 3 overdue items, the
+      iPad screen is locked. Also sales and labor or any other card could be
+      technically larger. Keeping key data at the top, however, allowing you
+      to flick (scroll down) to see more information. If you made the cards
+      larger, you could make the expandable. For example. Leave sales as it
+      is, however, if you expanded the window it would show more details.
+      Then you could scroll down to see that ino [info]."
+      What "locked" means, Gary, 2026-11-10, verbatim: "What locked means is
+      that the entire main screen is static. Becuase each card is predevined,
+      there is no data to scroll through. I think this is a wasted
+      opportunity and that the Tablet view mode is forcing everything onto
+      one screen that is locked. Data should be expansive if needed."
+      Rulings 1–7: Gary answered "yes to all" to the planning chat's seven
+      leans (the wording is the planning chat's; DECISIONS 2026-11-10 TAB-9,
+      DRAFT until PRE-PUSH-CHECK).
+      BUILT. (1) The overdue list opens in place under the header, toggled by
+      the chip; no overlay; row actions unchanged. (2) Strip tiles look as
+      before until tapped; a tap opens that card below the first screen, one
+      at a time, closed by a second tap or "Show less". (3) The shell no
+      longer clips the home; TabletHome sizes the columns and strip row to
+      one screen below the header (measured), so the first screen opens as
+      before; collapsing returns the page to where it was before the first
+      card opened. (4) A card or the list collapses after 5 minutes without a
+      touch and at the day rollover / store switch, never on a refresh; an
+      open card, the open list, and a page scrolled away while in use are
+      TAB-5 busy flags. (5) Detail only from GET /api/dashboard/summary —
+      Sales hour by hour vs the same weekday last year (headline ▲/▼
+      unchanged, TAB-7); Monthly goal month-to-date, goal, to go, per
+      remaining day; Labor month-to-date %, target, last sync and the
+      desktop's footnotes. No Labor card when `labor` is absent; laborCost is
+      never read. Transactions and average sale are not on that payload:
+      filed as TAB-10. (6) The HR chip reads "My HR · N", amber when
+      something is past due, neutral otherwise; only the store's overdue chip
+      is red and says "overdue". (7) Expansion is React state only.
+      NESTED SCROLL: overscroll-contain removed from the Tasks panels and the
+      Messages thread, so a flick at a column's end carries into the page;
+      each column keeps one screen's height and its own scroll. Checked
+      locally with wheel input at 1180×820 and 820×1180 — iPad Safari touch
+      is Gary's staging step 3.
+      Fixture: scripts/verify-tab9-cards.ts 58/58. Re-run unchanged:
+      verify-tab1-today 13/13, verify-tab1c-due-chip 11/11,
+      verify-tab2-messages 23/23, verify-tab3-layout 28/28 (database part on
+      dev, br-broad-wave-a6vpjdw0, rolled back), verify-tab5-refresh 32/32.
+      OPEN FOR GARY (RULING NOW, in the TAB-9 report): what the HR chip
+      should do on a shared STORE login; whether labor dollars (laborCost,
+      MANAGE-tier only) should ever show on the expanded Labor card.
+
+  - id: TAB-10
+    track: platform
+    size: S
+    status: planned
+    title: "Tablet expanded Sales card — transactions and average sale"
+    notes: >
+      Filed 2026-11-10 by TAB-9 from its ruling 5 ("Sales: today hour by hour
+      against last year hour by hour, plus transactions and average sale if
+      the payload carries them … Anything that would need new data is filed
+      as its own ROW, not built." — the planning chat's wording; Gary
+      answered "yes to all").
+      GET /api/dashboard/summary — the strip's one payload — carries no
+      transaction count or average sale. GET /api/dashboard/sales (the
+      desktop Sales Performance card's route) does: `selected.orders` and
+      `selected.avgSale` per window.
+      Shape (a recommendation, not a ruling): either the expanded card also
+      reads /api/dashboard/sales for today (a second request per refresh
+      cycle, and its own gates to enumerate against the strip's), or the
+      summary payload gains the two numbers from the same cache. The second
+      changes an endpoint's payload, so check every summary consumer
+      (desktop Monthly Goal card, the tablet strip). TIER 2 if it stays
+      read-only.
+
 bugs:
   - id: BUG-1
     title: "Dashboard cards intermittently fail to load"
