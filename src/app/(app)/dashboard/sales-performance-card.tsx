@@ -25,6 +25,7 @@ import {
 import { fetchCard, POLL_ATTEMPTS, POLL_INTERVAL_MS } from "./card-fetch"
 import { LaborNotes, LaborPctMetric } from "./labor-pct"
 import type { LaborBlock } from "@/lib/labor-judgment"
+import { comparisonSuffix, pctChange, type DayComparison } from "@/lib/sales-same-time"
 
 // Sales Performance card (Dashboard) — date navigation + comparison baseline.
 // The selection may be a single day (hourly pace chart) or a range (daily
@@ -57,6 +58,10 @@ type SalesResponse = {
   granularity: "hourly" | "daily"
   selected: WindowData | null
   compareData: WindowData | null
+  // TAB-7 — set for a SINGLE-DAY selection: what that day is measured against
+  // (today: the comparison day up to the same store-local time; a past day:
+  // its full day). Null for a range, which compares window totals as before.
+  comparisonBasis: DayComparison | null
   // AL-2 — ABSENT, not null, when the Advanced Labor overlay is off or the viewer
   // lacks labor.actuals.view. An org without the overlay gets a payload with no
   // `labor` key at all, so this card renders byte-identically to Phase 1.
@@ -303,6 +308,21 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
   const selected = data?.selected
   const compareData = data?.compareData
   const hasCompare = !!compareData?.hasData
+  // TAB-7: the comparison figures come from the route's comparisonBasis when
+  // it has one (single day), else the window totals (range). On a same-time
+  // basis there is no hourly GROSS in the cache, so the gross pill is hidden
+  // rather than measured against a whole day; orders and average sale use the
+  // same-time order count.
+  const basis = data?.comparisonBasis ?? null
+  const sameTime = basis?.method === "same-time"
+  const compNet = basis ? basis.net : (compareData?.net ?? 0)
+  const compOrders = basis ? basis.orders : (compareData?.orders ?? null)
+  const compAvg = basis
+    ? basis.orders !== null && basis.orders > 0
+      ? basis.net / basis.orders
+      : null
+    : (compareData?.avgSale ?? null)
+  const basisSuffix = basis ? comparisonSuffix(basis) : ""
 
   return (
     <Card className="h-full">
@@ -369,13 +389,20 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
               </div>
               <div>
                 <p className="text-[11px] font-semibold tracking-wide text-[var(--color-muted-foreground)] uppercase">
-                  {compLabel} · {rangeLabel(compWindow.start, compWindow.end)}
+                  {compLabel}
+                  {basisSuffix ? ` ${basisSuffix}` : ""} · {rangeLabel(compWindow.start, compWindow.end)}
                 </p>
                 <p className="text-3xl font-extrabold text-[var(--color-muted-foreground)]/60">
-                  {hasCompare ? usd(compareData!.net) : "—"}
+                  {hasCompare ? usd(compNet) : "—"}
                 </p>
               </div>
-              <DeltaPill value={selected?.net ?? 0} baseline={hasCompare ? compareData!.net : null} />
+              {/* TAB-7 lean 5: on today, a $0 baseline (before opening) is "—",
+                  never ∞% or ▼100%. */}
+              {hasCompare && sameTime && pctChange(selected?.net ?? 0, compNet) === null ? (
+                <span className="px-2.5 py-1 text-xs rounded-full font-bold bg-[var(--color-muted)] text-[var(--color-muted-foreground)]">—</span>
+              ) : (
+                <DeltaPill value={selected?.net ?? 0} baseline={hasCompare ? compNet : null} />
+              )}
             </div>
 
             {range.end === data.today && (selected?.unconfirmed ?? 0) > 0 && (
@@ -430,19 +457,19 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
                 label="Gross sales"
                 value={usd(selected?.gross ?? 0)}
                 current={selected?.gross ?? 0}
-                baseline={hasCompare ? compareData!.gross : null}
+                baseline={hasCompare && !sameTime ? compareData!.gross : null}
               />
               <MiniMetric
                 label="Transactions"
                 value={(selected?.orders ?? 0).toLocaleString("en-US")}
                 current={selected?.orders ?? 0}
-                baseline={hasCompare ? compareData!.orders : null}
+                baseline={hasCompare ? compOrders : null}
               />
               <MiniMetric
                 label="Average sale"
                 value={usd(selected?.avgSale, 2)}
                 current={selected?.avgSale ?? 0}
-                baseline={hasCompare ? compareData!.avgSale : null}
+                baseline={hasCompare ? compAvg : null}
               />
               {/* AL-2 feature 1 — labor % beside gross sales / transactions /
                   average sale, over the SAME window the picker above selected.
@@ -506,8 +533,9 @@ function ComparePicker({
 // ─── Metrics ──────────────────────────────────────────────────────────────────
 
 function DeltaPill({ value, baseline, small = false }: { value: number; baseline: number | null; small?: boolean }) {
-  if (!baseline || baseline <= 0) return null
-  const delta = ((value - baseline) / baseline) * 100
+  // TAB-7: the one percentage formula (src/lib/sales-same-time.ts).
+  const delta = pctChange(value, baseline)
+  if (delta === null) return null
   const up = delta >= 0
   return (
     <span

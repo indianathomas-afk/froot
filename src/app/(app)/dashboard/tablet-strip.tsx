@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatLaborPct, judgeLaborPct, laborVerdictClass } from "@/lib/labor-judgment"
 import { formatInstant } from "@/lib/display-time"
-import { goalDetail, laborDetail, salesDetail, withoutLaborDollars, type StripSummary } from "@/lib/tablet-cards"
+import { goalDetail, laborDetail, salesDetail, salesTileComparison, withoutLaborDollars, type StripSummary } from "@/lib/tablet-cards"
 import { laborNoValueLabel } from "./labor-pct"
 import { fetchCard } from "./card-fetch"
 
@@ -20,6 +20,9 @@ import { fetchCard } from "./card-fetch"
 //   sales         sales.today.total = SalesPeriodCache.netSales for today, the
 //                 Sales Performance card's "Today so far", with its ▲/▼ vs the
 //                 same weekday last year (DeltaPill's formula).
+//                 TAB-7: measured against last year UP TO THE SAME TIME OF
+//                 DAY (sales.comparison, src/lib/sales-same-time.ts), labelled
+//                 "vs last year by 10:15 AM" — no longer the whole day.
 //   monthly-goal  goal.monthToDate / goal.goalAmount, capped at 100% — the
 //                 Monthly Goal card's "% of goal".
 //   labor-pct     `labor`, MONTH-TO-DATE (audit F4) — the Monthly Goal card's
@@ -197,6 +200,10 @@ function SalesBody({ data }: { data: StripSummary }) {
   return (
     <div>
       <DetailRow label="Today so far" value={usd(d.todayTotal)} />
+      {/* TAB-7: the figure the ▲/▼ above is measured against. */}
+      {d.lastYearByNow && (
+        <DetailRow label={`Same weekday last year by ${d.lastYearByNow.asOfLabel}`} value={usd(d.lastYearByNow.net)} />
+      )}
       <DetailRow
         label={lyDay ? `Same weekday last year (${lyDay}), whole day` : "Same weekday last year"}
         value={d.lastYearTotal === null ? "No sales recorded" : usd(d.lastYearTotal)}
@@ -315,24 +322,31 @@ function tile(key: string, s: StripSummary): Tile | null {
     case "sales": {
       if (!s.salesAvailable || !s.sales) return null
       const today = s.sales.today.total
-      const ly = s.sales.lastYear?.total ?? null
-      // DeltaPill (sales-performance-card.tsx): hidden without a positive baseline.
-      const delta = ly && ly > 0 ? ((today - ly) / ly) * 100 : null
+      // TAB-7: today so far against last year up to the same time of day.
+      // No comparison day → no aside; a $0 baseline → "—" (lean 5).
+      const cmp = salesTileComparison(s)
+      const delta = cmp?.pct ?? null
       return {
         key,
         label: "Sales today",
         value: usd(today),
-        aside:
-          delta === null ? undefined : (
+        aside: !cmp ? undefined : (
+          <span className="flex flex-col items-end leading-tight">
             <span
               className={cn(
                 "text-sm font-bold",
-                delta >= 0 ? "text-[var(--color-success-text,#1d7c2e)]" : "text-[var(--color-warning-text,#a36a00)]"
+                delta === null
+                  ? "text-[var(--color-muted-foreground)]"
+                  : delta >= 0
+                    ? "text-[var(--color-success-text,#1d7c2e)]"
+                    : "text-[var(--color-warning-text,#a36a00)]"
               )}
             >
-              {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
+              {delta === null ? "—" : `${delta >= 0 ? "▲" : "▼"} ${Math.abs(delta).toFixed(1)}%`}
             </span>
-          ),
+            <span className="whitespace-nowrap text-xs text-[var(--color-muted-foreground)]">{cmp.label}</span>
+          </span>
+        ),
       }
     }
     case "monthly-goal": {

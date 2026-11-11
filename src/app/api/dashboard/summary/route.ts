@@ -7,6 +7,7 @@ import { localDateStr, dbDate } from "@/lib/reports"
 import { syncSalesForStore, ensureSalesCached } from "@/lib/sales-sync"
 import { monthStart } from "@/lib/pacing"
 import { getMonthGoal } from "@/lib/month-goal"
+import { compareTodayWithDay, storeLocalTime, type DayComparison } from "@/lib/sales-same-time"
 import {
   loadLaborBlock,
   laborOverlayOn,
@@ -62,7 +63,10 @@ export async function GET(req: Request) {
   if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404 })
 
   const tz = store.timezone
-  const today = localDateStr(new Date(), tz)
+  // TAB-7: one instant for both "which day is today" and "what time is it",
+  // so the same-time comparison can never straddle a midnight.
+  const requestNow = new Date()
+  const today = localDateStr(requestNow, tz)
   const comparisonDate = sameWeekdayLastYear(today)
   const mStart = monthStart(today)
 
@@ -73,6 +77,10 @@ export async function GET(req: Request) {
   let sales: {
     today: { total: number; hourly: { hour: number; net: number }[] }
     lastYear: { date: string; total: number; hourly: { hour: number; net: number }[] } | null
+    // TAB-7 — what today so far is compared with: last year up to the same
+    // store-local time of day (src/lib/sales-same-time.ts). Null when the
+    // comparison day isn't cached. `lastYear.total` stays the WHOLE day.
+    comparison: DayComparison | null
     monthToDate: number
   } | null = null
 
@@ -149,6 +157,18 @@ export async function GET(req: Request) {
             hourly: lastYearHours.map((h) => ({ hour: h.hour, net: h.netSales })),
           }
         : null,
+      // `today` is the store's local date, so this is always the today case.
+      comparison: compareTodayWithDay(
+        lastYearDay
+          ? {
+              total: lastYearDay.netSales,
+              orders: lastYearDay.orderCount,
+              hourly: lastYearHours.map((h) => ({ hour: h.hour, net: h.netSales, orders: h.orderCount })),
+            }
+          : null,
+        true,
+        storeLocalTime(requestNow, tz)
+      ),
       monthToDate: mtdAgg._sum.netSales ?? 0,
     }
   }

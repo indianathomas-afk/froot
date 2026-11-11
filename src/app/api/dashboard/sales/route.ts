@@ -4,6 +4,7 @@ import { z } from "zod"
 import { getCurrentUser } from "@/lib/auth"
 import { localDateStr, dbDate } from "@/lib/reports"
 import { syncSalesForStore, ensureSalesCached } from "@/lib/sales-sync"
+import { compareTodayWithDay, storeLocalTime, type DayComparison, type HourRow } from "@/lib/sales-same-time"
 import {
   loadLaborBlock,
   laborOverlayOn,
@@ -83,7 +84,14 @@ type WindowData = {
   series: { x: string; net: number }[]
 }
 
-async function loadWindow(storeId: string, start: string, end: string, hourly: boolean): Promise<WindowData> {
+// TAB-7: `hours` is the single day's hourly rows WITH order counts, kept off
+// the payload — the same-time comparison reads it, the chart reads `series`.
+async function loadWindow(
+  storeId: string,
+  start: string,
+  end: string,
+  hourly: boolean
+): Promise<{ data: WindowData; hours: HourRow[]; dayCached: boolean }> {
   const dayRows = await prisma.salesPeriodCache.findMany({
     where: { storeId, date: { gte: dbDate(start), lte: dbDate(end) } },
     orderBy: { date: "asc" },
@@ -94,12 +102,14 @@ async function loadWindow(storeId: string, start: string, end: string, hourly: b
   const unconfirmed = dayRows.reduce((s, r) => s + r.unconfirmedNet, 0)
 
   let series: { x: string; net: number }[]
+  let hourRows: HourRow[] = []
   if (hourly) {
     const hours = await prisma.salesHourlyCache.findMany({
       where: { storeId, date: dbDate(start) },
       orderBy: { hour: "asc" },
     })
     series = hours.map((h) => ({ x: String(h.hour), net: h.netSales }))
+    hourRows = hours.map((h) => ({ hour: h.hour, net: h.netSales, orders: h.orderCount }))
   } else {
     const byDate = new Map(dayRows.map((r) => [r.date.toISOString().slice(0, 10), r.netSales]))
     series = []
@@ -109,13 +119,17 @@ async function loadWindow(storeId: string, start: string, end: string, hourly: b
   }
 
   return {
-    net,
-    gross,
-    orders,
-    avgSale: orders > 0 ? net / orders : null,
-    unconfirmed,
-    hasData: dayRows.some((r) => r.orderCount > 0 || r.netSales > 0),
-    series,
+    data: {
+      net,
+      gross,
+      orders,
+      avgSale: orders > 0 ? net / orders : null,
+      unconfirmed,
+      hasData: dayRows.some((r) => r.orderCount > 0 || r.netSales > 0),
+      series,
+    },
+    hours: hourRows,
+    dayCached: dayRows.length > 0,
   }
 }
 
@@ -154,7 +168,10 @@ export async function GET(req: Request) {
   if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404 })
 
   const tz = store.timezone
-  const today = localDateStr(new Date(), tz)
+  // TAB-7: one instant for both "which day is today" and "what time is it",
+  // so the same-time comparison can never straddle a midnight.
+  const requestNow = new Date()
+  const today = localDateStr(requestNow, tz)
 
   // Future dates are never selectable; clamp rather than error so a stale
   // client selection (e.g. "today" persisted across midnight) still resolves.
@@ -200,6 +217,7 @@ export async function GET(req: Request) {
       granularity: start === end ? "hourly" : "daily",
       selected: null,
       compareData: null,
+      comparisonBasis: null,
       // Carried into the disconnected branch ON PURPOSE (R1): the overlay staying
       // on through a disconnect is the 2026-08-05 ruling, and the card renders the
       // last-synced stamp here rather than pretending the feature is gone.
@@ -250,10 +268,26 @@ export async function GET(req: Request) {
   }
 
   const hourly = start === end
-  const [selected, compareData] = await Promise.all([
+  const [sel, comp] = await Promise.all([
     loadWindow(storeId, start, end, hourly),
     loadWindow(storeId, compStart, compEnd, hourly),
   ])
+  const selected = sel.data
+  const compareData = comp.data
+
+  // TAB-7 — a SINGLE-DAY selection is compared through the shared helper:
+  // today against the comparison day up to the same store-local time, a past
+  // day against its full day (src/lib/sales-same-time.ts). Every compare mode
+  // goes through it, since "today so far vs a whole day" is equally wrong
+  // against yesterday or four weeks ago. A RANGE is unchanged (null): its
+  // window totals are compared as before.
+  const comparisonBasis: DayComparison | null = hourly
+    ? compareTodayWithDay(
+        comp.dayCached ? { total: compareData.net, orders: compareData.orders, hourly: comp.hours } : null,
+        start === today,
+        storeLocalTime(requestNow, tz)
+      )
+    : null
 
   // Only a selection that includes today can be refreshed under the client, so
   // only that case reports a syncedAt to poll against.
@@ -281,6 +315,7 @@ export async function GET(req: Request) {
     granularity: hourly ? "hourly" : "daily",
     selected,
     compareData,
+    comparisonBasis,
     ...(labor ? { labor } : {}),
   })
 }

@@ -22,6 +22,7 @@
 
 import { formatLaborPct, judgeLaborPct, laborFootnotes, type LaborBlock, type LaborVerdict } from "@/lib/labor-judgment"
 import { dayRolledOver } from "@/lib/tablet-refresh"
+import { comparisonSuffix, pctChange, type DayComparison } from "@/lib/sales-same-time"
 
 /** Ruling 4: five minutes with no touch. */
 export const IDLE_COLLAPSE_MS = 5 * 60_000
@@ -207,6 +208,11 @@ export type StripSummary = {
   sales: {
     today: { total: number; hourly: { hour: number; net: number }[] }
     lastYear: { date: string; total: number; hourly: { hour: number; net: number }[] } | null
+    /** TAB-7 — today so far is measured against THIS, never lastYear.total
+     *  (the whole day). Built by src/lib/sales-same-time.ts on the route.
+     *  Optional only so a hand-built payload without it reads as "no
+     *  comparison"; the route always sends it. */
+    comparison?: DayComparison | null
   } | null
   goal: { month: string; goalAmount: number | null; monthToDate: number | null; daysElapsed: number; daysInMonth: number }
   labor?: LaborBlock
@@ -219,11 +225,28 @@ export function hourLabel(h: number): string {
   return `${h - 12} PM`
 }
 
+/** TAB-7 — the Sales tile's ▲/▼ and what it is measured against.
+ *  Null when there is no comparison day at all (no tile aside). `pct` null
+ *  with a comparison present means a $0 baseline: render "—" (lean 5).
+ *  `label` is the short "vs last year by 10:15 AM" / "vs last year (full
+ *  day)" line (lean 4). */
+export type SalesTileComparison = { pct: number | null; label: string }
+
+export function salesTileComparison(s: StripSummary): SalesTileComparison | null {
+  const c = s.sales?.comparison
+  if (!s.salesAvailable || !s.sales || !c) return null
+  const suffix = comparisonSuffix(c)
+  return { pct: pctChange(s.sales.today.total, c.net), label: suffix ? `vs last year ${suffix}` : "vs last year" }
+}
+
 export type SalesHourRow = { hour: number; label: string; today: number | null; lastYear: number | null }
 export type SalesDetail = {
   todayTotal: number
   lastYearTotal: number | null
   lastYearDate: string | null
+  /** TAB-7 — last year up to the same time of day ("by 10:15 AM"), when the
+   *  comparison is same-time; null otherwise (fallback or none). */
+  lastYearByNow: { net: number; asOfLabel: string } | null
   hours: SalesHourRow[]
   /** The largest hourly figure on either side — the bars' full width. */
   max: number
@@ -232,7 +255,7 @@ export type SalesDetail = {
 /** Sales, expanded: today hour by hour against the same weekday last year
  *  hour by hour. Every hour either day has, in order; an hour only one day
  *  has reads null on the other side (not 0 — the cache has no row for it).
- *  The ▲/▼ headline is NOT computed here and does not change (TAB-7).
+ *  The ▲/▼ headline is salesTileComparison (TAB-7), not computed here.
  *  Transactions and average sale are not on this payload (ROW). Null when
  *  the tile itself would not render. */
 export function salesDetail(s: StripSummary): SalesDetail | null {
@@ -251,6 +274,10 @@ export function salesDetail(s: StripSummary): SalesDetail | null {
     todayTotal: s.sales.today.total,
     lastYearTotal: s.sales.lastYear?.total ?? null,
     lastYearDate: s.sales.lastYear?.date ?? null,
+    lastYearByNow:
+      s.sales.comparison?.method === "same-time" && s.sales.comparison.asOfLabel
+        ? { net: s.sales.comparison.net, asOfLabel: s.sales.comparison.asOfLabel }
+        : null,
     hours: rows,
     max,
   }
