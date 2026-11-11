@@ -5,6 +5,90 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-11 — TAB-12: Tablet home — choose a message type, rulings R1–R6 — DRAFT
+
+**DRAFT, awaiting Gary's ratification at the TAB-12 PRE-PUSH-CHECK.** Prompt of
+record: `docs/prompts/TAB-12.md` (untracked until PRE-PUSH-CHECK). Work commit
+`25f823c`. TIER 2. R1–R5 are copied from the prompt, which heads them
+"Rulings (Gary, 2026-11-11)"; they are recorded as the prompt words them, and
+whether each sentence is literally Gary's is for him to confirm at
+ratification. R6 is Gary's own reply in the session, quoted verbatim. The
+calls marked *(design choice)* are Claude's.
+
+**The rulings.**
+- **R1** — "The tablet home's message box gets a small type tag on the left
+  that starts at General. Tapping it opens the same type picker as Team
+  Messages."
+- **R2** — "Quick replies (On it / Done / Thanks) always post as General."
+- **R3** — "After every post, the tag goes back to General."
+- **R4** — "In the home Messages feed, only messages that aren't General show
+  a type badge, so the home screen looks the same as today until someone
+  flags a note."
+- **R5** — "Type only. Type-specific extras like the Shortage ingredient link
+  or shift phase stay on the Team Messages page. No schema, API or permission
+  changes; Desktop mode is untouched." (Its shift-phase clause is replaced by
+  R6.)
+- **R6** — ruled by Gary, 2026-11-11, after the audit stopped as RULING NOW
+  (POST /api/messages refuses a shift note without a phase: 400
+  "shiftPhase is required for shift notes"). His words: "On the home, Shift
+  Note shows Opening / Mid / Closing inside the type picker. One tap picks
+  both the type and the phase, so a shift note never posts without the right
+  phase, and nothing new appears on the home itself. This replaces R5's line
+  about shift phase staying on Team Messages." Build note, also his: "in the
+  home picker only, Shift Note is a full-width row with three 44px phase
+  buttons. Tapping one sets type + phase and closes the picker. The tag reads
+  "Shift Note · <Phase>". After posting, the tag goes back to General with no
+  phase. The Team Messages picker stays exactly as it is." He added staging
+  test 11: "pick Shift Note · Mid, post, and confirm it shows a Shift Note
+  badge on the home and files under Mid on Team Messages."
+
+**How each is met (work commit `25f823c`).**
+- R1: `messages/type-picker.tsx` holds TAB-11's Type button and picker
+  (variant "feed", moved verbatim) and the home's tag + picker (variant
+  "home"), sharing `TABLET_TYPE_ORDER` and `TYPE_META`. The tag sits inside
+  the box, top-left; the text wraps beside it.
+- R2: `send()` builds a quick reply with `postBody(storeId, text)` — General,
+  exactly the body it sent before — and does not touch the tag.
+- R3: after a successful composer post the tag resets to General with no
+  phase.
+- R4: `TypeBadge` renders nothing for General (or an unknown type).
+- R5: the home sends `type` (+ `shiftPhase` for a shift note only) through the
+  same POST /api/messages; no ingredient link; no schema, API, permission or
+  desktop change.
+- R6: the home picker's Shift Note row has three 44px buttons; each one sets
+  type and phase and closes the picker. `postBody` returns nothing to send
+  for a shift note without a phase, and drops a phase on any other type.
+
+**Calls made while building.**
+- *(design choice)* In the home picker the Shift Note row is LAST, nearest the
+  tag; the six others keep TAB-11's General-first order in two columns. A
+  full-width row placed second would leave a hole beside General.
+- *(design choice)* Phase labels are R6's "Opening / Mid / Closing" (Team
+  Messages' select says "Mid-shift"). The home badge shows the type only
+  ("Shift Note"), per R4's "type badge".
+- *(design choice)* "Kept inside the Messages column" is met horizontally (8px
+  in from each edge). Vertically the picker may rise above the column's top:
+  with the keyboard up the column's visible part is far shorter than the
+  picker (~270px). Its height is capped at the visible space above the tag
+  (visualViewport), so it is never under the keyboard or off the top.
+- *(design choice)* Tapping the tag or a type keeps focus in the message box
+  (mousedown default prevented, no auto-focus into the panel), so the iPad
+  keyboard stays up while choosing.
+- *(design choice)* The box stays 56px, as today. The tag's and the text's
+  padding were trimmed (tag 8px / 6px, text 4px / 10px) so "Message the
+  team…" fits on one line beside "General" down to iPad mini landscape
+  (column ~399px; it is ~417px at 1180, not ~396 — rail 88 + p-4 + gap-4).
+  The box does not grow with text; past one line it scrolls, as it always
+  has.
+- *(design choice)* The tag is capped at 62% of the box; a long label
+  ("Shift Note · Closing") truncates where it would not fit.
+- *(design choice)* A failed send keeps the tag (and the draft), since R3
+  speaks of a post.
+- Known: at 1024px landscape (column ~355px) the placeholder ends in an
+  ellipsis beside the General tag, a Shift Note tag truncates, and the
+  picker's Shift Note row wraps its phase buttons under the label. Every
+  other measured width keeps them on one line.
+
 ## 2026-11-11 — TAB-11: Team Messages in Tablet mode, rulings R1–R5 — DRAFT
 
 **RATIFIED BY GARY, 2026-11-11, at the TAB-11 PRE-PUSH-CHECK:** "Ratify as
