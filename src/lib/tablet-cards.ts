@@ -309,9 +309,10 @@ export type SalesCounts = {
  *                   (pro-rated to the time of day, so possibly fractional —
  *                   desktop's `compOrders`) and its net ÷ its orders
  *                   (desktop's `compAvg`), through the one pctChange.
- *  One departure, a display rule (TAB-10, design choice): with no
- *  transactions today the average sale is "—", so its pill is "—" too;
- *  desktop measures 0 against last year's average there (▼100.0%).
+ *  With no transactions today the average sale is "—", so its pill is "—"
+ *  too, never ▼100.0%. Desktop gives no percentage there either (TAB-10
+ *  fix, Gary 2026-11-11); before that fix it measured 0 against last year's
+ *  average.
  *  Null when the tile would not render, or the payload has no order count
  *  (an older answer): the rows are left out, never shown as 0. */
 export function salesCounts(s: StripSummary): SalesCounts | null {

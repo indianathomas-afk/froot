@@ -27,6 +27,10 @@
  *      day with sales taken as "today" at four store-local moments, the
  *      tablet's figures (summary route's reads → salesCounts) equal the
  *      desktop's (sales route's reads → the card's formulas).
+ *   7  TAB-10 FIX (Gary, 2026-11-11): on the desktop card, 0 transactions →
+ *      Average sale "—" with NO percentage (was ▼100.0%); Transactions keeps
+ *      its pill. NC: the fix's check fails on the work commit e12bc2d's card
+ *      and on a mutant with the old baseline restored.
  *
  * WHAT IT CANNOT DETECT: the rendered page (the local check covers it), the
  * routes run under a real Clerk session, staging/production data.
@@ -47,6 +51,8 @@ import { salesCounts, salesTileComparison, type StripSummary } from "../src/lib/
 
 /** HEAD before TAB-10 (TAB-7 PRE-PUSH-CHECK). */
 const PRE_TAB10 = "885d65f"
+/** The TAB-10 work commit — desktop still ▼100.0% at 0 transactions. */
+const TAB10_WORK = "e12bc2d"
 
 let failures = 0
 let passes = 0
@@ -164,8 +170,21 @@ ok("3f the collapsed tile renders the same pill through DeltaText", /<DeltaText 
 ok("3g the hour-by-hour table is unchanged (no Transactions column — design choice)", (now(STRIP).match(/grid-cols-\[6rem_minmax\(0,1fr\)_7rem_7rem\]/g) ?? []).length === 2)
 
 // ─── 4. Desktop unchanged ────────────────────────────────────────────────────
-console.log("4. desktop route, card and helper byte-identical to 885d65f")
-for (const p of [DESK_ROUTE, DESK_CARD, HELPER]) ok(`4a ${p} unchanged`, now(p) === atPre(p))
+console.log("4. desktop route and helper byte-identical to 885d65f; the card differs only by the TAB-10 fix")
+for (const p of [DESK_ROUTE, HELPER]) ok(`4a ${p} unchanged`, now(p) === atPre(p))
+// TAB-10 fix: the card's ONLY change since 885d65f is the Average sale
+// baseline (one line out, the comment and one line in).
+const cardDiff = execFileSync("git", ["diff", "--unified=0", PRE_TAB10, "--", DESK_CARD], { encoding: "utf8" }).split("\n")
+const cardRemoved = cardDiff.filter((l) => l.startsWith("-") && !l.startsWith("---"))
+const cardAdded = cardDiff.filter((l) => l.startsWith("+") && !l.startsWith("+++"))
+check("4d desktop card: the one removed line is Average sale's old baseline", cardRemoved, ["-                baseline={hasCompare ? compAvg : null}"])
+check("4d desktop card: added lines are exactly that baseline's replacement and its comment", cardAdded, [
+  "+              {/* TAB-10 fix (Gary, 2026-11-11): with 0 transactions there is no",
+  "+                  average sale — it reads \"—\" and gets no percentage, the same",
+  "+                  as the tablet. It used to measure 0 against last year's",
+  "+                  average (▼100.0%). Transactions keeps its pill. */}",
+  "+                baseline={hasCompare && selected?.avgSale != null ? compAvg : null}",
+])
 ok("4a NC the same byte check reports the summary route as changed", now(SUMMARY) !== atPre(SUMMARY))
 const diff = execFileSync("git", ["diff", "--unified=0", PRE_TAB10, "--", SUMMARY], { encoding: "utf8" })
 const removed = diff.split("\n").filter((l) => l.startsWith("-") && !l.startsWith("---"))
@@ -284,7 +303,9 @@ async function db() {
         const compOrders = basis ? basis.orders : compRows.reduce((x, r) => x + r.orderCount, 0)
         const compAvg = basis ? (basis.orders !== null && basis.orders > 0 ? basis.net / basis.orders : null) : null
         const dTx = pctChange(selOrders, hasCompare ? compOrders : null)
-        const dAvg = pctChange(selAvg ?? 0, hasCompare ? compAvg : null)
+        // The card's Average sale pill after the TAB-10 fix: no average → no
+        // baseline → no percentage.
+        const dAvg = pctChange(selAvg ?? 0, hasCompare && selAvg !== null ? compAvg : null)
 
         compared++
         const same =
@@ -325,6 +346,29 @@ async function db() {
     console.error("  ✗ database section threw:", e)
   }
 }
+
+// ─── 7. TAB-10 fix: desktop Average sale at 0 transactions ───────────────────
+console.log("7. desktop Average sale: \"—\" and no percentage at 0 transactions (TAB-10 fix; NC: e12bc2d, mutant)")
+const fixOk = (t: string) =>
+  /label="Average sale"\s+value=\{usd\(selected\?\.avgSale, 2\)\}\s+current=\{selected\?\.avgSale \?\? 0\}\s+baseline=\{hasCompare && selected\?\.avgSale != null \? compAvg : null\}/.test(t) &&
+  /label="Transactions"[\s\S]{0,160}baseline=\{hasCompare \? compOrders : null\}/.test(t)
+ok("7a card: Average sale's baseline is null when there is no average; Transactions' baseline unchanged", fixOk(now(DESK_CARD)))
+ok("7a NC the same check fails on the TAB-10 work commit's card (e12bc2d)", !fixOk(execFileSync("git", ["show", `${TAB10_WORK}:${DESK_CARD}`], { encoding: "utf8" })))
+ok(
+  "7a NC a mutant with the old baseline restored fails",
+  !fixOk(now(DESK_CARD).replace("baseline={hasCompare && selected?.avgSale != null ? compAvg : null}", "baseline={hasCompare ? compAvg : null}"))
+)
+ok("7b the value still reads \"—\" at 0 transactions: usd(null) → \"—\", avgSale null at 0 orders", /n === null \|\| n === undefined\s+\? "—"/.test(now(DESK_CARD)) && /avgSale: orders > 0 \? net \/ orders : null/.test(now(DESK_ROUTE)))
+// The card's two pill baselines as a model, pinned to the source by 7a:
+// DeltaPill renders nothing when pctChange is null.
+const deskAvgPct = (avg: number | null, compAvg: number | null, hasCompare = true) =>
+  pctChange(avg ?? 0, hasCompare && avg !== null ? compAvg : null)
+const deskTxPct = (orders: number, compOrders: number | null, hasCompare = true) => pctChange(orders, hasCompare ? compOrders : null)
+check("7c 0 transactions vs last year's $12.50 average → no percentage (was ▼100.0%)", [deskAvgPct(null, 12.5), pctChange(0, 12.5)], [null, -100])
+check("7d Transactions keeps its pill at 0 transactions: 0 vs 4 → ▼100.0%", deskTxPct(0, 4), -100)
+check("7e with transactions the Average sale pill is unchanged: $11.88 vs $11.7647", deskAvgPct(106.92 / 9, 100 / 8.5), pctChange(106.92 / 9, 100 / 8.5))
+const z = salesCounts(strip(0, 0, sameTime(50, 4)))!
+check("7f tablet and desktop agree at 0 transactions: no Average sale percentage on either", [z.averageSaleVs.pct, deskAvgPct(z.averageSale, 50 / 4)], [null, null])
 
 db().then(() => {
   console.log(`\nverify-tab10: ${passes} passed, ${failures} failed`)

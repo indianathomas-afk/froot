@@ -468,11 +468,15 @@ export function SalesPerformanceCard({ storeId }: { storeId: string }) {
                 current={selected?.orders ?? 0}
                 baseline={hasCompare ? compOrders : null}
               />
+              {/* TAB-10 fix (Gary, 2026-11-11): with 0 transactions there is no
+                  average sale — it reads "—" and gets no percentage, the same
+                  as the tablet. It used to measure 0 against last year's
+                  average (▼100.0%). Transactions keeps its pill. */}
               <MiniMetric
                 label="Average sale"
                 value={usd(selected?.avgSale, 2)}
                 current={selected?.avgSale ?? 0}
-                baseline={hasCompare ? compAvg : null}
+                baseline={hasCompare && selected?.avgSale != null ? compAvg : null}
               />
               {/* AL-2 feature 1 — labor % beside gross sales / transactions /
                   average sale, over the SAME window the picker above selected.
