@@ -2,7 +2,46 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-10 — TAB-9: Tablet home scrolls, cards expand in place, overdue list opens in place (HR chip hidden on STORE logins)
+## 8417fc3 — 2026-11-10 — TAB-9: Tablet home scrolls, cards expand in place, overdue list opens in place (HR chip hidden on STORE logins)
+
+**PROMOTED 2026-11-10 in merge `8417fc3`** ("Merge branch 'staging'",
+2026-11-10 19:23:10 -0800 (PST) = 2026-11-11 03:23:10 UTC, read from
+`git show -s --format=%ci 8417fc3`), `--no-ff`. First parent `833e926`
+(prior tip of `main`), second parent `1a0424d` (staging tip, the TAB-9
+PRE-PUSH-CHECK). **The whole Tablet mode series in one merge:** TAB-1,
+TAB-1b, TAB-1c, TAB-2, TAB-2b, TAB-3, TAB-5, TAB-9. **30 commits** in
+`833e926..8417fc3` besides the merge: TAB-1 `adec345`, `d5a9094`,
+`c83a5c3`, `9a4d607`; TAB-1b `9f3c944`, `2757c9d`, `2e21b02`, `e4cdab2`;
+TAB-1c `1f03674`, `d35d034`, `13fd5ea`; TAB-2 `ab80e5b`, `b1dafbd`,
+`35fb734`, `57a879a`; TAB-2b `007dfd0`, `0e9768c`, `318af62`, `1487091`;
+TAB-3 `c38d998`, `d09aa17`, `8332266`; TAB-5 `ab29d62`, `573da37`,
+`81cb5f0`, `446d085`; TAB-9 `44b80c5`, `9253bca`, `5da4897`, `1a0424d`.
+51 files (`git diff --shortstat 8417fc3^1 8417fc3`). **One migration:**
+`20261110200000_tab3_display_layouts` (the TAB-3 entry below). Measured at
+this stamp by `git rev-parse` after `git fetch`: `main` = `origin/main` =
+`staging` (local, fast-forwarded to `main` by this pass) = `8417fc3`;
+`origin/staging` = `1a0424d` until Gary pushes the merge-back. The seven
+other TAB entries below point here. Stamped post-merge 2026-11-10 on
+`staging` (PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-10 — TAB-9: …". Spent, kept below: the "Staging
+only, not on `main`. NOT pushed at writing" line and the "Staging tests
+owed" list.
+
+**Rollback (whole series).** `git revert -m 1 8417fc3`. The TAB-3
+migration only adds two nullable JSONB columns, so leaving it in place
+after a code revert is harmless (additive-only schema).
+
+**Staging verdict (Gary, verbatim, covering every phase in the series):**
+"Everything is tested and working great". Gary's report, not browser
+evidence: no org id or instance was captured with it. **One exception,
+TAB-5 test (6)** (overnight store-local rollover): NOT observed before
+promotion. Gary chose to ship and watch for it; it is owed as a production
+observation (the TAB-5 entry below).
+
+**Production.** The TAB-3 migration applies via vercel-build at `8417fc3`:
+pending Gary's confirmation from the production build log
+(`docs/MIGRATIONS.md`). No post-deploy production check recorded at this
+stamp.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `44b80c5`; docs commit `9253bca`; fix commit `5da4897` (Gary's rulings 8–9
@@ -98,7 +137,24 @@ leave it 5 minutes untouched: the card collapses AND the page returns to the
 top; tick an item from desktop and it appears within about a minute after
 that.
 
-## UNPROMOTED — 2026-11-10 — TAB-5: Tablet home keeps itself current (one refresh controller, store-local day rollover, offline guard)
+## 8417fc3 — 2026-11-10 — TAB-5: Tablet home keeps itself current (one refresh controller, store-local day rollover, offline guard)
+
+**PROMOTED 2026-11-10 in merge `8417fc3`**, with the rest of the Tablet
+mode series (the TAB-9 entry above carries the merge facts). Its commits:
+`ab29d62` (work), `573da37` (docs), `81cb5f0` (fix),
+`446d085` (PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-10 on `staging`
+(PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-10 — TAB-5: …". Spent, kept below: the "Staging only, not on
+`main`. NOT pushed at writing" line and the "Staging tests owed" list.
+Staging: covered by Gary's verdict recorded on the TAB-9 entry above.
+Rollback (whole series): `git revert -m 1 8417fc3`.
+
+**Rider 2026-11-10, promotion: staging test (6) (overnight store-local
+rollover) was NOT observed before promotion.** Gary chose to ship and watch
+for it. It is covered by the `verify-tab5-refresh` fixture and a mocked
+day-change check. **Owed as a production observation** the first morning a
+tablet is left on overnight: without a touch, the header shows the new date
+and the new day's checklist.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `ab29d62`; docs commit `573da37`; fix commit `81cb5f0` (Gary's offline
@@ -179,7 +235,24 @@ iPad's wifi off for 2 minutes with Safari in Tablet mode. The page stays as it
 was (no Safari error page). Turn wifi back on; ticks made elsewhere meanwhile
 appear within a few seconds.
 
-## UNPROMOTED — 2026-11-10 — TAB-3: Display settings — Dashboard and Tablet card picker, tablet stat strip
+## 8417fc3 — 2026-11-10 — TAB-3: Display settings — Dashboard and Tablet card picker, tablet stat strip
+
+**PROMOTED 2026-11-10 in merge `8417fc3`**, with the rest of the Tablet
+mode series (the TAB-9 entry above carries the merge facts). Its commits:
+`c38d998` (work), `d09aa17` (docs), `8332266`
+(PRE-PUSH-CHECK). **One migration**,
+`20261110200000_tab3_display_layouts`. Stamped post-merge 2026-11-10 on `staging`
+(PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-10 — TAB-3: …". Spent, kept below: the "Staging only, not on
+`main`. NOT pushed at writing" line and the "Staging tests owed" list.
+Staging: covered by Gary's verdict recorded on the TAB-9 entry above.
+Rollback (whole series): `git revert -m 1 8417fc3`. The two JSONB columns stay;
+leaving them after a code revert is harmless.
+
+**Migration, production:** applies via vercel-build at `8417fc3` — pending
+Gary's confirmation from the production build log (`docs/MIGRATIONS.md`).
+Staging: test (0) (`_prisma_migrations` row with a `finished_at`) was in
+the list Gary's verdict covers; no `finished_at` value was pasted.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `c38d998`; docs commit `d09aa17`; the PRE-PUSH-CHECK is the commit
@@ -248,7 +321,17 @@ show locked; turn on Sales, Goal and Labor % and reorder them; the tablet
 shows the strip below the columns in that order. (6) Turn all three off: no
 strip and no gap below the columns.
 
-## UNPROMOTED — 2026-11-10 — TAB-2b: Tablet mode — no floating help button over Send; Help moves to the rail
+## 8417fc3 — 2026-11-10 — TAB-2b: Tablet mode — no floating help button over Send; Help moves to the rail
+
+**PROMOTED 2026-11-10 in merge `8417fc3`**, with the rest of the Tablet
+mode series (the TAB-9 entry above carries the merge facts). Its commits:
+`007dfd0` (work), `0e9768c` (docs), `318af62` (fix),
+`1487091` (PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-10 on `staging`
+(PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-10 — TAB-2b: …". Spent, kept below: the "Staging only, not on
+`main`. NOT pushed at writing" line and the "Staging tests owed" list.
+Staging: covered by Gary's verdict recorded on the TAB-9 entry above.
+Rollback (whole series): `git revert -m 1 8417fc3`.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `007dfd0`; docs commit `0e9768c`; fix commit `318af62` (Gary's ruling on
@@ -284,7 +367,17 @@ and nothing covers Send. (2) Tap Help in the rail. Help opens, the same as
 the floating button did. (3) Switch to Desktop mode. The floating ? button is
 back in its usual place and works.
 
-## UNPROMOTED — 2026-11-10 — TAB-2: Tablet mode — the Messages column (pinned Corporate Update, chat-order thread, composer, live refresh)
+## 8417fc3 — 2026-11-10 — TAB-2: Tablet mode — the Messages column (pinned Corporate Update, chat-order thread, composer, live refresh)
+
+**PROMOTED 2026-11-10 in merge `8417fc3`**, with the rest of the Tablet
+mode series (the TAB-9 entry above carries the merge facts). Its commits:
+`ab80e5b` (work), `b1dafbd` (docs), `35fb734` (fix),
+`57a879a` (PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-10 on `staging`
+(PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-10 — TAB-2: …". Spent, kept below: the "Staging only, not on
+`main`. NOT pushed at writing" line and the "Staging tests owed" list.
+Staging: covered by Gary's verdict recorded on the TAB-9 entry above.
+Rollback (whole series): `git revert -m 1 8417fc3`.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `ab80e5b`; docs commit `b1dafbd`; fix commit `35fb734` (Gary's rulings 6–8,
@@ -342,7 +435,17 @@ tablet has rendered the message. (6) In Safari Responsive Design Mode at
 the composer is reachable. (7) On a real iPad, tap the composer: the
 composer stays visible above the keyboard.
 
-## UNPROMOTED — 2026-11-10 — TAB-1c: Tablet overdue chip characterized; SELF-1 compliance chip on the tablet
+## 8417fc3 — 2026-11-10 — TAB-1c: Tablet overdue chip characterized; SELF-1 compliance chip on the tablet
+
+**PROMOTED 2026-11-10 in merge `8417fc3`**, with the rest of the Tablet
+mode series (the TAB-9 entry above carries the merge facts). Its commits:
+`1f03674` (work), `d35d034` (docs), `13fd5ea`
+(PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-10 on `staging`
+(PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-10 — TAB-1c: …". Spent, kept below: the "Staging only, not on
+`main`. NOT pushed at writing" line and the "Staging tests owed" list.
+Staging: covered by Gary's verdict recorded on the TAB-9 entry above.
+Rollback (whole series): `git revert -m 1 8417fc3`.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `1f03674`; docs commit `d35d034`; the PRE-PUSH-CHECK is the commit
@@ -386,7 +489,17 @@ appears with the same count as Tommy's desktop banner. (5) Complete the
 reminder from the sheet: the chip count drops, or the chip disappears at
 zero.
 
-## UNPROMOTED — 2026-11-09 — TAB-1b: Tablet "who completed this" parity with desktop + partial submit
+## 8417fc3 — 2026-11-09 — TAB-1b: Tablet "who completed this" parity with desktop + partial submit
+
+**PROMOTED 2026-11-10 in merge `8417fc3`**, with the rest of the Tablet
+mode series (the TAB-9 entry above carries the merge facts). Its commits:
+`9f3c944` (work), `2757c9d` (docs), `2e21b02` (fix),
+`e4cdab2` (PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-10 on `staging`
+(PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-09 — TAB-1b: …". Spent, kept below: the "Staging only, not on
+`main`. NOT pushed at writing" line and the "Staging tests owed" list.
+Staging: covered by Gary's verdict recorded on the TAB-9 entry above.
+Rollback (whole series): `git revert -m 1 8417fc3`.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `9f3c944`; docs commit `2757c9d`; fix commit `2e21b02`; the PRE-PUSH-CHECK
@@ -431,7 +544,17 @@ sends nothing; again → Submit partial: the panel shows "Partial submitted ·
 n of N" and desktop shows the checklist submitted as partial. (6) Reload:
 the chip is gone, and the next tick on a new checklist asks again.
 
-## UNPROMOTED — 2026-11-09 — TAB-1: Tablet mode (Tablet/Desktop switch, rail shell, touch sizes, Tasks column, explicit Submit)
+## 8417fc3 — 2026-11-09 — TAB-1: Tablet mode (Tablet/Desktop switch, rail shell, touch sizes, Tasks column, explicit Submit)
+
+**PROMOTED 2026-11-10 in merge `8417fc3`**, with the rest of the Tablet
+mode series (the TAB-9 entry above carries the merge facts). Its commits:
+`adec345` (work), `d5a9094` (docs), `c83a5c3` (fix),
+`9a4d607` (PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-10 on `staging`
+(PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-09 — TAB-1: …". Spent, kept below: the "Staging only, not on
+`main`. NOT pushed at writing" line and the "Staging tests owed" list.
+Staging: covered by Gary's verdict recorded on the TAB-9 entry above.
+Rollback (whole series): `git revert -m 1 8417fc3`.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `adec345`; docs commit `d5a9094`; fix commit `c83a5c3`; the PRE-PUSH-CHECK

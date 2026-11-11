@@ -24729,7 +24729,15 @@ phases:
     # RATIFIED by Gary at this check, "Ratify as written". The notes' "DRAFT
     # until PRE-PUSH-CHECK" is spent, kept. NOT pushed at writing.
     # Rollback: `git revert c83a5c3 adec345`; no migration.
-    status: staging
+    # `staging` -> `shipped` 2026-11-10, stamped post-merge 2026-11-10 by
+    # PROMOTE-DOCS_2026-11-10_TAB (on `staging`): merge 8417fc3, the whole
+    # Tablet mode series TAB-1 -> TAB-9 in one promotion (DEPLOY_LOG entry
+    # `8417fc3 — 2026-11-09 — TAB-1: ...`). The PRE-PUSH-CHECK ("the commit
+    # immediately after c83a5c3") is 9a4d607. The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole series):
+    # `git revert -m 1 8417fc3`; no migration in this phase.
+    status: shipped
+    shipped: 2026-11-10
     title: "Tablet mode — Tablet/Desktop switch, rail shell, touch sizes, Tasks column"
     commits:
       - "adec345"
@@ -24743,6 +24751,10 @@ phases:
       # + the commit immediately after c83a5c3: docs(TAB-1) PRE-PUSH-CHECK —
       # DECISIONS ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
       # status -> staging
+      - "9a4d607"
+      # merge(main): production promotion 2026-11-10 of the whole Tablet
+      # mode series (first parent 833e926, second parent 1a0424d)
+      - "8417fc3"
     deferred:
       - >
         PHOTO CAPTURE ON THE TABLET. A requiresPhoto task ticks on the tablet
@@ -24756,6 +24768,21 @@ phases:
         task?"; the tablet posts as the logged-in account with no name, per
         Gary's ruling 6. Per-person attribution is TAB-4.
     notes: >
+      ── SHIPPED 2026-11-10 in merge "8417fc3" (prepended; nothing below is
+      edited). ── Stamped by PROMOTE-DOCS_2026-11-10_TAB. Promotion timestamp
+      2026-11-10 19:23:10 -0800 (PST) = 2026-11-11 03:23:10 UTC, from git show
+      -s --format=%ci 8417fc3. --no-ff, first parent 833e926, second parent
+      1a0424d (the TAB-9 PRE-PUSH-CHECK). One merge carries the whole series:
+      TAB-1, TAB-1b, TAB-1c, TAB-2, TAB-2b, TAB-3, TAB-5, TAB-9 — 30 commits
+      besides the merge, 51 files (git diff --shortstat 8417fc3^1 8417fc3).
+      This phase's commits in it: adec345, d5a9094, c83a5c3, 9a4d607.
+      STAGING VERDICT (Gary, verbatim, covering every phase in the series):
+      "Everything is tested and working great". Gary's report, not browser
+      evidence: no org id or instance was captured with it. Production: no
+      post-deploy check recorded at this stamp.
+      Rollback (whole series): git revert -m 1 8417fc3. At this stamp main =
+      origin/main = staging (local, fast-forwarded) = 8417fc3; origin/staging
+      = 1a0424d until Gary pushes the merge-back.
       ── RIDER 2026-11-10, TAB-3 (prepended; nothing below is edited). ──
       TAB-3 ruling 4 (Gary, "yes to all", 2026-11-10; DECISIONS 2026-11-10
       TAB-3, DRAFT) SIMPLIFIES ruling 5 here: Tasks and Messages are locked on
@@ -24878,7 +24905,15 @@ phases:
     # kept. NOT pushed at writing.
     # Rollback: `git revert 2e21b02 9f3c944`; no migration (the ROADMAP rows
     # 2e21b02 filed stay).
-    status: staging
+    # `staging` -> `shipped` 2026-11-10, stamped post-merge 2026-11-10 by
+    # PROMOTE-DOCS_2026-11-10_TAB (on `staging`): merge 8417fc3, the whole
+    # Tablet mode series TAB-1 -> TAB-9 in one promotion (DEPLOY_LOG entry
+    # `8417fc3 — 2026-11-09 — TAB-1b: ...`). The PRE-PUSH-CHECK ("the commit
+    # immediately after 2e21b02") is e4cdab2. The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole series):
+    # `git revert -m 1 8417fc3`; no migration in this phase.
+    status: shipped
+    shipped: 2026-11-10
     title: "Tablet mode — \"who completed this\" parity with desktop + partial submit"
     commits:
       - "9f3c944"
@@ -24893,7 +24928,26 @@ phases:
       # + the commit immediately after 2e21b02: docs(TAB-1b) PRE-PUSH-CHECK —
       # DECISIONS rider ratified, prompt of record, DEPLOY_LOG UNPROMOTED
       # entry, status -> staging
+      - "e4cdab2"
+      # merge(main): production promotion 2026-11-10 of the whole Tablet
+      # mode series (first parent 833e926, second parent 1a0424d)
+      - "8417fc3"
     notes: >
+      ── SHIPPED 2026-11-10 in merge "8417fc3" (prepended; nothing below is
+      edited). ── Stamped by PROMOTE-DOCS_2026-11-10_TAB. Promotion timestamp
+      2026-11-10 19:23:10 -0800 (PST) = 2026-11-11 03:23:10 UTC, from git show
+      -s --format=%ci 8417fc3. --no-ff, first parent 833e926, second parent
+      1a0424d (the TAB-9 PRE-PUSH-CHECK). One merge carries the whole series:
+      TAB-1, TAB-1b, TAB-1c, TAB-2, TAB-2b, TAB-3, TAB-5, TAB-9 — 30 commits
+      besides the merge, 51 files (git diff --shortstat 8417fc3^1 8417fc3).
+      This phase's commits in it: 9f3c944, 2757c9d, 2e21b02, e4cdab2.
+      STAGING VERDICT (Gary, verbatim, covering every phase in the series):
+      "Everything is tested and working great". Gary's report, not browser
+      evidence: no org id or instance was captured with it. Production: no
+      post-deploy check recorded at this stamp.
+      Rollback (whole series): git revert -m 1 8417fc3. At this stamp main =
+      origin/main = staging (local, fast-forwarded) = 8417fc3; origin/staging
+      = 1a0424d until Gary pushes the merge-back.
       ── RIDER 2026-11-09, TAB-1b fix (prepended; nothing below is edited). ──
       Gary's ruling on the RULING NOW, verbatim: "partial submit stays at
       desktop parity — do not change day-close behaviour in TAB-1b." The
@@ -24996,7 +25050,15 @@ phases:
     # by Gary at this check, "Ratify as written". The notes' "DECISIONS DRAFT
     # rider" / "untracked until PRE-PUSH-CHECK" are spent, kept. NOT pushed at
     # writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-10, stamped post-merge 2026-11-10 by
+    # PROMOTE-DOCS_2026-11-10_TAB (on `staging`): merge 8417fc3, the whole
+    # Tablet mode series TAB-1 -> TAB-9 in one promotion (DEPLOY_LOG entry
+    # `8417fc3 — 2026-11-10 — TAB-1c: ...`). The PRE-PUSH-CHECK ("the commit
+    # immediately after d35d034") is 13fd5ea. The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole series):
+    # `git revert -m 1 8417fc3`; no migration in this phase.
+    status: shipped
+    shipped: 2026-11-10
     title: "Tablet mode — overdue chip characterized; SELF-1 compliance chip on the tablet"
     commits:
       - "1f03674"
@@ -25007,7 +25069,26 @@ phases:
       # + the commit immediately after d35d034: docs(TAB-1c) PRE-PUSH-CHECK —
       # DECISIONS rider ratified, prompt of record, DEPLOY_LOG UNPROMOTED
       # entry, status -> staging
+      - "13fd5ea"
+      # merge(main): production promotion 2026-11-10 of the whole Tablet
+      # mode series (first parent 833e926, second parent 1a0424d)
+      - "8417fc3"
     notes: >
+      ── SHIPPED 2026-11-10 in merge "8417fc3" (prepended; nothing below is
+      edited). ── Stamped by PROMOTE-DOCS_2026-11-10_TAB. Promotion timestamp
+      2026-11-10 19:23:10 -0800 (PST) = 2026-11-11 03:23:10 UTC, from git show
+      -s --format=%ci 8417fc3. --no-ff, first parent 833e926, second parent
+      1a0424d (the TAB-9 PRE-PUSH-CHECK). One merge carries the whole series:
+      TAB-1, TAB-1b, TAB-1c, TAB-2, TAB-2b, TAB-3, TAB-5, TAB-9 — 30 commits
+      besides the merge, 51 files (git diff --shortstat 8417fc3^1 8417fc3).
+      This phase's commits in it: 1f03674, d35d034, 13fd5ea.
+      STAGING VERDICT (Gary, verbatim, covering every phase in the series):
+      "Everything is tested and working great". Gary's report, not browser
+      evidence: no org id or instance was captured with it. Production: no
+      post-deploy check recorded at this stamp.
+      Rollback (whole series): git revert -m 1 8417fc3. At this stamp main =
+      origin/main = staging (local, fast-forwarded) = 8417fc3; origin/staging
+      = 1a0424d until Gary pushes the merge-back.
       BUILT 2026-11-10 on staging, NOT pushed. TIER 2. Follows TAB-1 (adec345).
       Prompt: docs/prompts/TAB-1c.md (untracked until PRE-PUSH-CHECK).
       Reported: the tablet overdue chip never appears (Tommy at Las Brisas,
@@ -25093,7 +25174,15 @@ phases:
     # "Ratify as written". The notes' "DECISIONS ... DRAFT" / "untracked until
     # PRE-PUSH-CHECK" are spent, kept. Rollback is now
     # `git revert 35fb734 ab80e5b`; no migration. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-10, stamped post-merge 2026-11-10 by
+    # PROMOTE-DOCS_2026-11-10_TAB (on `staging`): merge 8417fc3, the whole
+    # Tablet mode series TAB-1 -> TAB-9 in one promotion (DEPLOY_LOG entry
+    # `8417fc3 — 2026-11-10 — TAB-2: ...`). The PRE-PUSH-CHECK ("the commit
+    # immediately after 35fb734") is 57a879a. The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole series):
+    # `git revert -m 1 8417fc3`; no migration in this phase.
+    status: shipped
+    shipped: 2026-11-10
     title: "Tablet mode — Messages column"
     commits:
       - "ab80e5b"
@@ -25109,7 +25198,26 @@ phases:
       # + the commit immediately after 35fb734: docs(TAB-2) PRE-PUSH-CHECK —
       # DECISIONS entry ratified, prompt of record, DEPLOY_LOG UNPROMOTED
       # entry, status -> staging
+      - "57a879a"
+      # merge(main): production promotion 2026-11-10 of the whole Tablet
+      # mode series (first parent 833e926, second parent 1a0424d)
+      - "8417fc3"
     notes: >
+      ── SHIPPED 2026-11-10 in merge "8417fc3" (prepended; nothing below is
+      edited). ── Stamped by PROMOTE-DOCS_2026-11-10_TAB. Promotion timestamp
+      2026-11-10 19:23:10 -0800 (PST) = 2026-11-11 03:23:10 UTC, from git show
+      -s --format=%ci 8417fc3. --no-ff, first parent 833e926, second parent
+      1a0424d (the TAB-9 PRE-PUSH-CHECK). One merge carries the whole series:
+      TAB-1, TAB-1b, TAB-1c, TAB-2, TAB-2b, TAB-3, TAB-5, TAB-9 — 30 commits
+      besides the merge, 51 files (git diff --shortstat 8417fc3^1 8417fc3).
+      This phase's commits in it: ab80e5b, b1dafbd, 35fb734, 57a879a.
+      STAGING VERDICT (Gary, verbatim, covering every phase in the series):
+      "Everything is tested and working great". Gary's report, not browser
+      evidence: no org id or instance was captured with it. Production: no
+      post-deploy check recorded at this stamp.
+      Rollback (whole series): git revert -m 1 8417fc3. At this stamp main =
+      origin/main = staging (local, fast-forwarded) = 8417fc3; origin/staging
+      = 1a0424d until Gary pushes the merge-back.
       ── RIDER 2026-11-10 (2), TAB-2 fix (prepended; nothing below is edited). ──
       GARY'S RULINGS ON THE REPORT'S THREE RULING NOW ITEMS, 2026-11-10
       (DECISIONS 2026-11-10 TAB-2, rulings 6–8), built in the commit after
@@ -25238,7 +25346,15 @@ phases:
     # "DECISIONS: DRAFT rider" / "untracked until PRE-PUSH-CHECK" are spent,
     # kept. The rider's "Rollback is now `git revert <fix> 007dfd0`" resolves
     # to `git revert 318af62 007dfd0`; no migration. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-10, stamped post-merge 2026-11-10 by
+    # PROMOTE-DOCS_2026-11-10_TAB (on `staging`): merge 8417fc3, the whole
+    # Tablet mode series TAB-1 -> TAB-9 in one promotion (DEPLOY_LOG entry
+    # `8417fc3 — 2026-11-10 — TAB-2b: ...`). The PRE-PUSH-CHECK ("the commit
+    # immediately after 318af62") is 1487091. The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole series):
+    # `git revert -m 1 8417fc3`; no migration in this phase.
+    status: shipped
+    shipped: 2026-11-10
     title: "Tablet mode — the floating help button no longer covers Send; Help moves to the rail"
     commits:
       - "007dfd0"
@@ -25254,7 +25370,26 @@ phases:
       # + the commit immediately after 318af62: docs(TAB-2b) PRE-PUSH-CHECK —
       # DECISIONS rider ratified, prompt of record, DEPLOY_LOG UNPROMOTED
       # entry, status -> staging
+      - "1487091"
+      # merge(main): production promotion 2026-11-10 of the whole Tablet
+      # mode series (first parent 833e926, second parent 1a0424d)
+      - "8417fc3"
     notes: >
+      ── SHIPPED 2026-11-10 in merge "8417fc3" (prepended; nothing below is
+      edited). ── Stamped by PROMOTE-DOCS_2026-11-10_TAB. Promotion timestamp
+      2026-11-10 19:23:10 -0800 (PST) = 2026-11-11 03:23:10 UTC, from git show
+      -s --format=%ci 8417fc3. --no-ff, first parent 833e926, second parent
+      1a0424d (the TAB-9 PRE-PUSH-CHECK). One merge carries the whole series:
+      TAB-1, TAB-1b, TAB-1c, TAB-2, TAB-2b, TAB-3, TAB-5, TAB-9 — 30 commits
+      besides the merge, 51 files (git diff --shortstat 8417fc3^1 8417fc3).
+      This phase's commits in it: 007dfd0, 0e9768c, 318af62, 1487091.
+      STAGING VERDICT (Gary, verbatim, covering every phase in the series):
+      "Everything is tested and working great". Gary's report, not browser
+      evidence: no org id or instance was captured with it. Production: no
+      post-deploy check recorded at this stamp.
+      Rollback (whole series): git revert -m 1 8417fc3. At this stamp main =
+      origin/main = staging (local, fast-forwarded) = 8417fc3; origin/staging
+      = 1a0424d until Gary pushes the merge-back.
       ── RIDER 2026-11-10, TAB-2b fix (prepended; nothing below is edited). ──
       GARY'S RULING ON CALL b, 2026-11-10 (DECISIONS 2026-11-10 TAB-2, TAB-2b
       rider), built in the commit after 0e9768c, which fixes 007dfd0. Still
@@ -25335,7 +25470,15 @@ phases:
     # "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" is spent,
     # kept. Migration owed on staging at the Vercel build on Gary's push;
     # production at promotion. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-10, stamped post-merge 2026-11-10 by
+    # PROMOTE-DOCS_2026-11-10_TAB (on `staging`): merge 8417fc3, the whole
+    # Tablet mode series TAB-1 -> TAB-9 in one promotion (DEPLOY_LOG entry
+    # `8417fc3 — 2026-11-10 — TAB-3: ...`). The PRE-PUSH-CHECK ("the commit
+    # immediately after d09aa17") is 8332266. The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole series):
+    # `git revert -m 1 8417fc3`; the columns stay (additive-only).
+    status: shipped
+    shipped: 2026-11-10
     title: "Tablet mode — Settings card picker (one layout per org, schema)"
     commits:
       - "c38d998"
@@ -25348,7 +25491,30 @@ phases:
       # + the commit immediately after d09aa17: docs(TAB-3) PRE-PUSH-CHECK —
       # DECISIONS ratified, prompts of record, DEPLOY_LOG UNPROMOTED entry,
       # status -> staging
+      - "8332266"
+      # merge(main): production promotion 2026-11-10 of the whole Tablet
+      # mode series (first parent 833e926, second parent 1a0424d)
+      - "8417fc3"
     notes: >
+      ── SHIPPED 2026-11-10 in merge "8417fc3" (prepended; nothing below is
+      edited). ── Stamped by PROMOTE-DOCS_2026-11-10_TAB. Promotion timestamp
+      2026-11-10 19:23:10 -0800 (PST) = 2026-11-11 03:23:10 UTC, from git show
+      -s --format=%ci 8417fc3. --no-ff, first parent 833e926, second parent
+      1a0424d (the TAB-9 PRE-PUSH-CHECK). One merge carries the whole series:
+      TAB-1, TAB-1b, TAB-1c, TAB-2, TAB-2b, TAB-3, TAB-5, TAB-9 — 30 commits
+      besides the merge, 51 files (git diff --shortstat 8417fc3^1 8417fc3).
+      This phase's commits in it: c38d998, d09aa17, 8332266.
+      STAGING VERDICT (Gary, verbatim, covering every phase in the series):
+      "Everything is tested and working great". Gary's report, not browser
+      evidence: no org id or instance was captured with it. Production: no
+      post-deploy check recorded at this stamp.
+      MIGRATION 20261110200000_tab3_display_layouts (two nullable JSONB
+      columns on Organization): production applies via vercel-build at
+      8417fc3 — PENDING Gary's confirmation from the production build log
+      (docs/MIGRATIONS.md). Rollback leaves the columns in place, harmless.
+      Rollback (whole series): git revert -m 1 8417fc3. At this stamp main =
+      origin/main = staging (local, fast-forwarded) = 8417fc3; origin/staging
+      = 1a0424d until Gary pushes the merge-back.
       ── RIDER 2026-11-10, TAB-3 build (prepended; nothing below is edited). ──
       BUILT, not yet checked on staging.
       Rulings 1–8 (Gary's "yes to all", per the prompt) and audit forks F1–F9
@@ -25443,7 +25609,15 @@ phases:
     # (fix first, then work); 81cb5f0 also carries docs, so revert its src/
     # and scripts/ paths only if the rows should stay. No migration. NOT
     # pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-10, stamped post-merge 2026-11-10 by
+    # PROMOTE-DOCS_2026-11-10_TAB (on `staging`): merge 8417fc3, the whole
+    # Tablet mode series TAB-1 -> TAB-9 in one promotion (DEPLOY_LOG entry
+    # `8417fc3 — 2026-11-10 — TAB-5: ...`). The PRE-PUSH-CHECK ("the commit
+    # immediately after 81cb5f0") is 446d085. The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole series):
+    # `git revert -m 1 8417fc3`; no migration in this phase.
+    status: shipped
+    shipped: 2026-11-10
     title: "Tablet home — Tasks panel and header chips go stale (no live refresh)"
     commits:
       - "ab29d62"
@@ -25460,7 +25634,32 @@ phases:
       # + the commit immediately after 81cb5f0: docs(TAB-5) PRE-PUSH-CHECK —
       # DECISIONS ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
       # status -> staging
+      - "446d085"
+      # merge(main): production promotion 2026-11-10 of the whole Tablet
+      # mode series (first parent 833e926, second parent 1a0424d)
+      - "8417fc3"
     notes: >
+      ── SHIPPED 2026-11-10 in merge "8417fc3" (prepended; nothing below is
+      edited). ── Stamped by PROMOTE-DOCS_2026-11-10_TAB. Promotion timestamp
+      2026-11-10 19:23:10 -0800 (PST) = 2026-11-11 03:23:10 UTC, from git show
+      -s --format=%ci 8417fc3. --no-ff, first parent 833e926, second parent
+      1a0424d (the TAB-9 PRE-PUSH-CHECK). One merge carries the whole series:
+      TAB-1, TAB-1b, TAB-1c, TAB-2, TAB-2b, TAB-3, TAB-5, TAB-9 — 30 commits
+      besides the merge, 51 files (git diff --shortstat 8417fc3^1 8417fc3).
+      This phase's commits in it: ab29d62, 573da37, 81cb5f0, 446d085.
+      STAGING VERDICT (Gary, verbatim, covering every phase in the series):
+      "Everything is tested and working great". Gary's report, not browser
+      evidence: no org id or instance was captured with it. Production: no
+      post-deploy check recorded at this stamp.
+      RIDER 2026-11-10, PROMOTION: STAGING TEST 6 (overnight store-local
+      rollover) WAS NOT OBSERVED before promotion. Gary chose to ship and
+      watch for it. It is covered by the verify-tab5-refresh fixture and a
+      mocked day-change check. OWED as a production observation: the first
+      morning a tablet is left on overnight, the header shows the new date
+      and the new day's checklist without a touch.
+      Rollback (whole series): git revert -m 1 8417fc3. At this stamp main =
+      origin/main = staging (local, fast-forwarded) = 8417fc3; origin/staging
+      = 1a0424d until Gary pushes the merge-back.
       ── RIDER 2026-11-10, TAB-5 offline guard (prepended; nothing below is
       edited). ── Gary, before PRE-PUSH-CHECK: "the controller skips any
       cycle that would call router.refresh() while navigator.onLine is
@@ -25635,7 +25834,15 @@ phases:
     # `git revert 5da4897 44b80c5` (fix first, then work); 5da4897 also
     # carries docs, so revert its src/ and scripts/ paths only if the rows
     # should stay. No migration. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-10, stamped post-merge 2026-11-10 by
+    # PROMOTE-DOCS_2026-11-10_TAB (on `staging`): merge 8417fc3, the whole
+    # Tablet mode series TAB-1 -> TAB-9 in one promotion (DEPLOY_LOG entry
+    # `8417fc3 — 2026-11-10 — TAB-9: ...`). The PRE-PUSH-CHECK ("the commit
+    # immediately after 5da4897") is 1a0424d. The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole series):
+    # `git revert -m 1 8417fc3`; no migration in this phase.
+    status: shipped
+    shipped: 2026-11-10
     title: "Tablet home — the page scrolls, cards expand in place, the overdue list opens in place"
     commits:
       - "44b80c5"
@@ -25653,7 +25860,26 @@ phases:
       # + the commit immediately after 5da4897: docs(TAB-9) PRE-PUSH-CHECK —
       # DECISIONS ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
       # status -> staging
+      - "1a0424d"
+      # merge(main): production promotion 2026-11-10 of the whole Tablet
+      # mode series (first parent 833e926, second parent 1a0424d)
+      - "8417fc3"
     notes: >
+      ── SHIPPED 2026-11-10 in merge "8417fc3" (prepended; nothing below is
+      edited). ── Stamped by PROMOTE-DOCS_2026-11-10_TAB. Promotion timestamp
+      2026-11-10 19:23:10 -0800 (PST) = 2026-11-11 03:23:10 UTC, from git show
+      -s --format=%ci 8417fc3. --no-ff, first parent 833e926, second parent
+      1a0424d (the TAB-9 PRE-PUSH-CHECK). One merge carries the whole series:
+      TAB-1, TAB-1b, TAB-1c, TAB-2, TAB-2b, TAB-3, TAB-5, TAB-9 — 30 commits
+      besides the merge, 51 files (git diff --shortstat 8417fc3^1 8417fc3).
+      This phase's commits in it: 44b80c5, 9253bca, 5da4897, 1a0424d.
+      STAGING VERDICT (Gary, verbatim, covering every phase in the series):
+      "Everything is tested and working great". Gary's report, not browser
+      evidence: no org id or instance was captured with it. Production: no
+      post-deploy check recorded at this stamp.
+      Rollback (whole series): git revert -m 1 8417fc3. At this stamp main =
+      origin/main = staging (local, fast-forwarded) = 8417fc3; origin/staging
+      = 1a0424d until Gary pushes the merge-back.
       ── RIDER 2026-11-10, TAB-9 fix (prepended; nothing below is edited). ──
       Gary's rulings on the two RULING NOW items, verbatim: "HR chip — hide
       it on STORE logins in Tablet mode; keep it for personal logins." and

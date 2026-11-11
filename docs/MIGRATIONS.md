@@ -2646,6 +2646,25 @@ in the repo. Corrected the same day on Gary's relay; spent.)
 
 ## 2026-11-10 — `20261110200000_tab3_display_layouts` (TAB-3)
 
+**SHIPPED 2026-11-10 in merge `8417fc3`** (DEPLOY_LOG `8417fc3 — 2026-11-10 —
+TAB-3`; the TAB-9 entry carries the merge facts), with the whole Tablet mode
+series, TAB-1 → TAB-9. Stamped post-merge 2026-11-10 on `staging` by
+PROMOTE-DOCS_2026-11-10_TAB (prepended; nothing below is edited). The two
+OWED cells in the table below are spent, kept. Per branch at this stamp:
+
+- **production `br-sparkling-block-a620qvg4`:** applied to production via
+  `vercel-build` at promotion `8417fc3` — **pending Gary's confirmation from
+  the production build log.** No build-log lines were pasted and no
+  `finished_at` was read at this stamp.
+- **staging `br-square-feather-a63z92vz`:** applied by the Vercel build on
+  Gary's push. The evidence is Gary's verdict on the series, "Everything is
+  tested and working great": the TAB-3 staging test list included test (0),
+  the `_prisma_migrations` row with a `finished_at`. No `finished_at` value
+  was pasted.
+
+**Rollback (whole series):** `git revert -m 1 8417fc3`. The two columns stay
+on every branch (additive-only); leaving them after a code revert is harmless.
+
 **APPLIED TO DEV ONLY, by Gary**, after the TAB-3 Phase 2 STOP and before the
 work commit `c38d998` (§ A migration STOPS the session). Staging and production
 get it from the Vercel build on Gary's push and at promotion. The timestamp
