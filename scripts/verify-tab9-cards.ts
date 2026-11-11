@@ -25,6 +25,17 @@
  *     store chip losing its red (ruling 6). Cases 7.
  *   - A COLLAPSE THAT RETURNS THE PAGE TO THE WRONG PLACE (ruling 3). Cases 8.
  *
+ * TAB-9 FIX (Gary, 2026-11-10), cases 9-12:
+ *   - AN IDLE PAGE LEFT SCROLLED DOWN, or one that still holds the refresh:
+ *     after the 5-minute idle the page goes to the top and the refresh
+ *     resumes. Cases 9.
+ *   - A DAY ROLLOVER BLOCKED BY SCROLL POSITION ("the day rollover must never
+ *     be blocked by scroll position"). Cases 10.
+ *   - THE HR CHIP ON A SHARED STORE LOGIN ("hide it on STORE logins in Tablet
+ *     mode; keep it for personal logins"). Cases 11.
+ *   - A LABOR DOLLAR FIGURE REACHING TABLET STATE ("Labor dollars — never
+ *     shown on the tablet; percentages only"). Cases 12.
+ *
  * WHAT IT CANNOT DETECT: the React wiring (that the listeners and the idle
  * timer are attached, that the busy flags reach the controller), the layout
  * (first screen unchanged, flicks chaining out of the columns on iPad), and
@@ -42,14 +53,18 @@ import {
   initialCards,
   isIdle,
   laborDetail,
+  pageScrollReset,
   restoreTarget,
+  rolloverDue,
   salesDetail,
+  showHrChip,
   toggleExpanded,
   visibleExpanded,
+  withoutLaborDollars,
   type CardsState,
   type StripSummary,
 } from "../src/lib/tablet-cards"
-import { isBusy, shouldRunCycle } from "../src/lib/tablet-refresh"
+import { isBusy, nextShownDay, shouldRunCycle } from "../src/lib/tablet-refresh"
 import { dueChipFor } from "../src/lib/tablet-due"
 import type { LaborBlock } from "../src/lib/labor-judgment"
 
@@ -282,6 +297,72 @@ console.log("\n8 · Collapsing returns the page to where it was (ruling 3)")
   check("8a another card replaces it after scrolling to 900 → keeps 0", restoreTarget(0, "sales", "monthly-goal", 900), 0)
   check("8b the last card closes → nothing saved any more (the page scrolls back to 0)", restoreTarget(0, "monthly-goal", null, 900), null)
   check("8c opened while scrolled to 120 → saves 120", restoreTarget(null, null, "labor-pct", 120), 120)
+}
+
+const visible = { visibilityState: "visible", busy: false, refreshing: false, online: true }
+const LA = "America/Los_Angeles"
+
+console.log("\n9 · TAB-9 fix: after the idle, the page goes to the top and the refresh resumes")
+{
+  const inUse = run(initialCards(SCOPE, T0), { type: "tap", key: "sales", at: T0 })
+  const idled = run(inUse, { type: "tick", at: T0 + IDLE_COLLAPSE_MS, lastTouchAt: T0 })
+  check("9  going idle sends the page to the top (0)", pageScrollReset(inUse, idled), 0)
+  check("9a idle releases page:scrolled even before the scroll lands", cardsBusy(idled, true)["page:scrolled"], false)
+  check("9b idle + collapsed + still scrolled → the cycle runs", shouldRunCycle({ ...visible, busy: isBusy(Object.values(cardsBusy(idled, true)), 0) }), true)
+  check("9c …and once at the top → the cycle runs", shouldRunCycle({ ...visible, busy: isBusy(Object.values(cardsBusy(idled, false)), 0) }), true)
+  const stillIdle = run(idled, { type: "tick", at: T0 + IDLE_COLLAPSE_MS + 5_000, lastTouchAt: T0 })
+  check("9d staying idle → no second reset (null)", pageScrollReset(idled, stillIdle), null)
+  const woke = run(idled, { type: "touch", at: T0 + IDLE_COLLAPSE_MS + 9_000 })
+  check("9e a touch after idle → no reset (null)", pageScrollReset(idled, woke), null)
+  const tapped = run(inUse, { type: "tap", key: "monthly-goal", at: T0 + 1 })
+  check("9f an ordinary tap → no reset (null; ruling 3's restore handles collapses)", pageScrollReset(inUse, tapped), null)
+  const untouchedScrolled = run(initialCards(SCOPE, T0), { type: "tick", at: T0 + 60_000, lastTouchAt: T0 })
+  check("9g scrolled and touched 1 min ago → still holds the refresh", cardsBusy(untouchedScrolled, true)["page:scrolled"], true)
+}
+
+console.log("\n10 · TAB-9 fix: the day rollover is never blocked by scroll position")
+{
+  const inUse = run(initialCards(SCOPE, T0), { type: "tick", at: T0 + 60_000, lastTouchAt: T0 + 30_000 })
+  const before = new Date("2026-11-11T07:59:00Z") // 11:59 PM Pacific, Nov 10
+  const after = new Date("2026-11-11T08:01:00Z") // 12:01 AM Pacific, Nov 11
+  check("10  before the store's midnight → no rollover due", rolloverDue("2026-11-10", "2026-11-10", before, LA), false)
+  check("10a past the store's midnight → rollover due (clock)", rolloverDue("2026-11-10", "2026-11-10", after, LA), true)
+  check("10b server already on the next day → rollover due", rolloverDue("2026-11-10", "2026-11-11", before, LA), true)
+  check("10c scrolled + in use, no rollover → holds the refresh", cardsBusy(inUse, true, false)["page:scrolled"], true)
+  const flags = cardsBusy(inUse, true, rolloverDue("2026-11-10", "2026-11-10", after, LA))
+  check("10d scrolled + in use, rollover due → scroll flag off", flags["page:scrolled"], false)
+  check("10e …so the cycle runs", shouldRunCycle({ ...visible, busy: isBusy(Object.values(flags), 0) }), true)
+  check(
+    "10f …and the new day is adopted (nextShownDay sees not-busy)",
+    nextShownDay("2026-11-10", "2026-11-11", isBusy(Object.values(cardsBusy(inUse, true, true)), 0)),
+    "2026-11-11"
+  )
+  const rolled = run(inUse, { type: "scope", scope: "store-a:2026-11-11" })
+  check("10g the new day sends the page to the top", pageScrollReset(inUse, rolled), 0)
+  check("10h an open card still holds it (ruling 4: collapses at idle, then rolls)", cardsBusy({ ...inUse, expanded: "sales" }, true, true)["cards:expanded"], true)
+}
+
+console.log("\n11 · TAB-9 fix: the HR chip is hidden on STORE logins, kept for personal logins")
+{
+  check("11  STORE → hidden", showHrChip("STORE"), false)
+  check(
+    "11a ADMIN, MANAGER, STAFF → shown",
+    ["ADMIN", "MANAGER", "STAFF"].map((r) => showHrChip(r)),
+    [true, true, true]
+  )
+  check("11b no role resolved → shown (the route's own gates still decide)", showHrChip(null), true)
+}
+
+console.log("\n12 · TAB-9 fix: labor dollars never reach the tablet — percentages only")
+{
+  const manage = { ...full, labor: { ...labor, laborCost: 4321.5 } }
+  const clean = withoutLaborDollars(manage)
+  check("12  laborCost dropped from the payload the tablet keeps", "laborCost" in (clean.labor ?? {}), false)
+  check("12a the percentage and target survive", [clean.labor?.laborPct, clean.labor?.target], [18.4, 20])
+  check("12b the input is not mutated", manage.labor.laborCost, 4321.5)
+  check("12c nothing to drop → the same object", withoutLaborDollars(full) === full, true)
+  check("12d labor absent → the same object (still no Labor card)", withoutLaborDollars(noLabor) === noLabor, true)
+  check("12e no dollar sign anywhere in the expanded Labor card", /\$/.test(JSON.stringify(laborDetail(clean))), false)
 }
 
 console.log(failures === 0 ? "\n✓ ALL PASS\n" : `\n✗ ${failures} CHECK(S) FAILED\n`)

@@ -113,6 +113,8 @@ async function getDashboardData() {
     canViewChecklists,
     dashboardLayout: org.dashboardLayout,
     tabletLayout: org.tabletLayout,
+    // TAB-9 fix: the login's role, for the tablet HR chip only.
+    role,
   }
 }
 
@@ -130,7 +132,8 @@ export default async function DashboardPage() {
     const tablet = await loadTabletData(data.orgId, stores)
     // TAB-3: the stat strip's tiles, in the ADMIN's order (all off by default).
     // Per-viewer gates are the summary payload's, applied in the strip.
-    return <TabletHome stores={tablet.stores} checklists={tablet.checklists} stripTiles={stripTileKeys(data.tabletLayout)} />
+    // TAB-9 fix: `role` only hides the personal HR chip on a STORE login.
+    return <TabletHome stores={tablet.stores} checklists={tablet.checklists} stripTiles={stripTileKeys(data.tabletLayout)} role={data.role} />
   }
 
   // BUG-15. The header date is formatted HERE, in each store's own zone, and

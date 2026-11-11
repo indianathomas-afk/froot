@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatLaborPct, judgeLaborPct, laborVerdictClass } from "@/lib/labor-judgment"
 import { formatInstant } from "@/lib/display-time"
-import { goalDetail, laborDetail, salesDetail, type StripSummary } from "@/lib/tablet-cards"
+import { goalDetail, laborDetail, salesDetail, withoutLaborDollars, type StripSummary } from "@/lib/tablet-cards"
 import { laborNoValueLabel } from "./labor-pct"
 import { fetchCard } from "./card-fetch"
 
@@ -69,7 +69,9 @@ export function useStripSummary(
   const load = useCallback((): Promise<void> => {
     if (!enabled || !storeId) return Promise.resolve()
     return fetchCard<StripSummary>("tablet strip", `/api/dashboard/summary?storeId=${storeId}`).then((data) => {
-      if (data) setRes({ storeId, data })
+      // TAB-9 fix (Gary, 2026-11-10): "Labor dollars — never shown on the
+      // tablet; percentages only." Dropped before it reaches any state.
+      if (data) setRes({ storeId, data: withoutLaborDollars(data) })
     })
   }, [storeId, enabled])
 

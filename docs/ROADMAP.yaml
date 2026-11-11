@@ -25630,7 +25630,31 @@ phases:
       # fixture verify-tab9-cards.ts
       # + the commit immediately after 44b80c5: docs(TAB-9) — this row, the
       # TAB-10 ROW, DECISIONS DRAFT
+      - "9253bca"
+      # + the commit immediately after 9253bca: fix(TAB-9) — Gary's rulings 8
+      # and 9 (HR chip hidden on STORE logins, labor dollars never on the
+      # tablet), idle scroll-to-top, rollover never blocked by scroll,
+      # fixture cases 9-12, this rider, DECISIONS DRAFT addition
     notes: >
+      ── RIDER 2026-11-10, TAB-9 fix (prepended; nothing below is edited). ──
+      Gary's rulings on the two RULING NOW items, verbatim: "HR chip — hide
+      it on STORE logins in Tablet mode; keep it for personal logins." and
+      "Labor dollars — never shown on the tablet; percentages only." Fix
+      instruction, verbatim: "after the 5-minute idle, also scroll the page
+      back to the top and release the page-scrolled busy flag so the TAB-5
+      refresh resumes; the day rollover must never be blocked by scroll
+      position." The fix ESCALATED TO TIER 3 (it changes what a STORE login
+      sees); Gary's message is the approval. Built: showHrChip(role) (page.tsx
+      passes the role from getUserStoreScope); withoutLaborDollars() on
+      receipt of the summary payload; pageScrollReset() sends an idle page (and
+      a new day or store) to the top; rolloverDue() turns the page:scrolled
+      flag off whenever a rollover is waiting. verify-tab9-cards 84/84 (cases
+      9-12 added); the other five tablet fixtures unchanged (13, 11, 23, 28 on
+      dev br-broad-wave-a6vpjdw0 rolled back, 32). The "OPEN FOR GARY" line
+      below is answered, kept; the rollback below is superseded:
+      `git revert <fix> 44b80c5` (the fix commit is the one immediately after
+      9253bca; it also carries docs, so revert its src/ and scripts/ paths
+      only if the rows should stay).
       BUILT, not yet checked on staging. TIER 2: no schema, migration,
       endpoint or dependency.
       Gary's feedback, 2026-11-10, verbatim: "I think the cards should be

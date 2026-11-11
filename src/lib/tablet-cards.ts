@@ -21,6 +21,7 @@
 // Pure: no React, no Prisma, no Next. Imports only other pure libs.
 
 import { formatLaborPct, judgeLaborPct, laborFootnotes, type LaborBlock, type LaborVerdict } from "@/lib/labor-judgment"
+import { dayRolledOver } from "@/lib/tablet-refresh"
 
 /** Ruling 4: five minutes with no touch. */
 export const IDLE_COLLAPSE_MS = 5 * 60_000
@@ -119,13 +120,36 @@ export function visibleExpanded(expanded: string | null, renderedKeys: string[])
  *  and the open list are busy until they close. A page scrolled away from
  *  the top is busy only while someone is using it — after the idle window a
  *  scrolled, untouched page lets the refresh run again, so a counter tablet
- *  left scrolled down never goes stale for good. */
-export function cardsBusy(s: Pick<CardsState, "expanded" | "dueOpen" | "idle">, scrolledAway: boolean) {
+ *  left scrolled down never goes stale for good.
+ *  TAB-9 fix (Gary, 2026-11-10): "the day rollover must never be blocked by
+ *  scroll position". With `rolloverDue` true the scroll flag is off, so the
+ *  cycle that adopts the new day runs however far down the page is. */
+export function cardsBusy(s: Pick<CardsState, "expanded" | "dueOpen" | "idle">, scrolledAway: boolean, rolloverDue = false) {
   return {
     "cards:expanded": s.expanded !== null,
     "due:list": s.dueOpen,
-    "page:scrolled": scrolledAway && !s.idle,
+    "page:scrolled": scrolledAway && !s.idle && !rolloverDue,
   }
+}
+
+/** Is a day rollover waiting? Either the last server render already names a
+ *  later day than the one on screen, or the store-local clock has passed
+ *  midnight since that day (TAB-5's dayRolledOver, the store's zone). */
+export function rolloverDue(shownDay: string, serverDay: string, now: Date, timeZone: string): boolean {
+  if (!shownDay) return false
+  if (serverDay && serverDay !== shownDay) return true
+  return timeZone ? dayRolledOver(shownDay, now, timeZone) : false
+}
+
+/** TAB-9 fix (Gary, 2026-11-10): where the page goes when the state moves
+ *  from `prev` to `next`. Going idle (the 5-minute collapse) and a new day or
+ *  store send it back to the TOP — 0; anything else leaves the scroll alone
+ *  (null). The idle reset wins over ruling 3's "return to where it was":
+ *  nobody is there to return to. */
+export function pageScrollReset(prev: Pick<CardsState, "idle" | "scope">, next: Pick<CardsState, "idle" | "scope">): 0 | null {
+  if (prev.scope !== next.scope) return 0
+  if (!prev.idle && next.idle) return 0
+  return null
 }
 
 /** Ruling 3: where a collapse returns the page to. The position saved when
@@ -152,6 +176,14 @@ export const CHIP_TONE_CLASS: Record<ChipTone, string> = {
  *  dueChipFor in tablet-due.ts, then says "N overdue"), amber otherwise. */
 export function dueChipTone(overdue: number): ChipTone {
   return overdue > 0 ? "red" : "amber"
+}
+
+/** TAB-9 fix (Gary, 2026-11-10): "HR chip — hide it on STORE logins in
+ *  Tablet mode; keep it for personal logins." A STORE login is a shared
+ *  counter account, so a personal training count has no one to belong to.
+ *  Desktop's ComplianceBanner is not touched. */
+export function showHrChip(role: string | null): boolean {
+  return role !== "STORE"
 }
 
 /** The personal HR chip (SELF-1's ComplianceChip). Never red and never the
@@ -267,12 +299,25 @@ export type LaborDetail = {
   notes: { text: string; tone: "warn" | "muted" }[]
 }
 
+/** TAB-9 fix (Gary, 2026-11-10): "Labor dollars — never shown on the tablet;
+ *  percentages only." The summary payload carries laborCost for MANAGE-tier
+ *  viewers; the tablet drops it the moment the payload arrives, so no tablet
+ *  state or component ever holds a dollar labor figure. Returns the same
+ *  object when there is nothing to drop. */
+export function withoutLaborDollars<T extends { labor?: LaborBlock }>(s: T): T {
+  if (!s.labor || !("laborCost" in s.labor)) return s
+  const { laborCost: _dropped, ...labor } = s.labor
+  void _dropped
+  return { ...s, labor }
+}
+
 /** Labor, expanded: month-to-date %, the target, and the rest of the block as
  *  the desktop renders it (laborFootnotes — coverage, open timecards, wage
  *  gaps, stale cards, sync health, straight time). NULL WHEN `labor` IS
  *  ABSENT: a viewer whose gate hides the tile gets no card at all. laborCost
  *  (MANAGE-tier dollars) is deliberately not read — no desktop surface
- *  renders it either. */
+ *  renders it either, and since the TAB-9 fix it never reaches here
+ *  (withoutLaborDollars, Gary's ruling: percentages only). */
 export function laborDetail(s: StripSummary): LaborDetail | null {
   if (!s.labor) return null
   const b = s.labor

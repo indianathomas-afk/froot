@@ -22,7 +22,10 @@ import {
   dueChipTone,
   hrChipFor,
   initialCards,
+  pageScrollReset,
   restoreTarget,
+  rolloverDue,
+  showHrChip,
   visibleExpanded,
   type CardsEvent,
 } from "@/lib/tablet-cards"
@@ -158,6 +161,7 @@ export function TabletHome({
   stores,
   checklists,
   stripTiles = [],
+  role = null,
 }: {
   stores: TabletStore[]
   checklists: TabletChecklist[]
@@ -165,6 +169,9 @@ export function TabletHome({
    *  in page.tsx). Empty — the default — renders no strip and leaves this
    *  layout byte-identical to TAB-2b's. */
   stripTiles?: string[]
+  /** TAB-9 fix — the login's role (page.tsx, getUserStoreScope). Only used to
+   *  hide the personal HR chip on a shared STORE login (Gary, 2026-11-10). */
+  role?: string | null
 }) {
   const router = useRouter()
   const savedStoreId = useSavedStoreId()
@@ -386,10 +393,24 @@ export function TabletHome({
   const shownCard = visibleExpanded(cards.expanded, renderedTileKeys(stripTiles, strip))
 
   // Ruling 4: what is open holds the refresh, through TAB-5's busy flags.
-  const busy = cardsBusy({ ...cards, expanded: shownCard }, scrolled)
+  // TAB-9 fix (Gary, 2026-11-10): "the day rollover must never be blocked by
+  // scroll position" — once a rollover is due the scroll flag is off. Due
+  // depends on the clock, so the flags are re-applied every IDLE_CHECK_MS as
+  // well as on every render (a render alone would miss midnight).
+  const flagInputs = useRef({ cards, shownCard, scrolled, shownDay, serverDay, storeTimeZone })
+  const applyFlags = useCallback(() => {
+    const f = flagInputs.current
+    const due = rolloverDue(f.shownDay, f.serverDay, new Date(), f.storeTimeZone)
+    for (const [key, on] of Object.entries(cardsBusy({ ...f.cards, expanded: f.shownCard }, f.scrolled, due))) ctl.setBusy(key, on)
+  }, [ctl])
   useLayoutEffect(() => {
-    for (const [key, on] of Object.entries(busy)) ctl.setBusy(key, on)
+    flagInputs.current = { cards, shownCard, scrolled, shownDay, serverDay, storeTimeZone }
+    applyFlags()
   })
+  useEffect(() => {
+    const id = window.setInterval(applyFlags, IDLE_CHECK_MS)
+    return () => window.clearInterval(id)
+  }, [applyFlags])
   useEffect(
     () => () => {
       for (const key of Object.keys(cardsBusy({ expanded: null, dueOpen: false, idle: true }, false))) ctl.setBusy(key, false)
@@ -411,7 +432,8 @@ export function TabletHome({
     const saved = savedY.current
     savedY.current = restoreTarget(saved, prev, shownCard, window.scrollY)
     if (shownCard === null) {
-      if (saved !== null) window.scrollTo({ top: saved, behavior: "smooth" })
+      // An idle collapse goes to the top instead (the effect below).
+      if (saved !== null && !idleNow.current) window.scrollTo({ top: saved, behavior: "smooth" })
       return
     }
     const row = stripRowRef.current?.getBoundingClientRect()
@@ -420,6 +442,19 @@ export function TabletHome({
     const delta = Math.min(detail.bottom - window.innerHeight + 16, row.top - 16)
     if (delta > 0) window.scrollBy({ top: delta, behavior: "smooth" })
   }, [shownCard])
+
+  // TAB-9 fix (Gary, 2026-11-10): after the 5-minute idle — and on a new day
+  // or store — the page goes back to the TOP. That also clears the scrolled
+  // flag (the scroll listener sees 0), so the TAB-5 refresh resumes. Declared
+  // after the collapse effect above so it is the last scroll applied.
+  const prevPage = useRef({ idle: cards.idle, scope: cards.scope })
+  useLayoutEffect(() => {
+    const target = pageScrollReset(prevPage.current, cards)
+    prevPage.current = { idle: cards.idle, scope: cards.scope }
+    if (target === null) return
+    savedY.current = null
+    window.scrollTo({ top: target })
+  }, [cards])
 
   // The first screen keeps today's height: the columns (and the strip row)
   // fill what the header leaves of one screen, whatever opens above or below.
@@ -481,7 +516,9 @@ export function TabletHome({
           <p className="text-lg text-[var(--color-muted-foreground)]">{store.headerDate}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <ComplianceChip />
+          {/* TAB-9 fix (Gary, 2026-11-10): hidden on a shared STORE login,
+              kept for personal logins. Not rendered means not fetched. */}
+          {showHrChip(role) && <ComplianceChip />}
           {dueChip.label && (
             <DueChip
               label={dueChip.label}
@@ -1555,6 +1592,11 @@ function DuePanel({
 // getActiveStaffSelf — a staff member linked to that User, or the one staff
 // member with its email — which may be one PERSON's items on a counter
 // tablet. RULING NOW item in the TAB-9 report; not changed here.
+// ── TAB-9 fix, 2026-11-10 — appended; the two lines above are SPENT, kept.
+// Gary ruled: "HR chip — hide it on STORE logins in Tablet mode; keep it for
+// personal logins." TabletHome renders this chip only when showHrChip(role)
+// (src/lib/tablet-cards.ts), so a STORE login neither shows nor fetches it.
+// Desktop's ComplianceBanner is unchanged.
 function ComplianceChip() {
   const [owed, setOwed] = useState<OwedSummary | null>(null)
   const live = useRef(true)

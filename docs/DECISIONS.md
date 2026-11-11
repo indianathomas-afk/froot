@@ -138,6 +138,59 @@ g. **Labor dollars are not shown.** `laborCost` is on the payload for
 h. **Transactions and average sale** are not on `GET /api/dashboard/summary`
    (they are on `/api/dashboard/sales`), so they are not built: TAB-10.
 
+**Gary's rulings on the two RULING NOW items, 2026-11-10, verbatim** (added
+after the build report; nothing above is edited — judgement call g and the
+two "RULING NOW" mentions above are SPENT, kept):
+
+8. **HR chip on STORE logins.** "HR chip — hide it on STORE logins in Tablet
+   mode; keep it for personal logins."
+9. **Labor dollars.** "Labor dollars — never shown on the tablet; percentages
+   only."
+
+**Gary's fix instruction, same message, verbatim:** "after the 5-minute idle,
+also scroll the page back to the top and release the page-scrolled busy flag
+so the TAB-5 refresh resumes; the day rollover must never be blocked by
+scroll position."
+
+**How the fix is built (the fix commit after 9253bca, citing 44b80c5).**
+
+- **Tier.** Hiding the chip changes what a STORE login sees, which CLAUDE.md
+  puts in TIER 3; the fix was escalated and declared as such. Gary's message
+  is the approval of exactly this change. It is display-only: the
+  `my-compliance` route and its gates are untouched, and desktop's
+  ComplianceBanner is unchanged.
+- **Ruling 8.** `showHrChip(role)` (`src/lib/tablet-cards.ts`) is false for
+  `STORE` only. `page.tsx` passes the role it already reads through
+  `getUserStoreScope()` (the guarded `getCurrentUser()` lookup) into
+  `TabletHome`, which does not render — so does not fetch — the chip for a
+  STORE login. A login whose role does not resolve keeps the chip; the
+  route's own gates still decide whether it has anything to show.
+- **Ruling 9.** `withoutLaborDollars()` drops `laborCost` from the summary
+  payload the moment `useStripSummary` receives it, so no tablet state or
+  component ever holds a dollar labor figure. (It was already never read;
+  this makes it unreachable.) Desktop is unchanged.
+- **Idle → top.** `pageScrollReset()` returns 0 when the page goes idle (and
+  on a new day or store); `TabletHome` then scrolls to the top, after ruling
+  3's collapse restore, which is skipped for an idle collapse. Idle already
+  turned the `page:scrolled` flag off; reaching the top also clears the
+  scroll state, so the next TAB-5 cycle runs.
+- **Rollover never blocked by scroll.** `rolloverDue()` is true when the last
+  server render names a later day or the store-local clock has passed
+  midnight (TAB-5's `dayRolledOver`). `cardsBusy(…, rolloverDue)` turns
+  `page:scrolled` off while one is due. The flags are re-applied every 5
+  seconds as well as on render, because midnight arrives without a render.
+  An open card or the open list still holds the rollover until it idles
+  shut (ruling 4 and TAB-5 ruling 3); only scroll position no longer does.
+- **Fixture.** `verify-tab9-cards.ts` cases 9–12 (26 checks; 84 in all):
+  idle → top and the refresh resumes, rollover while scrolled, the chip by
+  role, and labor dollars dropped.
+- **Local check** (temporary mock, idle shortened to 20s, both reverted):
+  STORE login shows no HR chip and never calls `my-compliance`; MANAGER shows
+  "My HR · 2"; the Labor card shows no dollar figure although the mock
+  payload carried `laborCost`; a card left open with the page scrolled to the
+  bottom collapsed at idle with the page at the top, and the next 60-second
+  cycle ran.
+
 ## 2026-11-10 — TAB-5: the tablet home keeps itself current, rulings 1–5 — DRAFT
 
 **RATIFIED BY GARY, 2026-11-10, at the TAB-5 PRE-PUSH-CHECK:** "Ratify as
