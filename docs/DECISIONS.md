@@ -87,6 +87,59 @@ expired → TAB-4 message with the list kept, offline ×2 → line with no fetch
 Not observed: a real Clerk expiry against this route (CHK-8 observed the same
 opaque-redirect arm on staging for its own route), and a real iPad.
 
+**Addendum 2026-11-11 — the fix, and what stays frozen until a reload
+(appended; the text above is kept).** A read-only audit after `c18b0d7`, at
+Gary's request, found that `router.refresh()` had re-rendered the whole of
+`/dashboard` (layout included), not only the Tasks items. Two of TabletHome's
+props froze at first load: `pinRequired` and `stripTiles`. With the Shared
+Tablets switch turned ON mid-day, ticks were refused `pin_required` with no
+PIN pad offered. Turned OFF, the PIN pad was refused 409. Both lasted until a
+reload. The audit answer to item 4 above left out the PIN-required flag the
+prompt named; that was the miss. The strip tile data, TAB-9's expanded card,
+the SELF-1 compliance chip, the overdue chip and Messages were never part of
+the server render and were not affected.
+
+**Gary's ruling, 2026-11-11, verbatim:** "Add pinRequired and stripTiles to
+the tablet-tasks answer, and re-read on store switch. Leave role, the rail
+and the store list frozen until a reload. Don't bring back router.refresh()."
+
+**Built in `1e5ebc1`:**
+- The route answers `pinRequired` (`pinGateApplies(org, role)`) and
+  `stripTiles` (`stripTileKeys(org.tabletLayout)`), which are `page.tsx`'s own
+  calls. The tablet renders both from the merged state, so a switch flipped
+  either way, or a tile change, shows within one cycle.
+- An answer without the two fields is refused as a failed read, never read
+  as "off". *(design choice)*
+- A store switch re-reads that store at once, then adopts its day. Before
+  this, a switched-to store could show data up to a cycle old, or a skeleton
+  for up to a minute after midnight.
+
+**Frozen until a reload, by that ruling** (each used to update every cycle
+under `router.refresh()`):
+1. `role` — only whether the personal HR chip shows in the tablet header.
+2. The tablet rail (`TabletShell`, from `(app)/layout.tsx`): entries gated by
+   the login's role and `deniedCapabilities`, the org's `calendarEnabled`,
+   STAFF's `staffHasChecklists` (the Checklists entry appearing once a
+   checklist opens), and the shell's own store list. The rail's unread badge
+   is not frozen: on `/dashboard` the Messages column publishes it every
+   cycle.
+3. The store list: which stores the login can see, and their order. A new or
+   removed store assignment, or a store deactivated, needs a reload. The
+   selected store's own name, timezone, day, header date and staff still
+   update every cycle through the route.
+
+Also no longer re-run every cycle: the layout's STAFF-to-`/my` redirect and
+the page's `dashboard.view` check. Neither is a data gate. The route still
+checks org and store scope on every read, and a refused read keeps the list
+and shows the "Not updated since …" line. *(Claude's note, not a ruling.)*
+
+**Evidence.** `verify-tab8` 114/114, part C on dev `br-broad-wave-a6vpjdw0`:
+the fixture org's switch OFF → ON → OFF and a tile reorder, each picked up by
+one read and merge, with negative controls (a failed or expired read moves
+nothing; the `c18b0d7` answer shape is refused). Local mocked check: tiles
+on and off, PIN switch on and off, and a store switch, each followed in one
+cycle.
+
 ## 2026-11-10 — TAB-4: per-person PIN on shared tablets, rulings Q1–Q11 — DRAFT
 
 **RATIFIED BY GARY, 2026-11-10, at the TAB-4 PRE-PUSH-CHECK:** "I ratify

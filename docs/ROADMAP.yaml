@@ -25885,6 +25885,10 @@ phases:
     # pushed). The docs SHA is the commit immediately after c18b0d7 (its own
     # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
     # No migration. Rollback: `git revert c18b0d7`.
+    # 2026-11-11: fix commit 1e5ebc1 on Gary's ruling (before PRE-PUSH-CHECK);
+    # docs SHA a8c17d2, and the fix's docs are the commit immediately after
+    # 1e5ebc1. Still in_progress. The rollback above is superseded:
+    # `git revert 1e5ebc1 c18b0d7` (fix first, then work).
     status: in_progress
     title: "Read-only checklist-items endpoint so the tablet Tasks panel refreshes without router.refresh()"
     commits:
@@ -25894,7 +25898,48 @@ phases:
       # verify-tab8, verify-tpl3 reader list
       # + the commit immediately after c18b0d7: docs(TAB-8) — this row,
       # DECISIONS DRAFT
+      - "a8c17d2"
+      # fix(TAB-8) — pinRequired and stripTiles on the route's answer, re-read
+      # on store switch, verify-tab8 checks for both
+      - "1e5ebc1"
+      # + the commit immediately after 1e5ebc1: docs(TAB-8) — this row's fix
+      # rider, DECISIONS DRAFT addendum (frozen-until-reload list)
     notes: >
+      ── RIDER 2026-11-11, TAB-8 fix (prepended; nothing below is edited). ──
+      A read-only audit after c18b0d7 (Gary's question) found that
+      router.refresh() had re-rendered ALL of /dashboard, not only the Tasks
+      items. Two TabletHome props it brought back every cycle had frozen at
+      first load: pinRequired (the Shared Tablets switch for a STORE login)
+      and stripTiles (the ADMIN's tile choice and order). A switch flipped
+      mid-day blocked ticking until a reload, both ways. The strip tile data,
+      TAB-9's expanded card, the SELF-1 compliance chip, the overdue chip and
+      Messages never came from the server render and were not affected. The
+      build rider's audit answer 4 left out the PIN-required flag the prompt
+      named; that was the miss.
+      Gary, 2026-11-11, verbatim: "Add pinRequired and stripTiles to the
+      tablet-tasks answer, and re-read on store switch. Leave role, the rail
+      and the store list frozen until a reload. Don't bring back
+      router.refresh()."
+      BUILT in 1e5ebc1: the route answers pinRequired and stripTiles with
+      page.tsx's own calls; the tablet renders both from the merged state; an
+      answer without them is refused, never read as "off"; a store switch
+      re-reads that store at once. FROZEN UNTIL RELOAD, by that ruling: role
+      (the HR chip), the tablet rail, and the store list (DECISIONS TAB-8
+      addendum).
+      FIXTURES: verify-tab8 114/114 (part C on dev br-broad-wave-a6vpjdw0:
+      switch OFF -> ON -> OFF and a tile reorder each picked up by one read,
+      with negative controls); the other nine unchanged (TPL-3 44, TAB-1 13,
+      TAB-1c 11, TAB-2 23, TAB-3 28, TAB-4 78, TAB-5 32, TAB-9 84, CHK-15 28).
+      Build green; scoped eslint 0 errors. Local check on a temporary mocked
+      page under /menu, deleted before the commit: tiles on/off, PIN switch
+      on/off and a store switch each followed in one cycle.
+      STAGING TESTS ADDED: (5) with a STORE login on the tablet, turn the
+      Shared Tablets switch on in /settings: within a minute the name sheet
+      drops "Team Member" / "Manager" and asks for a PIN; turn it off: within
+      a minute the generic options return and ticks save without a PIN.
+      (6) reorder or enable a strip tile in /settings: the tablet follows
+      within a minute. (7) a multi-store login switching stores sees that
+      store's current ticks at once.
       ── RIDER 2026-11-10, TAB-8 build (prepended; nothing below is edited). ──
       BUILT, not yet checked on staging. TIER 2: no schema, migration,
       permission, env var or cron. Prompt docs/prompts/TAB-8.md (untracked
