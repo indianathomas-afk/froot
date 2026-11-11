@@ -26400,7 +26400,19 @@ phases:
     # pushed). The docs SHA is the commit immediately after 498322a (its own
     # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
     # No migration. Rollback: `git revert 498322a`.
-    status: in_progress
+    # in_progress -> staging 2026-11-11 at the TAB-11 PRE-PUSH-CHECK (the
+    # commit immediately after ac5a383; its own SHA cannot be written inside
+    # itself). Docs SHA: ac5a383 (this row, DECISIONS DRAFT). The check
+    # committed the prompt of record docs/prompts/TAB-11.md and wrote the
+    # DEPLOY_LOG UNPROMOTED entry. DECISIONS 2026-11-11 TAB-11 (R1–R5, how
+    # each is met, the design choices) RATIFIED by Gary at this check:
+    # "Ratify as written". R6 ruled by Gary at the same check, recorded
+    # verbatim in that entry: keep the code's type icons (Customer and
+    # Staffing sharing one is fine, the label always shows); TAB-11 makes no
+    # desktop changes. The notes' "DRAFT until PRE-PUSH-CHECK" and
+    # "untracked until PRE-PUSH-CHECK" are spent, kept. No migration.
+    # Rollback stays `git revert 498322a`. NOT pushed at writing.
+    status: staging
     title: "Team Messages in Tablet mode — touch two-pane layout"
     commits:
       - "498322a"
@@ -26410,6 +26422,10 @@ phases:
       # exported from dashboard/tablet-messages.tsx
       # + the commit immediately after 498322a: docs(TAB-11) — this row,
       # DECISIONS DRAFT
+      - "ac5a383"
+      # + the commit immediately after ac5a383: docs(TAB-11) PRE-PUSH-CHECK —
+      # DECISIONS ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
     notes: >
       ── BUILD 2026-11-11 (TAB-11). ──
       BUILT, not yet checked on staging. TIER 2: no schema, migration,

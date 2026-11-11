@@ -7,6 +7,22 @@ decisions too.)
 
 ## 2026-11-11 — TAB-11: Team Messages in Tablet mode, rulings R1–R5 — DRAFT
 
+**RATIFIED BY GARY, 2026-11-11, at the TAB-11 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: R1–R5 as the prompt words them,
+now confirmed as his; how each is met; and the calls marked *(design
+choice)*, all now ratified as his. The heading's "DRAFT", the "DRAFT,
+awaiting Gary's ratification" line, "whether each sentence is literally
+Gary's is for him to confirm" and "(untracked until PRE-PUSH-CHECK)" are
+spent, kept; `docs/prompts/TAB-11.md` is committed at this check. Docs
+commit: `ac5a383`. Wording untouched.
+
+**R6 — RULED BY GARY, 2026-11-11, at the TAB-11 PRE-PUSH-CHECK**, in his
+words: "Keep the type icons the code already has. Customer and Staffing
+sharing an icon is fine for now because the label always shows next to it.
+TAB-11 makes no desktop changes." This makes the *(design choice)* below on
+type icons (`TYPE_META`'s icons, not the canvas's) his ruling. The heading's
+"R1–R5" is kept as written.
+
 **DRAFT, awaiting Gary's ratification at the TAB-11 PRE-PUSH-CHECK.** Prompt of
 record: `docs/prompts/TAB-11.md` (untracked until PRE-PUSH-CHECK). Work commit
 `498322a`. TIER 2. The five rulings below are copied from the prompt, which

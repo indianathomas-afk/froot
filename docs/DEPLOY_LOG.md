@@ -2,6 +2,69 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-11 — TAB-11: Team Messages in Tablet mode (touch two-pane in landscape, one column in portrait)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`498322a`, docs `ac5a383`; the PRE-PUSH-CHECK is the commit immediately
+after `ac5a383`. **TIER 2:** a new tablet layout over the state the
+desktop page already has. No migration, no env var, no permission, no cron,
+no API route, no Square call. DECISIONS 2026-11-11 TAB-11 (R1–R5 and the
+design choices) RATIFIED by Gary at this check: "Ratify as written". R6,
+ruled at the same check: "Keep the type icons the code already has.
+Customer and Staffing sharing an icon is fine for now because the label
+always shows next to it. TAB-11 makes no desktop changes." Prompt of record
+`docs/prompts/TAB-11.md`, committed at this check.
+
+**Blast radius: `/messages` in Tablet mode, plus a refactor under desktop
+`/messages`.** The tablet layout only renders when `getViewMode()` is
+"tablet". Desktop `/messages` and `/my/messages` keep their JSX, but
+`messages-client.tsx`'s state, fetches and posts moved into shared hooks
+that the desktop components now call. That move is the one way desktop can
+regress, so staging test 1 checks desktop first. `TabletShell` changes only
+for `/messages` (full-bleed container). `useKeyboardInset` is now exported
+from the tablet home's Messages column; its behaviour there is unchanged.
+Nothing new writes: every post, reaction, edit, delete and resolve is the
+desktop hook's existing call to the existing route.
+
+**What ships.** 1024px and wider: rail | 372px left panel (title,
+corporate updates card, TYPE grid of 8 chips, STATUS select) | feed with
+the composer pinned at its bottom; each pane scrolls on its own, the page
+does not. Narrower: one column — header band with a sideways type strip and
+the status select, feed, composer. General is first in every tablet type
+list; desktop order is unchanged. The type returns to General after a post
+(desktop's `useComposer.post()` already did this). Composer: 52px box
+growing to about 4 lines, a Type popover, Photo / File / Video, Post.
+Desktop controls the canvas doesn't draw are kept at touch size (store
+picker, Edit, Resolve/Reopen, shift phase, Shortage ingredient link, admin
+New update / Delete, Load older). With the iPad keyboard up, the composer
+sits directly above it (TAB-2's visualViewport measure); in portrait the
+header band folds away while typing.
+
+Files: 5 in `498322a` (+1128/−88): new
+`src/app/(app)/messages/messages-tablet.tsx`; changed
+`messages/messages-client.tsx`, `messages/page.tsx`,
+`dashboard/tablet-messages.tsx`, `src/components/layout/tablet-shell.tsx`.
+Checks: scoped eslint and `npm run build` green. No fixture script. Verified
+locally only on a temporary mocked `/menu` page, deleted before the commit,
+at 1180x820, 1024x768, 820x1180 and 744x1133: no page scroll in either
+axis, every control ≥ 44px, Shortage filter → one card, picker → Shortage →
+post → Shortage badge and type back to General, reaction count toggles,
+simulated 400px keyboard puts the composer's bottom on the keyboard's top.
+Known: at 1024px landscape a manager's Shortage/Equipment card wraps its
+type badge under the name (Resolve shares the line). Not observed: real
+staging data, a real iPad, a real keyboard.
+
+**Rollback.** `git revert 498322a`. No schema or data to undo. Tablet
+`/messages` goes back to the desktop layout inside the tablet shell;
+desktop goes back to its pre-hook code, which renders the same.
+
+**Staging tests owed (Gary, iPad, Tablet mode, after push; staging-SHA
+precondition first).** The nine in `docs/prompts/TAB-11.md` § Staging
+tests: desktop unchanged; landscape two panes with the composer fixed;
+type and status filters; post as Shortage and type back to General;
+Photo / File / Video; reactions; "Show 1 more" and trash only where desktop
+shows it; portrait one column; keyboard keeps the composer visible.
+
 ## UNPROMOTED — 2026-11-11 — TAB-10: transactions and average sale on the tablet's expanded Sales card (desktop Average sale "—" at 0 transactions)
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
