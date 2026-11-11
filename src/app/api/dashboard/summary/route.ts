@@ -75,7 +75,11 @@ export async function GET(req: Request) {
     org.activeModules.includes("inventory") && !!store.squareLocationId && !!org.squareAccessToken
 
   let sales: {
-    today: { total: number; hourly: { hour: number; net: number }[] }
+    // TAB-10: `orders` is today's SalesPeriodCache.orderCount — the desktop
+    // Sales Performance card's Transactions (/api/dashboard/sales
+    // selected.orders over the same one-day window). Last year's same-time
+    // order count is already on `comparison.orders`.
+    today: { total: number; orders: number; hourly: { hour: number; net: number }[] }
     lastYear: { date: string; total: number; hourly: { hour: number; net: number }[] } | null
     // TAB-7 — what today so far is compared with: last year up to the same
     // store-local time of day (src/lib/sales-same-time.ts). Null when the
@@ -148,6 +152,7 @@ export async function GET(req: Request) {
     sales = {
       today: {
         total: todayDay?.netSales ?? 0,
+        orders: todayDay?.orderCount ?? 0,
         hourly: todayHours.map((h) => ({ hour: h.hour, net: h.netSales })),
       },
       lastYear: lastYearDay

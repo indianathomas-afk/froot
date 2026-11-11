@@ -206,7 +206,10 @@ export type StripSummary = {
   store?: { timezone: string }
   salesAvailable: boolean
   sales: {
-    today: { total: number; hourly: { hour: number; net: number }[] }
+    /** TAB-10 — `orders` is today's order count (SalesPeriodCache
+     *  .orderCount). Optional only so a payload without it reads as "no
+     *  Transactions / Average sale rows", never as 0; the route always sends it. */
+    today: { total: number; orders?: number; hourly: { hour: number; net: number }[] }
     lastYear: { date: string; total: number; hourly: { hour: number; net: number }[] } | null
     /** TAB-7 — today so far is measured against THIS, never lastYear.total
      *  (the whole day). Built by src/lib/sales-same-time.ts on the route.
@@ -256,7 +259,7 @@ export type SalesDetail = {
  *  hour by hour. Every hour either day has, in order; an hour only one day
  *  has reads null on the other side (not 0 — the cache has no row for it).
  *  The ▲/▼ headline is salesTileComparison (TAB-7), not computed here.
- *  Transactions and average sale are not on this payload (ROW). Null when
+ *  Transactions and average sale are salesCounts (TAB-10), below. Null when
  *  the tile itself would not render. */
 export function salesDetail(s: StripSummary): SalesDetail | null {
   if (!s.salesAvailable || !s.sales) return null
@@ -280,6 +283,52 @@ export function salesDetail(s: StripSummary): SalesDetail | null {
         : null,
     hours: rows,
     max,
+  }
+}
+
+/** TAB-10 — one figure on the expanded Sales card with its ▲/▼.
+ *  `pct` null with `compared` true renders "—" (a 0 baseline, or no figure
+ *  today to compare); `compared` false renders no pill at all — the same two
+ *  rules as the Sales tile's headline (TAB-7 lean 5). */
+export type SalesCountStat = { pct: number | null; compared: boolean }
+export type SalesCounts = {
+  /** Today's order count. */
+  transactions: number
+  /** Today's net ÷ transactions; null at 0 transactions (renders "—"). */
+  averageSale: number | null
+  transactionsVs: SalesCountStat
+  averageSaleVs: SalesCountStat
+}
+
+/** TAB-10 — Transactions and Average sale on the expanded Sales card, with
+ *  the SAME definitions as the desktop Sales Performance card on Today
+ *  (sales-performance-card.tsx over /api/dashboard/sales):
+ *    transactions   today's order count (desktop `selected.orders`)
+ *    averageSale    today's net ÷ transactions, null at 0 (`selected.avgSale`)
+ *    vs last year   against TAB-7's same-time comparison: its `orders`
+ *                   (pro-rated to the time of day, so possibly fractional —
+ *                   desktop's `compOrders`) and its net ÷ its orders
+ *                   (desktop's `compAvg`), through the one pctChange.
+ *  One departure, a display rule (TAB-10, design choice): with no
+ *  transactions today the average sale is "—", so its pill is "—" too;
+ *  desktop measures 0 against last year's average there (▼100.0%).
+ *  Null when the tile would not render, or the payload has no order count
+ *  (an older answer): the rows are left out, never shown as 0. */
+export function salesCounts(s: StripSummary): SalesCounts | null {
+  if (!s.salesAvailable || !s.sales) return null
+  const orders = s.sales.today.orders
+  if (typeof orders !== "number") return null
+  const averageSale = orders > 0 ? s.sales.today.total / orders : null
+  const c = s.sales.comparison ?? null
+  if (!c) {
+    return { transactions: orders, averageSale, transactionsVs: { pct: null, compared: false }, averageSaleVs: { pct: null, compared: false } }
+  }
+  const compAvg = c.orders !== null && c.orders > 0 ? c.net / c.orders : null
+  return {
+    transactions: orders,
+    averageSale,
+    transactionsVs: { pct: pctChange(orders, c.orders), compared: true },
+    averageSaleVs: { pct: averageSale === null ? null : pctChange(averageSale, compAvg), compared: true },
   }
 }
 
