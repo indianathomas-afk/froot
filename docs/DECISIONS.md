@@ -5,6 +5,76 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-11 — TAB-11: Team Messages in Tablet mode, rulings R1–R5 — DRAFT
+
+**DRAFT, awaiting Gary's ratification at the TAB-11 PRE-PUSH-CHECK.** Prompt of
+record: `docs/prompts/TAB-11.md` (untracked until PRE-PUSH-CHECK). Work commit
+`498322a`. TIER 2. The five rulings below are copied from the prompt, which
+heads them "Rulings (Gary, 2026-11-11)". They are recorded as the prompt
+words them; whether each sentence is literally Gary's is for him to confirm
+at ratification. The calls marked *(design choice)* are Claude's.
+
+**The rulings (R1–R5, as the prompt states them).**
+- **R1** — "Tablet mode only. The desktop Team Messages page stays exactly as
+  it is."
+- **R2** — "Landscape (1024px wide and up) is two panes. Narrower (iPad
+  portrait) is one column: header band, then the feed, then the composer
+  pinned at the bottom."
+- **R3** — "On the tablet, General is listed first in every type list
+  (filters and picker) because it's the default. Desktop order doesn't
+  change."
+- **R4** — "On the tablet, the message type goes back to General after every
+  post."
+- **R5** — "No new features. No schema, API or permission changes. Same feed
+  order, status options, reactions and delete rules as desktop, and only
+  controls desktop already has."
+
+**How each is met (work commit `498322a`).**
+- R1: `messages/page.tsx` renders `MessagesTablet` only when `getViewMode()`
+  is "tablet" (the dashboard's branch). Desktop's state moved into hooks
+  that both layouts call; desktop JSX is unchanged. `/my/messages` still
+  renders the desktop client.
+- R2: the `lg` breakpoint (1024px viewport) switches between the two-pane
+  and one-column layouts. `TabletShell` gives `/messages` a full-bleed
+  container so only the panes scroll.
+- R3: `TABLET_TYPE_ORDER` in `messages-tablet.tsx`; desktop's `TYPE_META`
+  order is untouched.
+- R4: the audit found desktop's `Composer.post()` ALREADY reset the type to
+  General. The tablet calls the same function (`useComposer`), so no new
+  code was needed.
+- R5: every read and write is a desktop hook. Desktop's controls that the
+  canvas does not draw are kept at touch size: the store picker
+  (multi-store), Edit (15-minute window), Resolve/Reopen, the shift-phase
+  select, the Shortage ingredient link, admins' New update / Delete on
+  corporate updates, Load older messages.
+
+**Calls made while building.**
+- *(design choice)* No collapse chevron on the corporate card: desktop has no
+  way to hide it (prompt audit item 3).
+- *(design choice)* Type icons are the code's `TYPE_META` icons, not the
+  canvas's (the canvas draws distinct Shift Note / Shortage / Staffing
+  icons; the code has Customer and Staffing sharing `UserRound`). Changing
+  them would change desktop too.
+- *(design choice)* A reaction nobody has used is a bordered pill on the
+  card background, as the canvas draws it (desktop shows no border there).
+  Mine = tinted with count; others' only = muted with count, as desktop.
+- *(design choice)* The Photo / File / Video labels drop to icons (with
+  accessible names) when the composer's content box is under 660px. Measured,
+  the row needs about 650px with labels and the longest type name, so it does
+  not fit at 1024px landscape (564px pane) or iPad mini portrait. It does fit
+  at 1180 landscape and 820 portrait, which match the canvas.
+- *(design choice)* In portrait, the header band folds away while the
+  keyboard is up, so the feed keeps room above the composer. TAB-2's tablet
+  Messages column does the same.
+- *(design choice)* The empty feed says "…give someone a shoutout below"
+  (desktop says "above"; the tablet composer is below).
+- *(design choice)* While a file uploads, the composer shows "Uploading…" as
+  text above the box, not desktop's spinner (§ Design System: no spinners),
+  and not inside the button row where it could push Post off the edge.
+- Known: at 1024px landscape a Shortage/Equipment card seen by a manager
+  wraps its type badge under the name, because the Resolve button shares the
+  line. Every other card and width keeps one line.
+
 ## 2026-11-11 — TAB-10: transactions and average sale on the tablet's expanded Sales card — DRAFT
 
 **RATIFIED BY GARY, 2026-11-11, at the TAB-10 PRE-PUSH-CHECK:** "Ratify as
