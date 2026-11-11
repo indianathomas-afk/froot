@@ -2653,9 +2653,11 @@ PROMOTE-DOCS_2026-11-10_TAB (prepended; nothing below is edited). The two
 OWED cells in the table below are spent, kept. Per branch at this stamp:
 
 - **production `br-sparkling-block-a620qvg4`:** applied to production via
-  `vercel-build` at promotion `8417fc3` — **pending Gary's confirmation from
-  the production build log.** No build-log lines were pasted and no
-  `finished_at` was read at this stamp.
+  `vercel-build` at promotion `8417fc3` — **CONFIRMED by Gary 2026-11-10
+  from the production build log:** "Production build log shows
+  20261110200000_tab3_display_layouts applied". No build-log lines were
+  pasted and no `finished_at` was read. (Was: "pending Gary's confirmation
+  from the production build log", in `28c38ec`; spent.)
 - **staging `br-square-feather-a63z92vz`:** applied by the Vercel build on
   Gary's push. The evidence is Gary's verdict on the series, "Everything is
   tested and working great": the TAB-3 staging test list included test (0),

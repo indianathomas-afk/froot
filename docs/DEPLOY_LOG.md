@@ -38,9 +38,10 @@ TAB-5 test (6)** (overnight store-local rollover): NOT observed before
 promotion. Gary chose to ship and watch for it; it is owed as a production
 observation (the TAB-5 entry below).
 
-**Production.** The TAB-3 migration applies via vercel-build at `8417fc3`:
-pending Gary's confirmation from the production build log
-(`docs/MIGRATIONS.md`). No post-deploy production check recorded at this
+**Production.** The TAB-3 migration applied via vercel-build at `8417fc3`,
+CONFIRMED by Gary 2026-11-10: "Production build log shows
+20261110200000_tab3_display_layouts applied" (`docs/MIGRATIONS.md`). (Was:
+"pending Gary's confirmation from the production build log"; spent.) No post-deploy production check recorded at this
 stamp.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
@@ -249,8 +250,10 @@ Staging: covered by Gary's verdict recorded on the TAB-9 entry above.
 Rollback (whole series): `git revert -m 1 8417fc3`. The two JSONB columns stay;
 leaving them after a code revert is harmless.
 
-**Migration, production:** applies via vercel-build at `8417fc3` — pending
-Gary's confirmation from the production build log (`docs/MIGRATIONS.md`).
+**Migration, production:** applied via vercel-build at `8417fc3` —
+CONFIRMED by Gary 2026-11-10: "Production build log shows
+20261110200000_tab3_display_layouts applied" (`docs/MIGRATIONS.md`). (Was:
+"pending Gary's confirmation from the production build log"; spent.)
 Staging: test (0) (`_prisma_migrations` row with a `finished_at`) was in
 the list Gary's verdict covers; no `finished_at` value was pasted.
 

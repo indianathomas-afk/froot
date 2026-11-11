@@ -25509,9 +25509,11 @@ phases:
       evidence: no org id or instance was captured with it. Production: no
       post-deploy check recorded at this stamp.
       MIGRATION 20261110200000_tab3_display_layouts (two nullable JSONB
-      columns on Organization): production applies via vercel-build at
-      8417fc3 — PENDING Gary's confirmation from the production build log
-      (docs/MIGRATIONS.md). Rollback leaves the columns in place, harmless.
+      columns on Organization): production applied via vercel-build at
+      8417fc3 — CONFIRMED by Gary 2026-11-10: "Production build log shows
+      20261110200000_tab3_display_layouts applied" (docs/MIGRATIONS.md).
+      (Was: "PENDING Gary's confirmation from the production build log";
+      spent.) Rollback leaves the columns in place, harmless.
       Rollback (whole series): git revert -m 1 8417fc3. At this stamp main =
       origin/main = staging (local, fast-forwarded) = 8417fc3; origin/staging
       = 1a0424d until Gary pushes the merge-back.
