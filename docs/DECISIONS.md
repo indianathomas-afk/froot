@@ -7,6 +7,18 @@ decisions too.)
 
 ## 2026-11-11 — TAB-10: transactions and average sale on the tablet's expanded Sales card — DRAFT
 
+**RATIFIED BY GARY, 2026-11-11, at the TAB-10 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: the audit, leans 1–6 as built,
+the departures and calls marked *(design choice)* (the first, "desktop shows
+▼100.0% there", as superseded by the addendum), and the 2026-11-11 addendum
+with its *(design choice)* that the rule applies to any selection with 0
+transactions, all now ratified as his. His 2026-11-11 ruling quoted in the
+addendum ("On the desktop card, …") was already his words. The heading's
+"DRAFT", the "DRAFT, awaiting Gary's ratification" line, "nothing below
+quotes him" and "(untracked until PRE-PUSH-CHECK)" are spent, kept;
+`docs/prompts/TAB-10.md` is committed at this check. Docs commits: `fbb30e3`
+and `ef71fe8`. Wording untouched.
+
 **DRAFT, awaiting Gary's ratification at the TAB-10 PRE-PUSH-CHECK.** Prompt of
 record: `docs/prompts/TAB-10.md` (untracked until PRE-PUSH-CHECK). Work commit
 `e12bc2d`. TIER 2. The leans in the prompt are **Claude's design choices**,

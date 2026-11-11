@@ -2,6 +2,78 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-11 — TAB-10: transactions and average sale on the tablet's expanded Sales card (desktop Average sale "—" at 0 transactions)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`e12bc2d`, docs `fbb30e3`; fix commit `742f98d` (Gary's ruling,
+2026-11-11, "On the desktop card, Average sale shows "—" and no percentage
+when today has 0 transactions, the same as the tablet. Transactions keeps
+its pill."), docs `ef71fe8`; the PRE-PUSH-CHECK is the commit immediately
+after `ef71fe8`. **TIER 2:** display change over caches Froot already has,
+plus one additive field on an existing route. No migration, no env var, no
+permission, no cron, no new Square, sync or gap-fill call. DECISIONS
+2026-11-11 TAB-10 (with its 2026-11-11 desktop-Average-sale addendum)
+RATIFIED by Gary at this check: "Ratify as written". Prompt of record
+`docs/prompts/TAB-10.md`, committed at this check.
+
+**Blast radius: the Sales cards on `/dashboard`, and they only read.**
+Two surfaces: the tablet's expanded Sales card (TAB-9, fed by
+`/api/dashboard/summary`) and, for the fix only, the desktop Sales
+Performance card's Average sale pill. The collapsed tablet Sales tile, the
+whole-day row, the hour-by-hour table, desktop's `/api/dashboard/sales`
+route and `src/lib/sales-same-time.ts` are untouched. Nothing writes.
+
+**What ships.** `/api/dashboard/summary` adds one field,
+`sales.today.orders` (today's `SalesPeriodCache.orderCount`); last year's
+same-time order count was already on the payload (`sales.comparison.orders`,
+TAB-7). `salesCounts` (`src/lib/tablet-cards.ts`) computes the desktop
+card's `compOrders` / `compAvg` from it through the one `pctChange`. The
+expanded card adds "Transactions" and "Average sale" rows below the dollar
+rows, each with a ▲/▼ against last year at the same time; the tile's pill
+became one `DeltaText` component rendered by the tile and both rows. Last
+year 0 → "—"; no comparison day → no pill; 0 transactions today → Average
+sale "—" and its pill "—"; a payload without `today.orders` leaves both
+rows out. Average sale shows cents ("$11.88"). No Transactions column in
+the hour table. Refreshes on the existing TAB-5 / TAB-8 cycle; no new timer
+or fetch. Fix: the desktop card's Average sale baseline is null when the
+selection has no average, so no pill renders at 0 transactions (was
+▼100.0%), for any selection, not only Today. Transactions, Gross and the
+headline are unchanged.
+
+Files: 4 in `e12bc2d` (+436/−18), 3 in `742f98d` (+56/−7): new
+`scripts/verify-tab10.ts`; changed `src/app/api/dashboard/summary/route.ts`,
+`src/lib/tablet-cards.ts`, `dashboard/tablet-strip.tsx`,
+`dashboard/sales-performance-card.tsx` (fix only). Checks: verify-tab10
+50/50 (negative controls against `885d65f` and `e12bc2d`, a props-fed
+mutant and an old-baseline mutant; DB sections read-only on dev
+`br-broad-wave-a6vpjdw0`: 7 stores × 4 store-local moments = 28 tablet vs
+desktop comparisons, 0 mismatches), verify-tab1-today 13/13,
+verify-tab1c-due-chip 11/11, verify-tab2-messages 23/23,
+verify-tab3-layout 28/28, verify-tab4-pin 78/78, verify-tab5-refresh 32/32,
+verify-tab7 88/88, verify-tab8 114/114, verify-tab9-cards 84/84,
+verify-goal-engine 15/15, verify-f4-rollup-webhook 24/24, verify-bug20
+21/21; scoped eslint and `npm run build` green. Verified locally only on
+mocked temporary `/menu` pages, deleted before each commit: 9 transactions,
+$11.88 average, ▲5.9% / ▲1.0%; 0 transactions → desktop "AVERAGE SALE —"
+with no pill. Not observed: real staging sales data, a real iPad.
+
+**Rollback.** `git revert 742f98d e12bc2d` (fix first, then work). No
+schema or data to undo: nothing writes. The tablet card goes back to
+dollars only; the desktop Average sale goes back to ▼100.0% at 0
+transactions.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+From the TAB-10 row. (1) During opening hours, tap the tablet Sales tile:
+"Transactions" and "Average sale" rows appear under the whole-day row, each
+with a ▲/▼. (2) Desktop Sales Performance on Today for the same store in the
+same minute: the same Transactions and Average sale and the same ▲/▼ (a
+minute apart they can drift by the pro-rated hour). (3) The collapsed Sales
+tile looks as before. (4) Leave the card open past a refresh (about a
+minute): the rows follow new sales without a reload. (5) Desktop Sales
+Performance on Today before the store's first sale (with last year having
+sales by then): Average sale reads "—" with no pill; Transactions shows 0
+and its ▼.
+
 ## UNPROMOTED — 2026-11-11 — TAB-7: today's sales compared with last year at the same time of day (desktop card, tablet tile, ranges ending today)
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit

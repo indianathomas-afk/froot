@@ -26273,7 +26273,17 @@ phases:
     # docs SHA fbb30e3, and the fix's docs are the commit immediately after
     # 742f98d. Still in_progress. The rollback above is superseded:
     # `git revert 742f98d e12bc2d` (fix first, then work).
-    status: in_progress
+    # in_progress -> staging 2026-11-11 at the TAB-10 PRE-PUSH-CHECK (the
+    # commit immediately after ef71fe8; its own SHA cannot be written inside
+    # itself). Docs SHAs: fbb30e3 (this row, DECISIONS DRAFT) and ef71fe8 (the
+    # fix rider, DECISIONS addendum). The check committed the prompt of record
+    # docs/prompts/TAB-10.md and wrote the DEPLOY_LOG UNPROMOTED entry.
+    # DECISIONS 2026-11-11 TAB-10 (audit, leans 1–6, the departures, the
+    # 2026-11-11 desktop-Average-sale addendum) RATIFIED by Gary at this
+    # check: "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" and
+    # "untracked until PRE-PUSH-CHECK" are spent, kept. No migration.
+    # Rollback stays `git revert 742f98d e12bc2d`. NOT pushed at writing.
+    status: staging
     title: "Tablet expanded Sales card — transactions and average sale"
     commits:
       - "e12bc2d"
@@ -26288,6 +26298,10 @@ phases:
       - "742f98d"
       # + the commit immediately after 742f98d: docs(TAB-10) — this row's
       # fix rider, DECISIONS DRAFT addendum
+      - "ef71fe8"
+      # + the commit immediately after ef71fe8: docs(TAB-10) PRE-PUSH-CHECK —
+      # DECISIONS ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
     notes: >
       ── RIDER 2026-11-11, TAB-10 fix (prepended; nothing below is edited). ──
       Gary's ruling on the report's RULING NOW, quoted: "On the desktop card,
