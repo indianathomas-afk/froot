@@ -25594,7 +25594,18 @@ phases:
     # Migration 20261111050000_tab4_tablet_pin (one Organization column, four
     # StaffMember columns), applied to dev by Gary before the work commit.
     # Rollback: `git revert 0064bf9`; the columns stay (additive only).
-    status: in_progress
+    # in_progress -> staging 2026-11-10 at the TAB-4 PRE-PUSH-CHECK (the
+    # commit immediately after e8cfa05; its own SHA cannot be written inside
+    # itself). Docs SHA: e8cfa05 (this row, NOTIFY-18 ROW, DECISIONS DRAFT,
+    # MIGRATIONS entry, CLAUDE.md env vars). The check committed the prompt of
+    # record docs/prompts/TAB-4.md, the audit TAB-4_AUDIT.md and the plan
+    # TAB-4_PLAN.md, and wrote the DEPLOY_LOG UNPROMOTED entry. DECISIONS
+    # 2026-11-10 TAB-4 (rulings Q1–Q11, design choices 1–3, calls (a)–(l),
+    # the calendar-detail consequence) RATIFIED by Gary at this check, in his
+    # words (quoted there). The notes' "DRAFT until PRE-PUSH-CHECK" is spent,
+    # kept. Migration still OWED on staging (the Vercel build on Gary's push)
+    # and production (at promotion). NOT pushed at writing.
+    status: staging
     title: "Per-person attribution on shared tablets"
     commits:
       - "0064bf9"
@@ -25603,6 +25614,10 @@ phases:
       # /staff/[id] PIN control, migration, fixture
       # + the commit immediately after 0064bf9: docs(TAB-4) — this row,
       # NOTIFY-18, DECISIONS DRAFT, MIGRATIONS entry, CLAUDE.md env vars
+      - "e8cfa05"
+      # + the commit immediately after e8cfa05: docs(TAB-4) PRE-PUSH-CHECK —
+      # DECISIONS ratified, prompts of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
     notes: >
       ── RIDER 2026-11-10, TAB-4 build (prepended; nothing below is edited). ──
       BUILT, not yet checked on staging. "Per-person attribution" is built as

@@ -2,6 +2,112 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-10 — TAB-4: per-person PIN on shared tablets (off by default; calendar detail lists store + corporate staff)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`0064bf9`; docs commit `e8cfa05`; the PRE-PUSH-CHECK is the commit
+immediately after `e8cfa05`. **TIER 3:** a migration, three new routes, a
+server gate on two write routes, and a change to what a STORE login can
+record. DECISIONS 2026-11-10 TAB-4 RATIFIED by Gary at this check, in his
+own words (quoted there). Prompt of record `docs/prompts/TAB-4.md`, audit
+`TAB-4_AUDIT.md`, plan `TAB-4_PLAN.md`, all committed at this check.
+
+**Migration `20261111050000_tab4_tablet_pin`** (`docs/MIGRATIONS.md`).
+Additive only, no backfill: `Organization.tabletPinRequired` (boolean,
+default false) and `StaffMember.pinHash`, `pinSetAt`, `pinFailedAttempts`
+(default 0), `pinLockedUntil`. Dev `br-broad-wave-a6vpjdw0` applied
+2026-11-11 05:04:48 UTC (2026-11-10 21:04:48 PST), by Gary. Staging
+`br-square-feather-a63z92vz`: OWED, the Vercel build on Gary's push.
+Production `br-sparkling-block-a620qvg4`: OWED, at promotion.
+
+**Env vars (Gary adds in Vercel, Preview AND Production, separate values
+per environment, Sensitive):** `TABLET_PIN_PEPPER` (mixed into every PIN
+hash; ROTATING IT INVALIDATES EVERY PIN) and `TABLET_TOKEN_SECRET` (signs
+the 10-minute token; rotating it only ends open sessions). Missing = FAIL
+CLOSED: the switch shows "not configured" and can't be turned on, and while
+it is already on every PIN-required write is refused with a 503, never
+skipped. A deployment carries the env values that existed when it was
+BUILT, so the staging deployment must postdate the save.
+
+**Blast radius with the switch OFF (the default, every org):** nothing
+asks for a PIN anywhere. Two things change for every org regardless:
+(1) `POST /api/calendar/occurrences/[id]/complete` now checks the named
+person at CHK-15 parity (in the org, active, assigned to the occurrence's
+store or corporate) for every login, where before it checked only "in the
+org"; (2) so the calendar event detail's "Who completed this?" picker lists
+only staff assigned to the store plus corporate staff. Gary ratified this as
+a consequence of the parity fix. Also global: `pinHash` is omitted from every
+Prisma read at the root (`src/lib/prisma.ts`), which gave the client its own
+type; four helpers moved from `Prisma.TransactionClient` to the new `Db`
+type (type-only).
+
+**What ships with the switch ON (STORE logins only, Tablet OR Desktop
+view; personal logins are never asked).** The gate
+(`src/lib/tablet-pin-gate.ts`) on `POST /api/checklists/[id]/task-log`
+(ticks only) and the calendar complete route: a named person with a valid
+token bound to person, store, org and login, or refused; unnamed is refused.
+Each successful write returns a fresh 10-minute token (sliding). Checklist
+submit records no person and is not gated; messages are unchanged (Q11).
+New routes: `POST /api/tablet-pin/verify` (409 while the switch is off;
+5 wrong PINs lock that person for 5 minutes across every store, reserved
+atomically by one `updateManyAndReturn`; one AuditLog row
+`staff.pin.lockout` per lockout), `PUT /api/staff/[id]/pin` (ADMIN anyone;
+MANAGER own record and their stores' staff, never another MANAGER's or an
+ADMIN's; a set or reset also clears any lockout), `POST
+/api/settings/tablet-pin` (ADMIN; refuses ON without both secrets; OFF is
+always allowed). Screens: tablet Tasks panel and due list (name sheet
+without "Team Member" / "Manager", no-PIN names greyed "No PIN — ask a
+manager", digits-only PIN pad, "Completing as … · Change" chip, shown on
+the due list whenever a reused token is in play, cleared with the token at
+5 minutes idle); desktop checklist picker, due banner and calendar detail
+(PIN dialog, token dropped after 5 minutes idle). `/settings` "Shared
+Tablets" card with per-store readiness lines (information only);
+`/staff/[id]` "Shared-tablet PIN" status and Set / Reset PIN (the PIN and
+its hash are never shown or returned).
+
+Files: 36 in `0064bf9` (+2396/−111), including new `src/lib/tablet-pin*.ts`
+(six), `src/components/tablet-pin/{pin-pad,pin-session}.tsx`, the three new
+routes, `src/app/(app)/settings/tablet-pin-actions.tsx`,
+`src/app/(app)/staff/[id]/pin-control.tsx`, `scripts/verify-tab4-pin.ts`
+and the migration. Checks: verify-tab4-pin 78/78 (part C on dev
+`br-broad-wave-a6vpjdw0`, three runs); re-run on the applied schema:
+verify-chk15 28/28 (A4/A9 widened to the new picker shape, dated note in
+the file), verify-tab3-layout 28/28, verify-tab1-today 13/13,
+verify-tab1c-due-chip 11/11, verify-tab2-messages 23/23,
+verify-tab5-refresh 32/32, verify-tab9-cards 84/84; scoped eslint and
+`npm run build` green. Verified locally only on a mocked temporary `/menu`
+page, deleted before the commit. Follow-up filed: NOTIFY-18 (email a
+manager on repeated lockouts, planned).
+
+**Rollback.** `git revert 0064bf9`. The five columns stay (additive only);
+no code reads them after the revert, so an org left with
+`tabletPinRequired = true` and staff left with PIN hashes are inert. The
+calendar complete route goes back to the "in the org" check and the
+calendar detail back to every active person in the org.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+Adjusted from the TAB-4 prompt's draft list to what was built. Before
+pushing: both env vars saved in Preview. (0) The staging build log shows
+`20261111050000_tab4_tablet_pin` applied. (1) Switch off: `/settings`
+"Shared Tablets" reads off; as Tommy (STORE) the tablet name sheet still
+offers "Team Member" and "Manager", and ticks save as before. The calendar
+event detail lists only that store's staff plus corporate. (2) As
+`indianathomas` (ADMIN), set PINs for two staff on `/staff/[id]` (status
+only, never the PIN); the readiness line on `/settings` counts them. Turn
+the switch on. As Tommy: the generic options are gone; a staff member with
+no PIN is greyed "No PIN — ask a manager" and can't be picked. (3) Pick a
+name, enter the correct PIN, tick: it saves with that name (check on
+desktop). On the due list, the "Completing as … · Change" chip shows while
+the token is reused. (4) Enter a wrong PIN 5 times: that name locks for
+5 minutes; one AuditLog row `staff.pin.lockout` exists (Neon console,
+staging, branch named beside the result). Reset that PIN as ADMIN: the lock
+clears. (5) Leave the tablet untouched 5 minutes: the chip clears and the
+next tick asks for a name and PIN again. (6) Tommy in Desktop view: the
+checklist picker, due banner and calendar detail ask for a PIN. As
+`indianathomas` (personal login), nothing asks for a PIN in either view.
+(7) Posting a message still works without a PIN. (8) Turn the switch off
+again unless Gary wants staging left on.
+
 ## 8417fc3 — 2026-11-10 — TAB-9: Tablet home scrolls, cards expand in place, overdue list opens in place (HR chip hidden on STORE logins)
 
 **PROMOTED 2026-11-10 in merge `8417fc3`** ("Merge branch 'staging'",

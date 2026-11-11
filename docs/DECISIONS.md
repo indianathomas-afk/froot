@@ -7,6 +7,23 @@ decisions too.)
 
 ## 2026-11-10 — TAB-4: per-person PIN on shared tablets, rulings Q1–Q11 — DRAFT
 
+**RATIFIED BY GARY, 2026-11-10, at the TAB-4 PRE-PUSH-CHECK:** "I ratify
+the TAB-4 entry. Q1–Q11 are my rulings. I worked them through in the
+planning chat and I stand behind each one as recorded. I accept the three
+design choices and judgement calls a through l. On e: resetting a PIN
+clearing the lockout is how a manager gets someone unstuck, and I want it
+that way. On g: a lockout following the person to every store is right. The
+calendar detail now showing only store and corporate staff, switch on or
+off, is fine as a consequence of the CHK-15 parity fix." This covers the
+whole entry below: rulings Q1–Q11, the go-ahead and the three design
+choices, the gated route list, the calendar-detail consequence, the
+correct-5th-PIN answer, and Claude's judgement calls (a)–(l), all now
+ratified as his. The heading's "DRAFT", the "DRAFT, awaiting Gary's
+ratification" line, "for ratification" and "(all three untracked until
+PRE-PUSH-CHECK)" are spent, kept; `docs/prompts/TAB-4.md`,
+`TAB-4_AUDIT.md` and `TAB-4_PLAN.md` are committed at this check. Docs
+commit: `e8cfa05`. Wording untouched.
+
 **DRAFT, awaiting Gary's ratification at the TAB-4 PRE-PUSH-CHECK.** Prompt
 of record: `docs/prompts/TAB-4.md`; audit: `docs/prompts/TAB-4_AUDIT.md`;
 plan: `docs/prompts/TAB-4_PLAN.md` with its dated addendum (all three
