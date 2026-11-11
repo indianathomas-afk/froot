@@ -25854,9 +25854,63 @@ phases:
   - id: TAB-7
     track: platform
     size: S
-    status: planned
+    # planned -> in_progress 2026-11-11 at the work commit 316ffd4 (NOT
+    # pushed). The docs SHA is the commit immediately after 316ffd4 (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
+    # No migration. Rollback: `git revert 316ffd4`.
+    status: in_progress
     title: "Sales comparison — today so far vs last year at the same time of day (desktop + tablet)"
+    commits:
+      - "316ffd4"
+      # feat(TAB-7) — src/lib/sales-same-time.ts, /api/dashboard/summary
+      # sales.comparison, /api/dashboard/sales comparisonBasis, desktop Sales
+      # Performance card, tablet Sales tile + expanded card, verify-tab7
+      # + the commit immediately after 316ffd4: docs(TAB-7) — this row,
+      # DECISIONS DRAFT
     notes: >
+      ── RIDER 2026-11-11, TAB-7 build (prepended; nothing below is edited). ──
+      BUILT, not yet checked on staging. TIER 2: no schema, migration,
+      permission, env var, cron or new Square call. Prompt
+      docs/prompts/TAB-7.md (untracked until PRE-PUSH-CHECK). Leans as built,
+      with departures marked (design choice), in DECISIONS 2026-11-11 TAB-7,
+      DRAFT until PRE-PUSH-CHECK.
+      AUDIT: three surfaces compared today so far with the comparison day's
+      WHOLE day (desktop Sales Performance card via /api/dashboard/sales;
+      tablet Sales tile and TAB-9's expanded Sales card via
+      /api/dashboard/summary). The All-locations rollup has no last-year
+      comparison and is untouched. Hourly and period caches are written in
+      one transaction, both bucketed by created_at store-local; on dev
+      br-broad-wave-a6vpjdw0, 0 of 2,425 days lack hourly rows or differ by
+      more than a cent. No trigger fired.
+      WHAT SHIPS:
+        - src/lib/sales-same-time.ts (pure): compareTodayWithDay. Today: the
+          comparison day's hours before the current store-local hour plus the
+          current hour x minutes/60. A past day: its full day. Today with
+          sales but no hourly rows: the full day, labelled "(full day)". A $0
+          baseline: no percentage, shown as "—".
+        - /api/dashboard/summary adds sales.comparison (lastYear.total stays
+          the whole day). The tablet tile reads "vs last year by 10:15 AM";
+          the expanded card adds a "Same weekday last year by 10:15 AM" row.
+        - /api/dashboard/sales adds comparisonBasis for a single-day
+          selection, all compare modes. The desktop headline, its label and
+          the Transactions / Average sale pills use it; the Gross pill is
+          hidden on a same-time basis (no hourly gross). Ranges unchanged.
+        - Goal, pacing and rollup maths untouched.
+      FIXTURES: verify-tab7 64/64 (DB section read-only on dev
+      br-broad-wave-a6vpjdw0), verify-tab1-today 13/13, verify-tab1c-due-chip
+      11/11, verify-tab2-messages 23/23, verify-tab3-layout 28/28,
+      verify-tab4-pin 78/78, verify-tab5-refresh 32/32, verify-tab8 114/114,
+      verify-tab9-cards 84/84, verify-tpl3 44/44, verify-goal-engine 15/15,
+      verify-f4-rollup-webhook 24/24, verify-bug20 21/21. Build green; scoped
+      eslint 0 problems. Local check on a temporary mocked page under /menu,
+      deleted before the commit.
+      STAGING TESTS (Gary, after push; staging-SHA precondition first):
+      (1) during opening hours, desktop Sales Performance on Today: the label
+      reads "Prior <weekday> last year by <time>" and the figure is well under
+      last year's whole day; (2) tablet Sales tile: the ▲/▼ has "vs last year
+      by <time>" under it, and tapping it shows the "Same weekday last year by
+      <time>" row above the whole-day row; (3) desktop, Yesterday: no "by", a
+      full-day comparison as before; (4) All locations unchanged.
       Filed 2026-11-10 by TAB-5 from Gary's ruling 5 (he answered "OK. Write
       TAB-5" to the lean; the wording is the prompt's): compare today-so-far
       against last year at the same time of day, on both desktop and tablet.

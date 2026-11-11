@@ -5,6 +5,94 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-11 — TAB-7: today's sales vs last year at the same time of day — DRAFT
+
+**DRAFT, awaiting Gary's ratification at the TAB-7 PRE-PUSH-CHECK.** Prompt of
+record: `docs/prompts/TAB-7.md` (untracked until PRE-PUSH-CHECK). Work commit
+`316ffd4`. TIER 2. The leans in the prompt are **Claude's design choices**,
+not Gary's rulings; nothing below quotes him. The prompt's "settled" items
+(last year = today − 364 days; net sales per `docs/FORECASTING.md`; no new
+Square calls) were already Froot's convention and are unchanged.
+
+**Audit (brief, no artifact).**
+1. *Surfaces.* Three show a today-vs-last-year sales comparison: the desktop
+   Sales Performance card (`/api/dashboard/sales`, `selected.net` against
+   `compareData.net`, plus the Gross / Transactions / Average sale pills); the
+   tablet Sales tile (`/api/dashboard/summary`, `sales.today.total` against
+   `sales.lastYear.total`); and TAB-9's expanded Sales card (same payload,
+   "Same weekday last year …, whole day"). All three measured today so far
+   against the comparison day's WHOLE day. The All-locations rollup
+   (`/api/dashboard/rollup`) shows no last-year comparison at all.
+2. *Hourly coverage and bucketing.* `SalesHourlyCache` and `SalesPeriodCache`
+   are written in the same transaction from the same aggregation
+   (`writeSalesCache`, `src/lib/sales-sync.ts`), on every path (dashboard
+   gap-fill, webhook, reconcile cron, forecasting backfill, manual sync), both
+   bucketed by `created_at` in the store's zone since `e14f14b` (2026-07-09).
+   The schema's shared header comment still says "COMPLETED, closed_at"; it is
+   stale for both caches equally, not a bucketing difference. On dev
+   (`br-broad-wave-a6vpjdw0`): 2,425 cached days with sales, 0 without hourly
+   rows, 0 where Σ hourly differs from the period net by more than a cent.
+3. *Period row without hourly rows.* Cannot arise from current code (one
+   transaction); none on dev. The fallback below is defensive.
+4. *Store-local now.* Both routes take `store.timezone` and `localDateStr`;
+   hours are store-local wall-clock buckets. No trigger fired.
+
+**The leans as built.**
+
+1. **Today's comparison figure** = the comparison day's hourly net for every
+   hour before the current store-local hour, plus the current hour × (minutes
+   past ÷ 60). Computed on the server at request time
+   (`compareTodayWithDay`, `src/lib/sales-same-time.ts`), from one instant
+   that also decides "today", so it cannot straddle midnight.
+2. **Past days unchanged:** a finished day compares with the full day.
+3. **One shared helper**, `src/lib/sales-same-time.ts`, pure (no imports).
+   Both routes call `compareTodayWithDay`; the desktop `DeltaPill` and the
+   tablet tile share `pctChange`. *(design choice: the rollup has no
+   comparison, so there is nothing to sum per store and no drop-out count;
+   the fixture checks the rollup reads no comparison day instead.)*
+4. **Labels:** desktop "Prior Wed last year by 10:15 AM · Nov 12, 2025";
+   tablet tile "vs last year by 10:15 AM" under the ▲/▼; the expanded card
+   adds a "Same weekday last year by 10:15 AM" row above the whole-day row.
+   Past days keep the existing wording. *(design choice: the whole-day row
+   stays in the expanded card, since the hour-by-hour table needs it.)*
+5. **No meaningful comparison, no percentage.** A same-time baseline of $0
+   shows "—" (a grey pill on desktop, a grey "—" on the tile). *(design
+   choice: a period row of $0 with no hourly rows is a day with no sales, so
+   it is a same-time $0 → "—", not a fallback. Other no-baseline cases keep
+   the old behaviour: no pill.)*
+6. **Fallback:** today, comparison day with sales but no hourly rows →
+   full-day comparison labelled "(full day)". Never mixed within one figure.
+7. **Refresh:** no new timer. The tablet re-reads the summary on TAB-5's
+   cycle, so the same-time figure moves with the clock. The desktop card
+   fetches on load and selection change, as before; its label names the time
+   the figure runs to.
+8. **Store timezone, never the server's.** Known limit: on a DST change day
+   the comparison is wall clock against wall clock. The 1 AM bucket holds two
+   real hours after fall-back and 2 AM does not exist after spring-forward.
+   Right for a store shut at 1–3 AM, slightly off for one that is open.
+9. **Goal and pacing maths untouched** (`pacing.ts`, Monthly Goal card,
+   projections, rollup).
+
+**Departures from the prompt, all (design choice):**
+- Same-time applies to **every compare mode** on a single-day Today
+  selection (prior period, 4 weeks prior, prior year too), not only "same
+  weekday last year". Today so far against any whole day has the same defect.
+- The desktop **Transactions and Average sale** pills also use the same-time
+  basis (hourly order counts, pro-rated like net). The **Gross** pill is
+  hidden on a same-time basis, because the hourly cache has no gross and a
+  whole-day gross beside a same-time net would mix the two methods.
+- Rollup untouched (lean 3 above).
+- A **range ending today** (This week, Month to date) is unchanged: it still
+  compares window totals, today's partial day included.
+
+**Evidence.** `scripts/verify-tab7.ts` 64/64. Structural checks run against
+the pre-TAB-7 sources (`8365e0a`) as negative controls and fail there. A
+mutant helper that weights every hour fully fails 18. Database section is
+read-only on dev `br-broad-wave-a6vpjdw0` (branch id from `neon.branch_id`
+in the same run). Local check on a temporary mocked page under `/menu`,
+deleted before the commit: tile, expanded card and desktop card at 8:31 AM PT
+read "$203 by 8:31 AM" against a $2,150 day ($100 + $200 × 31/60).
+
 ## 2026-11-10 — TAB-8: read-only route for the tablet's Tasks refresh — DRAFT
 
 **RATIFIED BY GARY, 2026-11-11, at the TAB-8 PRE-PUSH-CHECK:** "Ratify as
