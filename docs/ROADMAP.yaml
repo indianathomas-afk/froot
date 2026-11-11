@@ -25621,7 +25621,21 @@ phases:
     # pushed). The docs SHA is the commit immediately after 44b80c5 (its own
     # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
     # No migration. Rollback: `git revert 44b80c5`.
-    status: in_progress
+    # in_progress -> staging 2026-11-10 at the TAB-9 PRE-PUSH-CHECK (the
+    # commit immediately after 5da4897; its own SHA cannot be written inside
+    # itself). Docs SHA: 9253bca (this row, TAB-10 ROW, DECISIONS DRAFT); fix
+    # SHA: 5da4897 (TIER 3 escalation — HR chip hidden on STORE logins; labor
+    # dollars dropped; idle scroll-to-top; rollover never blocked by scroll;
+    # fixture cases 9-12; the rider below; DECISIONS DRAFT addition). The
+    # check committed the prompt of record docs/prompts/TAB-9.md and wrote the
+    # DEPLOY_LOG UNPROMOTED entry. DECISIONS 2026-11-10 TAB-9 (rulings 1–9,
+    # build, calls (a)–(h), the fix) RATIFIED by Gary at this check, "Ratify
+    # as written". The notes' "DRAFT until PRE-PUSH-CHECK" is spent, kept.
+    # The rider's `git revert <fix> 44b80c5` resolves to
+    # `git revert 5da4897 44b80c5` (fix first, then work); 5da4897 also
+    # carries docs, so revert its src/ and scripts/ paths only if the rows
+    # should stay. No migration. NOT pushed at writing.
+    status: staging
     title: "Tablet home — the page scrolls, cards expand in place, the overdue list opens in place"
     commits:
       - "44b80c5"
@@ -25635,6 +25649,10 @@ phases:
       # and 9 (HR chip hidden on STORE logins, labor dollars never on the
       # tablet), idle scroll-to-top, rollover never blocked by scroll,
       # fixture cases 9-12, this rider, DECISIONS DRAFT addition
+      - "5da4897"
+      # + the commit immediately after 5da4897: docs(TAB-9) PRE-PUSH-CHECK —
+      # DECISIONS ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
     notes: >
       ── RIDER 2026-11-10, TAB-9 fix (prepended; nothing below is edited). ──
       Gary's rulings on the two RULING NOW items, verbatim: "HR chip — hide

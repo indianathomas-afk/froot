@@ -7,6 +7,17 @@ decisions too.)
 
 ## 2026-11-10 — TAB-9: a Tablet home that scrolls, cards that expand, an overdue list that opens in place — DRAFT
 
+**RATIFIED BY GARY, 2026-11-10, at the TAB-9 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: rulings 1–7, how it is built
+(page scroll, nested scroll, state, busy, the strip), Claude's judgement calls
+(a)–(h), rulings 8–9 and the fix instruction (his own words, quoted there),
+and how the fix is built, including its TIER 3 escalation — all now ratified
+as his. The heading's "DRAFT", the "DRAFT, awaiting Gary's ratification"
+line, "for ratification" and "(untracked until PRE-PUSH-CHECK)" are spent,
+kept; the prompt of record `docs/prompts/TAB-9.md` is committed at this
+check. The fix commit named above as "the fix commit after 9253bca" is
+`5da4897`. Wording untouched.
+
 **DRAFT, awaiting Gary's ratification at the TAB-9 PRE-PUSH-CHECK.** Prompt
 of record: `docs/prompts/TAB-9.md` (untracked until PRE-PUSH-CHECK). Work
 commit: 44b80c5. TIER 2: no schema, no migration, no endpoint, no

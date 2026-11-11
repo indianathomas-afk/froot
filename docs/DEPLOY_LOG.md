@@ -2,6 +2,102 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-10 — TAB-9: Tablet home scrolls, cards expand in place, overdue list opens in place (HR chip hidden on STORE logins)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`44b80c5`; docs commit `9253bca`; fix commit `5da4897` (Gary's rulings 8–9
+and fix instruction, fixes `44b80c5`); the PRE-PUSH-CHECK is the commit
+immediately after `5da4897`. Work commit TIER 2; **fix commit escalated to
+TIER 3** — it changes what a STORE login sees (the personal HR chip is
+hidden on STORE logins in Tablet mode). No migration, no schema change, no
+new route, no new dependency. Tablet mode (TAB-1 through TAB-9) is not
+promoted yet; the series ships together. DECISIONS 2026-11-10 TAB-9
+RATIFIED by Gary at this check, "Ratify as written".
+
+What ships (display only, over `GET /api/dashboard/summary` and the
+existing Tasks/Messages/chip payloads). **The page scrolls:** the tablet
+shell no longer clips the home (`h-dvh overflow-hidden` removed); TabletHome
+measures its header and sizes the columns and strip row to one screen below
+it, so the first screen opens as before. **Cards expand in place:** strip
+tiles look as before until tapped; a tap opens that card below the first
+screen, one at a time, closed by a second tap or "Show less"; collapsing
+returns the page to where it was before the first card opened. Sales: hour by
+hour vs the same weekday last year (the ▲/▼ headline is unchanged — TAB-7).
+Monthly goal: month-to-date, goal, to go, per remaining day. Labor:
+month-to-date %, target, last sync and the desktop's footnotes —
+**percentages only**; `laborCost` is dropped from the payload on receipt
+(ruling 9), and there is no Labor card at all when `labor` is absent. **The
+overdue list opens in place** under the header, toggled by the chip, no
+sheet; row actions unchanged. **Idle:** an open card or the open list
+collapses after 5 minutes without a touch, and the page scrolls back to the
+top; also at the day rollover or a store switch; never on a refresh. An open
+card, the open list, and a page scrolled away while in use are TAB-5 busy
+flags; scroll position never blocks the day rollover. **Nested scroll:**
+`overscroll-contain` removed from the Tasks panels and the Messages thread so
+a flick at a column's end carries into the page; the bottom sheet's scrim is
+`touch-none`. **Chips:** the personal HR chip reads "My HR · N", amber when
+something is past due, neutral otherwise; only the store's overdue chip is
+red and says "overdue". Expansion is React state only, never saved.
+
+**The TIER 3 change (`5da4897`, Gary's ruling 8).** "HR chip — hide it on
+STORE logins in Tablet mode; keep it for personal logins."
+`showHrChip(role)` is false for `STORE` only; `page.tsx` passes the role it
+already reads through `getUserStoreScope()`. A STORE login neither renders
+nor fetches the chip. A login whose role does not resolve keeps it (the
+`my-compliance` route's own gates still decide what it shows). The route, its
+gates, and desktop's ComplianceBanner are unchanged. Blast radius: one chip,
+Tablet mode only, STORE logins only.
+
+**Does not ship:** transactions and average sale on the expanded Sales card
+(not on the summary payload — filed as TAB-10, planned). With nothing open
+the page is exactly one screen tall (judgement call (a): the strip row stays
+on the first screen), so there is nothing to flick to until a card or the
+list is open.
+
+Files: new `src/lib/tablet-cards.ts`, `scripts/verify-tab9-cards.ts`;
+edited `src/app/(app)/dashboard/{page,tablet-home,tablet-messages,tablet-strip}.tsx`,
+`src/components/layout/tablet-shell.tsx`, `src/components/ui/bottom-sheet.tsx`.
+Checks: verify-tab9-cards 84/84 (58/58 at `44b80c5`), verify-tab1-today
+13/13, verify-tab1c-due-chip 11/11, verify-tab2-messages 23/23,
+verify-tab3-layout 28/28 (DB part on dev `br-broad-wave-a6vpjdw0`, rolled
+back), verify-tab5-refresh 32/32; scoped eslint and `npm run build` green.
+Verified locally only on a mocked temporary page (wheel input at 1180×820
+and 820×1180; shortened interval and idle timer), reverted before each
+commit. iPad Safari touch scroll chaining is unverified until staging test
+(3).
+
+**Rollback.** `git revert 5da4897 44b80c5` (fix first, then work); no
+migration. `5da4897` also carries ROADMAP/DECISIONS lines, so revert only its
+`src/` and `scripts/` paths if the rows should stay. The tablet goes back to
+TAB-5's one-screen home: the overdue list in a bottom sheet, the HR chip red
+and shown to every login. Nothing is stored, so nothing is left behind.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+Tests (1)–(8) are the TAB-9 prompt's list, unchanged. Safari as
+`indianathomas` in Tablet mode on Las Brisas, with Sales, Monthly goal and
+Labor turned on in Display settings. (1) The first screen looks exactly as
+before: header, Tasks and Messages. (2) Flick down. The page scrolls to the
+cards below. Flick back up. (3) Start a flick inside the Tasks list and
+inside the Messages thread. When each reaches its end, the page keeps
+scrolling and nothing gets stuck. (4) Tap Sales. It expands in place with
+hourly detail. Tap Monthly goal, and Sales collapses as Goal expands. Tap
+again to collapse. (5) Tap the overdue chip. The list opens in place under
+the header, with nothing frozen, and you can scroll past it. Tap the chip
+again to close it. (6) Expand a card and wait 2 minutes. It stays open and
+nothing jumps. Wait 5 minutes without touching. It collapses by itself.
+(7) The HR chip is amber or neutral and reads something like "My HR · 2".
+Only the store overdue chip is red. (8) As Tommy (STORE): check what the HR
+chip shows and whether it makes sense on a shared counter tablet. Confirm the
+Labor card doesn't appear for any login that can't see labor on desktop.
+Notes added by this check: for (2), expand a card (or open the list) first —
+with nothing open there is nothing below the first screen (call (a)). For
+(8), after `5da4897` the expected result is NO HR chip for Tommy. Added for
+`5da4897`: (9) Expand Labor as `indianathomas`: percentages only, no dollar
+figure anywhere. (10) Expand a card, scroll to the bottom of the page, and
+leave it 5 minutes untouched: the card collapses AND the page returns to the
+top; tick an item from desktop and it appears within about a minute after
+that.
+
 ## UNPROMOTED — 2026-11-10 — TAB-5: Tablet home keeps itself current (one refresh controller, store-local day rollover, offline guard)
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
