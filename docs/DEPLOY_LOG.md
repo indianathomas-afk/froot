@@ -2,7 +2,90 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-11 — TAB-13: Tablet home — checklist switcher on the hero (Design Option 1)
+## def04fa — 2026-11-11 — TAB-13: Tablet home — checklist switcher on the hero (Design Option 1)
+
+**PROMOTED 2026-11-11 in merge `def04fa`** (`def04fa30532a459e039af9609143930f5b4bb99`,
+"Merge branch 'staging'", 2026-11-11 13:58:40 -0800 (PST) = 2026-11-11
+21:58:40 UTC), `--no-ff`. First parent `c21fe51` (prior tip of `main`, the
+2026-11-11 TAB-4 → TAB-12 promotion), second parent `fdf7488` (staging tip,
+the TAB-13 PRE-PUSH-CHECK). **3 commits** in `def04fa^1..def04fa^2`:
+`993977f` (work), `b106aa7` (docs), `fdf7488` (PRE-PUSH-CHECK); **11 files**,
+1541 insertions, 104 deletions (`git diff --shortstat def04fa^1 def04fa`).
+No migration (no `prisma/` change in the range). The merge's tree equals
+`fdf7488`'s. Made locally by the promotion session on Gary's instruction,
+**NOT pushed at writing**: measured by `git rev-parse` after `git fetch`,
+`main` = `staging` (local, fast-forwarded to `def04fa` by this pass) =
+`def04fa`; `origin/main` = `c21fe51` and `origin/staging` = `fdf7488` until
+Gary pushes. **Main → staging catch-up:** that fast-forward also brings
+`c21fe51` into `staging` for the first time (left out on Gary's instruction
+at the TAB-13 PRE-PUSH-CHECK); `c21fe51`'s own stamps are written in this
+same pass (the TAB-12 entry below). Stamped post-merge 2026-11-11 on
+`staging` (R1); the heading previously read "UNPROMOTED — 2026-11-11 —
+TAB-13: …". Spent, kept below: "Staging only, not on `main`. NOT pushed at
+writing" (Gary pushed `fdf7488` to staging before this pass), "The main →
+staging catch-up (`c21fe51`) is NOT in this push", and the "Staging tests
+owed" list (results below).
+
+**Rollback.** `git revert -m 1 def04fa`. No schema or data to undo. If
+production is broken: Vercel → Deployments → promote the previous production
+deployment (built from `c21fe51`, `froot-1kpsm7gn1`) back to current, then
+revert at leisure.
+
+**Staging evidence, Gate 3 (2026-11-11, the promotion session, Claude in
+Chrome).** Precondition, read before testing: org
+`org_3G02wO4QlVVSWppi8aqlnSZnsDa` ("Keva Juice (staging)"), Clerk
+`verified-snapper-7` (development instance), both from `window.Clerk`; the
+staging alias served deployment `froot-6lt92nb99` (`dpl_GsCwGNGq…`), the
+only deployment with `githubCommitSha` = `fdf7488` = local HEAD then, and
+the page footer read `fdf7488~staging`. Store Las Brisas
+(`cmrd1a4hz000004jjl91v23nm`), the only store this login sees. Viewport
+1512×787, Tablet mode.
+1. **Tab order — PASS.** Opener (In Progress, overdue) → Mid-Shift (not
+   started, due 7 PM) → Cleaning "Overdue Test" (not started, due 12 AM) →
+   Closer (upcoming); Opener selected on load and again after a reload.
+   Matches GET `/api/stores/[id]/templates` under RN-3.
+2. **Switching — PASS.** Four tab taps: colour, icon, name, counts and
+   button changed each time; no request to the app; URL stayed `/dashboard`.
+3. **Button target — PASS.** Continue (Opener): the existing inline tick
+   list in the card, no navigation. Start (Mid-Shift): one POST
+   `/api/checklists` 201 plus the existing re-reads; the 31-task tick list in
+   the card. View (Gary's ruling: done by the session): Cleaning "Overdue
+   Test" started (POST 201), its one task ticked as "Team Member" (POST
+   task-log 200), submitted (POST submit 200); the tab moved last and read
+   "Done"; the hero showed the Completed chip, "1 task · Completed", 1 of 1
+   done and View; View opened the Done screen in the card, no request, no
+   navigation. Both runs stay on staging (Gary). Seen in passing: a started
+   run with no ticks ("Pending", Mid-Shift) ranks with the not-started ones,
+   by design (`inProgress`, `tablet-home.tsx:1100`); the Done screen's "Up
+   next" offered Opener (in progress) under a "Start" label that opens its
+   existing tick list — the hard-coded label predates TAB-13 (`993977f^`,
+   same button). Not filed.
+4. **Store switch,** 5. **one / none,** 6. **unmapped type — covered by
+   `scripts/verify-tab13-switcher.ts` plus the observed reload reset, NOT
+   observed on staging** (Gary's ruling): one store, four checklists, every
+   staging type mapped.
+7. **Desktop — "after" captured, "before" NOT captured.** Ruled covered by
+   code evidence (Gary): only tablet modules import the changed files, and
+   the desktop branch of `dashboard/page.tsx` renders none of them. After:
+   desktop Home on `fdf7488` rendered every card (Monthly Goal $15,801 of
+   $44,200; Shift Checklist 10/76, which counts the Mid-Shift run from
+   check 3).
+8. **Portrait — PASS, observed by Gary on the iPad** (not by this session):
+   "Check 8: OK. iPad portrait at Las Brisas on staging: the tab row scrolls
+   sideways, the page doesn't, and OPENER isn't clipped." His first message
+   left the result as "[OK / describe issue]"; this replaces that.
+
+**The missing November Goal tile (Gary's question) — data, not code.**
+`993977f` does not touch the stat strip (`tablet-strip.tsx`, `tablet-data.ts`
+are not in its diff). The tiles come only from `Organization.tabletLayout`;
+staging `br-square-feather-a63z92vz` (Gary's console query, branch column
+shown) holds `{"key": "monthly-goal", "enabled": false}`, and the staging
+server returned `stripTiles: ["sales","labor-pct"]`. Nothing in this push
+writes that setting, so the pre-TAB-13 build read the same value (inferred:
+`Organization` has no `updatedAt`). **Las Brisas's Cleaning "1 task" —
+real, not DEBT-132:** the "Overdue Test" template has one live task,
+excluded only at store `cmrd1a3es000104kzao4mf69v`, not Las Brisas
+(`br-square-feather-a63z92vz`, Gary's query), and the tick list showed 1.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `993977f`, docs `b106aa7`; the PRE-PUSH-CHECK is the commit immediately
@@ -78,7 +161,38 @@ today), switching with no request, Start / Continue / View targets, store
 switch resets, one / none, unmapped type grey, Desktop Home unchanged with
 before/after screenshots, portrait fit.
 
-## UNPROMOTED — 2026-11-11 — TAB-12: Tablet home — choose a message type (type tag in the composer)
+## c21fe51 — 2026-11-11 — TAB-12: Tablet home — choose a message type (type tag in the composer)
+
+**PROMOTED 2026-11-11 in merge `c21fe51`** (`c21fe51c61fe20e3dc29bbc00618c5da311e76a2`,
+"Promote TAB-4, TAB-7, TAB-8, TAB-10, TAB-11, TAB-12", 2026-11-11 12:01:12
+-0800 (PST) = 2026-11-11 20:01:12 UTC), `--no-ff`. First parent `8417fc3`
+(prior tip of `main`), second parent `68d3bc5` (staging tip, the TAB-12
+PRE-PUSH-CHECK). **29 commits** in `c21fe51^1..c21fe51^2` besides the merge
+(`git log --no-merges`), **73 files**, 9510 insertions, 354 deletions
+(`git diff --shortstat c21fe51^1 c21fe51`): TAB-4 `0064bf9`, `e8cfa05`,
+`7397e35` and the staging rebuilds `9fb024a`, `151b7e4`, `29abe48`; TAB-8
+`c18b0d7`, `a8c17d2`, `1e5ebc1`, `4cd349a`, `8365e0a`; TAB-7 `316ffd4`,
+`979b6e7`, `3f92131`, `8f34e1b`, `885d65f`; TAB-10 `e12bc2d`, `fbb30e3`,
+`742f98d`, `ef71fe8`, `6655ab6`; TAB-11 `498322a`, `ac5a383`, `d4a5cea`;
+TAB-12 `25f823c`, `5b0060f`, `68d3bc5`; and the previous promotion's docs
+passes `28c38ec`, `f3e5695`. **One migration:**
+`20261111050000_tab4_tablet_pin` (the TAB-4 entry below). **THIS STAMP IS
+LATE:** `c21fe51` got no docs pass when it was made, and `staging` did not
+take the merge-back; both are done by the TAB-13 promotion pass (merge
+`def04fa`, the entry above), which fast-forwarded `staging` through
+`c21fe51`. Production deployment built from `c21fe51`: `froot-1kpsm7gn1`
+(`vercel ls --prod --meta githubCommitSha=c21fe51…`). The five other
+entries promoted here (TAB-11, TAB-10, TAB-7, TAB-8, TAB-4) point to this
+one. Stamped post-merge 2026-11-11 on `staging` (R1); the heading previously
+read "UNPROMOTED — 2026-11-11 — TAB-12: …". Spent, kept below: the "Staging
+only, not on `main`. NOT pushed at writing" line and the "Staging tests
+owed" list. Staging: Gary promoted it after his own staging pass; no
+per-test results are recorded here.
+
+**Rollback (whole promotion).** `git revert -m 1 c21fe51` — after
+`def04fa` is pushed, revert `def04fa` first (`git revert -m 1 def04fa`),
+or TAB-13 is left on a tablet home it was built over. The TAB-4 migration
+only adds columns; it stays (additive-only schema).
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `25f823c`, docs `5b0060f`; the PRE-PUSH-CHECK is the commit immediately
@@ -138,7 +252,9 @@ Team Messages unchanged, Desktop unchanged, portrait — plus Gary's test 11:
 pick Shift Note · Mid, post, and confirm it shows a Shift Note badge on the
 home and files under Mid on Team Messages.
 
-## UNPROMOTED — 2026-11-11 — TAB-11: Team Messages in Tablet mode (touch two-pane in landscape, one column in portrait)
+## c21fe51 — 2026-11-11 — TAB-11: Team Messages in Tablet mode (touch two-pane in landscape, one column in portrait)
+
+**PROMOTED 2026-11-11 in merge `c21fe51`**, with TAB-4, TAB-7, TAB-8, TAB-10, TAB-11 and TAB-12 (the TAB-12 entry above carries the merge facts). Its commits: `498322a` (work), `ac5a383` (docs), `d4a5cea` (PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-11 on `staging` by the TAB-13 promotion pass (late; see the TAB-12 entry); the heading previously read "UNPROMOTED — 2026-11-11 — TAB-11: …". Spent, kept below: the "Staging only, not on `main`. NOT pushed at writing" line and the "Staging tests owed" list. Rollback (whole promotion): `git revert -m 1 c21fe51`, after reverting `def04fa` if that is pushed.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `498322a`, docs `ac5a383`; the PRE-PUSH-CHECK is the commit immediately
@@ -201,7 +317,9 @@ type and status filters; post as Shortage and type back to General;
 Photo / File / Video; reactions; "Show 1 more" and trash only where desktop
 shows it; portrait one column; keyboard keeps the composer visible.
 
-## UNPROMOTED — 2026-11-11 — TAB-10: transactions and average sale on the tablet's expanded Sales card (desktop Average sale "—" at 0 transactions)
+## c21fe51 — 2026-11-11 — TAB-10: transactions and average sale on the tablet's expanded Sales card (desktop Average sale "—" at 0 transactions)
+
+**PROMOTED 2026-11-11 in merge `c21fe51`**, with TAB-4, TAB-7, TAB-8, TAB-10, TAB-11 and TAB-12 (the TAB-12 entry above carries the merge facts). Its commits: `e12bc2d` (work), `fbb30e3` (docs), `742f98d` (fix), `ef71fe8` (fix rider), `6655ab6` (PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-11 on `staging` by the TAB-13 promotion pass (late; see the TAB-12 entry); the heading previously read "UNPROMOTED — 2026-11-11 — TAB-10: …". Spent, kept below: the "Staging only, not on `main`. NOT pushed at writing" line and the "Staging tests owed" list. Rollback (whole promotion): `git revert -m 1 c21fe51`, after reverting `def04fa` if that is pushed.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `e12bc2d`, docs `fbb30e3`; fix commit `742f98d` (Gary's ruling,
@@ -273,7 +391,9 @@ Performance on Today before the store's first sale (with last year having
 sales by then): Average sale reads "—" with no pill; Transactions shows 0
 and its ▼.
 
-## UNPROMOTED — 2026-11-11 — TAB-7: today's sales compared with last year at the same time of day (desktop card, tablet tile, ranges ending today)
+## c21fe51 — 2026-11-11 — TAB-7: today's sales compared with last year at the same time of day (desktop card, tablet tile, ranges ending today)
+
+**PROMOTED 2026-11-11 in merge `c21fe51`**, with TAB-4, TAB-7, TAB-8, TAB-10, TAB-11 and TAB-12 (the TAB-12 entry above carries the merge facts). Its commits: `316ffd4` (work), `979b6e7` (docs), `3f92131` (fix), `8f34e1b` (fix rider), `885d65f` (PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-11 on `staging` by the TAB-13 promotion pass (late; see the TAB-12 entry); the heading previously read "UNPROMOTED — 2026-11-11 — TAB-7: …". Spent, kept below: the "Staging only, not on `main`. NOT pushed at writing" line and the "Staging tests owed" list. Rollback (whole promotion): `git revert -m 1 c21fe51`, after reverting `def04fa` if that is pushed.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `316ffd4`, docs `979b6e7`; fix commit `3f92131` (Gary's ruling,
@@ -346,7 +466,9 @@ full-day comparison as before. (4) All locations unchanged. (5) Desktop,
 This week and Month to date during opening hours: "Same period last year by
 <time>"; Last week: no "by".
 
-## UNPROMOTED — 2026-11-11 — TAB-8: tablet Tasks refresh reads a read-only route (no router.refresh(); PIN switch and tiles follow within a minute)
+## c21fe51 — 2026-11-11 — TAB-8: tablet Tasks refresh reads a read-only route (no router.refresh(); PIN switch and tiles follow within a minute)
+
+**PROMOTED 2026-11-11 in merge `c21fe51`**, with TAB-4, TAB-7, TAB-8, TAB-10, TAB-11 and TAB-12 (the TAB-12 entry above carries the merge facts). Its commits: `c18b0d7` (work), `a8c17d2` (docs), `1e5ebc1` (fix), `4cd349a` (fix rider), `8365e0a` (PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-11 on `staging` by the TAB-13 promotion pass (late; see the TAB-12 entry); the heading previously read "UNPROMOTED — 2026-11-11 — TAB-8: …". Spent, kept below: the "Staging only, not on `main`. NOT pushed at writing" line and the "Staging tests owed" list. Rollback (whole promotion): `git revert -m 1 c21fe51`, after reverting `def04fa` if that is pushed.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `c18b0d7`, docs `a8c17d2`; fix commit `1e5ebc1` (Gary's ruling,
@@ -424,7 +546,9 @@ and ticks save without a PIN. (6) Reorder or enable a strip tile in
 `/settings`: the tablet follows within a minute. (7) A multi-store login
 switching stores sees that store's current ticks at once.
 
-## UNPROMOTED — 2026-11-10 — TAB-4: per-person PIN on shared tablets (off by default; calendar detail lists store + corporate staff)
+## c21fe51 — 2026-11-10 — TAB-4: per-person PIN on shared tablets (off by default; calendar detail lists store + corporate staff)
+
+**PROMOTED 2026-11-11 in merge `c21fe51`**, with TAB-4, TAB-7, TAB-8, TAB-10, TAB-11 and TAB-12 (the TAB-12 entry above carries the merge facts). Its commits: `0064bf9` (work), `e8cfa05` (docs), `7397e35` (PRE-PUSH-CHECK), and the staging rebuilds `9fb024a`, `151b7e4`, `29abe48`. **Migration `20261111050000_tab4_tablet_pin`:** the production build log of `froot-1kpsm7gn1` (`vercel inspect --logs`, read by this pass) shows "Applying migration `20261111050000_tab4_tablet_pin`" and "All migrations have been successfully applied" at 2026-11-11T20:02:32Z; **production `br-sparkling-block-a620qvg4` evidence with the branch column: PENDING** (Gary's ruling: not "applied" without it; the Neon console was not reachable from this session). Details in `docs/MIGRATIONS.md`. **Env vars:** `TABLET_PIN_PEPPER` and `TABLET_TOKEN_SECRET` are listed in Vercel Production (`vercel env ls production`, names only, created about 16 h before this stamp). The "OWED" staging and production lines below are superseded by this stamp, kept. Stamped post-merge 2026-11-11 on `staging` by the TAB-13 promotion pass (late; see the TAB-12 entry); the heading previously read "UNPROMOTED — 2026-11-10 — TAB-4: …". Spent, kept below: the "Staging only, not on `main`. NOT pushed at writing" line and the "Staging tests owed" list. Rollback (whole promotion): `git revert -m 1 c21fe51`, after reverting `def04fa` if that is pushed.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `0064bf9`; docs commit `e8cfa05`; the PRE-PUSH-CHECK is the commit

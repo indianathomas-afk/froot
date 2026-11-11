@@ -25605,7 +25605,18 @@ phases:
     # words (quoted there). The notes' "DRAFT until PRE-PUSH-CHECK" is spent,
     # kept. Migration still OWED on staging (the Vercel build on Gary's push)
     # and production (at promotion). NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11, stamped post-merge 2026-11-11 on
+    # `staging` by the TAB-13 promotion pass (late: c21fe51 got no docs pass
+    # when it was made): merge c21fe51, "Promote TAB-4, TAB-7, TAB-8, TAB-10,
+    # TAB-11, TAB-12" (DEPLOY_LOG entry `c21fe51 — ... — TAB-4: ...`; the
+    # TAB-12 entry carries the merge facts). The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole promotion):
+    # `git revert -m 1 c21fe51`, after `git revert -m 1 def04fa` once that
+    # is pushed.
+    # Migration 20261111050000_tab4_tablet_pin: production
+    # (br-sparkling-block) evidence PENDING — see docs/MIGRATIONS.md.
+    status: shipped
+    shipped: 2026-11-11
     title: "Per-person attribution on shared tablets"
     commits:
       - "0064bf9"
@@ -25872,7 +25883,16 @@ phases:
     # "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" and
     # "untracked until PRE-PUSH-CHECK" are spent, kept. No migration. Rollback
     # stays `git revert 3f92131 316ffd4`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11, stamped post-merge 2026-11-11 on
+    # `staging` by the TAB-13 promotion pass (late: c21fe51 got no docs pass
+    # when it was made): merge c21fe51, "Promote TAB-4, TAB-7, TAB-8, TAB-10,
+    # TAB-11, TAB-12" (DEPLOY_LOG entry `c21fe51 — ... — TAB-7: ...`; the
+    # TAB-12 entry carries the merge facts). The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole promotion):
+    # `git revert -m 1 c21fe51`, after `git revert -m 1 def04fa` once that
+    # is pushed.
+    status: shipped
+    shipped: 2026-11-11
     title: "Sales comparison — today so far vs last year at the same time of day (desktop + tablet)"
     commits:
       - "316ffd4"
@@ -26008,7 +26028,16 @@ phases:
     # check: "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" and
     # "untracked until PRE-PUSH-CHECK" are spent, kept. No migration. Rollback
     # stays `git revert 1e5ebc1 c18b0d7`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11, stamped post-merge 2026-11-11 on
+    # `staging` by the TAB-13 promotion pass (late: c21fe51 got no docs pass
+    # when it was made): merge c21fe51, "Promote TAB-4, TAB-7, TAB-8, TAB-10,
+    # TAB-11, TAB-12" (DEPLOY_LOG entry `c21fe51 — ... — TAB-8: ...`; the
+    # TAB-12 entry carries the merge facts). The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole promotion):
+    # `git revert -m 1 c21fe51`, after `git revert -m 1 def04fa` once that
+    # is pushed.
+    status: shipped
+    shipped: 2026-11-11
     title: "Read-only checklist-items endpoint so the tablet Tasks panel refreshes without router.refresh()"
     commits:
       - "c18b0d7"
@@ -26283,7 +26312,16 @@ phases:
     # check: "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" and
     # "untracked until PRE-PUSH-CHECK" are spent, kept. No migration.
     # Rollback stays `git revert 742f98d e12bc2d`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11, stamped post-merge 2026-11-11 on
+    # `staging` by the TAB-13 promotion pass (late: c21fe51 got no docs pass
+    # when it was made): merge c21fe51, "Promote TAB-4, TAB-7, TAB-8, TAB-10,
+    # TAB-11, TAB-12" (DEPLOY_LOG entry `c21fe51 — ... — TAB-10: ...`; the
+    # TAB-12 entry carries the merge facts). The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole promotion):
+    # `git revert -m 1 c21fe51`, after `git revert -m 1 def04fa` once that
+    # is pushed.
+    status: shipped
+    shipped: 2026-11-11
     title: "Tablet expanded Sales card — transactions and average sale"
     commits:
       - "e12bc2d"
@@ -26412,7 +26450,16 @@ phases:
     # desktop changes. The notes' "DRAFT until PRE-PUSH-CHECK" and
     # "untracked until PRE-PUSH-CHECK" are spent, kept. No migration.
     # Rollback stays `git revert 498322a`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11, stamped post-merge 2026-11-11 on
+    # `staging` by the TAB-13 promotion pass (late: c21fe51 got no docs pass
+    # when it was made): merge c21fe51, "Promote TAB-4, TAB-7, TAB-8, TAB-10,
+    # TAB-11, TAB-12" (DEPLOY_LOG entry `c21fe51 — ... — TAB-11: ...`; the
+    # TAB-12 entry carries the merge facts). The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole promotion):
+    # `git revert -m 1 c21fe51`, after `git revert -m 1 def04fa` once that
+    # is pushed.
+    status: shipped
+    shipped: 2026-11-11
     title: "Team Messages in Tablet mode — touch two-pane layout"
     commits:
       - "498322a"
@@ -26495,7 +26542,16 @@ phases:
     # "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" and
     # "untracked until PRE-PUSH-CHECK" are spent, kept. No migration.
     # Rollback stays `git revert 25f823c`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11, stamped post-merge 2026-11-11 on
+    # `staging` by the TAB-13 promotion pass (late: c21fe51 got no docs pass
+    # when it was made): merge c21fe51, "Promote TAB-4, TAB-7, TAB-8, TAB-10,
+    # TAB-11, TAB-12" (DEPLOY_LOG entry `c21fe51 — ... — TAB-12: ...`; the
+    # TAB-12 entry carries the merge facts). The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole promotion):
+    # `git revert -m 1 c21fe51`, after `git revert -m 1 def04fa` once that
+    # is pushed.
+    status: shipped
+    shipped: 2026-11-11
     title: "Tablet home — choose a message type (type tag in the composer)"
     commits:
       - "25f823c"
@@ -26576,7 +26632,26 @@ phases:
     # PRE-PUSH-CHECK" are spent, kept. No migration. Rollback stays
     # `git revert 993977f`. The main -> staging catch-up (c21fe51) is left
     # for the next promotion, on Gary's instruction. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11 at merge def04fa ("Merge branch
+    # 'staging'", parents c21fe51 + fdf7488; 3 commits 993977f, b106aa7,
+    # fdf7488), stamped post-merge 2026-11-11 on `staging` (R1) by the
+    # promotion pass, NOT pushed at writing. The same pass fast-forwarded
+    # staging through c21fe51 (the main -> staging catch-up) and stamped
+    # c21fe51's rows. Gate 3 on staging (fdf7488, org
+    # org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk verified-snapper-7, Las Brisas):
+    # 1 order PASS, 2 switching PASS (no request), 3 Start / Continue / View
+    # PASS (View: Overdue Test completed on staging), 4-6 covered by
+    # verify-tab13-switcher + the observed reload reset, not observed on
+    # staging (Gary's ruling), 7 desktop after captured / before NOT
+    # captured (ruled covered by code evidence), 8 portrait PASS, observed by Gary
+    # on the iPad (scrolling tab row, no page scroll, OPENER unclipped). Goal tile missing = data
+    # (staging tabletLayout monthly-goal enabled:false); Cleaning 1 task real,
+    # not DEBT-132. Full record: DEPLOY_LOG `def04fa — 2026-11-11 — TAB-13`.
+    # The "NOT pushed at writing" comments above are spent (Gary pushed
+    # fdf7488 to staging), kept. No migration. Rollback:
+    # `git revert -m 1 def04fa`.
+    status: shipped
+    shipped: 2026-11-11
     title: "Tablet home — checklist switcher on the hero (Design Option 1)"
     commits:
       - "993977f"
