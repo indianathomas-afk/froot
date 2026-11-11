@@ -93,6 +93,32 @@ in the same run). Local check on a temporary mocked page under `/menu`,
 deleted before the commit: tile, expanded card and desktop card at 8:31 AM PT
 read "$203 by 8:31 AM" against a $2,150 day ($100 + $200 × 31/60).
 
+**Addendum 2026-11-11 — ranges ending today (Gary's ruling).** The report
+put the last departure above as RULING NOW. Gary, quoted: "Cut it. When a
+range ends today (This week, Month to date, any range that includes today),
+compare against last year's matching range with its last day cut at the same
+time of day, using the same helper. Ranges that end before today are
+unchanged." That departure ("A range ending today … is unchanged") is
+superseded by this ruling; its text above is kept.
+
+Built in fix commit `3f92131`. `compareWindowEndingToday` counts every earlier
+day of the comparison window in full and passes the last day through
+`compareTodayWithDay`. The figure takes the last day's method and label ("by
+10:15 AM", or "(full day)" when the last day has sales but no hourly rows).
+`compareSelection` is now the one entry point the route calls: single day
+today, single past day, range ending today, or range ending before today
+(null, window totals as before). Applies to every compare mode, as for single
+days. The desktop card needed no logic change. *(design choice: when the
+window's last day is not cached at all, the earlier days count and the method
+is a plain "full-day" with no suffix, since there is no partial day to cut;
+the existing gap-fill makes this rare.)*
+
+Evidence: `verify-tab7` 88/88. Section 10 runs negative controls against
+`316ffd4` and 7-day windows on dev `br-broad-wave-a6vpjdw0`. A mutant without
+the "ends before today" guard fails 2; a mutant that does not cut fails 10.
+Local check: This week at 8:39 AM PT read $4,730 (3 × $1,500 + $100 + $200 ×
+39/60) "by 8:39 AM"; Last week read the whole window with no "by".
+
 ## 2026-11-10 — TAB-8: read-only route for the tablet's Tasks refresh — DRAFT
 
 **RATIFIED BY GARY, 2026-11-11, at the TAB-8 PRE-PUSH-CHECK:** "Ratify as

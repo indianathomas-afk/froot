@@ -25858,6 +25858,10 @@ phases:
     # pushed). The docs SHA is the commit immediately after 316ffd4 (its own
     # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
     # No migration. Rollback: `git revert 316ffd4`.
+    # 2026-11-11: fix commit 3f92131 on Gary's ruling ("Cut it.") before
+    # PRE-PUSH-CHECK; docs SHA 979b6e7, and the fix's docs are the commit
+    # immediately after 3f92131. Still in_progress. The rollback above is
+    # superseded: `git revert 3f92131 316ffd4` (fix first, then work).
     status: in_progress
     title: "Sales comparison — today so far vs last year at the same time of day (desktop + tablet)"
     commits:
@@ -25867,7 +25871,42 @@ phases:
       # Performance card, tablet Sales tile + expanded card, verify-tab7
       # + the commit immediately after 316ffd4: docs(TAB-7) — this row,
       # DECISIONS DRAFT
+      - "979b6e7"
+      # fix(TAB-7) — a range ending today cut at the same time of day:
+      # compareWindowEndingToday + compareSelection, /api/dashboard/sales on
+      # compareSelection, verify-tab7 section 10
+      - "3f92131"
     notes: >
+      ── RIDER 2026-11-11, TAB-7 fix (prepended; nothing below is edited). ──
+      Gary's ruling on the report's RULING NOW, quoted: "Cut it. When a range
+      ends today (This week, Month to date, any range that includes today),
+      compare against last year's matching range with its last day cut at the
+      same time of day, using the same helper. Ranges that end before today
+      are unchanged." Built in fix commit 3f92131.
+      WHAT SHIPS: src/lib/sales-same-time.ts compareWindowEndingToday (earlier
+      days of the comparison window in full, the last day through
+      compareTodayWithDay, its method and label) and compareSelection (one
+      entry point: single day today / single past day / range ending today /
+      range ending before today = null, window totals as before).
+      /api/dashboard/sales takes comparisonBasis from compareSelection for
+      every selection and reads the window's last-day hourly rows only for a
+      single day or a range ending today. Desktop card logic unchanged (it
+      already reads comparisonBasis): "Same period last year by 10:15 AM",
+      Gross pill hidden on a same-time basis. No new Square, sync or gap-fill
+      call. The build rider's "Ranges unchanged" below is superseded for
+      ranges ending today, kept.
+      FIXTURES: verify-tab7 88/88 (new section 10: negative controls against
+      316ffd4; 7-day windows on dev br-broad-wave-a6vpjdw0; mutants caught: no
+      ends-before-today guard 2 fail, window not cut 10 fail). Siblings
+      re-run unchanged: tab1-today 13/13, tab1c 11/11, tab2 23/23, tab3 28/28,
+      tab4 78/78, tab5 32/32, tab8 114/114, tab9 84/84, tpl3 44/44,
+      goal-engine 15/15, f4-rollup-webhook 24/24, bug20 21/21. Build green;
+      scoped eslint 0 problems. Local check on a temporary mocked page under
+      /menu, deleted before the commit: This week at 8:39 AM PT read $4,730
+      (3 x $1,500 + $100 + $200 x 39/60) "by 8:39 AM"; Last week read the
+      whole window, no "by", Gross pill shown.
+      STAGING TEST ADDED (5): desktop, This week and Month to date during
+      opening hours: "Same period last year by <time>"; Last week: no "by".
       ── RIDER 2026-11-11, TAB-7 build (prepended; nothing below is edited). ──
       BUILT, not yet checked on staging. TIER 2: no schema, migration,
       permission, env var, cron or new Square call. Prompt
