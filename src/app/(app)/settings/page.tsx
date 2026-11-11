@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock, CalendarDays, Mail, Award } from "lucide-react"
+import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock, CalendarDays, Mail, Award, LayoutDashboard } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import Link from "next/link"
 import { getCurrentUser, hrModuleAvailable, laborModuleAvailable, squareLaborAvailable } from "@/lib/auth"
@@ -445,6 +445,37 @@ export default async function SettingsPage() {
                 </div>
                 <span className="text-sm font-medium text-[var(--color-primary)] whitespace-nowrap">
                   Email Notification Settings &rarr;
+                </span>
+              </Link>
+            </CardContent>
+          </Card>
+
+          {/* TAB-3 (Gary, 2026-11-10, ruling 1; audit F7). The card picker for
+              the desktop dashboard and Tablet mode lives on /settings/display.
+              Same shape as the Message Center card above and, for the same
+              reason, NO STATE on the card: the layout is that page's to show. */}
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle>Display Settings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Link
+                href="/settings/display"
+                className="flex items-start justify-between p-4 border border-[var(--color-border)] rounded-lg hover:border-[var(--color-primary)] transition-colors"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded bg-[var(--color-primary)] flex items-center justify-center text-white">
+                    <LayoutDashboard className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-[var(--color-foreground)]">Dashboard and Tablet cards</h3>
+                    <p className="text-sm text-[var(--color-muted-foreground)]">
+                      Choose which cards the desktop dashboard and Tablet mode show, and in what order.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-sm font-medium text-[var(--color-primary)] whitespace-nowrap">
+                  Display Settings &rarr;
                 </span>
               </Link>
             </CardContent>

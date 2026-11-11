@@ -2,6 +2,475 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-10 — TAB-9: Tablet home scrolls, cards expand in place, overdue list opens in place (HR chip hidden on STORE logins)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`44b80c5`; docs commit `9253bca`; fix commit `5da4897` (Gary's rulings 8–9
+and fix instruction, fixes `44b80c5`); the PRE-PUSH-CHECK is the commit
+immediately after `5da4897`. Work commit TIER 2; **fix commit escalated to
+TIER 3** — it changes what a STORE login sees (the personal HR chip is
+hidden on STORE logins in Tablet mode). No migration, no schema change, no
+new route, no new dependency. Tablet mode (TAB-1 through TAB-9) is not
+promoted yet; the series ships together. DECISIONS 2026-11-10 TAB-9
+RATIFIED by Gary at this check, "Ratify as written".
+
+What ships (display only, over `GET /api/dashboard/summary` and the
+existing Tasks/Messages/chip payloads). **The page scrolls:** the tablet
+shell no longer clips the home (`h-dvh overflow-hidden` removed); TabletHome
+measures its header and sizes the columns and strip row to one screen below
+it, so the first screen opens as before. **Cards expand in place:** strip
+tiles look as before until tapped; a tap opens that card below the first
+screen, one at a time, closed by a second tap or "Show less"; collapsing
+returns the page to where it was before the first card opened. Sales: hour by
+hour vs the same weekday last year (the ▲/▼ headline is unchanged — TAB-7).
+Monthly goal: month-to-date, goal, to go, per remaining day. Labor:
+month-to-date %, target, last sync and the desktop's footnotes —
+**percentages only**; `laborCost` is dropped from the payload on receipt
+(ruling 9), and there is no Labor card at all when `labor` is absent. **The
+overdue list opens in place** under the header, toggled by the chip, no
+sheet; row actions unchanged. **Idle:** an open card or the open list
+collapses after 5 minutes without a touch, and the page scrolls back to the
+top; also at the day rollover or a store switch; never on a refresh. An open
+card, the open list, and a page scrolled away while in use are TAB-5 busy
+flags; scroll position never blocks the day rollover. **Nested scroll:**
+`overscroll-contain` removed from the Tasks panels and the Messages thread so
+a flick at a column's end carries into the page; the bottom sheet's scrim is
+`touch-none`. **Chips:** the personal HR chip reads "My HR · N", amber when
+something is past due, neutral otherwise; only the store's overdue chip is
+red and says "overdue". Expansion is React state only, never saved.
+
+**The TIER 3 change (`5da4897`, Gary's ruling 8).** "HR chip — hide it on
+STORE logins in Tablet mode; keep it for personal logins."
+`showHrChip(role)` is false for `STORE` only; `page.tsx` passes the role it
+already reads through `getUserStoreScope()`. A STORE login neither renders
+nor fetches the chip. A login whose role does not resolve keeps it (the
+`my-compliance` route's own gates still decide what it shows). The route, its
+gates, and desktop's ComplianceBanner are unchanged. Blast radius: one chip,
+Tablet mode only, STORE logins only.
+
+**Does not ship:** transactions and average sale on the expanded Sales card
+(not on the summary payload — filed as TAB-10, planned). With nothing open
+the page is exactly one screen tall (judgement call (a): the strip row stays
+on the first screen), so there is nothing to flick to until a card or the
+list is open.
+
+Files: new `src/lib/tablet-cards.ts`, `scripts/verify-tab9-cards.ts`;
+edited `src/app/(app)/dashboard/{page,tablet-home,tablet-messages,tablet-strip}.tsx`,
+`src/components/layout/tablet-shell.tsx`, `src/components/ui/bottom-sheet.tsx`.
+Checks: verify-tab9-cards 84/84 (58/58 at `44b80c5`), verify-tab1-today
+13/13, verify-tab1c-due-chip 11/11, verify-tab2-messages 23/23,
+verify-tab3-layout 28/28 (DB part on dev `br-broad-wave-a6vpjdw0`, rolled
+back), verify-tab5-refresh 32/32; scoped eslint and `npm run build` green.
+Verified locally only on a mocked temporary page (wheel input at 1180×820
+and 820×1180; shortened interval and idle timer), reverted before each
+commit. iPad Safari touch scroll chaining is unverified until staging test
+(3).
+
+**Rollback.** `git revert 5da4897 44b80c5` (fix first, then work); no
+migration. `5da4897` also carries ROADMAP/DECISIONS lines, so revert only its
+`src/` and `scripts/` paths if the rows should stay. The tablet goes back to
+TAB-5's one-screen home: the overdue list in a bottom sheet, the HR chip red
+and shown to every login. Nothing is stored, so nothing is left behind.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+Tests (1)–(8) are the TAB-9 prompt's list, unchanged. Safari as
+`indianathomas` in Tablet mode on Las Brisas, with Sales, Monthly goal and
+Labor turned on in Display settings. (1) The first screen looks exactly as
+before: header, Tasks and Messages. (2) Flick down. The page scrolls to the
+cards below. Flick back up. (3) Start a flick inside the Tasks list and
+inside the Messages thread. When each reaches its end, the page keeps
+scrolling and nothing gets stuck. (4) Tap Sales. It expands in place with
+hourly detail. Tap Monthly goal, and Sales collapses as Goal expands. Tap
+again to collapse. (5) Tap the overdue chip. The list opens in place under
+the header, with nothing frozen, and you can scroll past it. Tap the chip
+again to close it. (6) Expand a card and wait 2 minutes. It stays open and
+nothing jumps. Wait 5 minutes without touching. It collapses by itself.
+(7) The HR chip is amber or neutral and reads something like "My HR · 2".
+Only the store overdue chip is red. (8) As Tommy (STORE): check what the HR
+chip shows and whether it makes sense on a shared counter tablet. Confirm the
+Labor card doesn't appear for any login that can't see labor on desktop.
+Notes added by this check: for (2), expand a card (or open the list) first —
+with nothing open there is nothing below the first screen (call (a)). For
+(8), after `5da4897` the expected result is NO HR chip for Tommy. Added for
+`5da4897`: (9) Expand Labor as `indianathomas`: percentages only, no dollar
+figure anywhere. (10) Expand a card, scroll to the bottom of the page, and
+leave it 5 minutes untouched: the card collapses AND the page returns to the
+top; tick an item from desktop and it appears within about a minute after
+that.
+
+## UNPROMOTED — 2026-11-10 — TAB-5: Tablet home keeps itself current (one refresh controller, store-local day rollover, offline guard)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`ab29d62`; docs commit `573da37`; fix commit `81cb5f0` (Gary's offline
+guard, fixes `ab29d62`); the PRE-PUSH-CHECK is the commit immediately after
+`81cb5f0`. TIER 2. No migration, no schema change, no new route, no new
+dependency. Tablet mode (TAB-1 through TAB-5) is not promoted until TAB-5
+passes on staging; the series ships together (Gary, 2026-11-10). DECISIONS
+2026-11-10 TAB-5 RATIFIED by Gary at this check, "Ratify as written".
+
+What ships: ONE refresh controller for the tablet home
+(`src/app/(app)/dashboard/tablet-refresh.tsx`) on TAB-2's `TABLET_REFRESH_MS`
+(60 s) and visibility rule: every 60 s while visible, at once on becoming
+visible again, never while hidden. Messages and the stat strip lost their
+private timers and register with it; the Tasks panel, the overdue chip and the
+compliance chip now refresh too. A cycle is skipped whole while anything is
+busy (name sheet, number pad, partial confirm, overdue sheet, store picker, or
+a tick / submit / start / Complete / send in flight), and never two run at
+once. A refresh never remounts, so sheets, typed text, "N done" expansion and
+scroll are untouched. Ticks made on another device appear: the Tasks items are
+a server render, so the cycle re-reads them with `router.refresh()`,
+serialized, and local tick overrides give way once a server read that began
+after they settled has landed. Day rollover: each `TabletStore` carries its
+server `day` (`localDateStr`, the `businessDayWindow` day); the page moves to a
+new day only while idle, remounting the Tasks panel (ticks, "Completing as …"
+chip and Done state cleared) and re-reading today's list. Messages keeps its
+draft across midnight.
+
+**Offline guard (`81cb5f0`, Gary).** If `router.refresh()`'s own RSC request
+fails, Next falls back to a full browser navigation, which would leave
+Safari's error page on an unattended tablet. No cycle starts while
+`navigator.onLine` is false, and `refreshServer()` checks again before every
+`router.refresh()`, including the one after this device's own writes. The
+browser's `online` event runs a cycle at once. **Residual risk:** a network
+that drops while `navigator.onLine` still reads true can still hit the
+full-navigation fallback; TAB-8 (planned, a read-only checklist-items
+endpoint) is the row that removes it.
+
+**Does not ship:** a "partial submitted" panel for a partial submit made on
+ANOTHER device. A partial submit writes In Progress (or Non-Compliant) and no
+submitted marker, so this tablet keeps showing In Progress with the other
+device's ticks; a remote FULL submit does move it to Done (DECISIONS call (d)).
+The Sales-comparison fix is filed as TAB-7 (planned); the calculation is
+unchanged here.
+
+Files: new `src/app/(app)/dashboard/tablet-refresh.tsx`,
+`src/lib/tablet-refresh.ts`, `scripts/verify-tab5-refresh.ts`; edited
+`src/app/(app)/dashboard/{tablet-data.ts,tablet-home,tablet-messages,tablet-strip}.tsx`.
+Checks: verify-tab5-refresh 32/32 (28/28 at `ab29d62`; its "29/29" was a
+miscount), verify-tab1-today 13/13, verify-tab1c-due-chip 11/11,
+verify-tab2-messages 23/23, verify-tab3-layout 28/28 (DB part on dev
+`br-broad-wave-a6vpjdw0`, rolled back); scoped eslint and `npm run build`
+green. Verified locally only on a mocked temporary page with a 5 s interval,
+both reverted before the commit.
+
+**Rollback.** `git revert 81cb5f0 ab29d62` (fix first, then work); no
+migration. `81cb5f0` also carries ROADMAP/DECISIONS lines, so revert only its
+`src/` and `scripts/` paths if the rows should stay. The tablet goes back to
+TAB-3's behaviour: Messages and the strip on their own timers, the Tasks panel
+and chips stale until a reload, the header date stuck on yesterday after
+midnight. Nothing is stored, so nothing is left behind.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+Tests (1)–(6) are the TAB-5 prompt's list, unchanged. (1) Safari as
+`indianathomas` in Tablet mode on Las Brisas, with today's checklist started.
+In Chrome, tick two items on the same checklist from desktop. Without touching
+Safari, both appear ticked within about a minute. (2) In Safari, tick an item
+so the name sheet opens, and leave it open for 2 minutes. It stays open and
+nothing resets. Pick a name; the tick saves. (3) Type a message in the
+composer without sending, and wait 2 minutes. The text is still there.
+(4) Scroll the task list down, and wait 2 minutes. It stays where you left it.
+(5) Overdue chip: as `indianathomas`, create a Las Brisas reminder dated
+yesterday, then run the calendar-materialize curl against staging. Without
+reloading Safari, the chip appears within about a minute. (6) Overnight: leave
+Safari open in Tablet mode on Las Brisas tonight. Tomorrow morning, without
+touching it, the header shows tomorrow's date and today's checklist ("Not
+started" for the Opener). Added by this check for `81cb5f0`: (7) Turn the
+iPad's wifi off for 2 minutes with Safari in Tablet mode. The page stays as it
+was (no Safari error page). Turn wifi back on; ticks made elsewhere meanwhile
+appear within a few seconds.
+
+## UNPROMOTED — 2026-11-10 — TAB-3: Display settings — Dashboard and Tablet card picker, tablet stat strip
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`c38d998`; docs commit `d09aa17`; the PRE-PUSH-CHECK is the commit
+immediately after `d09aa17`. TIER 3. **One migration**
+(`20261110200000_tab3_display_layouts`), one new route
+(`PUT /api/display/settings`), no new dependency (`@dnd-kit` was already in
+the repo). Tablet mode is not promoted until the series through TAB-3 is done
+(Gary, 2026-11-10). DECISIONS 2026-11-10 TAB-3 RATIFIED by Gary at this check.
+
+**Migration.** Two nullable JSONB columns, `Organization.dashboardLayout` and
+`Organization.tabletLayout`; additive only, no default, no backfill. NULL means
+today's defaults, so every existing org renders exactly as before until an
+ADMIN edits. Dev `br-broad-wave-a6vpjdw0` applied 2026-11-10 18:14:08 UTC
+(Gary). Staging `br-square-feather-a63z92vz` gets it from the Vercel build on
+Gary's push; production at promotion. **Blast radius:** every
+`prisma.organization` read without a `select` now selects both columns, so on
+a branch the migration has not reached nearly every page fails. The Vercel
+build applies it before the new code serves. Details: `docs/MIGRATIONS.md`.
+
+What ships: `/settings/display` (ADMIN only, `settings.access`; link card on
+the `/settings` Integrations tab after Message Center), with Dashboard and
+Tablet tabs. Each row has a toggle, 44px up/down arrows and a drag handle;
+locked tablet rows (Tasks, Messages) show a lock. "Reset to defaults" asks
+first and stores NULL. `PUT /api/display/settings` re-checks ADMIN, validates
+with Zod and `validateLayout()`, refuses unknown keys, partial lists, Tasks or
+Messages off, and a desktop layout with none of Sales performance, Monthly
+goal, Team messages or Shift checklist on (F6 as refined), and stores the
+normalised list. The desktop dashboard packs the enabled cards into rows of 3
+width units with today's wrapper classes; a NULL layout gives today's rows
+exactly. The tablet gains a stat strip below the columns (Sales today,
+Monthly goal %, month-to-date Labor %), all off by default, read from
+`GET /api/dashboard/summary`, each gated by that payload, on the Messages
+column's 60 s visibility-aware timer. No strip container and no gap when no
+tile is visible to the viewer, and therefore no loading skeleton (Gary's
+ruling c′).
+
+Files: new `prisma/migrations/20261110200000_tab3_display_layouts/`,
+`src/lib/display-layout.ts`, `src/app/api/display/settings/route.ts`,
+`src/app/(app)/settings/display/` (page + client),
+`src/app/(app)/dashboard/tablet-strip.tsx`, `scripts/verify-tab3-layout.ts`;
+edited `prisma/schema.prisma`, `src/app/(app)/settings/page.tsx`,
+`src/app/(app)/dashboard/{page,dashboard-client,tablet-home,tablet-messages}.tsx`,
+`src/lib/tablet-messages.ts` (`TABLET_REFRESH_MS` now shared). Checks:
+verify-tab3-layout 28/28 (part 7 on the applied schema, dev
+`br-broad-wave-a6vpjdw0`, rolled back), verify-tab1-today 13/13,
+verify-tab1c-due-chip 11/11, verify-tab2-messages 23/23; scoped eslint and
+`npm run build` green. UI verified locally only on a mocked temporary page,
+since deleted.
+
+**Rollback.** `git revert c38d998`. The columns STAY on every branch
+(additive-only schema); the reverted code stops reading them, the desktop
+dashboard returns to its fixed order, the tablet loses the strip, and
+`/settings/display` and its route are gone. Any layouts ADMINs saved sit
+unread in the columns, harmless, and come back if the work is re-applied.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+(0) Neon console, staging: `_prisma_migrations` has
+`20261110200000_tab3_display_layouts` with a `finished_at`. (1) As ADMIN,
+Settings → Integrations → Display opens with Dashboard and Tablet tabs; as a
+non-ADMIN there is no way in. (2) Dashboard tab: turn a card off and move
+another; Save; the desktop dashboard follows. (3) Turn off all four of Sales
+performance, Monthly goal, Team messages and Shift checklist: Save is refused
+with the "Keep at least one…" message. (4) Reset to defaults asks first, then
+the dashboard is back to today's layout. (5) Tablet tab: Tasks and Messages
+show locked; turn on Sales, Goal and Labor % and reorder them; the tablet
+shows the strip below the columns in that order. (6) Turn all three off: no
+strip and no gap below the columns.
+
+## UNPROMOTED — 2026-11-10 — TAB-2b: Tablet mode — no floating help button over Send; Help moves to the rail
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`007dfd0`; docs commit `0e9768c`; fix commit `318af62` (Gary's ruling on
+call b, fixes `007dfd0`); the PRE-PUSH-CHECK is the commit immediately after
+`318af62`. TIER 2. No migration, no schema change, no new route, no new
+dependency, no API change. Tablet mode is not promoted until the series
+through TAB-3 is done (Gary, 2026-11-10).
+
+What ships: in Tablet mode the floating round "?" (HELP-1a, fixed
+bottom-right) is no longer mounted, because it sat on the Messages column's
+Send button in landscape and portrait. The tablet rail gains a Help item
+directly above Settings, shown on every Tablet-mode page for every role. It
+opens the page's help article when one exists, and `/help` otherwise; on
+`/help` itself it is marked active. The "?"'s decision moved unchanged into
+`useContextHelp()` in `src/components/help/context-help-button.tsx`, so the
+floating "?" and the rail Help pick the same article. Desktop is unchanged:
+AppShell still mounts the floating "?", hidden where there is no article.
+
+Files: edited `src/components/help/context-help-button.tsx`,
+`src/components/layout/tablet-shell.tsx`. Checks: scoped eslint and
+`npm run build` green; verify-tab1-today 13/13, verify-tab1c-due-chip
+11/11, verify-tab2-messages 23/23. Verified locally only on a mocked
+temporary page (no org, no database, no signed-in session), since deleted.
+DECISIONS 2026-11-10 TAB-2, TAB-2b rider RATIFIED by Gary at this check.
+
+**Rollback.** `git revert 318af62 007dfd0` (fix first, then work); no
+migration. Tablet mode gets the floating "?" back, over Send again, and the
+rail loses its Help item. Nothing is stored, so nothing is left behind.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+(1) In Tablet mode, landscape and portrait: there is no floating ? button,
+and nothing covers Send. (2) Tap Help in the rail. Help opens, the same as
+the floating button did. (3) Switch to Desktop mode. The floating ? button is
+back in its usual place and works.
+
+## UNPROMOTED — 2026-11-10 — TAB-2: Tablet mode — the Messages column (pinned Corporate Update, chat-order thread, composer, live refresh)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`ab80e5b`; docs commit `b1dafbd`; fix commit `35fb734` (Gary's rulings 6–8,
+fixes `ab80e5b`); the PRE-PUSH-CHECK is the commit immediately after
+`35fb734`. TIER 2. No migration, no schema change, no new route, no new
+dependency. Existing endpoints only: GET /api/dashboard/comms, GET and POST
+/api/messages, POST /api/messages/mark-read. Tablet mode is not promoted
+until the series through TAB-3 is done (Gary, 2026-11-10).
+
+What ships: the tablet home's right column, which TAB-1 left as the desktop
+Team Messages card, becomes the Messages column (new
+`src/app/(app)/dashboard/tablet-messages.tsx`). The Corporate Update is pinned
+at the top. The thread below it is in chat order: oldest at the top, newest at
+the bottom beside the composer, and it scrolls to the bottom on load and after
+posting. A large composer is fixed at the bottom, with quick replies On it /
+Done / Thanks that post to the store feed as ordinary messages, because
+TeamMessage has no reply field. Messages come from the logged-in account, and
+one in-flight guard means a double tap posts once. Unread reuses desktop's
+MessageRead: the count shows on the column header and the rail's Messages
+icon. **The tablet now WRITES MessageRead rows:** what the column renders
+counts as read, through the existing POST /api/messages/mark-read only. The
+column refetches every 60s while visible and at once on returning to visible,
+never while hidden or while a send is in flight. On the iPad keyboard, the
+composer lifts and the header folds away (simulated only). Portrait stacks
+Messages under Tasks. Desktop is unchanged; `timeAgo` in
+`dashboard-client.tsx` is only exported.
+
+Files: new `src/app/(app)/dashboard/tablet-messages.tsx`,
+`src/lib/tablet-messages.ts`, `src/lib/tablet-unread.ts`,
+`scripts/verify-tab2-messages.ts`; edited `tablet-home.tsx`,
+`dashboard-client.tsx`, `src/components/layout/tablet-shell.tsx`. Checks:
+verify-tab2-messages 23/23 (pure), verify-tab1-today 13/13,
+verify-tab1c-due-chip 11/11. Verified locally only on a mocked temporary page
+(no org, no database), since deleted. DECISIONS 2026-11-10 TAB-2 (rulings
+1–8, calls b and d–k) RATIFIED by Gary at this check.
+
+**Rollback.** `git revert 35fb734 ab80e5b` (fix first, then work); no
+migration. The tablet's right column goes back to the desktop Team Messages
+card, and the rail loses its unread badge. MessageRead rows the tablet wrote
+stay. They are the same rows `/messages` writes, so desktop reads them as
+normal.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+The full list is on the ROADMAP TAB-2 row. (1) In Tablet mode as
+indianathomas, the Corporate Update is pinned at the top, the thread shows
+the same messages as the desktop card, and the newest is at the bottom. (2)
+Type and Send: the message appears last in the thread and on desktop's card.
+(3) Tap On it, then double-tap Thanks: each posts to the feed exactly once.
+(4) As Tommy (STORE), post from the tablet: desktop shows Tommy's account as
+the sender. (5) A message from another account appears within 60s and is
+marked read as it renders, so the column count returns to zero. The count
+rises on the rail on another tablet route, and on desktop's card until the
+tablet has rendered the message. (6) In Safari Responsive Design Mode at
+1180×820 and 820×1180, the column fits, portrait stacks it under Tasks, and
+the composer is reachable. (7) On a real iPad, tap the composer: the
+composer stays visible above the keyboard.
+
+## UNPROMOTED — 2026-11-10 — TAB-1c: Tablet overdue chip characterized; SELF-1 compliance chip on the tablet
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`1f03674`; docs commit `d35d034`; the PRE-PUSH-CHECK is the commit
+immediately after `d35d034`. TIER 2. No migration, no schema change, no new
+route, no new dependency; reads only, through existing endpoints
+(GET /api/calendar/due, GET /api/dashboard/my-compliance). Three files:
+`src/app/(app)/dashboard/tablet-home.tsx`, new `src/lib/tablet-due.ts`, new
+`scripts/verify-tab1c-due-chip.ts`.
+
+What ships: the TAB-1 (`adec345`) calendar overdue chip was found CORRECT.
+The staging "no chip" reports had two causes outside it: Gary's repro had
+an empty due feed (a new reminder has no CalendarOccurrence until
+/api/cron/calendar-materialize runs, and Vercel never fires crons on
+preview deployments), and Tommy's "You have 2 items to complete · 2
+overdue" was the SELF-1 ComplianceBanner, which TAB-1 had dropped from
+tablet mode with no ruling. The calendar chip's filter, count and row
+wording move UNCHANGED into `src/lib/tablet-due.ts`, pinned by
+`scripts/verify-tab1c-due-chip.ts` (11/11, pure, no DB);
+`verify-tab1-today.ts` re-run 13/13. New: ComplianceChip in the tablet
+header beside the due chip, same endpoint, render rule, words, colours and
+`/my` link as the desktop banner, no dismiss, silent for a device login.
+The TAB-1c DECISIONS rider (2026-11-09 TAB-1 entry, items 1-2) RATIFIED by
+Gary at this check. Calendar banner and due route untouched.
+
+**Rollback.** `git revert 1f03674`; no migration. The tablet loses the
+compliance chip again (overdue HR training and documents go back to being
+invisible in tablet mode); the calendar chip behaves exactly as before,
+since its logic only moved.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+PRECONDITION: fire /api/cron/calendar-materialize by hand first (Preview
+CRON_SECRET, docs/WORKFLOW.md § 1) so the Las Brisas occurrence exists;
+until then an empty chip is expected and proves nothing for tests 1, 2, 5.
+(1) As indianathomas, with the Las Brisas reminder dated yesterday still
+open, switch to Tablet and select Las Brisas: the chip shows the same
+overdue count the desktop banner shows for Las Brisas. (2) Tap the chip:
+the sheet lists the reminder, and its actions work the same as on desktop.
+(3) Switch the tablet store to one with no overdue items: the chip
+disappears. (4) As Tommy (STORE) at Las Brisas in Tablet mode, the chip
+appears with the same count as Tommy's desktop banner. (5) Complete the
+reminder from the sheet: the chip count drops, or the chip disappears at
+zero.
+
+## UNPROMOTED — 2026-11-09 — TAB-1b: Tablet "who completed this" parity with desktop + partial submit
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`9f3c944`; docs commit `2757c9d`; fix commit `2e21b02`; the PRE-PUSH-CHECK
+is the commit immediately after `2e21b02`. TIER 2. No migration, no schema
+change, no new route, no new dependency. Writes go through existing
+endpoints only (POST /api/checklists/[id]/task-log, POST
+/api/checklists/[id]/submit), sent as desktop sends them. Two files:
+`src/app/(app)/dashboard/tablet-data.ts`, `tablet-home.tsx`.
+
+What ships: tablet ticks now record a person, by DESKTOP'S RULE — same
+list ("Team Member", "Manager", then the store's ACTIVE staff by name),
+asked only when the store has staff and required then, same field
+(`completedByStaffId`), untick sends no name. TAB-1 (`adec345`) ticked with
+no person on ruling 6's wrong premise. How the tablet asks: the first tick
+of a checklist opens "Who's completing these?" (two-column touch grid,
+search above 12 names); the pick ticks the item and sticks as a
+"Completing as <name> · Change" chip, React state only, cleared on submit,
+reload, and moving to another checklist. A temperature task with nobody
+chosen shows the name sheet, then the number pad. Partial submit: a
+"Submit partial (n of N)" link while some but not all items are ticked →
+confirm sheet → the same submit request as desktop's Submit Partial → a
+"Partial submitted · n of N" panel with "Unfinished checklists are still
+marked Missed at day close." Day close is UNCHANGED (Gary: "partial submit
+stays at desktop parity — do not change day-close behaviour in TAB-1b.");
+the open question is CHK-18. The TAB-1b DECISIONS rider (2026-11-09 TAB-1
+entry) RATIFIED by Gary at this check. The overdue chip is untouched
+(paused by Gary).
+
+**Rollback.** `git revert 2e21b02 9f3c944`; no migration. Tablet ticks
+then go back to recording no person; task-log rows already written keep
+their `completedByStaffId`. Nothing in the schema changes.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+(1) As Tommy in Tablet mode, open an unstarted checklist and tick one
+item: the name sheet opens; pick a name; the item ticks and the
+"Completing as …" chip appears. (2) Tick two more: no sheet; desktop shows
+that name on all three. (3) Change → a different name → tick one more:
+desktop shows the new name on that item only. (4) Temperature task: the pad
+opens; desktop shows the NAME — no desktop surface shows a saved value
+(CHK-19), so this half-passes by design. (5) "Submit partial" → Keep going
+sends nothing; again → Submit partial: the panel shows "Partial submitted ·
+n of N" and desktop shows the checklist submitted as partial. (6) Reload:
+the chip is gone, and the next tick on a new checklist asks again.
+
+## UNPROMOTED — 2026-11-09 — TAB-1: Tablet mode (Tablet/Desktop switch, rail shell, touch sizes, Tasks column, explicit Submit)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`adec345`; docs commit `d5a9094`; fix commit `c83a5c3`; the PRE-PUSH-CHECK
+is the commit immediately after `c83a5c3`. TIER 2. No migration, no schema
+change, no new route, no new dependency. Writes go through existing
+endpoints only (task-log, POST /api/checklists, checklist submit, calendar
+occurrence complete), called as their existing screens call them.
+
+What ships: a per-device Tablet/Desktop switch (cookie `froot_view`, one
+year, set client-side, read by the (app) layout so the right shell renders
+on first paint; absent = desktop, and the desktop branch is unchanged).
+Tablet mode is a rail shell (`tablet-shell.tsx`, entries gated by the
+sidebar's own capabilities, Settings gear ADMIN only) and, on /dashboard
+only, the tablet home: today's checklist Tasks panel (Not started / In
+progress / Done with Up next) beside the existing Team Messages card, plus
+an overdue chip that opens the due list as a bottom sheet. No
+Sales/Goal/Labor in tablet mode. Library gains Button sizes touch /
+touch-lg / touch-icon, TouchRow + TouchCheck, BottomSheet. Ticking the
+last item does NOT submit (c83a5c3): a full-width "Submit <NAME>
+checklist" button sends the same submit as desktop, and Done appears only
+when submit answers Completed. `appleWebApp.capable` flipped to `true`.
+Rulings 1–8, the cookie, the today's-checklist rule and the Submit button
+RATIFIED by Gary at this check (DECISIONS.md, 2026-11-09 TAB-1).
+
+**Rollback.** `git revert c83a5c3 adec345`; no migration. A leftover
+`froot_view` cookie is then ignored; nothing in the database changes.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+(1) Desktop with no cookie looks exactly as before. (2) Switch to Tablet →
+rail + tablet home; reload stays Tablet; back to Desktop stays Desktop.
+(3) As Tommy (STORE) on a store with today's checklist: Not started →
+Start → check items → "N done" expands → ticking the last item shows the
+"Submit <NAME> checklist" button (no submit yet); unticking hides it;
+tap Submit → Done. (4) Overdue chip shows that store's count and opens the
+sheet; no full-width banner in Tablet mode. (5) Safari Responsive Design
+Mode iPad 1180×820 and 820×1180, plus a real iPad if available. (6) Add to
+Home Screen on an iPad — expect to sign in again and set Tablet again
+inside the home-screen app.
+
 ## de8e428 — 2026-11-06 — DEBT-129: User.name kept in step with Clerk (webhook user.updated sync, usage-beacon lazy fill)
 
 **PROMOTED 2026-11-06 in merge `de8e428`** ("Merge branch 'staging'",

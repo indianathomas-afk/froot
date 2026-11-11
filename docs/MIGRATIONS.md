@@ -2643,3 +2643,70 @@ Gary applied it to dev himself with `npx prisma migrate deploy`; the session
 did not. `npm run build` also runs `prisma generate`. (Was: "NOT RECORDED",
 written by this entry's first commit `b969223` because the commands were not
 in the repo. Corrected the same day on Gary's relay; spent.)
+
+## 2026-11-10 — `20261110200000_tab3_display_layouts` (TAB-3)
+
+**APPLIED TO DEV ONLY, by Gary**, after the TAB-3 Phase 2 STOP and before the
+work commit `c38d998` (§ A migration STOPS the session). Staging and production
+get it from the Vercel build on Gary's push and at promotion. The timestamp
+`20261110200000` is a name, not a clock reading.
+
+**Dev was checked before the fixture, not taken on its word.**
+- **After Gary's first "Migration applied to dev":** the shape diff against
+  dev still printed both `ADD COLUMN` statements. A read-only ledger query on
+  `neon.branch_id = br-broad-wave-a6vpjdw0` found no TAB-3 row (newest:
+  NOTIFY-4) and zero matching columns. Nothing was committed, and Gary was
+  told.
+- **After his second report:** the diff returned
+  `-- This is an empty migration.`, and the same query returned the row and
+  columns below.
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | **2026-11-10 18:14:08.611 UTC** (10:14:08 PST). Read by the session (read-only `$queryRaw`, branch id from the server), together with `information_schema`: both columns `jsonb`, nullable | Gary |
+| staging `br-square-feather-a63z92vz` | OWED — the Vercel build on Gary's push | Vercel build |
+| production `br-sparkling-block-a620qvg4` | OWED — at promotion (TAB series promotes only once it's finished, per Gary 2026-11-10) | Vercel build |
+
+**GENERATED AGAINST THE LIVE DEV DATABASE.** No empty-diff baseline was run
+before `prisma/schema.prisma` was edited. Instead, the generated file carries
+the two TAB-3 columns and nothing else, which shows dev matched the schema in
+every other respect at generation. The first attempt failed with "Can't reach
+database server" (a Neon cold start) and wrote no file. The retry succeeded.
+Every statement is generated, and nothing is hand-authored. **Additive only.
+Nothing is backfilled or dropped:**
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "Organization" ADD COLUMN "dashboardLayout" JSONB` | nullable, no default. NULL = Froot's default desktop layout (TAB-3 ruling 2), so every existing org needs no backfill and renders exactly as before |
+| `ADD COLUMN "tabletLayout" JSONB` (same statement) | nullable, no default. NULL = Tasks + Messages, no stat strip |
+
+**Blast radius (the NOTIFY-2a shape).** Every `prisma.organization` read
+without a `select` now selects both columns. On a branch the migration has not
+reached, those reads fail, and they sit behind nearly every page. The Vercel
+build applies it before the new code serves. Locally, dev must have it before
+`npm run dev` is useful again.
+
+**Rollback.** `git revert` the work commit. The columns STAY on every branch
+(additive-only schema), and the reverted code simply stops reading them.
+
+**Fixture:** `scripts/verify-tab3-layout.ts`. Part 7 runs against the applied
+schema inside an always-rolled-back transaction, and prints `neon.branch_id`
+from the server. Before Gary's apply, cases 1–21 pass and part 7 fails on dev
+`br-broad-wave-a6vpjdw0` with "The column `(not available)` does not exist".
+That failure is the gate. **After the apply: 28/28** on dev
+`br-broad-wave-a6vpjdw0`, at the work commit `c38d998`. The count is 28
+rather than 26 because cases 12b and 12c (Gary's F6 refinement) were added
+before the commit.
+
+**Prisma commands for this migration, verbatim:**
+
+- `npx prisma validate`
+- `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/20261110200000_tab3_display_layouts/migration.sql`
+  (once refused, unreachable; then succeeded)
+- `npx prisma generate`
+- after each of Gary's two apply reports, the same diff with no `-o`
+  (the first not empty, the second empty)
+
+`npm run build` also runs `prisma generate`. The session ran no
+`migrate deploy`, `db execute`, `migrate dev`, `migrate reset` or
+`migrate resolve`.

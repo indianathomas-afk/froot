@@ -5,6 +5,876 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-10 — TAB-9: a Tablet home that scrolls, cards that expand, an overdue list that opens in place — DRAFT
+
+**RATIFIED BY GARY, 2026-11-10, at the TAB-9 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: rulings 1–7, how it is built
+(page scroll, nested scroll, state, busy, the strip), Claude's judgement calls
+(a)–(h), rulings 8–9 and the fix instruction (his own words, quoted there),
+and how the fix is built, including its TIER 3 escalation — all now ratified
+as his. The heading's "DRAFT", the "DRAFT, awaiting Gary's ratification"
+line, "for ratification" and "(untracked until PRE-PUSH-CHECK)" are spent,
+kept; the prompt of record `docs/prompts/TAB-9.md` is committed at this
+check. The fix commit named above as "the fix commit after 9253bca" is
+`5da4897`. Wording untouched.
+
+**DRAFT, awaiting Gary's ratification at the TAB-9 PRE-PUSH-CHECK.** Prompt
+of record: `docs/prompts/TAB-9.md` (untracked until PRE-PUSH-CHECK). Work
+commit: 44b80c5. TIER 2: no schema, no migration, no endpoint, no
+dependency.
+
+**Gary's feedback, 2026-11-10, verbatim:**
+
+> "I think the cards should be more flexible. For example, when you click the
+> 3 overdue items, the iPad screen is locked. Also sales and labor or any
+> other card could be technically larger. Keeping key data at the top,
+> however, allowing you to flick (scroll down) to see more information. If
+> you made the cards larger, you could make the expandable. For example.
+> Leave sales as it is, however, if you expanded the window it would show
+> more details. Then you could scroll down to see that ino [info]."
+
+**What "locked" means, Gary, 2026-11-10, verbatim:**
+
+> "What locked means is that the entire main screen is static. Becuase each
+> card is predevined, there is no data to scroll through. I think this is a
+> wasted opportunity and that the Tablet view mode is forcing everything onto
+> one screen that is locked. Data should be expansive if needed."
+
+**Rulings 1–7.** Gary answered "yes to all" to these seven leans. The wording
+below is the planning chat's, not his; his agreement is what makes them
+rulings.
+
+1. **The overdue list opens in place.** Tapping the overdue chip expands the
+   "Due at this store" list on the page, under the header. No overlay,
+   nothing frozen; the page scrolls past it. Tapping the chip again closes
+   it. Item actions work as before.
+2. **Cards keep their headline and expand on tap, one at a time.** A tile
+   looks exactly as before until tapped; tapping expands it; tapping again,
+   or "Show less", collapses it; opening one closes any other.
+3. **The home always scrolls.** The first screen opens as before (header,
+   then Tasks and Messages). Below the columns, cards can be as large as
+   their data needs. Collapsing a card returns the page to where it was
+   before that card expanded.
+4. **Idle auto-collapse.** An expanded card or the open overdue list
+   collapses after 5 minutes with no touch, and at the TAB-5 day rollover.
+   Never because of the 60-second refresh; TAB-5's busy registration keeps a
+   refresh from closing or jumping anything open.
+5. **What expanded cards show.** Only data already in the existing payloads.
+   Sales: today hour by hour against last year hour by hour, plus
+   transactions and average sale if the payload carries them; the ▲/▼
+   headline does not change (TAB-7). Monthly goal: month-to-date, the goal,
+   the amount needed per remaining day. Labor: month-to-date %, the target,
+   and the rest of the labor block. Anything needing new data is a ROW.
+6. **The two chips stop clashing.** The personal HR chip (ComplianceChip,
+   SELF-1) gets an amber or neutral look, labelled like "My HR · 2". Only
+   the store's overdue chip (DueChip) stays red and says "overdue".
+7. **Expansion is never saved.** Screen session only: not settings, a
+   cookie or localStorage, not synced.
+
+**How it is built.**
+
+- **The page scroll.** The tablet shell's home container was
+  `h-dvh overflow-hidden p-4`, and `TabletHome` was
+  `grid h-full grid-rows-[auto_minmax(0,1fr)]`: a box exactly one screen tall
+  that clipped everything, so nothing could ever be below the fold. Now the
+  container is `p-4` and the document scrolls. `TabletHome` measures its
+  header and sizes a box of `100dvh − 48px − header` for the columns and the
+  strip row, so the first screen is the same height split the same way as
+  before. The overdue list renders between the header and that box; an
+  expanded card renders below it.
+- **Nested scroll (audit point 2).** The lean was taken: each column keeps
+  one screen's height and its own scroll, and `overscroll-contain` is gone
+  from the Tasks panels (Not started, In progress list, Done) and the
+  Messages thread. With the default `overscroll-behavior: auto`, a flick that
+  starts in a column scrolls the column; once the column is at its end, the
+  next flick carries into the page (the browser latches a gesture to one
+  scroller, which is how iPad Safari behaves too). The In progress list's
+  `snap-proximity` is kept. Checked with wheel input at 1180×820 and
+  820×1180, starting inside each column, in both directions; iPad touch is
+  Gary's staging step 3. The bottom sheet's scrim is `touch-none` so the
+  page never scrolls behind the name picker, number pad or partial-submit
+  sheet; the sheets are otherwise unchanged.
+- **State.** One reducer, `cardsReducer` in `src/lib/tablet-cards.ts`, held
+  in `TabletHome` with `useReducer`: the expanded key, the list open, the
+  last touch, idle, and a scope of `storeId:shownDay`. A new scope (TAB-5
+  rollover, or a store switch) collapses both. A 5-second tick applies the
+  idle rule; touches (`pointerdown`, `touchstart`, `keydown`, `wheel`) update
+  a ref, so a touch never re-renders the page. A `refresh` event is the
+  identity.
+- **Busy.** `cardsBusy()` gives three TAB-5 flags: `cards:expanded`,
+  `due:list`, and `page:scrolled` (scrolled more than 8px AND not idle). A
+  Complete in flight inside the list is `due:complete`.
+- **The strip.** Its fetch moved into `useStripSummary` (owned by
+  `TabletHome`, registered on the TAB-5 controller), because the tile row
+  sits on the first screen and the detail opens below it, both over one
+  payload. `StripRow` renders the tiles exactly as before, as buttons;
+  `StripDetail` renders the expanded card from `salesDetail`, `goalDetail`
+  and `laborDetail`. A tile that does not render for this viewer can never
+  be expanded (`visibleExpanded`).
+- **Fixture.** `scripts/verify-tab9-cards.ts`, 58 checks.
+
+**Judgement calls (Claude), for ratification.**
+
+a. **The strip row stays on the first screen.** Ruling 3 says the first
+   screen opens "exactly as it does today", and today, with tiles on, that
+   includes the strip row under the columns; ruling 2 says a tile looks
+   exactly as before until tapped; Gary's own words were "Leave sales as it
+   is". So the collapsed tiles stay where they were and an expanded card
+   opens BELOW the first screen. Consequence: with nothing open, the page is
+   exactly one screen tall and there is nothing below to flick to; staging
+   step 2 needs a card expanded (or the list open) first.
+b. **Opening a card brings it into view.** After a tap, the page scrolls
+   (smoothly) just far enough to show the detail while keeping the tile row
+   on screen. The scroll position from before the FIRST card opened is what
+   a collapse returns to, even after switching cards.
+c. **A page scrolled away from the top is busy only while in use.** After 5
+   idle minutes it stops holding the refresh, so a counter tablet left
+   scrolled down does not go stale for good. An open card or list holds the
+   refresh until it idles shut, so an expanded card's numbers can be up to
+   5 minutes old; that is ruling 4 working as written.
+d. **No chevron on the collapsed tiles.** Ruling 2 says a tile looks exactly
+   as before until tapped, so none was added. The expanded tile gets a
+   primary-colour border.
+e. **The HR chip drops its second line** ("Nearest due …", 14px) and the
+   word "overdue": it reads "My HR · N" with a graduation-cap icon, amber
+   (warning tokens) when anything is past due, neutral (card and border
+   tokens) otherwise. Its screen-reader label says "past due".
+f. **Goal "per remaining day"** uses the desktop card's day count
+   (`daysInMonth − daysElapsed`, the days after today) and reads "Last day of
+   <Month>" when none are left, "Goal reached" when nothing is to go. No
+   sales block reads month-to-date as $0, as the desktop card does.
+g. **Labor dollars are not shown.** `laborCost` is on the payload for
+   MANAGE-tier viewers only and no desktop surface renders it, so the
+   tablet does not either (RULING NOW in the report).
+h. **Transactions and average sale** are not on `GET /api/dashboard/summary`
+   (they are on `/api/dashboard/sales`), so they are not built: TAB-10.
+
+**Gary's rulings on the two RULING NOW items, 2026-11-10, verbatim** (added
+after the build report; nothing above is edited — judgement call g and the
+two "RULING NOW" mentions above are SPENT, kept):
+
+8. **HR chip on STORE logins.** "HR chip — hide it on STORE logins in Tablet
+   mode; keep it for personal logins."
+9. **Labor dollars.** "Labor dollars — never shown on the tablet; percentages
+   only."
+
+**Gary's fix instruction, same message, verbatim:** "after the 5-minute idle,
+also scroll the page back to the top and release the page-scrolled busy flag
+so the TAB-5 refresh resumes; the day rollover must never be blocked by
+scroll position."
+
+**How the fix is built (the fix commit after 9253bca, citing 44b80c5).**
+
+- **Tier.** Hiding the chip changes what a STORE login sees, which CLAUDE.md
+  puts in TIER 3; the fix was escalated and declared as such. Gary's message
+  is the approval of exactly this change. It is display-only: the
+  `my-compliance` route and its gates are untouched, and desktop's
+  ComplianceBanner is unchanged.
+- **Ruling 8.** `showHrChip(role)` (`src/lib/tablet-cards.ts`) is false for
+  `STORE` only. `page.tsx` passes the role it already reads through
+  `getUserStoreScope()` (the guarded `getCurrentUser()` lookup) into
+  `TabletHome`, which does not render — so does not fetch — the chip for a
+  STORE login. A login whose role does not resolve keeps the chip; the
+  route's own gates still decide whether it has anything to show.
+- **Ruling 9.** `withoutLaborDollars()` drops `laborCost` from the summary
+  payload the moment `useStripSummary` receives it, so no tablet state or
+  component ever holds a dollar labor figure. (It was already never read;
+  this makes it unreachable.) Desktop is unchanged.
+- **Idle → top.** `pageScrollReset()` returns 0 when the page goes idle (and
+  on a new day or store); `TabletHome` then scrolls to the top, after ruling
+  3's collapse restore, which is skipped for an idle collapse. Idle already
+  turned the `page:scrolled` flag off; reaching the top also clears the
+  scroll state, so the next TAB-5 cycle runs.
+- **Rollover never blocked by scroll.** `rolloverDue()` is true when the last
+  server render names a later day or the store-local clock has passed
+  midnight (TAB-5's `dayRolledOver`). `cardsBusy(…, rolloverDue)` turns
+  `page:scrolled` off while one is due. The flags are re-applied every 5
+  seconds as well as on render, because midnight arrives without a render.
+  An open card or the open list still holds the rollover until it idles
+  shut (ruling 4 and TAB-5 ruling 3); only scroll position no longer does.
+- **Fixture.** `verify-tab9-cards.ts` cases 9–12 (26 checks; 84 in all):
+  idle → top and the refresh resumes, rollover while scrolled, the chip by
+  role, and labor dollars dropped.
+- **Local check** (temporary mock, idle shortened to 20s, both reverted):
+  STORE login shows no HR chip and never calls `my-compliance`; MANAGER shows
+  "My HR · 2"; the Labor card shows no dollar figure although the mock
+  payload carried `laborCost`; a card left open with the page scrolled to the
+  bottom collapsed at idle with the page at the top, and the next 60-second
+  cycle ran.
+
+## 2026-11-10 — TAB-5: the tablet home keeps itself current, rulings 1–5 — DRAFT
+
+**RATIFIED BY GARY, 2026-11-10, at the TAB-5 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: rulings 1–5, the controller
+design, Claude's judgement calls (a)–(i), the offline-guard addition (his own
+words, quoted there) and judgement call (j), which are now ratified as his.
+The heading's "DRAFT", the "DRAFT, awaiting Gary's ratification" line, "for
+ratification" and "(untracked until PRE-PUSH-CHECK)" are spent, kept; the
+prompt of record `docs/prompts/TAB-5.md` is committed at this check. The
+"29/29" in "The controller design" stays as written; the addition's
+correction (28/28 at ab29d62, 32/32 after 81cb5f0) stands. Wording untouched.
+
+**DRAFT, awaiting Gary's ratification at the TAB-5 PRE-PUSH-CHECK.** Prompt
+of record: `docs/prompts/TAB-5.md` (untracked until PRE-PUSH-CHECK). Work
+commit: ab29d62. TIER 2: no schema, no migration, no endpoint, no
+dependency.
+
+**Gary's rulings 1–5, 2026-11-10.** Gary's own words were "OK. Write TAB-5",
+in answer to the leans below. The wording is the prompt's, not his:
+
+1. **Refresh the rest of the screen.** The Tasks panel, the overdue chip and
+   the compliance chip refresh on the Messages timer: every 60 seconds while
+   the page is visible, at once when it becomes visible again, never while
+   hidden.
+2. **New day, new screen.** When the store's local date changes, the next
+   refresh reloads the tablet home: header date, today's checklist (re-picked
+   by the TAB-1 rule), the chips, the strip and Messages.
+3. **Never interrupt someone mid-task.** If any sheet is open or a tick,
+   submit or send is in flight, that refresh is skipped and runs on the next
+   cycle. A refresh never closes a sheet, clears typed text or moves a
+   scrolled list.
+4. **Other devices show up.** Items ticked elsewhere appear at the next
+   refresh, with "N done", "n of N" and the progress bar following.
+5. **File the Sales-comparison ROW.** Today-so-far is compared against last
+   year's FULL day on desktop and on the tablet tile. Filed as TAB-7, planned
+   ("compare today-so-far against last year at the same time of day"). The
+   calculation is not changed in TAB-5.
+
+**The controller design.**
+
+- **One controller, one timer.** `useTabletRefreshController`
+  (`src/app/(app)/dashboard/tablet-refresh.tsx`) is owned by `TabletHome`.
+  Each part registers its re-read (`useRefreshLoader`): Messages, the strip
+  and the compliance chip. `TabletHome` runs its own two (the today's list and
+  the due feed). The Messages and strip timers from TAB-2 and TAB-3 are gone.
+  The cadence and visibility rule are TAB-2 ruling 8's, unchanged: one
+  constant, `TABLET_REFRESH_MS`.
+- **Busy.** Each part reports what makes it busy: `useBusyFlag` for an open
+  sheet, `track()` for a write in flight. One busy flag skips the WHOLE
+  cycle. A cycle never starts while the last one is running.
+- **Pure rules** live in `src/lib/tablet-refresh.ts`: `shouldRunCycle`,
+  `isBusy`, `storeLocalDay`, `dayRolledOver`, `nextShownDay` and
+  `pruneOverrides`. They are pinned by `scripts/verify-tab5-refresh.ts`
+  (29/29).
+- **Ticks from elsewhere (ruling 4).** The Tasks panel's items are a server
+  render, and no route returns a checklist's items. So the cycle re-reads them
+  with `router.refresh()`, which keeps client state and scroll. Server reads
+  run one at a time, so each landing is attributed to its own start time. A
+  local tick is retired once a server read that started after the tick's
+  write settled has landed.
+- **Day rollover (ruling 2).** Each `TabletStore` carries `day`: the
+  server's `localDateStr`, which is the `businessDayWindow` day the checklist
+  query and the today's list use. The page shows one day per store and moves
+  to the server's day only while idle (ruling 3). Until it moves, the
+  previous render's stores and checklists are held on screen. Moving remounts
+  the Tasks panel, which clears ticks, the "Completing as …" chip and the
+  Done state, and re-reads today's list. The header date comes from the same
+  render.
+
+**Claude's judgement calls (for ratification).**
+
+- **(a) New module.** I added `src/lib/tablet-refresh.ts` rather than
+  extending `tablet-messages.ts`. `TABLET_REFRESH_MS` and `canRefresh` stay
+  where they are (verify-tab2 pins them). `shouldRunCycle` is `canRefresh`
+  widened from "a send" to "anything busy", plus "not already refreshing".
+- **(b) The server decides the day.** The browser's clock, read in the
+  store's zone (`storeLocalDay`), is used only to hold back a today's list
+  read after the store's midnight until the page has moved. The move itself
+  follows the server's `day`. It is forward-only, so a device clock that is
+  wrong by minutes moves the page minutes late, never early or backwards.
+  `storeLocalDay` restates `reports.localDateStr`, because `reports.ts`
+  imports Prisma. The fixture asserts the two agree on 18 instant/zone pairs,
+  including both 2026 daylight-saving changes.
+- **(c) `router.refresh()` only right after a read answered.** If a
+  refresh's own RSC request fails, Next falls back to a full browser
+  navigation (`fetch-server-response.js`, the catch branch). On a counter
+  iPad with the wifi down, that would leave Safari's error page up until
+  someone touched it. So the cycle calls it only when the today's-list read
+  in the same cycle answered and `navigator.onLine` is not false. This
+  narrows the window but does not close it; see the COMMENT in the report.
+- **(d) Partial submit on another device.** A partial submit writes In
+  Progress (or Non-Compliant) and nothing that marks it as submitted, so a
+  second device cannot tell it from ticking. That device keeps showing In
+  Progress with the remote ticks. A remote FULL submit moves the panel to
+  Done through the lifecycle state. A "partial submitted" marker would need a
+  column, which is out of TIER 2.
+- **(e) What counts as busy.** These are the sheets ruling 3 names: name
+  picker, number pad, partial confirm and overdue sheet. The compliance chip
+  has NO sheet (it is a link to `/my`), so there is nothing there to guard. I
+  added the store picker's open dropdown, which ruling 3 does not name, on
+  the same principle. A Start or a Complete in flight counts as a write.
+- **(f) What a rollover remounts.** Only the Tasks panel. Messages, the
+  chips and the strip re-read on the same cycle instead, so a draft typed in
+  the composer survives midnight (ruling 3 over the letter of ruling 2).
+  Nothing in Messages is day-scoped.
+- **(g) Messages now waits for the whole page.** Under TAB-2 ruling 8 only a
+  send held the Messages refresh. Now any busy part holds it, for example an
+  open name sheet, because ruling 3 skips "that refresh" as a whole.
+- **(h) A failed re-read keeps what is showing.** A failed periodic re-read
+  of the today's list leaves the panel as it was (BUG-6's rule). Only the
+  first load, or the reload after this device's own write, shows "Couldn't
+  load today's checklists".
+- **(i) TAB-7's id.** The Sales-comparison ROW is filed in the TAB series
+  because TAB-5 filed it, as TAB-6 was filed by TAB-3. Its title names both
+  surfaces.
+
+**Addition, 2026-11-10, before PRE-PUSH-CHECK: the offline guard (Gary).**
+His words, verbatim: "the controller skips any cycle that would call
+router.refresh() while navigator.onLine is false (other client fetches may
+still skip naturally); add fixture cases for offline → skip and back online →
+runs." And: "File a planned ROW: a read-only checklist-items endpoint so the
+Tasks panel can refresh without router.refresh(), removing the
+failed-refresh full-navigation risk on an unattended tablet." (Filed as
+TAB-8.) Nothing above is edited; call (c)'s "narrows the window but does not
+close it" still describes the residual risk, and TAB-8 is the row that
+closes it.
+
+Built (commit immediately after 573da37):
+
+- **The cycle.** Every cycle can end in `router.refresh()`, so
+  `shouldRunCycle()` now takes `online` (`navigator.onLine`), and no cycle
+  starts while it is false. All of the cycle's reads wait with it, so the
+  chips, Messages and the strip also pause while offline. They would have
+  failed anyway, and a failed re-read already keeps what is showing.
+- **The single refresh.** `refreshServer()` checks again with
+  `mayRefreshServer()` right before every `router.refresh()`. That covers
+  the refresh after this device's own writes, which runs outside a cycle,
+  and a refresh that waited behind another. The cycle's own check after its
+  reads is kept for a network that drops mid-cycle.
+- **Back online.** **Claude's judgement call (j):** the browser's `online`
+  event runs a cycle at once, the way becoming visible does, rather than
+  waiting up to 60s.
+- **Fixture.** Cases 5d–5g (offline → skips, back online → runs, for both
+  the cycle and the single refresh). `verify-tab5-refresh` is 32/32.
+- **Correction to a number above.** "29/29" in "The controller design" is
+  wrong. The fixture at ab29d62 had 28 checks and passed 28/28. It was a
+  miscount in the report, not a missing check. The ab29d62 commit message
+  carries the same "29/29". The paragraph is kept as written.
+
+## 2026-11-10 — TAB-3: Display settings — the Dashboard and Tablet card picker, rulings 1–8 — DRAFT
+
+**RATIFIED BY GARY, 2026-11-10, at the TAB-3 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: rulings 1–8, audit forks F1–F9
+(F6 as he refined it), his strip ruling (c′), the storage choice, the merge
+rule, the validation rules, and Claude's judgement calls a–g, which are now
+ratified as his. Call (c′)'s departure from § Design System's skeleton rule
+(no loading skeleton on the stat strip) is ratified with it. The heading's
+"DRAFT", the "DRAFT, awaiting Gary's ratification" line, "for ratification"
+and "(both untracked until PRE-PUSH-CHECK)" are spent, kept; the prompts of
+record `docs/prompts/TAB-3.md` and `docs/prompts/TAB-3_AUDIT.md` are
+committed at this check. Wording untouched.
+
+**DRAFT, awaiting Gary's ratification at the TAB-3 PRE-PUSH-CHECK.** Prompt
+of record: `docs/prompts/TAB-3.md`; audit: `docs/prompts/TAB-3_AUDIT.md` (both
+untracked until PRE-PUSH-CHECK). Work commit: c38d998. Migration
+`20261110200000_tab3_display_layouts` (`docs/MIGRATIONS.md`).
+
+**Gary's rulings 1–8, 2026-11-10.** The TAB-3 prompt records that Gary
+answered "yes to all" to these leans. Their wording below is the prompt's,
+not Gary's own:
+
+1. **Where.** A Display sub-page at `/settings/display`, ADMIN only, on the
+   `/settings/labor` / `/settings/notifications` pattern. It has a link card
+   on `/settings` and two tabs, Dashboard and Tablet.
+2. **Storage.** One layout per org (TAB-1 ruling 3), stored on the
+   organization. Empty or absent means today's defaults.
+3. **Dashboard tab.** Every desktop card gets an on/off toggle and a
+   position. Cards keep their widths and flow in the chosen order. No card is
+   locked, but at least one must stay on.
+4. **Tablet tab.** Tasks and Messages are locked on as the two columns, Tasks
+   left. **This simplifies TAB-1 ruling 5**, which let them be reordered.
+   Below the columns is the stat strip: Sales, Monthly Goal and Labor %, each
+   with a toggle and an order, all off by default.
+5. **Permissions still apply** on both surfaces.
+6. **Reordering** is touch-size up/down arrows, plus drag handles if the repo
+   already has a drag-and-drop library. It does (`@dnd-kit`), so both were
+   built.
+7. **Reset to defaults** on each tab, with a confirmation step.
+8. **No live preview in v1.** It is filed as a ROW (TAB-6).
+
+**Audit forks F1–F9 (`TAB-3_AUDIT.md`).** Gary's words in chat,
+2026-11-10: "Yes to all, go". Every lean below is therefore his ruling.
+
+- **F1.** The two banners above the dashboard (ComplianceBanner, and
+  CalendarDueBanner, which is the design's "Overdue alerts") are NOT in the
+  picker. They stay pinned and cannot be hidden.
+- **F2.** Handoff notes ride inside the `shift-checklist` slot, stacked above
+  it, with no key of their own. Turning Shift checklist off also hides them
+  on the desktop dashboard.
+- **F3.** The All-locations rollup is untouched. Only `inventory-count`
+  follows its toggle in both modes.
+- **F4.** The Labor % tile shows month-to-date labor %, from the summary
+  payload. It matches the Monthly Goal card's line and is labelled with the
+  month.
+- **F5.** A save carries the full list for its surface, every key exactly
+  once.
+- **F6.** "At least one desktop card on" is counted against the registry, not
+  against the org's modules. **REFINED BY GARY, 2026-11-10, before the work
+  commit** (the line before this one is kept, but this ruling supersedes it).
+  His words, verbatim:
+
+  > "F6 refinement — the "at least one card on" rule counts only cards that
+  > are never module-gated (sales-performance, monthly-goal, team-messages,
+  > shift-checklist); a save with none of those enabled is refused."
+
+  Built as follows:
+  - The four cards carry `anchor: true` in the registry.
+  - `hasAnchorOn()` is the test, shared by `validateLayout()` (the route) and
+    the page's Save button.
+  - The error reads "Keep at least one of Sales performance, Monthly goal,
+    Team messages or Shift checklist on."
+  - Fixture cases 12b (only Inventory count on → refused; the same for Labor
+    coverage, Labor budget, Instagram and Corporate update alone) and 12c (any
+    one of the four alone → accepted).
+- **F7.** The link card goes on the `/settings` Integrations tab, after
+  Message Center.
+- **F8.** The Sales tile is hidden when the store has no sales (no Square
+  link, or the Inventory module is off).
+- **F9.** The Goal tile reads "No goal set" when no goal is set.
+
+**Storage (Claude, from ruling 2).** There are two nullable JSONB columns,
+`Organization.dashboardLayout` and `Organization.tabletLayout`. Each holds an
+ordered `[{ key, enabled }]`. NULL means the defaults. **"Reset to defaults"
+writes NULL, not the default array**, so a card Froot adds later still
+reaches a reset org at its default place.
+
+**The merge rule (Claude; `resolveLayout()` in
+`src/lib/display-layout.ts`).** It is forgiving on read:
+
+1. A null or non-array value gives the defaults.
+2. The saved order is kept for known keys, and the first occurrence of a key
+   wins.
+3. Unknown keys and duplicates are dropped. A non-boolean `enabled` falls
+   back to the card's default.
+4. A registry key missing from a saved layout is inserted directly after the
+   nearest preceding default-order key that is present (or at the start),
+   with its default state.
+5. Locked keys are forced on and pinned to the front in registry order.
+
+**Validation (Claude; `validateLayout()` and `canEditDisplayLayout()`,
+applied by `PUT /api/display/settings`).** It is strict on write:
+
+- ADMIN only. The route re-checks it even though the page is gated on
+  `settings.access` (PERM-2).
+- Zod checks the shape.
+- Known keys only.
+- Every key for the surface exactly once.
+- At least one desktop card enabled.
+- Tasks and Messages enabled on Tablet.
+- The NORMALISED list is what gets stored.
+
+**Judgement calls (Claude, for ratification):**
+
+- **(a) Row packing.** Desktop cards are packed greedily into rows of 3
+  width units: Sales and Coverage take 2, a full-width card takes 3, every
+  other card takes 1. Each card keeps today's wrapper class. A single
+  flex-wrap container was rejected because it would have put Sales, Goal and
+  Coverage on one line on wide screens, breaking the null-layout guarantee.
+  Packing today's order reproduces today's rows exactly (fixture cases 2–3).
+- **(b) Filtering.** The viewer-side filters applied before packing are
+  exactly the gates the dashboard already had: `laborEnabled` and a
+  non-empty `countRecency`. Runtime collapses are not filtered (Corporate
+  Update with no active update, notes all acknowledged). They hold their
+  slot and render nothing, as before.
+- **(c) One endpoint for the strip.** All three tiles read
+  `GET /api/dashboard/summary`, and there is no new endpoint. Sales =
+  `sales.today.total`, plus ▲/▼ against the same weekday last year using
+  DeltaPill's formula. Goal = MTD ÷ goal, capped at 100%. Labor = the
+  `labor` block, which is absent unless `laborVisible`. That makes a tile
+  disappear, never render empty. The strip renders nothing when no tile is
+  on, or when none survives its gate.
+- **(c′) Strip with no visible tile — GARY'S RULING, 2026-11-10, before the
+  work commit.** His words, verbatim: "When no stat-strip tile is visible to
+  the viewer, render no strip container (no gap)."
+  - With tiles enabled, the columns and the strip share a flex column. A flex
+    gap only falls between rendered children, so a strip that renders null
+    leaves nothing behind.
+  - With no tile enabled, the original TAB-2b markup is untouched.
+  - For the same reason the strip has **no loading skeleton**. A placeholder
+    would show a strip to a viewer who then gets none. This departs from
+    § Design System's skeleton rule, and Gary's ruling is the reason.
+- **(d) Refresh timer.** The strip refreshes on the Messages column's
+  visibility-aware timer. Its 60 s constant was lifted to
+  `TABLET_REFRESH_MS` in `src/lib/tablet-messages.ts`, so the two cannot
+  drift. A failed refresh keeps the numbers on screen.
+- **(e) Save model.** Each tab edits a draft and saves with one Save
+  button. The page disables Save and shows the F6 error when none of the four
+  never-gated cards is on. The route refuses that independently.
+- **(f) Drag sensor.** The drag handles use template-form's
+  `PointerSensor(distance 8)` with `touch-action: none`. Locked tablet rows
+  have no handle, arrows or switch, just a lock and "Locked on".
+- **(g) Page copy.** The page says changes apply "to everyone in your
+  organization". The design's "everyone at this store" contradicts ruling 2.
+
+## 2026-11-10 — TAB-2: Tablet mode — the Messages column, rulings 1–8 — DRAFT
+
+**TAB-2b RIDER RATIFIED BY GARY, 2026-11-10, at the TAB-2b PRE-PUSH-CHECK:**
+"Ratify as written". This covers the whole TAB-2b rider below: the lean
+(items 1–3, with item 2 read as his ruling on call b restates it), the
+audit's finding, and Claude's judgement calls a and d, which are now ratified
+as his. His ruling on call b stands as his own words; call b stays
+SUPERSEDED, spent, kept. Call c was already ruled to stand as built. The
+rider's "DRAFT, awaiting Gary's ratification", "awaiting ratification" and
+"(untracked until PRE-PUSH-CHECK)" markers are spent, kept; the prompt of
+record `docs/prompts/TAB-2b.md` is committed at this check. Wording
+untouched.
+
+**── RIDER 2026-11-10 (TAB-2b) — DRAFT, awaiting Gary's ratification at the
+TAB-2b PRE-PUSH-CHECK. PREPENDED; NOTHING BELOW IS EDITED. ──** Prompt:
+`docs/prompts/TAB-2b.md` (untracked until PRE-PUSH-CHECK). Work commit
+`007dfd0`. The "RATIFIED BY GARY … at the TAB-2 PRE-PUSH-CHECK" paragraph
+below predates this rider and does NOT cover it.
+
+**── GARY'S RULING ON CALL b, 2026-11-10 (prepended to this rider; nothing
+below in it is edited). ──** Built in the fix commit after `0e9768c`, which
+fixes `007dfd0`. Gary's words, verbatim:
+
+> "Ruling on call b: in Tablet mode the rail Help is always visible — it opens
+> the page's help article when one exists, and /help otherwise. Desktop's
+> floating ? keeps its current rule (hidden on pages with no article). Call c
+> stands as built."
+
+Call **(b)** below (rail Help shown only where an article exists, absent on
+`/calendar` and `/settings`) is SUPERSEDED by this ruling, spent, kept. Lean
+item 2's "visible to every role, the same as the floating button is today"
+now reads as: visible on every Tablet-mode page, for every role. Call **(c)**
+is ruled to stand as built (on `/help`, marked active, linking to `/help`).
+Desktop's floating "?" is unchanged. Calls a and d are still awaiting
+ratification, as is the lean itself.
+
+**The defect (Gary, staging, 2026-11-10):** the floating round "?" (HELP-1a,
+fixed bottom-right on every page) sat on top of the Messages column's Send
+button in Tablet mode, landscape and portrait, so a tap meant for Send could
+open Help.
+
+**The lean — the planning chat's, carried in the TAB-2b prompt, NOT a ruling
+of Gary's until he ratifies it:**
+
+1. Tablet mode only: the floating help button does not render.
+2. Help moves into the tablet rail as a Help icon above Settings, visible to
+   every role the same as the floating button is today, and tapping it does
+   exactly what the floating button does.
+3. Desktop mode is unchanged; the floating button stays where it is.
+
+**What the audit found (fact, not a choice).** The "?" is
+`ContextHelpButton` (`src/components/help/context-help-button.tsx`), mounted
+separately by `AppShell` (desktop) and `TabletShell` (tablet). It opens no
+panel: it is a link to `/help/<article>` for the longest-matching article
+the reader may see on the current route, and it renders nothing on a route
+with no such article or on `/help` itself. So the rail needed no new
+plumbing, only the same decision, shared.
+
+**Claude's judgement calls under the lean — awaiting ratification.**
+
+a. **One decision, two renderers.** The "?"'s logic was extracted UNCHANGED
+   into `useContextHelp()`; the floating "?" and the rail Help both render
+   from it, so they cannot disagree about which article or which reader.
+b. **"Visible to every role, the same as the floating button" is taken
+   literally,** including where the "?" was absent: the rail Help shows only
+   where `useContextHelp()` returns an article. On the rail's own routes that
+   is `/dashboard`, `/checklists` and `/messages` (each has an article);
+   `/calendar` and `/settings` have none, so Help is absent there — exactly as
+   the "?" was. The alternative, a fallback link to the `/help` landing page
+   there, would be a change of what Help does, so it was not taken.
+c. **On `/help` itself the rail Help stays, marked active, linking to
+   `/help`.** The "?" hides on its own destination; a rail item that vanished
+   the moment you tapped it would not read as navigation.
+d. **Placement:** the rail's bottom group, directly above Settings. Settings
+   is ADMIN-only, so for every other role Help sits directly above the store
+   name. The bottom group is anchored to the bottom, so Help appearing or not
+   never moves Settings.
+
+**RATIFIED BY GARY, 2026-11-10, at the TAB-2 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: rulings 1–8, the audit's
+resolution of rulings 3 and 5, and Claude's judgement calls b, d, e, f and
+g–k, which are now ratified as his. Calls a and c stay SUPERSEDED (by rulings
+6 and 7), spent, kept. The heading's "DRAFT" and the "DRAFT — awaiting
+Gary's ratification" / "awaiting ratification" markers below are spent,
+kept. Wording untouched.
+
+**── RIDER 2026-11-10 (2) — Gary's rulings on the report's three RULING NOW
+items, numbered 6–8 here. PREPENDED; NOTHING BELOW IS EDITED. ──** Built in
+the fix commit after `b1dafbd` (fixes `ab80e5b`). The heading's "rulings 1–5"
+became "1–8" at this rider; nothing else in the entry was reworded.
+
+**Gary's words, 2026-11-10, verbatim:**
+
+6. "(1) Thread order: switch the tablet column to chat order — oldest at top,
+   newest at the bottom next to the composer; scroll to the bottom on load
+   and after posting. Desktop is unchanged."
+7. "(2) Unread: messages count as read once they've been rendered in the
+   tablet column, using the same mark-read mechanism /messages already uses;
+   no new endpoint — if it needs one, STOP."
+8. "(3) Live refresh: refetch the column every 60s while
+   document.visibilityState is visible, and immediately on
+   visibilitychange/focus back to visible; no refetch while hidden; don't
+   refetch while a send is in flight. File a ROW for the same staleness in
+   the Tasks panel and the chips." (Filed: TAB-5.)
+
+**What they supersede.** Claude's call **(a)** below (newest at the top) is
+SUPERSEDED by ruling 6. Call **(c)** (the tablet never marks anything read) is
+SUPERSEDED by ruling 7. Both are spent, kept. Ruling 7 needed no new endpoint:
+it is `POST /api/messages/mark-read`, the call `/messages` makes. It does mean
+the tablet now WRITES `MessageRead` rows, and only through that endpoint.
+
+**Claude's judgement calls under rulings 6–8 — awaiting ratification.**
+
+g. **`upTo` is the newest RENDERED message, not "now".** `/messages` sends
+   `upTo: now`. The tablet sends the `createdAt` of the newest message it has
+   actually rendered, so a message that arrives between the read and the
+   render is not marked. It is the same endpoint, and the route marks
+   everything at or before `upTo`, older pages included, exactly as
+   `/messages` does when only its first page has loaded. Mark-read fires
+   once per newer message rendered and not otherwise. After it lands the
+   count is re-read, so the column and rail clear. On failure it is retried
+   on the next render or refresh.
+h. **A refresh does not yank the reader.** Load and posting always scroll to
+   the bottom (ruling 6). A refresh that brings new messages follows them
+   down only if the reader was already at the bottom (within 80px). Someone
+   who scrolled up to read stays put.
+i. **What a refresh refetches:** the thread, plus `/api/dashboard/comms`
+   (pinned update and count), so the pinned update is live too. A failed
+   refresh keeps what is showing rather than blanking it. A message this
+   device sent after a refresh's read began is kept at the bottom
+   (`mergeRefresh`). When visibilitychange and focus fire together, one read
+   is made (1s window).
+j. **"Open the feed" moved into the column header.** In chat order the
+   bottom of the thread belongs to the newest message.
+k. **Scroll runs in a layout effect after the thread commits,** not in
+   `requestAnimationFrame`. A backgrounded page defers animation frames, and
+   the mocked check caught the scroll not happening.
+
+**DRAFT — awaiting Gary's ratification at the TAB-2 PRE-PUSH-CHECK.** Nothing
+below is ratified yet.
+
+Prompt of record: `docs/prompts/TAB-2.md` (untracked until PRE-PUSH-CHECK).
+Work commit `ab80e5b`.
+
+**Gary's word, 2026-11-10, verbatim:** "Yes" — his answer to the five leans
+below. The wording of each lean is the planning chat's (as carried in the
+TAB-2 prompt), not Gary's; his "Yes" is what makes them rulings.
+
+1. **Scope:** TAB-2 is the Messages column only. The Sales/Goal/Labor strip
+   moves to TAB-3, together with the setting that turns it on.
+2. **Layout:** the Corporate Update pinned at the top, the thread below it,
+   and a large composer fixed at the bottom, matching the Status Stage design.
+3. **Quick replies:** "On it", "Done" and "Thanks" post as an ordinary
+   message. They reply to the latest message if Froot's messages support
+   replies; otherwise they post to the feed.
+4. **Sender:** tablet messages come from the logged-in account, the same as
+   desktop. The "Completing as" chip stays for tasks only.
+5. **Unread:** reuse desktop's unread tracking if it exists. If it doesn't,
+   TAB-2 adds none, and a ROW is filed.
+
+**How the audit resolved the two conditional rulings (fact, not a choice).**
+Ruling 3: `TeamMessage` has no reply-to or thread field, so quick replies
+take the fallback and post to the store feed as ordinary `general` messages.
+Ruling 5: desktop does track unread (`MessageRead`, one row per message per
+user; the desktop card's count is `/api/dashboard/comms`
+`teamMessagesPreview.unreadCount`; the only thing that marks read is
+`POST /api/messages/mark-read`, fired when `/messages` loads, plus the
+author's own read on posting). So TAB-2 reuses it and no unread ROW is filed.
+
+**Claude's judgement calls — awaiting ratification.**
+
+a. **Thread order: newest at the TOP.** The prompt said newest-at-the-bottom
+   only "if that matches how desktop reads"; it does not. The desktop card and
+   the `/messages` feed both read newest first (`orderBy: createdAt desc`), so
+   the tablet matches desktop, not the artboards (which read oldest to newest,
+   chat-style, with the newest beside the composer). "Scrolls so the newest is
+   visible" therefore means the top of the thread.
+b. **The thread is the feed's first page, not the card's three.** The desktop
+   card previews only the latest 3, truncated to 140 characters; a scrolling
+   column of three would not be a thread. The column reads `GET /api/messages`
+   with no filters (25 newest, full text): the same store, the same
+   `deletedAt: null` set and the same order as the card, so its top three are
+   the card's three. Older messages and attachments are reached through "Open
+   the feed".
+c. **The tablet never marks anything read** (ruling 5's "no new read rules").
+   The count on the column and the rail clears the way desktop's does: by
+   opening `/messages`. The rail hides its badge while on `/messages`, because
+   that page marks the feed read as it loads.
+d. **The rail's count** is the same read as the column's, shared in memory
+   (`src/lib/tablet-unread.ts`); off the home page the rail re-reads it once
+   per navigation from the same endpoint.
+e. **The iPad keyboard.** `visualViewport` lifts the composer by the height
+   the keyboard covers. While the keyboard is up, the header, pinned update
+   and quick replies fold away. Without that, the composer did not fit above
+   the keyboard in a simulated check: landscape 398px keyboard, Send ended
+   180px under it; portrait 320px keyboard, 18px under it. Simulated only.
+f. **Quick replies and Send share one in-flight guard**, so a double tap, or
+   a quick reply tapped while a typed message is sending, posts once.
+
+## 2026-11-09 — TAB-1: Tablet mode — rulings 1–8, the cookie, the today's-checklist rule
+
+**RATIFIED BY GARY, 2026-11-10, at the TAB-1c PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole TAB-1c rider below, items 1–2, including the
+compliance chip's design (Claude's: same endpoint, render rule, words and
+nearest-due line, red/amber, `/my` link, no dismiss, tablet home only); that
+design is now ratified as his. The rider's "DRAFT, awaiting Gary's
+ratification" header is spent, kept. Wording untouched.
+
+**── RIDER 2026-11-10 (TAB-1c) — DRAFT, awaiting Gary's ratification at the
+TAB-1c PRE-PUSH-CHECK. PREPENDED; NOTHING BELOW IS EDITED. ──** Prompt:
+`docs/prompts/TAB-1c.md`. Work commit `1f03674`.
+
+1. **THE SELF-1 COMPLIANCE BANNER COMES TO THE TABLET AS A HEADER CHIP.**
+   Ruling 7 replaced the full-width CALENDAR due banner with the overdue chip.
+   It said nothing about the SELF-1 `ComplianceBanner`, which TAB-1 also
+   dropped from tablet mode, so a person's own overdue training and documents
+   became invisible there. Tommy's "You have 2 items to complete · 2 overdue"
+   was that banner, not the calendar's. **Gary, 2026-11-10:** asked in session
+   whether to add a compliance chip or file a row, he chose the chip. The chip
+   is Claude's design and is what this rider asks to ratify: same endpoint
+   (`/api/dashboard/my-compliance`), same render rule (only when the
+   signed-in person owes something), the banner's words and nearest-due line,
+   red when anything is overdue and amber otherwise, links to `/my`, no
+   dismiss. It sits in the tablet header beside the calendar chip and shows on
+   the tablet home only, as the banner shows on `/dashboard` only.
+2. **NO CHANGE TO THE CALENDAR CHIP'S RULES.** TAB-1c found the chip correct;
+   its filter and count were moved unchanged into `src/lib/tablet-due.ts` and
+   pinned. Due-today items keep the banner's treatment (listed, counted in
+   "N due", amber), so no new rule was needed there. Recorded so the absence
+   of a due-today ruling is read as deliberate.
+
+**RATIFIED BY GARY, 2026-11-09, at the TAB-1b PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole TAB-1b rider below, items 1–4, including the
+sticky-person design and the Claude details and additions in it (the
+12-name search threshold, Change with no tick pending, "Keep working on
+it"); those are now ratified as his. The rider's "DRAFT, awaiting Gary's
+ratification" header is spent, kept. Wording untouched.
+
+**── RIDER 2026-11-09 (TAB-1b) — DRAFT, awaiting Gary's ratification at the
+TAB-1b PRE-PUSH-CHECK. PREPENDED; NOTHING BELOW IS EDITED. ──** Prompt:
+`docs/prompts/TAB-1b.md`. Work commit `9f3c944`.
+
+1. **Ruling 6's premise was wrong.** It said tablet attribution would be "same
+   as today", meaning no per-person name. Desktop already records one: the
+   execution page asks "Who completed this task?" on every tick whenever the
+   store has staff, and writes `TaskLog.completedByStaffId` under CHK-15's
+   rules. The PREMISE is corrected here; the ruling's text below is unchanged.
+   **Gary, 2026-11-09, verbatim:** "Agreed, fix it." TAB-1b makes the tablet
+   follow desktop's rule exactly — same list (Team Member, Manager, then the
+   store's ACTIVE staff by name), same condition (asked only when the store
+   has staff, and required then: closing the sheet ticks nothing), same field,
+   same untick (no name sent). TAB-4 is narrowed to anything beyond that
+   parity, such as a per-person PIN.
+2. **The sticky person (planning-chat lean, not yet a ruling).** The tablet
+   asks once per checklist rather than once per tick. The first tick opens
+   "Who's completing these?" (desktop's list, two-column touch grid, a search
+   box above 12 names); the pick ticks that item and sticks as a "Completing
+   as <name> · Change" chip under the banner, and following ticks use it
+   without asking. Change reopens the sheet. The chip lives in React state
+   only — never a cookie or storage — and clears on submit, on reload, and
+   when the panel moves to another checklist. A temperature task with nobody
+   chosen shows the name sheet, then the number pad. Claude details inside
+   it: the search threshold (12 names) and that Change with no tick pending
+   only switches the person.
+3. **Partial submit — stays at desktop parity.** **Gary, 2026-11-09,
+   verbatim:** "partial submit stays at desktop parity — do not change
+   day-close behaviour in TAB-1b." A "Submit partial (n of N)" text link
+   shows while some but not all items are ticked. It opens a confirm sheet,
+   "Submit with M tasks unfinished?", whose Submit partial button sends the
+   same `POST /api/checklists/[id]/submit` desktop's "Submit Partial" sends
+   (desktop sends it with no confirm). An answer of In Progress or
+   Non-Compliant shows a calm panel reading **"Partial submitted · n of N"**
+   with the second line **"Unfinished checklists are still marked Missed at
+   day close."** (Gary's copy, same message). Completed (finished on another
+   device) shows the normal Done panel; anything else, or a failed request,
+   shows the error and keeps the sheet open — c83a5c3's rule. Claude
+   addition: a "Keep working on it" button on the partial panel, so the crew
+   can tick more without reloading. Why the second line: day close files
+   every row that is not Completed as Missed, Non-Compliant included
+   (`api/cron/checklist-day-close/route.ts`), so a partial submit records the
+   status and rate and the row is still closed as Missed. Desktop's Submit
+   Partial behaves the same. What day close SHOULD do with a partially
+   submitted checklist is filed as **CHK-18** and is not decided here.
+   Two neighbouring gaps found by the audit are filed on Gary's instruction
+   and left alone here: **BUG-28** (desktop submit never checks the response)
+   and **CHK-19** (desktop has no temperature entry although
+   `Task.requiresTemp` exists, and no desktop surface shows a saved value).
+4. **The overdue chip is paused per Gary, 2026-11-09** — he could not
+   reproduce the reported problem. TAB-1b does not touch it.
+
+**RATIFIED BY GARY, 2026-11-09, at the TAB-1 PRE-PUSH-CHECK:**
+"Ratify as written". This covers the whole entry, including rulings 1–8, the
+cookie note, the today's-checklist rule and the two further choices; the
+Claude choices in it are now ratified as his. The "DRAFT" paragraph below is
+spent, kept; the heading's "— DRAFT" suffix was removed at this check.
+
+**DRAFT — awaiting Gary's ratification at PRE-PUSH-CHECK.** Nothing below is
+ratified yet.
+
+Prompt of record: `docs/prompts/TAB-1.md`. Work commit `adec345`.
+
+**Gary's words, 2026-11-09, verbatim:** "I agree yes to all" — his answer to
+the eight leans below. The wording of each lean is the planning chat's (as
+carried in the TAB-1 prompt), not Gary's; his agreement is what makes them
+rulings.
+
+1. Direction: Status Stage.
+2. The Tablet/Desktop switch is saved per device. It defaults to Desktop and
+   never switches on its own.
+3. Card layout is one per org, set by ADMIN; per-store layouts are deferred.
+   (TAB-3.)
+4. Sales, Goal and Labor are off by default in Tablet mode; ADMIN can turn
+   them on. (TAB-2/3.)
+5. Messages and Tasks are locked on in Tablet mode.
+6. Attribution: v1 checks off and posts as the logged-in account, same as
+   today. Per-person attribution is a planned row. (TAB-4.)
+7. The overdue chip shows this store's count; tapping it opens the existing
+   due list as a bottom sheet.
+8. The Settings gear is ADMIN only.
+
+**The cookie (prompt's implementation note, not a ruling).** Ruling 2 is
+stored in a cookie, `froot_view` = `tablet` | `desktop`, one-year expiry, set
+from the client — not localStorage — so the server reads it in the (app)
+layout and renders the right shell on first paint with no flash. Still per
+device. Absent = desktop. The switch is its only writer.
+
+**The today's-checklist rule, as applied (Claude — awaiting ratification).**
+The audit found no existing rule for picking ONE checklist. The SET of a
+store's checklists today is reused from `GET /api/stores/[id]/templates` (the
+Start Daily Checklist list). From that set, `src/lib/tablet-today.ts`:
+
+1. Current = the earliest-due checklist that is due now and not completed
+   (lifecycle `active` or `overdue`). Earliest-due = `expectedEndAt`
+   ascending; no window sorts last; name breaks ties.
+2. Nothing due now, something completed today → Done, headlining the
+   latest-due completed checklist, with the earliest `upcoming` one as Up next.
+3. Nothing due now, nothing completed, something upcoming → that upcoming
+   checklist is current (an early crew can start it, as Start Daily Checklist
+   allows).
+4. Nothing → "No checklists today".
+
+This is the prompt's lean with one reading made explicit: an `upcoming`
+checklist does not count as "isn't completed" for rule 1. Without that, the
+lean's own Done state ("with the next upcoming checklist") could never show
+while a later checklist existed. Pinned by `scripts/verify-tab1-today.ts`.
+
+**Two further choices, for ratification:**
+
+- **Submit is a deliberate tap, not a side effect of the last tick (Gary,
+  2026-11-09, after adec345).** adec345 sent submit automatically on the tick
+  that emptied the list. Gary's instruction replaced that: "ticking the last
+  item must NOT submit. When every item is ticked, the In progress panel shows
+  a full-width touch-lg "Submit <NAME> checklist" button (same submit request
+  the desktop Submit button sends). The Done state appears only after that
+  submit succeeds; on failure, show an error and keep the button. Unticking an
+  item before submit hides the button again." Built that way. Why Done still
+  waits for submit: a checklist only becomes `Completed` through
+  `POST /api/checklists/[id]/submit`, and the day-close cron files every row
+  that is not `Completed` as `Missed`, fully ticked or not
+  (`api/cron/checklist-day-close/route.ts`). Two Claude details inside it: a
+  submit that returns OK but a status other than `Completed` (an item unticked
+  on another device) counts as a failure and keeps the button; and a trailing
+  "checklist" in the template name is dropped from the label, so "Mid-day
+  checklist" reads "Submit Mid-day checklist", not "… checklist checklist".
+- **`appleWebApp.capable` is now an explicit `true`** (was an explicit
+  `false`), matching the manifest's `display: "standalone"` (28bbd8a), so
+  "Add to Home Screen" opens full screen on iOS versions that read the meta
+  tag rather than the manifest.
+
 ## 2026-11-06 — DEBT-129: User.name comes from Clerk; Froot never invents a name
 
 **RATIFIED BY GARY, 2026-11-06, at the DEBT-129 PRE-PUSH-CHECK:**
