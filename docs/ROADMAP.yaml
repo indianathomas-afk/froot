@@ -25889,7 +25889,17 @@ phases:
     # docs SHA a8c17d2, and the fix's docs are the commit immediately after
     # 1e5ebc1. Still in_progress. The rollback above is superseded:
     # `git revert 1e5ebc1 c18b0d7` (fix first, then work).
-    status: in_progress
+    # in_progress -> staging 2026-11-11 at the TAB-8 PRE-PUSH-CHECK (the
+    # commit immediately after 4cd349a; its own SHA cannot be written inside
+    # itself). Docs SHAs: a8c17d2 (this row, DECISIONS DRAFT) and 4cd349a (the
+    # fix rider, DECISIONS addendum). The check committed the prompt of record
+    # docs/prompts/TAB-8.md and wrote the DEPLOY_LOG UNPROMOTED entry.
+    # DECISIONS 2026-11-10 TAB-8 (leans 1–9, the departures, the 2026-11-11
+    # addendum and its frozen-until-reload list) RATIFIED by Gary at this
+    # check: "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" and
+    # "untracked until PRE-PUSH-CHECK" are spent, kept. No migration. Rollback
+    # stays `git revert 1e5ebc1 c18b0d7`. NOT pushed at writing.
+    status: staging
     title: "Read-only checklist-items endpoint so the tablet Tasks panel refreshes without router.refresh()"
     commits:
       - "c18b0d7"
@@ -25904,6 +25914,10 @@ phases:
       - "1e5ebc1"
       # + the commit immediately after 1e5ebc1: docs(TAB-8) — this row's fix
       # rider, DECISIONS DRAFT addendum (frozen-until-reload list)
+      - "4cd349a"
+      # + the commit immediately after 4cd349a: docs(TAB-8) PRE-PUSH-CHECK —
+      # DECISIONS ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
     notes: >
       ── RIDER 2026-11-11, TAB-8 fix (prepended; nothing below is edited). ──
       A read-only audit after c18b0d7 (Gary's question) found that

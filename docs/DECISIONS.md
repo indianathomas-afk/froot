@@ -7,6 +7,16 @@ decisions too.)
 
 ## 2026-11-10 — TAB-8: read-only route for the tablet's Tasks refresh — DRAFT
 
+**RATIFIED BY GARY, 2026-11-11, at the TAB-8 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: the audit, leans 1–9 as built,
+the departures marked *(design choice)*, the 2026-11-11 addendum with its
+frozen-until-reload list, and the *(Claude's note, not a ruling)* paragraph,
+all now ratified as his. His 2026-11-11 ruling quoted in the addendum was
+already his words. The heading's "DRAFT", the "DRAFT, awaiting Gary's
+ratification" line, "nothing below quotes him" and "(untracked until
+PRE-PUSH-CHECK)" are spent, kept; `docs/prompts/TAB-8.md` is committed at
+this check. Docs commits: `a8c17d2` and `4cd349a`. Wording untouched.
+
 **DRAFT, awaiting Gary's ratification at the TAB-8 PRE-PUSH-CHECK.** Prompt of
 record: `docs/prompts/TAB-8.md` (untracked until PRE-PUSH-CHECK). Work commit
 `c18b0d7`. TIER 2. The leans in the prompt are **Claude's design choices**,

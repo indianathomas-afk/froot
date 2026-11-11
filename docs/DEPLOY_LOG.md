@@ -2,6 +2,84 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-11 — TAB-8: tablet Tasks refresh reads a read-only route (no router.refresh(); PIN switch and tiles follow within a minute)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`c18b0d7`, docs `a8c17d2`; fix commit `1e5ebc1` (Gary's ruling,
+2026-11-11), docs `4cd349a`; the PRE-PUSH-CHECK is the commit immediately
+after `4cd349a`. **TIER 2:** one new read-only route and the tablet home
+switched onto it. No migration, no env var, no permission, no cron.
+DECISIONS 2026-11-10 TAB-8 (with its 2026-11-11 addendum) RATIFIED by Gary
+at this check: "Ratify as written". Prompt of record `docs/prompts/TAB-8.md`,
+committed at this check.
+
+**Blast radius: the tablet home on `/dashboard` only** (Tablet view, every
+login that gets it). Desktop `/dashboard`, the checklist execution page,
+`tablet-data.ts`, `page.tsx` and every write route are unchanged
+(`verify-tab8` A5 diffs them against the TAB-8 base `29abe48`: empty). First
+load is still the server render.
+
+**What ships.** `GET /api/stores/[id]/tablet-tasks` (`route.ts`, body in
+`read.ts`): one store's day, header date, picker names (TAB-4's `hasPin`),
+today's checklists with items and ticks, `pinRequired`
+(`pinGateApplies(org, role)`) and `stripTiles`
+(`stripTileKeys(org.tabletLayout)`). Built by delegating to
+`loadTabletData`, so it equals the first render by construction. Gates in
+task-log's order: 401, org 404, store (in org, active) 404, store scope 403.
+No capability added. **Zero writes** (checked by `verify-tab8` and measured
+on dev). The tablet home re-reads through it on the 60-second cycle, on
+TAB-5's day rollover, after its own Start / tick / submit, and at once on a
+store switch; no `router.refresh()` is left in it. Writes keep their routes.
+`redirect: "manual"`: an opaque redirect, 3xx, 401 or a non-JSON 200 shows
+TAB-4's expired sign-in message and keeps the list. A failed read keeps the
+list; after 2 refreshes in a row that did not land (offline-skipped cycles
+count), a quiet "Not updated since <time>" line shows under the header
+date, cleared on the next success. An answer without `pinRequired` /
+`stripTiles` is refused as a failed read, never read as "off". TAB-5's
+timer, rollover, busy skip and offline guard are unchanged.
+
+**Behaviour change, ruled (frozen until a reload).** Under
+`router.refresh()` the whole `/dashboard` (layout included) re-rendered
+every cycle. Now three things update only on a reload: `role` (whether the
+personal HR chip shows in the tablet header), the tablet rail (`TabletShell`
+entries and its store list; its unread badge still updates), and the store
+list itself (a new or removed assignment, or a deactivated store). The
+selected store's name, timezone, day, header date and staff still update
+every cycle. The layout's STAFF-to-`/my` redirect and the page's
+`dashboard.view` check no longer re-run each cycle; the route still checks
+org and store scope on every read.
+
+Files: 8 in `c18b0d7` (+776/−56), 4 in `1e5ebc1` (+228/−27): new
+`src/app/api/stores/[id]/tablet-tasks/{route,read}.ts`,
+`src/lib/tablet-tasks-refresh.ts`, `scripts/verify-tab8.ts`; changed
+`dashboard/tablet-home.tsx`, `dashboard/tablet-refresh.tsx`,
+`src/lib/tablet-refresh.ts`, `scripts/verify-tpl3.ts` (`tablet-data.ts`
+added to the checklist-reader list). Checks: verify-tab8 114/114 (part C on
+dev `br-broad-wave-a6vpjdw0`), verify-tpl3 44/44, verify-tab1-today 13/13,
+verify-tab1c-due-chip 11/11, verify-tab2-messages 23/23, verify-tab3-layout
+28/28, verify-tab4-pin 78/78, verify-tab5-refresh 32/32, verify-tab9-cards
+84/84, verify-chk15 28/28; scoped eslint and `npm run build` green.
+Verified locally only on a mocked temporary `/menu` page, deleted before
+each commit. Not observed: a real Clerk expiry against this route, and a
+real iPad.
+
+**Rollback.** `git revert 1e5ebc1 c18b0d7` (fix first, then work). No
+schema or data to undo: the route only reads. The tablet goes back to
+`router.refresh()` every cycle.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+From the TAB-8 row. (1) The tablet home loads as before. (2) Tick on
+desktop: the tablet shows it within a minute. (3) Turn the iPad's wifi off
+for 2+ minutes: the list stays and "Not updated since <time>" appears, no
+Safari error page; wifi back on: the line clears. (4) Clear the `__session`
+cookie: within a minute the sign-in message shows and the list stays.
+(5) With a STORE login on the tablet, turn the Shared Tablets switch on in
+`/settings`: within a minute the name sheet drops "Team Member" / "Manager"
+and asks for a PIN; turn it off: within a minute the generic options return
+and ticks save without a PIN. (6) Reorder or enable a strip tile in
+`/settings`: the tablet follows within a minute. (7) A multi-store login
+switching stores sees that store's current ticks at once.
+
 ## UNPROMOTED — 2026-11-10 — TAB-4: per-person PIN on shared tablets (off by default; calendar detail lists store + corporate staff)
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
