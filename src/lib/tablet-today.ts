@@ -66,3 +66,93 @@ export function pickTodayChecklist<T extends TodayEntry>(entries: T[]): TodayPic
   if (upcoming.length > 0) return { mode: "current", current: upcoming[0] }
   return { mode: "none" }
 }
+
+// ─── TAB-13 — the checklist switcher on the hero ─────────────────────────────
+//
+// TAB-13 puts EVERY checklist of the day in a tab row above the hero, so the
+// rule is no longer "which one to show" but "in what order, and which first".
+// R3 as amended by RN-3 (Gary, 2026-11-11, "Ratify as recommended"):
+//
+//   0. IN PROGRESS (started, not completed)          — earliest due first
+//   1. NOT STARTED and due now (`active` / `overdue`) — earliest due first
+//   2. NOT STARTED and `upcoming` (window not open)   — earliest due first
+//   3. COMPLETED
+//
+// "Earliest due" is byDue above, unchanged: expectedEndAt ascending, no window
+// after every windowed one, name as the tie-break. MISSED IS DROPPED, exactly
+// as pickTodayChecklist drops it (it matches none of its branches) and as the
+// source route already drops it (api/stores/[id]/templates/route.ts:167) —
+// Gary's addition 2, 2026-11-11: Missed keeps today's Home behaviour.
+//
+// What "in progress" means is the caller's: it needs the checklist rows and
+// this device's unsaved ticks, which this pure module does not see.
+
+function switcherRank<T extends TodayEntry>(e: T, inProgress: (e: T) => boolean): number {
+  if (e.lifecycleState === "completed") return 3
+  if (inProgress(e)) return 0
+  if (e.lifecycleState === "upcoming") return 2
+  return 1
+}
+
+/** Today's checklists in tab order. The first one is the auto-pick. */
+export function orderTodayChecklists<T extends TodayEntry>(entries: T[], inProgress: (e: T) => boolean): T[] {
+  return entries
+    .filter((e) => e.lifecycleState !== "missed")
+    .map((e) => ({ e, rank: switcherRank(e, inProgress) }))
+    .sort((a, b) => a.rank - b.rank || byDue(a.e, b.e))
+    .map(({ e }) => e)
+}
+
+// WHICH CHECKLIST THE CARD SHOWS. Local UI state only (R3): no URL, no write,
+// no fetch, and the panel that holds it is keyed by store and day
+// (tablet-home.tsx), so a reload, a store switch or a new day starts it over.
+//
+//   manual — the tab last tapped. Wins over the auto-pick while it is still
+//            in today's list.
+//   open   — the checklist whose tick list ("list") or Done screen ("done") is
+//            open in the card. OPENING COUNTS AS A MANUAL PICK, and the
+//            auto-pick NEVER swaps the card while something is open (Gary's
+//            addition 1, 2026-11-11): a re-read that reorders the list must
+//            not pull a tick list out from under the person ticking it.
+//
+// With nothing tapped and nothing open the card follows the auto-pick as
+// re-reads land (RN-3).
+
+export type SwitcherView = "list" | "done"
+
+export interface SwitcherState {
+  manual: string | null
+  open: { id: string; view: SwitcherView } | null
+}
+
+export type SwitcherAction =
+  | { type: "tap"; id: string }
+  | { type: "open"; id: string; view: SwitcherView }
+  | { type: "close" }
+
+export const initialSwitcher: SwitcherState = { manual: null, open: null }
+
+export function switcherReducer(state: SwitcherState, action: SwitcherAction): SwitcherState {
+  switch (action.type) {
+    // A tab tap always lands on that tab's summary card — including a tap on
+    // the tab whose tick list is open, which is how a crew gets back to it.
+    case "tap":
+      return { manual: action.id, open: null }
+    case "open":
+      return { manual: action.id, open: { id: action.id, view: action.view } }
+    case "close":
+      return state.open ? { ...state, open: null } : state
+  }
+}
+
+/** The id the card shows, and what is open in it (null = the summary card).
+ *  `orderedIds` is orderTodayChecklists' output; an id that has left the list
+ *  (a template archived mid-day) falls back to the auto-pick. */
+export function shownChecklist(
+  state: SwitcherState,
+  orderedIds: string[]
+): { id: string | null; view: SwitcherView | null } {
+  if (state.open && orderedIds.includes(state.open.id)) return { id: state.open.id, view: state.open.view }
+  if (state.manual && orderedIds.includes(state.manual)) return { id: state.manual, view: null }
+  return { id: orderedIds[0] ?? null, view: null }
+}

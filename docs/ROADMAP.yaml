@@ -26555,6 +26555,99 @@ phases:
       (2026-11-11): pick Shift Note · Mid, post, and confirm it shows a Shift
       Note badge on the home and files under Mid on Team Messages.
 
+  - id: TAB-13
+    track: platform
+    size: M
+    # planned -> in_progress 2026-11-11 at the work commit 993977f (NOT
+    # pushed). The docs SHA is the commit immediately after 993977f (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
+    # The prompt asked for "status: staged, not promoted"; in_progress is
+    # what that means until the code is on staging (docs/WORKFLOW.md session
+    # completion rule 2, and the TAB-11 / TAB-12 precedent). Not promoted.
+    # No migration. Rollback: `git revert 993977f`.
+    # in_progress -> staging 2026-11-11 at the TAB-13 PRE-PUSH-CHECK (the
+    # commit immediately after b106aa7; its own SHA cannot be written inside
+    # itself). Docs SHA: b106aa7 (this row, DEBT-130/131/132, DECISIONS
+    # DRAFT, the audit). The check committed the prompt of record
+    # docs/prompts/TAB-13.md and wrote the DEPLOY_LOG UNPROMOTED entry.
+    # DECISIONS 2026-11-11 TAB-13 (R1–R8, RN-1–RN-7, additions 1–3, the
+    # design choices) RATIFIED by Gary at this check: "Ratify as written".
+    # The notes' "DRAFT until PRE-PUSH-CHECK" and "untracked until
+    # PRE-PUSH-CHECK" are spent, kept. No migration. Rollback stays
+    # `git revert 993977f`. The main -> staging catch-up (c21fe51) is left
+    # for the next promotion, on Gary's instruction. NOT pushed at writing.
+    status: staging
+    title: "Tablet home — checklist switcher on the hero (Design Option 1)"
+    commits:
+      - "993977f"
+      # TAB-13: lib/checklist-types.ts (new, the shared type key),
+      # lib/tablet-today.ts (orderTodayChecklists + switcher state),
+      # dashboard/tablet-checklist-switcher.tsx (new, tabs + hero),
+      # dashboard/tablet-home.tsx (TasksPanel only), verify-tab13-switcher
+      # (new, 24 checks), verify-tab10 check 3c pinned (RN-7)
+      # + the commit immediately after 993977f: docs(TAB-13) — this row,
+      # DEBT-130/131/132, DECISIONS DRAFT, the audit
+      - "b106aa7"
+      # + the commit immediately after b106aa7: docs(TAB-13) PRE-PUSH-CHECK —
+      # DECISIONS ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
+    deferred:
+      - The Checklists page in the type colours (later phase; the type key is ready for it)
+      - A read-only view of a completed checklist (DEBT-131)
+      - Reconciling the type key with the admin-chosen TemplateType colour (DEBT-130)
+    notes: >
+      ── BUILD 2026-11-11 (TAB-13). ──
+      BUILT, not yet checked on staging. TIER 2: no schema, migration,
+      permission, env var, cron, API or Square change. Prompt
+      docs/prompts/TAB-13.md (untracked until PRE-PUSH-CHECK). Audit
+      docs/prompts/TAB-13_AUDIT.md. Design: "Froot Tablet — Checklists" PDF,
+      boards "Home · Option 1 — Switcher on the hero" and "Checklist type key".
+      R1–R8 with RN-1–RN-7 and Gary's three additions in DECISIONS
+      2026-11-11 TAB-13, DRAFT until PRE-PUSH-CHECK.
+      WHY: the hero showed one checklist the app picked; at Carson
+      (2026-11-11) it showed Cleaning while Mid-Shift was also not started,
+      with no sign Mid-Shift existed. The old rule (pickTodayChecklist,
+      lib/tablet-today.ts) ignored started-ness. Which of three explanations
+      (Mid-Shift upcoming; Cleaning due earlier; both windowless → name
+      tie-break) caused Carson's is UNMEASURED — audit query C, Neon console.
+      Every one of them is covered: every checklist now has a tab.
+      WHAT SHIPS:
+        - A tab per checklist today above the hero (2+ only), in RN-3 order:
+          in progress, due now, upcoming, completed. Missed never shows (as
+          before). Tabs 84px, icon chip, type name, "X of Y" / "Done";
+          sideways scroll when they don't fit (about 2½ at landscape).
+        - The hero in the selected type's colour: icon, Due / Completed chip,
+          type name, "N tasks · status", "X of Y done" bar, Start / Continue
+          / View. Start and Continue open the existing inline tick list in
+          the card; View the existing Done screen. Nothing navigates; a tab
+          tap makes no request.
+        - Opening counts as a manual pick; the auto-pick never swaps an open
+          card (addition 1). Store / day change or reload resets to auto.
+        - Same-type duplicates show the template name (RN-6).
+        - TYPE KEY READY FOR THE CHECKLISTS-PAGE PHASE:
+          src/lib/checklist-types.ts — checklistTypeStyle(typeName) →
+          { Icon, fill, ink, onFillChip, onFillTrack, onFillBar, chipText },
+          literal classes, tokens only, keyed on the TemplateType name
+          (Closer → Closing, unknown → grey clipboard-check). Import as is.
+      VERIFIED LOCALLY on a temporary mocked page under /menu (deleted before
+      the commit; no org, no Clerk session) at 1106x834, 936x768, 746x1194
+      and 656x1133 (iPad sizes minus the 88px rail): order and selection;
+      six tab taps, zero requests, URL unchanged; View / Continue in-card,
+      Start = one POST + the existing re-read; a tick that reorders the list
+      leaves the open tick list in place; store switch resets; one
+      checklist → no tab row; none → empty state unchanged; unmapped →
+      grey; no sideways page scroll, no clipped names (a portrait overflow
+      was found and fixed). Contrast measured: Mid-Shift 3.51, Cleaning
+      3.36, grey 4.25 (large-text pass; all text on fills ≥ 20px bold),
+      Closer 5.75, Opener 8.71, Management 14.6. Build green; scoped eslint
+      clean; verify-tab13-switcher, verify-tab1-today, verify-tab8,
+      verify-tab10 all pass. Not run on a real iPad. Desktop: code-path
+      evidence only (page.tsx:136); screenshots owed on staging.
+      STAGING TESTS (Gary, iPad, Tablet mode; staging-SHA precondition first;
+      org org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk verified-snapper-7):
+      Gate 3 checks 1–8 of docs/prompts/TAB-13.md on real data (Carson if it
+      has several checklists today), desktop Home before/after screenshots.
+
 bugs:
   - id: BUG-1
     title: "Dashboard cards intermittently fail to load"
@@ -39631,6 +39724,68 @@ debt:
       minute Froot shows the new name; change it back. (c) needs user.updated
       subscribed on the staging Clerk webhook endpoint; check that in the
       Clerk dashboard first.
+
+  - id: DEBT-130
+    status: planned
+    title: >
+      Tablet checklist type colours ignore the admin-chosen TemplateType colour
+    notes: >
+      FILED 2026-11-11 by the TAB-13 session, on Gary's instruction, recorded
+      exactly: "Tablet type colors ignore the admin-chosen TemplateType color.
+      Reconcile before multi-tenant." THE ID FILLS THE NEXT FREE SLOT
+      (DEBT-129 was the highest). WHAT IS TRUE TODAY: TemplateType carries a
+      colorKey each org picks on /templates → Manage types
+      (src/lib/badge-presets.ts; starter Opener orange, Mid-Shift blue,
+      Closer purple, Cleaning green, src/lib/template-types.ts:17-22). TAB-13's
+      shared type key (src/lib/checklist-types.ts, RN-2 (a), work commit
+      993977f) colours by the TemplateType NAME from the design's fixed map
+      and never reads colorKey, so one type can be blue on /templates and
+      orange on the tablet, and a type an org names anything else is grey on
+      the tablet whatever colour it picked. Options recorded at the TAB-13
+      audit: (b) colour from colorKey (needs one additive field on
+      GET /api/stores/[id]/templates), (c) the design map for known names and
+      colorKey for the rest. A product decision first, then TIER 2.
+      RELATED: TAB-13, TPL-1.
+
+  - id: DEBT-131
+    status: planned
+    title: >
+      A Completed checklist is still editable at /store-view/checklist/[id]
+      — only Missed is locked
+    notes: >
+      FILED 2026-11-11 by the TAB-13 session, on Gary's instruction, recorded
+      exactly: "Completed checklists remain editable at
+      /store-view/checklist/[id] (only Missed is locked)." WHAT IS TRUE TODAY:
+      the execution page's read-only state is `isClosedFact = state ===
+      "missed"` (store-view/checklist/[id]/checklist-execution-client.tsx:264),
+      and task-log refuses only `closedAt != null && status !== "Completed"`
+      (api/checklists/[id]/task-log/route.ts:41), so a Completed checklist
+      opened there can be ticked and unticked. Reached from the tablet Done
+      screen's "Review checked items" link and from /checklists. TAB-13 RN-5
+      therefore made the tablet's View open the in-card Done screen instead
+      of a read-only view, because none exists. Locking it changes what a
+      write route accepts — TIER 3.
+      RELATED: TAB-13, CHK-3, CHK-4.
+
+  - id: DEBT-132
+    status: planned
+    title: >
+      The templates route's taskCount ignores per-store task exclusions, so an
+      unstarted checklist's total can change on Start
+    notes: >
+      FILED 2026-11-11 by the TAB-13 session, on Gary's instruction, recorded
+      exactly: "The templates route taskCount ignores per-store task
+      exclusions, so an unstarted checklist's total can change on Start."
+      WHAT IS TRUE TODAY: GET /api/stores/[id]/templates counts
+      `t.tasks.length` over live tasks (route.ts:40, :135) without the
+      `excludedStoreIds` skip, while the tick list's total comes from
+      loadTabletData, which applies it (dashboard/tablet-data.ts:116). TAB-13
+      shows the tick list's numbers once a row exists and the route's count
+      before (work commit 993977f), so a tablet tab can read "0 of 40" and
+      then "0 of 38" after Start. The Start Daily Checklist card
+      (store-view-client.tsx) shows the same count. Fix is one filter in that
+      route — TIER 2, a read-only route.
+      RELATED: TAB-13, TPL-3.
 
 rulings:
   - id: R1

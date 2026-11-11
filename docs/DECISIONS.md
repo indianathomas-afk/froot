@@ -5,6 +5,113 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-11 — TAB-13: Tablet home — checklist switcher on the hero, rulings R1–R8, RN-1–RN-7 — DRAFT
+
+**RATIFIED BY GARY, 2026-11-11, at the TAB-13 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: R1–R8 with RN-1–RN-7 as
+recorded, his additions 1–3 as quoted, how each is met, and the calls
+marked *(design choice)*, all now ratified as his. The heading's "DRAFT",
+the "DRAFT, awaiting Gary's ratification of THIS WORDING" line and
+"(untracked until PRE-PUSH-CHECK)" are spent, kept;
+`docs/prompts/TAB-13.md` is committed at this check. Docs commit:
+`b106aa7`. Wording untouched.
+
+**DRAFT, awaiting Gary's ratification of THIS WORDING at the TAB-13
+PRE-PUSH-CHECK.** The rulings themselves were ratified in session (quoted
+below); what the check ratifies is that this entry records them faithfully.
+Prompt of record: `docs/prompts/TAB-13.md` (untracked until PRE-PUSH-CHECK).
+Audit: `docs/prompts/TAB-13_AUDIT.md`. Work commit `993977f`. TIER 2.
+Design source: "Froot Tablet — Checklists" PDF, boards "Home · Option 1 —
+Switcher on the hero" and "Checklist type key" only.
+
+**Where the words come from.** R1–R8 were PROPOSED in Gary's prompt
+("Proposed rulings (ratify, amend, or strike at Gate 1)"). The Gate 1 audit
+proposed amendments RN-1–RN-5 (Claude's recommendations); Gary replied
+**"Ratify as recommended"**. Gate 3 proposed RN-6 and RN-7; Gary replied
+**"Ratify both"**. Additions 1–3 are Gary's own message at "go", quoted
+verbatim. Everything below marked *(design choice)* is Claude's and was not
+separately ruled.
+
+**The rulings as ratified (R-number = the prompt's; amendments inline).**
+- **R1 — Scope.** Tablet-mode Home only: the hero and the new tab row. Not
+  the Checklists page, Messages panel, stats row, sidebar, overdue banner,
+  desktop mode, or any schema change. *Met:* only `TasksPanel` in
+  `tablet-home.tsx` changed, plus the grid column (below); desktop Home
+  imports no changed file.
+- **R2 — Which checklists get a tab — AMENDED BY RN-4.** The list the hero
+  already reads, GET `/api/stores/[id]/templates` (the Start Daily Checklist
+  list), not the `/checklists` page's rows-only list, which would give an
+  unstarted checklist no tab. No new query, no new permission logic.
+  Completed stay in the row, at the end.
+- **R3 — Auto-pick — AMENDED BY RN-3.** Order: (1) in progress, earliest due
+  first; (2) not started and due now (active/overdue), earliest due first,
+  no-due last; (3) not started and upcoming (window not open); (4)
+  completed. Ties: the existing byDue rule (due time, then name). Tapping a
+  tab changes local UI state only. With nothing tapped or open, the
+  auto-pick follows live data as re-reads land; a manual pick holds until
+  reload, store change or day change.
+- **R4 — Type map — AMENDED BY RN-2.** The prompt's table, in one shared
+  module (`src/lib/checklist-types.ts`), keyed on the `TemplateType` NAME
+  case-insensitively (letters only), with `Closer` → Closing. The audit
+  found the structured field exists (`Template.typeId → TemplateType`) but
+  is per-org, renameable, and carries an admin-chosen `colorKey`; RN-2 (a)
+  uses the design's fixed colours and ignores `colorKey` (DEBT-130).
+- **R5 — Hero — AMENDED BY RN-1 and RN-5.** Type colour and ink; title is
+  the type name; "N tasks · status"; "X of Y done" bar; Due chip / Completed
+  chip; button Start / Continue / View. RN-1: the hero is TAB-1's inline
+  execution panel, so Start (creating the row if needed, as before) and
+  Continue open the existing inline tick list IN THE CARD, and nothing
+  navigates. RN-5: no read-only view exists (DEBT-131), so View opens the
+  existing Done screen in the card. `InProgressPanel`'s dark banner is not
+  re-coloured.
+- **R6 — Tab row.** Icon chip, uppercase type name, "X of Y" or "Done";
+  selected tab filled with its type colour; one checklist → no tab row (and
+  the hero still takes its type colour, ratified with RN-1–RN-5); none → the
+  existing empty state; too many → sideways scroll, no wrap, no shrinking.
+- **R7 — Icons and colours.** lucide-react (1.21.0, verified) and existing
+  tokens; no new dependency, no hex.
+- **R8 — Accessibility.** tablist / tab / tabpanel with aria-selected; 84px
+  tabs; on a fill every line is ≥ 19px bold (the filled tab's "12 of 31" is
+  20px bold, ratified with RN-1–RN-5).
+- **RN-6 — Two checklists of the same type today** (or a template with no
+  type name) show the TEMPLATE name in the tab and hero title, keeping the
+  type's colour and icon. Departs from R5's "type name only" by ruling.
+- **RN-7 — `scripts/verify-tab10.ts` check 3c** compares TAB-10's work commit
+  (`e12bc2d`) with pre-TAB-10 instead of the working tree, so it no longer
+  fails on any later edit to the tablet home.
+
+**Gary's additions at "go" (verbatim).**
+1. "Opening a checklist (Start / Continue / View) counts as a manual pick.
+   Auto-pick must never swap the card while a tick list or Done screen is
+   open. Add this case to scripts/verify-tab13-switcher.ts." *Met:*
+   `switcherReducer`'s `open`; cases 11–15.
+2. "Missed checklists: keep current Home behavior (shown or hidden, and
+   position) unchanged. Report what that behavior is in Gate 3." *Reported:*
+   Home never shows a Missed checklist — the source route drops them
+   (`api/stores/[id]/templates/route.ts:167`) and today's rows cannot be
+   Missed (day close's lookback is yesterday and the day before).
+   `orderTodayChecklists` drops them too (case 7).
+3. "Do not fix. Log as DEBT rows in commit 2" — DEBT-130, DEBT-131,
+   DEBT-132.
+
+**Calls made while building *(design choice)*.**
+- Tabs keep their natural width and share spare room (`grow basis-auto
+  shrink-0`) rather than a fixed four-per-row; at the real landscape content
+  width about 2½ tabs show before the row scrolls (the 20px-bold R8 floor
+  makes them wider than the mock's).
+- A tap on the tab whose tick list is open returns the card to that tab's
+  summary (the way back with no other control).
+- The hero's counts are the tick list's own (per-store exclusions applied)
+  once a row exists, the route's `taskCount` before (DEBT-132).
+- The Done screen's "Up next" is the first not-completed checklist in tab
+  order.
+- Portrait gets `grid-cols-[minmax(0,1fr)]`: without it the implicit auto
+  column grew to the tab row's unwrapped width and the page scrolled
+  sideways (found and fixed at Gate 3).
+- `toggle()`'s `Date.now()` moved to a module-level `settledNow()` — a
+  react-hooks/purity false positive that appeared once the render branches
+  changed; behaviour identical.
+
 ## 2026-11-11 — TAB-12: Tablet home — choose a message type, rulings R1–R6 — DRAFT
 
 **RATIFIED BY GARY, 2026-11-11, at the TAB-12 PRE-PUSH-CHECK:** "Ratify as
