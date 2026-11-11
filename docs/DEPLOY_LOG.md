@@ -2,6 +2,79 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-11 — TAB-7: today's sales compared with last year at the same time of day (desktop card, tablet tile, ranges ending today)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`316ffd4`, docs `979b6e7`; fix commit `3f92131` (Gary's ruling,
+2026-11-11, "Cut it."), docs `8f34e1b`; the PRE-PUSH-CHECK is the commit
+immediately after `8f34e1b`. **TIER 2:** display and query change over
+caches Froot already has. No migration, no env var, no permission, no cron,
+no new Square, sync or gap-fill call. DECISIONS 2026-11-11 TAB-7 (with its
+2026-11-11 ranges-ending-today addendum) RATIFIED by Gary at this check:
+"Ratify as written". Prompt of record `docs/prompts/TAB-7.md`, committed at
+this check.
+
+**Blast radius: the sales comparison on `/dashboard` only, and it only
+reads.** Three surfaces: the desktop Sales Performance card
+(`/api/dashboard/sales`), the tablet Sales tile and TAB-9's expanded Sales
+card (`/api/dashboard/summary`). The All-locations rollup has no last-year
+comparison and is untouched. Goal and pacing maths (`pacing.ts`, Monthly
+Goal card, projections, rollup) are untouched. Past days and ranges ending
+before today compare exactly as before.
+
+**What ships.** `src/lib/sales-same-time.ts` (pure, no imports):
+`compareTodayWithDay` takes the comparison day's hourly net for every hour
+before the current store-local hour plus the current hour × minutes/60,
+from one instant that also decides "today". A past day compares with its
+full day. Today against a day with sales but no hourly rows falls back to
+the full day, labelled "(full day)"; never mixed within one figure. A $0
+same-time baseline shows "—", no percentage. `compareWindowEndingToday`
+(fix) counts every earlier day of a range ending today in full and cuts the
+last day through `compareTodayWithDay`; `compareSelection` is the one entry
+point the sales route calls. Applies to every compare mode.
+`/api/dashboard/summary` adds `sales.comparison` (`lastYear.total` stays
+the whole day); `/api/dashboard/sales` adds `comparisonBasis`. Labels:
+desktop "Prior Wed last year by 10:15 AM · Nov 12, 2025" (ranges: "Same
+period last year by 10:15 AM"); tablet tile "vs last year by 10:15 AM"
+under the ▲/▼; the expanded card adds a "Same weekday last year by
+10:15 AM" row above the whole-day row. On a same-time basis the desktop
+Transactions and Average sale pills use hourly order counts pro-rated the
+same way, and the Gross pill is hidden (the hourly cache has no gross).
+No new timer: the tablet moves with TAB-5's cycle; the desktop card on load
+and selection change. Store timezone, never the server's. Known limit: a
+DST change day compares wall clock against wall clock.
+
+Files: 7 in `316ffd4` (+618/−29), 4 in `3f92131` (+212/−35): new
+`src/lib/sales-same-time.ts`, `scripts/verify-tab7.ts`; changed
+`src/app/api/dashboard/sales/route.ts`,
+`src/app/api/dashboard/summary/route.ts`,
+`dashboard/sales-performance-card.tsx`, `dashboard/tablet-strip.tsx`,
+`src/lib/tablet-cards.ts`. Checks: verify-tab7 88/88 (negative controls
+against `8365e0a` and `316ffd4`; DB sections read-only on dev
+`br-broad-wave-a6vpjdw0`; mutants caught), verify-tab1-today 13/13,
+verify-tab1c-due-chip 11/11, verify-tab2-messages 23/23,
+verify-tab3-layout 28/28, verify-tab4-pin 78/78, verify-tab5-refresh 32/32,
+verify-tab8 114/114, verify-tab9-cards 84/84, verify-tpl3 44/44,
+verify-goal-engine 15/15, verify-f4-rollup-webhook 24/24, verify-bug20
+21/21; scoped eslint and `npm run build` green. Verified locally only on a
+mocked temporary `/menu` page, deleted before each commit: "$203 by
+8:31 AM" against a $2,150 day; This week "$4,730 by 8:39 AM". Not observed:
+real staging sales data, a real iPad.
+
+**Rollback.** `git revert 3f92131 316ffd4` (fix first, then work). No
+schema or data to undo: nothing writes. Every surface goes back to today so
+far against the comparison's whole day.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+From the TAB-7 row. (1) During opening hours, desktop Sales Performance on
+Today: the label reads "Prior <weekday> last year by <time>" and the figure
+is well under last year's whole day. (2) Tablet Sales tile: the ▲/▼ has "vs
+last year by <time>" under it; tapping it shows the "Same weekday last year
+by <time>" row above the whole-day row. (3) Desktop, Yesterday: no "by", a
+full-day comparison as before. (4) All locations unchanged. (5) Desktop,
+This week and Month to date during opening hours: "Same period last year by
+<time>"; Last week: no "by".
+
 ## UNPROMOTED — 2026-11-11 — TAB-8: tablet Tasks refresh reads a read-only route (no router.refresh(); PIN switch and tiles follow within a minute)
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit

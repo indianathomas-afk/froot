@@ -7,6 +7,17 @@ decisions too.)
 
 ## 2026-11-11 — TAB-7: today's sales vs last year at the same time of day — DRAFT
 
+**RATIFIED BY GARY, 2026-11-11, at the TAB-7 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: the audit, leans 1–9 as built,
+the departures marked *(design choice)* (the range-ending-today departure as
+superseded by the addendum), and the 2026-11-11 addendum with its *(design
+choice)* on an uncached last day, all now ratified as his. His 2026-11-11
+ruling quoted in the addendum ("Cut it. …") was already his words. The
+heading's "DRAFT", the "DRAFT, awaiting Gary's ratification" line, "nothing
+below quotes him" and "(untracked until PRE-PUSH-CHECK)" are spent, kept;
+`docs/prompts/TAB-7.md` is committed at this check. Docs commits: `979b6e7`
+and `8f34e1b`. Wording untouched.
+
 **DRAFT, awaiting Gary's ratification at the TAB-7 PRE-PUSH-CHECK.** Prompt of
 record: `docs/prompts/TAB-7.md` (untracked until PRE-PUSH-CHECK). Work commit
 `316ffd4`. TIER 2. The leans in the prompt are **Claude's design choices**,

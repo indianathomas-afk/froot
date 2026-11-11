@@ -25862,7 +25862,17 @@ phases:
     # PRE-PUSH-CHECK; docs SHA 979b6e7, and the fix's docs are the commit
     # immediately after 3f92131. Still in_progress. The rollback above is
     # superseded: `git revert 3f92131 316ffd4` (fix first, then work).
-    status: in_progress
+    # in_progress -> staging 2026-11-11 at the TAB-7 PRE-PUSH-CHECK (the
+    # commit immediately after 8f34e1b; its own SHA cannot be written inside
+    # itself). Docs SHAs: 979b6e7 (this row, DECISIONS DRAFT) and 8f34e1b (the
+    # fix rider, DECISIONS addendum). The check committed the prompt of record
+    # docs/prompts/TAB-7.md and wrote the DEPLOY_LOG UNPROMOTED entry.
+    # DECISIONS 2026-11-11 TAB-7 (audit, leans 1–9, the departures, the
+    # 2026-11-11 ranges-ending-today addendum) RATIFIED by Gary at this check:
+    # "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" and
+    # "untracked until PRE-PUSH-CHECK" are spent, kept. No migration. Rollback
+    # stays `git revert 3f92131 316ffd4`. NOT pushed at writing.
+    status: staging
     title: "Sales comparison — today so far vs last year at the same time of day (desktop + tablet)"
     commits:
       - "316ffd4"
@@ -25876,6 +25886,12 @@ phases:
       # compareWindowEndingToday + compareSelection, /api/dashboard/sales on
       # compareSelection, verify-tab7 section 10
       - "3f92131"
+      # + the commit immediately after 3f92131: docs(TAB-7) — this row's fix
+      # rider, DECISIONS DRAFT addendum (ranges ending today)
+      - "8f34e1b"
+      # + the commit immediately after 8f34e1b: docs(TAB-7) PRE-PUSH-CHECK —
+      # DECISIONS ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
     notes: >
       ── RIDER 2026-11-11, TAB-7 fix (prepended; nothing below is edited). ──
       Gary's ruling on the report's RULING NOW, quoted: "Cut it. When a range
