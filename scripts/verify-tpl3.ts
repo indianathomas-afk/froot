@@ -179,8 +179,21 @@ async function main() {
       "src/app/api/cron/checklist-day-close/route.ts",
       "src/app/api/checklists/[id]/task-log/route.ts",
       "src/app/api/upload/checklist-photo/route.ts",
+      // TAB-8, 2026-11-10: the tablet Tasks panel's reader. It called
+      // tasksForChecklist since TAB-1 but was never on this list.
+      "src/app/(app)/dashboard/tablet-data.ts",
     ]
     for (const p of checklistReaders) check(`E. ${p} uses tasksForChecklist`, src(p).includes("tasksForChecklist("), true)
+    // TAB-8, 2026-11-10: GET /api/stores/[id]/tablet-tasks (body in its
+    // read.ts) reads checklists through loadTabletData (tablet-data.ts, above)
+    // — the function /dashboard renders the tablet with — so it reaches
+    // tasksForChecklist by delegation, never with its own task query.
+    const tab8Route = src("src/app/api/stores/[id]/tablet-tasks/read.ts")
+    check(
+      "E. tablet-tasks route (read.ts) reads through loadTabletData and has no task query of its own",
+      [tab8Route.includes("loadTabletData("), /tasks\s*:/.test(tab8Route), /\.task\./.test(tab8Route)],
+      [true, false, false]
+    )
     check("E. no reader uses a `not:` form on retiredAt", templateReaders.concat(checklistReaders).some((p) => /retiredAt:\s*\{\s*not/.test(src(p))), false)
 
     // ── F. Idempotency and ruling R2 ────────────────────────────────────────

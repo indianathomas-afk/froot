@@ -39,6 +39,13 @@ export function shouldRunCycle(s: { visibilityState: string; busy: boolean; refr
   return canRefresh(s.visibilityState, s.busy) && !s.refreshing && s.online
 }
 
+/** TAB-8 — a cycle that would have run but for the offline guard. The guard
+ *  itself is unchanged; the tablet counts such a cycle as a refresh that did
+ *  not land, so its "Not updated since …" line can show while offline. */
+export function skippedOnlyForOffline(s: { visibilityState: string; busy: boolean; refreshing: boolean; online: boolean }): boolean {
+  return !s.online && shouldRunCycle({ ...s, online: true })
+}
+
 /** The offline guard for a single router.refresh() (also reached after this
  *  device's own writes, outside a cycle): refresh only while not offline. */
 export function mayRefreshServer(online: boolean): boolean {

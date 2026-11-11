@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { AlertTriangle, ArrowRight, Check, ChevronDown, ChevronRight, Clock, Delete, GraduationCap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -31,7 +30,16 @@ import {
   visibleExpanded,
   type CardsEvent,
 } from "@/lib/tablet-cards"
-import { dayRolledOver, mayRefreshServer, nextShownDay, pruneOverrides, type TickOverride } from "@/lib/tablet-refresh"
+import { dayRolledOver, nextShownDay, pruneOverrides, type TickOverride } from "@/lib/tablet-refresh"
+import {
+  applyItemsOutcome,
+  initialItemsHealth,
+  itemsNotice,
+  nextItemsHealth,
+  readTabletTasks,
+  type ItemsHealth,
+  type TabletServerData,
+} from "@/lib/tablet-tasks-refresh"
 import type { OwedSummary } from "@/lib/hr-compliance"
 import { fetchCard } from "./card-fetch"
 import { StripDetail, StripRow, renderedTileKeys, useStripSummary } from "./tablet-strip"
@@ -174,8 +182,8 @@ async function readErrorBody(res: Response): Promise<{ error: string | null; cod
 type SetPin = React.Dispatch<React.SetStateAction<PinSession | null>>
 
 export function TabletHome({
-  stores,
-  checklists,
+  stores: propStores,
+  checklists: propChecklists,
   stripTiles = [],
   role = null,
   pinRequired = false,
@@ -193,7 +201,18 @@ export function TabletHome({
    *  STORE login (page.tsx). False = every screen here is exactly TAB-9's. */
   pinRequired?: boolean
 }) {
-  const router = useRouter()
+  // ── TAB-8: the server half, re-read through GET /api/stores/[id]/tablet-tasks ──
+  // Starts as this render's props (a fresh read). Every answered re-read
+  // replaces the selected store's entry and its checklists (mergeStoreSlice);
+  // a failed or expired one changes nothing. A NEW render's props (a navigation
+  // back to /dashboard) are newer than any earlier fetch, so they replace it.
+  const [live, setLive] = useState<TabletServerData>(() => ({ stores: propStores, checklists: propChecklists }))
+  const [propsSeen, setPropsSeen] = useState({ stores: propStores, checklists: propChecklists })
+  if (propsSeen.stores !== propStores || propsSeen.checklists !== propChecklists) {
+    setPropsSeen({ stores: propStores, checklists: propChecklists })
+    setLive({ stores: propStores, checklists: propChecklists })
+  }
+  const stores = live.stores
   const savedStoreId = useSavedStoreId()
   // The latest server render's store. What the page SHOWS may be held one day
   // behind it (TAB-5, below).
@@ -209,8 +228,8 @@ export function TabletHome({
     Object.fromEntries(stores.map((s) => [s.id, s.day]))
   )
   const shownDay = latestStore ? (shown[latestStore.id] ?? latestStore.day) : ""
-  const server = useMemo(() => ({ stores, checklists }), [stores, checklists])
-  const view = useHeld(server, !latestStore || latestStore.day === shownDay)
+  const server = live
+  const view = useHeld(server,!latestStore || latestStore.day === shownDay)
   const store = latestStore ? (view.stores.find((s) => s.id === latestStore.id) ?? latestStore) : undefined
 
   // What the controller's callbacks read: the latest values, not the ones
@@ -260,48 +279,40 @@ export function TabletHome({
 
   // ── TAB-5: the one refresh controller ──
   const cycleRef = useRef<RefreshCycle | null>(null)
-  const ctl = useTabletRefreshController(cycleRef)
+  // TAB-8: a cycle the offline guard skipped is a refresh that did not land.
+  const missedRef = useRef<(() => void) | null>(null)
+  const ctl = useTabletRefreshController(cycleRef, missedRef)
 
-  // The server half (the Tasks panel's items and ticks, the header date) is a
-  // server render: no route returns a checklist's items (tablet-data.ts), so
-  // it is re-read with router.refresh(), which keeps client state and scroll.
-  // ONE AT A TIME: each waits for the last to land, so `syncedFrom` is always
-  // the start of the read that produced the props on screen. A read "lands"
-  // when new server props arrive; one that never does is let go after 20s.
+  // TAB-8 — THE SERVER HALF (the Tasks panel's items and ticks, the header
+  // date, the store's day and picker names) IS RE-READ THROUGH
+  // GET /api/stores/[id]/tablet-tasks, NOT router.refresh(). Until TAB-8 a
+  // failed RSC refresh made Next fall back to a full browser navigation, which
+  // on a counter iPad with the wifi down left Safari's error page up. A failed
+  // fetch keeps the last good list; an expired sign-in shows TAB-4's message
+  // instead of reading the sign-in page as data (src/lib/tablet-tasks-refresh.ts).
+  // ONE AT A TIME: each waits for the last, so `syncedFrom` is always the start
+  // of the read whose answer is on screen.
   const [syncedFrom, setSyncedFrom] = useState(0)
-  const landing = useRef<(() => void) | null>(null)
+  const [health, setHealth] = useState<ItemsHealth>(() => initialItemsHealth(Date.now()))
+  useLayoutEffect(() => {
+    missedRef.current = () => setHealth((h) => nextItemsHealth(h, "missed", Date.now()))
+  }, [])
   const serverChain = useRef<Promise<void>>(Promise.resolve())
   const refreshServer = useCallback((): Promise<void> => {
-    const next = serverChain.current.then(
-      () =>
-        new Promise<void>((resolve) => {
-          // The offline guard, checked as the refresh is about to go out (it
-          // may have waited behind another): never a router.refresh() while
-          // the browser reports itself offline. The next cycle catches up.
-          if (!mayRefreshServer(navigator.onLine !== false)) {
-            resolve()
-            return
-          }
-          const startedAt = Date.now()
-          const timer = window.setTimeout(() => {
-            landing.current = null
-            resolve()
-          }, 20_000)
-          landing.current = () => {
-            window.clearTimeout(timer)
-            landing.current = null
-            setSyncedFrom(startedAt)
-            resolve()
-          }
-          router.refresh()
-        })
-    )
+    const next = serverChain.current.then(async () => {
+      const id = latest.current.storeId
+      if (!id) return
+      const startedAt = Date.now()
+      const outcome = await readTabletTasks(id)
+      if (outcome.kind === "ok") {
+        setLive((prev) => applyItemsOutcome(prev, outcome))
+        setSyncedFrom(startedAt)
+      }
+      setHealth((h) => nextItemsHealth(h, outcome.kind, Date.now()))
+    })
     serverChain.current = next
     return next
-  }, [router])
-  useEffect(() => {
-    landing.current?.()
-  }, [stores, checklists])
+  }, [])
 
   // Ruling 2: move to the server's day if it has moved on and nothing is busy.
   const acceptDay = useCallback(() => {
@@ -324,18 +335,16 @@ export function TabletHome({
   const cycle = useCallback<RefreshCycle>(async (loaders) => {
     // A day the server reached while the page was busy is adopted first.
     acceptDay()
-    const [answered] = await Promise.all([
+    await Promise.all([
       loadToday(true),
       loadDue(),
       ...loaders.map((load) => load().catch(() => undefined)),
     ])
-    // Ruling 4: re-read the items, so ticks made elsewhere show. ONLY right
-    // after a read has just answered: when a refresh's own request fails, Next
-    // falls back to a full browser navigation, which with the store's wifi
-    // down would leave Safari's error page on the counter. (The controller
-    // does not start a cycle while offline; this catches the wifi dropping
-    // during the reads above, and refreshServer checks once more.)
-    if (!answered || !mayRefreshServer(navigator.onLine !== false)) return
+    // Ruling 4: re-read the items, so ticks made elsewhere show. TAB-8: every
+    // cycle, no longer only after the list answered — that gate existed
+    // because a failed router.refresh() navigated the whole page, and a failed
+    // fetch does not. The route's `store.day` is also what moves the page to a
+    // new day (ruling 2): acceptDay() below adopts it while idle.
     await refreshServer()
     acceptDay()
   }, [acceptDay, loadToday, loadDue, refreshServer])
@@ -351,7 +360,8 @@ export function TabletHome({
   }, [loadDue])
 
   /** After a write that changes which checklist is current: re-read the list,
-   *  and re-render the server half for the new row's items / completedAt. */
+   *  and re-read the server half for the new row's items / completedAt (TAB-8:
+   *  through the tablet-tasks route). */
   const refresh = useCallback(async () => {
     await loadToday()
     await refreshServer()
@@ -507,6 +517,8 @@ export function TabletHome({
     if (dueEmpty) act({ type: "closeDue" })
   }, [act, dueEmpty])
 
+  const notice = store ? itemsNotice(health, (at) => formatWindowTime(at, store.timezone)) : null
+
   if (!store) {
     return (
       <div className="flex min-h-[calc(100dvh-2rem)] items-center justify-center">
@@ -544,6 +556,13 @@ export function TabletHome({
             <h1 className="truncate text-2xl font-bold text-[var(--color-foreground)]">{store.name}</h1>
           )}
           <p className="text-lg text-[var(--color-muted-foreground)]">{store.headerDate}</p>
+          {/* TAB-8 lean 6: one quiet line while the re-read is not landing
+              (2 in a row) or the device is signed out. The list stays. */}
+          {notice && (
+            <p role="status" className="text-sm text-[var(--color-muted-foreground)]">
+              {notice}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {/* TAB-9 fix (Gary, 2026-11-10): hidden on a shared STORE login,
