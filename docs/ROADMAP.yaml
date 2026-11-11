@@ -24713,6 +24713,27 @@ phases:
       everything deployed" line above is spent for staging, kept.
 
 
+  - id: NOTIFY-18
+    track: platform
+    size: S
+    status: planned
+    title: "Email a manager on repeated shared-tablet PIN lockouts"
+    notes: >
+      FILED 2026-11-10 by the TAB-4 build session, on Gary's Q9: "No
+      escalation in v1. File a backlog row for "email a manager on repeated
+      lockouts" to pick up with the notifications work." NOT DESIGNED.
+      TODAY: 5 wrong PINs lock a staff member for 5 minutes and write ONE
+      AuditLog row (action "staff.pin.lockout", entityType "StaffMember",
+      metadata storeId / staffName / lockedUntil) — src/lib/tablet-pin-attempt.ts.
+      Nobody is told. A lock always expires, so repeated guessing at the
+      counter shows only as a run of those rows.
+      WHAT IT WOULD ADD: a notification kind on the NOTIFY-6 pipeline (an
+      intent per lockout, or a threshold such as N lockouts for one name in a
+      day) sent to that store's managers. Needs its own rulings: the
+      threshold, who receives it (ADMIN / MANAGER of the store, contacts?),
+      and whether the email names the person.
+      Cross-refs: TAB-4 (DECISIONS 2026-11-10 TAB-4), NOTIFY-6.
+
   - id: TAB-1
     track: platform
     size: M
@@ -25567,9 +25588,67 @@ phases:
   - id: TAB-4
     track: platform
     size: M
-    status: planned
+    # planned -> in_progress 2026-11-10 at the work commit 0064bf9 (NOT
+    # pushed). The docs SHA is the commit immediately after 0064bf9 (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
+    # Migration 20261111050000_tab4_tablet_pin (one Organization column, four
+    # StaffMember columns), applied to dev by Gary before the work commit.
+    # Rollback: `git revert 0064bf9`; the columns stay (additive only).
+    status: in_progress
     title: "Per-person attribution on shared tablets"
+    commits:
+      - "0064bf9"
+      # feat(TAB-4) — PIN gate on task-log + calendar complete, verify / set
+      # PIN / switch routes, tablet + desktop PIN flow, /settings card,
+      # /staff/[id] PIN control, migration, fixture
+      # + the commit immediately after 0064bf9: docs(TAB-4) — this row,
+      # NOTIFY-18, DECISIONS DRAFT, MIGRATIONS entry, CLAUDE.md env vars
     notes: >
+      ── RIDER 2026-11-10, TAB-4 build (prepended; nothing below is edited). ──
+      BUILT, not yet checked on staging. "Per-person attribution" is built as
+      a PER-PERSON PIN on shared STORE logins.
+      Rulings Q1–Q11 (Gary, 2026-11-10, quoted verbatim) and Claude's
+      judgement calls a–l are in DECISIONS 2026-11-10 TAB-4, DRAFT until
+      PRE-PUSH-CHECK. Prompt docs/prompts/TAB-4.md; audit
+      docs/prompts/TAB-4_AUDIT.md; plan docs/prompts/TAB-4_PLAN.md (+ dated
+      addendum with Gary's build requirements).
+      WHAT SHIPS:
+        - /settings "Shared Tablets" card (ADMIN): the switch, off by default;
+          "not configured" and can't be switched on while TABLET_PIN_PEPPER or
+          TABLET_TOKEN_SECRET is missing; per-store readiness lines.
+        - The gate (switch on AND a STORE login, Tablet OR Desktop view) on
+          POST /api/checklists/[id]/task-log (ticks) and POST
+          /api/calendar/occurrences/[id]/complete: a named person with a valid
+          10-minute sliding PIN token, or refused; a missing secret refuses
+          (503), never skips. Personal logins are never asked. Submit records
+          no person and is not gated; messages are unchanged (Q11).
+        - Calendar complete's staff check is at CHK-15 parity for every login;
+          the calendar detail lists only store-assigned (plus corporate) staff,
+          switch on or off.
+        - POST /api/tablet-pin/verify (atomic 5-tries/5-minutes lockout, one
+          AuditLog row per lockout), PUT /api/staff/[id]/pin (ADMIN anyone;
+          MANAGER own + store staff, never another MANAGER's or an ADMIN's),
+          POST /api/settings/tablet-pin.
+        - Screens for a STORE login with the switch on: tablet Tasks panel and
+          due list (no generic options, no-PIN names greyed, digits-only PIN
+          pad, chip on the due list whenever a reused token is in play, chip
+          and token cleared at the 5-minute idle); desktop checklist picker,
+          due banner and calendar detail (PIN dialog, 5-minute idle drop).
+        - /staff/[id] "Shared-tablet PIN": status and Set / Reset PIN.
+      ENV (Gary adds in Vercel, Preview + Production): TABLET_PIN_PEPPER
+      (rotating it invalidates every PIN) and TABLET_TOKEN_SECRET (rotating it
+      only ends open sessions). Until both are set, the switch can't be turned
+      on in that environment.
+      MIGRATION 20261111050000_tab4_tablet_pin was applied to dev
+      br-broad-wave-a6vpjdw0 at 2026-11-11 05:04:48 UTC, and the empty-diff
+      check is clean. Staging and production get it at the Vercel build.
+      FIXTURES: verify-tab4-pin 78/78 (part C on dev), verify-chk15 28/28
+      (A4/A9 widened to the new picker shape), verify-tab3-layout 28/28,
+      verify-tab1-today 13/13, verify-tab1c-due-chip 11/11,
+      verify-tab2-messages 23/23, verify-tab5-refresh 32/32, verify-tab9-cards
+      84/84. Build and scoped eslint green. The temporary mocked page under
+      /menu was deleted before the commit.
+      FOLLOW-UP filed: NOTIFY-18 (email a manager on repeated lockouts).
       ── RIDER 2026-11-09, TAB-1b (prepended; nothing below is edited). ──
       NARROWED. The per-task attribution mechanism already exists on desktop
       — "Who completed this task?" writes TaskLog.completedByStaffId under

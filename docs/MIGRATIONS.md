@@ -2731,3 +2731,75 @@ before the commit.
 `npm run build` also runs `prisma generate`. The session ran no
 `migrate deploy`, `db execute`, `migrate dev`, `migrate reset` or
 `migrate resolve`.
+
+## 2026-11-10 — `20261111050000_tab4_tablet_pin` (TAB-4)
+
+**APPLIED TO DEV ONLY, by Gary**, with `npx prisma migrate deploy`, after the
+TAB-4 build STOP and before the work commit `0064bf9` (§ A migration STOPS the
+session). Staging and production get it from the Vercel build on Gary's push
+and at promotion. The timestamp `20261111050000` is a name, not a clock
+reading.
+
+**Dev was checked before the fixture, not taken on its word.**
+- **After Gary's first "applied to dev":** the fixture's database part failed
+  with "The column `tabletPinRequired` does not exist". A read-only check on
+  BOTH `.env` connection strings (`DATABASE_URL`, the app's, and
+  `DATABASE_URL_UNPOOLED`, the Prisma CLI's) found the same branch,
+  `br-broad-wave-a6vpjdw0`, with no TAB-4 ledger row (newest tab-series row:
+  `20261110200000_tab3_display_layouts`) and no column. Nothing was
+  committed, and Gary was told. Gary then checked staging, production and
+  `preview/main` in the Neon console: none had the row or the column. It had
+  not been run anywhere.
+- **After his second report:** the same read-only check returned the row and
+  all five columns below, and `migrate diff` of dev against the schema
+  returned `-- This is an empty migration.`
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | **2026-11-11 05:04:48.251 UTC** (2026-11-10 21:04:48 PST). Read by the session (read-only query, branch id from the server), together with `information_schema`: `Organization.tabletPinRequired`, `StaffMember.pinHash`, `pinSetAt`, `pinFailedAttempts`, `pinLockedUntil` all present | Gary |
+| staging `br-square-feather-a63z92vz` | OWED — the Vercel build on Gary's push | Vercel build |
+| production `br-sparkling-block-a620qvg4` | OWED — at promotion | Vercel build |
+
+**GENERATED AGAINST THE LIVE DEV DATABASE**, with:
+
+```
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/20261111050000_tab4_tablet_pin/migration.sql
+```
+
+The generated file carries the TAB-4 columns and nothing else, which shows
+dev matched the schema in every other respect at generation. Every statement
+is generated; nothing is hand-authored. **Additive only. Nothing is
+backfilled or dropped:**
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "Organization" ADD COLUMN "tabletPinRequired" BOOLEAN NOT NULL DEFAULT false` | the per-org switch (Q1); every existing org lands OFF |
+| `ALTER TABLE "StaffMember" ADD COLUMN "pinFailedAttempts" INTEGER NOT NULL DEFAULT 0` | the lockout counter (Q9) |
+| `ADD COLUMN "pinHash" TEXT` (same statement) | nullable; scrypt over HMAC(`TABLET_PIN_PEPPER`, pin). **Rotating `TABLET_PIN_PEPPER` invalidates every PIN** |
+| `ADD COLUMN "pinLockedUntil" TIMESTAMP(3)` | nullable; the 5-minute lock |
+| `ADD COLUMN "pinSetAt" TIMESTAMP(3)` | nullable; "has a PIN" for every screen, so nothing but the verify path reads the hash |
+
+**Blast radius (the NOTIFY-2a shape).** Every `prisma.organization` and
+`prisma.staffMember` read without a `select` now selects the new columns
+(except `pinHash`, which the client omits globally). On a branch the migration
+has not reached, those reads fail, and they sit behind nearly every page. The
+Vercel build applies it before the new code serves. Locally, dev must have it
+before `npm run dev` is useful.
+
+**Rollback.** `git revert` the work commit. The columns STAY on every branch
+(additive-only schema), and the reverted code simply stops reading them.
+
+**Fixture:** `scripts/verify-tab4-pin.ts`, part C on dev
+`br-broad-wave-a6vpjdw0` (it prints `neon.branch_id` from the server). Before
+the apply: parts A and B 58/58, part C failed on the missing column — the
+gate. **After the apply: 78/78**, three runs (part C grew by C16 and B by
+B14/B15, the 5th-PIN race checks Gary asked for, before the commit). The
+TAB-3 and CHK-15 database parts also failed before the apply (every
+`Organization` read selects the new column) and pass after: 28/28 each.
+
+**Prisma commands run by the session, verbatim:** `npx prisma format`,
+`npx prisma validate`, `npx prisma generate` (twice), the `migrate diff -o`
+above, and `npx prisma migrate diff --from-config-datasource --to-schema
+prisma/schema.prisma --script` (the empty-diff check). `npm run build` also
+runs `prisma generate`. The session ran no `migrate deploy`, `db execute`,
+`migrate dev`, `migrate reset` or `migrate resolve`.

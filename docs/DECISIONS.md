@@ -5,6 +5,138 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-10 — TAB-4: per-person PIN on shared tablets, rulings Q1–Q11 — DRAFT
+
+**DRAFT, awaiting Gary's ratification at the TAB-4 PRE-PUSH-CHECK.** Prompt
+of record: `docs/prompts/TAB-4.md`; audit: `docs/prompts/TAB-4_AUDIT.md`;
+plan: `docs/prompts/TAB-4_PLAN.md` with its dated addendum (all three
+untracked until PRE-PUSH-CHECK). Work commit: 0064bf9. Migration
+`20261111050000_tab4_tablet_pin` (`docs/MIGRATIONS.md`).
+
+**Gary's rulings, 2026-11-10, quoted verbatim** (pasted in chat after the
+audit stop; the planning chat's leans are in the audit and are not quoted
+here as rulings):
+
+> Q1. Off by default. It's a per-org switch on a new /settings card, using the Calendar switch pattern.
+>
+> Q2. (a). The PIN applies to anything a STORE login records, in either Tablet or Desktop view. Personal logins are unchanged, because the login already records the person.
+>
+> Q3. Yes. Name sheet, then a digits-only PIN pad, then a "Completing as …" chip.
+>
+> Q4. 4-digit PIN, salted scrypt, with a server-side secret mixed in. Use two separate env vars:
+> - TABLET_PIN_PEPPER is mixed into the hash. Rotating it invalidates every PIN, so note that in the code and the docs.
+> - TABLET_TOKEN_SECRET signs the token. Rotating it only expires open sessions.
+> If either var is missing, fail closed: the settings card shows "not configured" and can't be switched on, and the server refuses PIN-required writes with a clear error. A missing var must never silently skip the check. I'll add both vars in Vercel for Preview and Production.
+>
+> Q5.
+> (i) Yes. ADMIN sets PINs for anyone. MANAGER sets PINs for staff in their own stores, on /staff/[id].
+> (ii) Yes, with one change: a MANAGER can set and reset their own PIN. Only an ADMIN can set or reset another MANAGER's or another ADMIN's PIN.
+> (iii) Not in v1.
+> (iv) Yes. A reset requires entering a new PIN, and no screen or API ever returns an existing PIN or its hash.
+>
+> Q6. Yes. Staff without a PIN show greyed out with "No PIN — ask a manager" and can't be picked.
+>
+> Q7. Yes, both. When the switch is on, hide "Team Member" and "Manager" for STORE logins in both views, and have the server refuse unnamed or token-less writes from STORE logins. This covers every route that records a person, not just task-log. That includes task-log, the calendar "due" complete route, and checklist submit if it records a person. List the exact routes in your plan before building.
+> While you're in the calendar complete route, bring its staff check up to CHK-15 parity: in the org, active, and assigned to the store (or corporate).
+> The settings card shows a per-store readiness line, e.g. "University: 9 of 14 active staff have PINs". It's information only and doesn't block switching on.
+>
+> Q8. Yes. The signed token is tied to the staff member, store, org and login, and lasts 10 minutes. It's sliding: each successful write returns a fresh 10-minute token, which the client swaps in. The routes from Q7 verify it.
+>
+> Q9. Yes, base version. 5 wrong PINs lock that staff member for 5 minutes. The count lives in the new staff columns, not AuditLog. The count resets on a correct PIN or when the lock expires. Write one AuditLog row per lockout. No escalation in v1. File a backlog row for "email a manager on repeated lockouts" to pick up with the notifications work.
+>
+> Q10. Yes. After 5 minutes idle, clear the chip and throw away the token on the device.
+>
+> Q11. Yes. Messages are unchanged.
+>
+> Comments: the corporate-not-assigned case stays as is (by CHK-15 design).
+
+**Gary's go-ahead on the plan, same day, quoted:** "Go, build to
+TAB-4_PLAN.md. I accept the three design choices. For #1, the "Completing as
+…" chip must be visible on the tablet due list whenever a reused token is in
+play." His build requirements (atomic lockout as one conditional update;
+`crypto.timingSafeEqual` for token and hash; the token check covering expiry,
+person, store, org and login; the verify route as the only reader of the
+hash, and no raw SQL reading full staff rows; seven named fixture cases) are
+recorded in the plan's addendum and enforced by `scripts/verify-tab4-pin.ts`.
+
+**The three design choices Gary accepted** (TAB-4_PLAN.md):
+1. The tablet due list reuses a live token for that store instead of asking
+   again — and, per his condition, shows "Completing as … · Change" whenever
+   it does.
+2. The three desktop screens (checklist page, due banner, calendar detail)
+   drop a held token after 5 minutes without a touch, as the tablet does.
+3. `pinHash` is omitted from every Prisma read at the root
+   (`src/lib/prisma.ts`), not route by route.
+
+**Why Q2 was asked as (a)/(b)/(c).** The audit found that Tablet mode is a
+per-device cookie any role flips with one tap, so a rule keyed on the view is
+a UI gate. The role is what the server can trust (TAB-4_AUDIT.md, headline
+finding).
+
+**THE GATED ROUTES (Q7's list).** `POST /api/checklists/[id]/task-log`, ticks
+only, and `POST /api/calendar/occurrences/[id]/complete`. Checklist submit
+records no person (`Checklist` has no completedBy column; on a calendar-backed
+checklist it stamps only the login), so it is not gated. Every HR route that
+names a staff member refuses a STORE login acting for someone else.
+
+**THE CALENDAR EVENT DETAIL NOW LISTS ONLY STAFF ASSIGNED TO THE STORE, PLUS
+CORPORATE STAFF — FOR EVERY ORG, WITH THE SWITCH ON OR OFF.** This is a
+consequence of Q7's CHK-15 parity on the complete route, not a separate
+ruling. Before TAB-4 the route checked only "in the org", and the detail's
+"Who completed this?" picker offered every active person in the org. Since the
+route now refuses a name that is not assigned to the occurrence's store (or
+corporate), the picker offers only those names, so it never offers a choice
+the route will refuse. Corporate staff stay in this list because the route
+accepts them (Gary's comment above); the checklist pickers still leave them
+out, unchanged.
+
+**A CORRECT 5TH PIN DOES NOT COME BACK LOCKED — including in the
+parallel-attempt race.** A try that wins one of the 5 slots at the
+reservation step never reads the lock again: the compare decides, and a right
+PIN returns "ok" before anything else happens (fixture B14, with negative
+control B15). What the race CAN do is this: while that 5th try is still being
+compared, a 6th try finds every slot taken and sets the 5-minute lock itself,
+writing the one AuditLog lockout row (fixture C16). The 5th try still returns
+"ok" and its token works for 10 minutes, sliding, because a lock blocks PIN
+entry, not a token already issued. But the name stays locked for 5 minutes
+for anyone who enters the PIN again, even though the last try that got a
+slot was correct. A correct PIN that arrives as the 6th try is locked out, as
+designed (fixture C10).
+
+**Claude's judgement calls, for ratification:**
+- **a.** The one reader of `pinHash` is `src/lib/tablet-pin-attempt.ts`,
+  imported only by the verify route, rather than code inline in the route.
+  This is so the fixture can drive the lockout against real rows, because
+  Clerk's `auth()` does not run outside Next. Fixture B7/B8 enforce "one
+  reader, one importer".
+- **b.** The reservation is `updateManyAndReturn` — still one
+  `UPDATE … RETURNING`. `update` throws on no match, and the client logs every
+  throw as `prisma:error`, which would put a false error line in production
+  logs on every locked try (seen in the first dev run).
+- **c.** `POST /api/tablet-pin/verify` answers 409 while the switch is off, so
+  it is not left standing as a way to guess PINs.
+- **d.** Turning the switch OFF is always allowed, even with a secret missing,
+  so an admin can always get a store ticking again.
+- **e.** Setting or resetting a PIN also clears any lockout.
+- **f.** A MANAGER's "own" record is the one `resolveSelfStaff` resolves (the
+  linked login, or the one record with their email). "Another MANAGER's or
+  ADMIN's" is a staff record whose login is a MANAGER or ADMIN: the linked
+  User, or an org User sharing its email. The highest role wins.
+- **g.** A lock is per staff member, across stores (Q9: "lock that staff
+  member").
+- **h.** A signed-out device's verify request is redirected to `/sign-in`,
+  which answers 200 with a page. The PIN pad says the sign-in has expired
+  rather than "error 200" (found in the local check).
+- **i.** On the desktop due banner, "Change" drops the session, and the next
+  Complete asks for a name.
+- **j.** The global omit gives the Prisma client its own type, so four helpers
+  moved from `Prisma.TransactionClient` to a new `Db` type exported from
+  `src/lib/prisma.ts` (type-only; no behaviour change).
+- **k.** `scripts/verify-chk15.ts` checks A4 and A9 were widened to the new
+  picker shape, with a dated note in the file. Both still refuse a picker that
+  renders `staffNames`.
+- **l.** The backlog row Gary asked for is NOTIFY-18.
+
 ## 2026-11-10 — TAB-9: a Tablet home that scrolls, cards that expand, an overdue list that opens in place — DRAFT
 
 **RATIFIED BY GARY, 2026-11-10, at the TAB-9 PRE-PUSH-CHECK:** "Ratify as
