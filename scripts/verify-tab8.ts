@@ -42,6 +42,7 @@ import {
   type TabletSlice,
 } from "../src/lib/tablet-tasks-refresh"
 import { shouldRunCycle, skippedOnlyForOffline } from "../src/lib/tablet-refresh"
+import { Prisma } from "@prisma/client"
 
 let passes = 0
 let failures = 0
@@ -120,7 +121,7 @@ function structure() {
   check("A3. gates in task-log's order: 401, org 404, store 404, scope, 403, read", gateOrder(read), true)
   check(
     "A3 NC. scope asked before the store lookup → caught",
-    gateOrder(read.replace("const { isAdmin, storeIds } = await scope()", "").replace("const org =", "const { isAdmin, storeIds } = await scope()\n  const org =")),
+    gateOrder(read.replace("const { isAdmin, storeIds, role } = await scope()", "").replace("const org =", "const { isAdmin, storeIds, role } = await scope()\n  const org =")),
     false
   )
   check("A3 NC. 403 before the org lookup → caught", gateOrder('return { status: 403 }\n' + read.replace(/status: 403/, "status: 418")), false)
@@ -177,6 +178,45 @@ function structure() {
   check('A6 NC. redirect: "follow" → caught', manual(lib.replace(/redirect: "manual"/g, 'redirect: "follow"')), false)
   const pinOptions = src("src/lib/tablet-pin-options.ts")
   check("A6. the expired message is TAB-4's, word for word", pinOptions.includes(`"${SESSION_EXPIRED_MESSAGE}"`), true)
+
+  // A7 — TAB-8 fix (Gary, 2026-11-11): pinRequired and stripTiles ride on the
+  // route's answer, computed exactly as page.tsx computes them.
+  const computes = (r: string) =>
+    code(r).includes("pinRequired: pinGateApplies(org, role)") && code(r).includes("stripTiles: stripTileKeys(org.tabletLayout)")
+  check("A7. read.ts answers pinRequired and stripTiles with page.tsx's own functions", computes(read), true)
+  check(
+    "A7. page.tsx computes them with the same calls",
+    [code(src(PAGE)).includes("pinGateApplies(org, role)"), code(src(PAGE)).includes("stripTileKeys(data.tabletLayout)")],
+    [true, true]
+  )
+  check("A7 NC. a hard-coded pinRequired → caught", computes(read.replace("pinRequired: pinGateApplies(org, role)", "pinRequired: false")), false)
+  // The tablet renders from the merged state, never from the first-load props.
+  const usesLive = (hc: string) =>
+    hc.includes("const pinRequired = live.pinRequired") &&
+    hc.includes("const stripTiles = live.stripTiles") &&
+    hc.includes("pinRequired: propPinRequired") &&
+    hc.includes("stripTiles: propStripTiles")
+  check("A7. TabletHome renders pinRequired and stripTiles from the live state, not the props", usesLive(homeCode), true)
+  check(
+    "A7 NC. pinRequired read straight from the props → caught",
+    usesLive(homeCode.replace("const pinRequired = live.pinRequired", "const pinRequired = propPinRequired")),
+    false
+  )
+  check(
+    "A7 NC. stripTiles read straight from the props → caught",
+    usesLive(homeCode.replace("const stripTiles = live.stripTiles", "const stripTiles = propStripTiles")),
+    false
+  )
+  // role stays frozen until a reload (Gary's ruling): still the prop.
+  check("A7. role is still the first-load prop (frozen until reload, by ruling)", /\brole = null,/.test(homeCode) && !homeCode.includes("live.role"), true)
+
+  // A8 — re-read on store switch.
+  const switchBody = homeCode.slice(homeCode.indexOf("const readFor = useRef(storeId)"), homeCode.indexOf("const cycle = useCallback<RefreshCycle>"))
+  const rereads = (b: string) =>
+    b.includes("readFor.current === storeId") && b.includes("refreshServer().then(acceptDay)") && /\[storeId, refreshServer, acceptDay\]/.test(b)
+  check("A8. a store switch re-reads that store at once, then adopts its day", rereads(switchBody), true)
+  check("A8 NC. the switch effect without the read → caught", rereads(switchBody.replace("refreshServer().then(acceptDay)", "acceptDay()")), false)
+  check("A8 NC. the effect not keyed on storeId → caught", rereads(switchBody.replace("[storeId, refreshServer, acceptDay]", "[refreshServer, acceptDay]")), false)
 }
 
 // ─── B. PURE ─────────────────────────────────────────────────────────────────
@@ -217,7 +257,7 @@ async function pure() {
   check("B7. 403 → failed", classifyItemsResponse(R("basic", 403)), "failed")
   check("B8. 200 JSON → ok", classifyItemsResponse(R("basic", 200)), "ok")
 
-  const good: TabletSlice = { store: store("s1", "2026-11-11"), checklists: [list("c9", "s1")] }
+  const good: TabletSlice = { store: store("s1", "2026-11-11"), checklists: [list("c9", "s1")], pinRequired: false, stripTiles: [] }
   let init: RequestInit | undefined
   let url = ""
   const outcome = await readTabletTasks("s1", (async (u: string, i: RequestInit) => {
@@ -241,6 +281,8 @@ async function pure() {
   const prev: TabletServerData = {
     stores: [store("s1", "2026-11-10"), store("s2", "2026-11-10")],
     checklists: [list("c1", "s1"), list("c2", "s2")],
+    pinRequired: false,
+    stripTiles: [],
   }
   check("B14. a FAILED refresh keeps the previous list (the same object)", applyItemsOutcome(prev, { kind: "failed" }) === prev, true)
   check("B15. an EXPIRED refresh keeps the previous list (the same object)", applyItemsOutcome(prev, { kind: "expired" }) === prev, true)
@@ -251,8 +293,8 @@ async function pure() {
     [["s1:2026-11-11", "s2:2026-11-10"], ["c2", "c9"]]
   )
   check("B16 NC. an ok refresh is NOT the previous object", merged === prev, false)
-  check("B17. an ok refresh with ZERO checklists empties that store (a real answer, not a failure)", mergeStoreSlice(prev, { store: store("s1", "2026-11-10"), checklists: [] }).checklists.map((c) => c.id), ["c2"])
-  check("B18. a slice for a store the page does not list is ignored", mergeStoreSlice(prev, { store: store("s9", "2026-11-10"), checklists: [list("cx", "s9")] }) === prev, true)
+  check("B17. an ok refresh with ZERO checklists empties that store (a real answer, not a failure)", mergeStoreSlice(prev, { ...good, store: store("s1", "2026-11-10"), checklists: [] }).checklists.map((c) => c.id), ["c2"])
+  check("B18. a slice for a store the page does not list is ignored", mergeStoreSlice(prev, { ...good, store: store("s9", "2026-11-10"), checklists: [list("cx", "s9")], pinRequired: true }) === prev, true)
 
   const T = Date.UTC(2026, 10, 11, 18, 42)
   const fmt = (d: Date) => new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit" }).format(d)
@@ -278,6 +320,30 @@ async function pure() {
   check("B29. offline-miss: busy (someone at the tablet) → not a miss", skippedOnlyForOffline({ ...base, online: false, busy: true }), false)
   check("B30. offline-miss: hidden → not a miss", skippedOnlyForOffline({ ...base, online: false, visibilityState: "hidden" }), false)
   check("B31. TAB-5's guard unchanged: offline still never runs a cycle", shouldRunCycle({ ...base, online: false }), false)
+
+  // TAB-8 fix — one answered read carries the PIN switch and the tile order.
+  const on = applyItemsOutcome(prev, { kind: "ok", slice: { ...good, pinRequired: true } })
+  check("B32. PIN switch OFF → ON: picked up by one answered read", [prev.pinRequired, on.pinRequired], [false, true])
+  const off = applyItemsOutcome(on, { kind: "ok", slice: { ...good, pinRequired: false } })
+  check("B33. PIN switch ON → OFF: picked up by one answered read", [on.pinRequired, off.pinRequired], [true, false])
+  const tiles1 = applyItemsOutcome(prev, { kind: "ok", slice: { ...good, stripTiles: ["sales", "labor-pct"] } })
+  const tiles2 = applyItemsOutcome(tiles1, { kind: "ok", slice: { ...good, stripTiles: ["labor-pct", "sales"] } })
+  check("B34. a tile-order change: picked up by one answered read", [tiles1.stripTiles, tiles2.stripTiles], [["sales", "labor-pct"], ["labor-pct", "sales"]])
+  const same = applyItemsOutcome(tiles2, { kind: "ok", slice: { ...good, stripTiles: ["labor-pct", "sales"] } })
+  check("B34. unchanged tiles keep their array (no needless strip re-render)", same.stripTiles === tiles2.stripTiles, true)
+  check("B35 NC. a FAILED read does not flip the switch or the tiles", [applyItemsOutcome(on, { kind: "failed" }).pinRequired, applyItemsOutcome(tiles1, { kind: "failed" }).stripTiles], [true, ["sales", "labor-pct"]])
+  check("B36 NC. an EXPIRED read does not flip the switch", applyItemsOutcome(off, { kind: "expired" }).pinRequired, false)
+  const oldShape = { store: good.store, checklists: good.checklists }
+  check(
+    "B37 NC. an answer without pinRequired / stripTiles (the c18b0d7 shape) is refused, never read as \"off\"",
+    (await readTabletTasks("s1", (async () => fakeRes("basic", 200, oldShape)) as unknown as typeof fetch)).kind,
+    "failed"
+  )
+  check(
+    "B37 NC. stripTiles of the wrong type is refused",
+    (await readTabletTasks("s1", (async () => fakeRes("basic", 200, { ...good, stripTiles: [1, 2] })) as unknown as typeof fetch)).kind,
+    "failed"
+  )
 }
 
 // ─── C. DATABASE (dev) ───────────────────────────────────────────────────────
@@ -349,8 +415,8 @@ async function db() {
     // Store two has a checklist today too: it must never ride in store one's answer.
     const cOther = await prisma.checklist.create({ data: { organizationId: org.id, templateId: fresh.t.id, storeId: s2.id, date: w.gte } })
 
-    const scopeOne = async () => ({ isAdmin: false, storeIds: [s1.id] })
-    const admin = async () => ({ isAdmin: true, storeIds: [] as string[] })
+    const scopeOne = async () => ({ isAdmin: false, storeIds: [s1.id], role: "STORE" as string | null })
+    const admin = async () => ({ isAdmin: true, storeIds: [] as string[], role: "ADMIN" as string | null })
 
     // What /dashboard's render returns today: page.tsx's store select and its
     // loadTabletData(data.orgId, stores) call, for every store the login sees.
@@ -387,13 +453,17 @@ async function db() {
     check("C5. FRESH checklist: Pending, every live task, nothing done", [freshOut?.status, freshOut?.sections.flatMap((s) => s.tasks.map((t) => t.done))], ["Pending", [false, false]])
     check("C6. PAST checklist: absent from both — neither the render nor the route reads another day", [body.checklists.some((c) => c.id === cPast.id), page.checklists.some((c) => c.id === cPast.id)], [false, false])
     check("C7. another store's checklist never rides in this answer", body.checklists.some((c) => c.id === cOther.id), false)
-    check("C7. nothing else is in the payload", [Object.keys(body).sort(), Object.keys(body.store).sort()], [["checklists", "store"], ["day", "headerDate", "id", "name", "staff", "timezone"]])
+    check(
+      "C7. nothing else is in the payload",
+      [Object.keys(body).sort(), Object.keys(body.store).sort()],
+      [["checklists", "pinRequired", "store", "stripTiles"], ["day", "headerDate", "id", "name", "staff", "timezone"]]
+    )
 
     // Gates.
     let scopeAsked = 0
     const counting = async () => {
       scopeAsked++
-      return { isAdmin: false, storeIds: [s1.id] }
+      return { isAdmin: false, storeIds: [s1.id], role: "STORE" as string | null }
     }
     check("C8. store outside the caller's scope → 403", (await readTabletTasksFor(clerkOrgId, s2.id, scopeOne)).status, 403)
     check("C9. the same store as ADMIN → 200", (await readTabletTasksFor(clerkOrgId, s2.id, admin)).status, 200)
@@ -414,6 +484,62 @@ async function db() {
     await readTabletTasksFor(clerkOrgId, s1.id, scopeOne)
     await readTabletTasksFor(clerkOrgId, s2.id, admin)
     check("C15. reads change nothing: checklists, ticks, AuditLog rows, the fresh row's startedAt", await counts(), before)
+
+    // ── TAB-8 fix (Gary, 2026-11-11): the PIN switch and the tile order reach
+    // the tablet within ONE cycle. "One cycle" = one route read, merged with
+    // applyItemsOutcome, starting from what the first load rendered. The
+    // switch is flipped on THIS fixture org only (by id); restored in finally
+    // with the org itself.
+    const { pinGateApplies } = await import("../src/lib/tablet-pin-gate")
+    const { stripTileKeys } = await import("../src/lib/display-layout")
+    const orgRow = () => prisma.organization.findUniqueOrThrow({ where: { id: org.id }, select: { tabletPinRequired: true, tabletLayout: true } })
+    // What page.tsx renders for a STORE login at first load.
+    const first = await orgRow()
+    let state: TabletServerData = {
+      stores: page.stores,
+      checklists: page.checklists,
+      pinRequired: pinGateApplies(first, "STORE"),
+      stripTiles: stripTileKeys(first.tabletLayout),
+    }
+    const oneCycle = async (scope: typeof scopeOne) => {
+      const r = await readTabletTasksFor(clerkOrgId, s1.id, scope)
+      if (r.status !== 200) throw new Error(`read answered ${r.status}`)
+      state = applyItemsOutcome(state, { kind: "ok", slice: r.body })
+      return r.body
+    }
+    check("C17. first load: switch off, no tiles (an org's defaults)", [state.pinRequired, state.stripTiles], [false, []])
+
+    await prisma.organization.update({ where: { id: org.id }, data: { tabletPinRequired: true } })
+    const afterOn = await oneCycle(scopeOne)
+    check("C18. switch flipped ON → the STORE tablet shows PINs after one read", state.pinRequired, true)
+    check("C18. ...and the route agrees with page.tsx's own computation", afterOn.pinRequired, pinGateApplies(await orgRow(), "STORE"))
+    const asAdmin = await readTabletTasksFor(clerkOrgId, s1.id, admin)
+    check("C19. switch ON, ADMIN login → no PIN (TAB-4 Q2a, as page.tsx)", asAdmin.status === 200 ? asAdmin.body.pinRequired : null, false)
+
+    await prisma.organization.update({ where: { id: org.id }, data: { tabletPinRequired: false } })
+    await oneCycle(scopeOne)
+    check("C20. switch flipped OFF → the STORE tablet stops asking for PINs after one read", state.pinRequired, false)
+
+    const layout = (keys: [string, boolean][]) => keys.map(([key, enabled]) => ({ key, enabled }))
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: { tabletLayout: layout([["tasks", true], ["messages", true], ["sales", true], ["monthly-goal", true], ["labor-pct", false]]) },
+    })
+    await oneCycle(scopeOne)
+    check("C21. tiles switched on → shown in the saved order after one read", state.stripTiles, ["sales", "monthly-goal"])
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: { tabletLayout: layout([["tasks", true], ["messages", true], ["labor-pct", true], ["monthly-goal", true], ["sales", true]]) },
+    })
+    const reordered = await oneCycle(scopeOne)
+    check("C22. a tile-order change (and one more tile) → the new order after one read", state.stripTiles, ["labor-pct", "monthly-goal", "sales"])
+    check("C22. ...and the route agrees with page.tsx's own computation", reordered.stripTiles, stripTileKeys((await orgRow()).tabletLayout))
+
+    // Negative control: the same change, but the read fails — nothing moves.
+    await prisma.organization.update({ where: { id: org.id }, data: { tabletPinRequired: true, tabletLayout: Prisma.DbNull } })
+    const held = applyItemsOutcome(state, { kind: "failed" })
+    check("C23 NC. a failed read after the flip: switch and tiles stay as last read", [held.pinRequired, held.stripTiles], [false, ["labor-pct", "monthly-goal", "sales"]])
+    check("C23 NC. an out-of-scope read (403) carries no flags to merge", "pinRequired" in (await readTabletTasksFor(clerkOrgId, s2.id, scopeOne)).body, false)
   } finally {
     for (const id of [org.id, orgB.id]) {
       await prisma.taskLog.deleteMany({ where: { checklist: { organizationId: id } } })

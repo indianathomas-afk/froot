@@ -181,12 +181,15 @@ async function readErrorBody(res: Response): Promise<{ error: string | null; cod
 
 type SetPin = React.Dispatch<React.SetStateAction<PinSession | null>>
 
+/** One empty tile list, so a missing prop keeps its identity across renders. */
+const NO_TILES: string[] = []
+
 export function TabletHome({
   stores: propStores,
   checklists: propChecklists,
-  stripTiles = [],
+  stripTiles: propStripTiles = NO_TILES,
   role = null,
-  pinRequired = false,
+  pinRequired: propPinRequired = false,
 }: {
   stores: TabletStore[]
   checklists: TabletChecklist[]
@@ -206,13 +209,31 @@ export function TabletHome({
   // replaces the selected store's entry and its checklists (mergeStoreSlice);
   // a failed or expired one changes nothing. A NEW render's props (a navigation
   // back to /dashboard) are newer than any earlier fetch, so they replace it.
-  const [live, setLive] = useState<TabletServerData>(() => ({ stores: propStores, checklists: propChecklists }))
-  const [propsSeen, setPropsSeen] = useState({ stores: propStores, checklists: propChecklists })
-  if (propsSeen.stores !== propStores || propsSeen.checklists !== propChecklists) {
-    setPropsSeen({ stores: propStores, checklists: propChecklists })
-    setLive({ stores: propStores, checklists: propChecklists })
+  // TAB-8 fix (Gary, 2026-11-11): pinRequired and stripTiles ride on the same
+  // answer, so a Shared Tablets switch flipped either way, or a tile-order
+  // change, shows within one cycle. `role` (the HR chip), the rail and the
+  // store LIST stay as first rendered until a reload — his ruling, kept.
+  const fromProps = (): TabletServerData => ({
+    stores: propStores,
+    checklists: propChecklists,
+    pinRequired: propPinRequired,
+    stripTiles: propStripTiles,
+  })
+  const [live, setLive] = useState<TabletServerData>(fromProps)
+  const [propsSeen, setPropsSeen] = useState(fromProps)
+  if (
+    propsSeen.stores !== propStores ||
+    propsSeen.checklists !== propChecklists ||
+    propsSeen.pinRequired !== propPinRequired ||
+    propsSeen.stripTiles !== propStripTiles
+  ) {
+    const next = fromProps()
+    setPropsSeen(next)
+    setLive(next)
   }
   const stores = live.stores
+  const pinRequired = live.pinRequired
+  const stripTiles = live.stripTiles
   const savedStoreId = useSavedStoreId()
   // The latest server render's store. What the page SHOWS may be held one day
   // behind it (TAB-5, below).
@@ -329,6 +350,18 @@ export function TabletHome({
   useLayoutEffect(() => {
     acceptDay()
   }, [storeId, acceptDay])
+  // TAB-8 fix (Gary, 2026-11-11): "re-read on store switch". The route answers
+  // for the selected store only, so another store's items, day and names are
+  // as old as the last time it was selected (or the first load). A switch
+  // re-reads it at once instead of waiting up to a cycle, then acceptDay moves
+  // it to the server's day if that has moved on (after midnight). Not on the
+  // first render: the page's own render is that read.
+  const readFor = useRef(storeId)
+  useEffect(() => {
+    if (!storeId || readFor.current === storeId) return
+    readFor.current = storeId
+    void refreshServer().then(acceptDay)
+  }, [storeId, refreshServer, acceptDay])
 
   /** One cycle (ruling 1). The controller calls it only while the page is
    *  visible, idle and not already refreshing. */

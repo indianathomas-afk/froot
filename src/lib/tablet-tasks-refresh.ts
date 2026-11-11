@@ -35,8 +35,19 @@ export function tabletTasksUrl(storeId: string): string {
   return `/api/stores/${encodeURIComponent(storeId)}/tablet-tasks`
 }
 
-export type TabletSlice = { store: TabletStore; checklists: TabletChecklist[] }
-export type TabletServerData = { stores: TabletStore[]; checklists: TabletChecklist[] }
+/** The route's answer. `pinRequired` and `stripTiles` are login- and
+ *  org-wide (TAB-8 fix, 2026-11-11): the Shared Tablets switch for a STORE
+ *  login, and the ADMIN's tile choice and order. */
+export type TabletSlice = { store: TabletStore; checklists: TabletChecklist[]; pinRequired: boolean; stripTiles: string[] }
+/** What the tablet home shows from the server: page.tsx's props first, then
+ *  every answered read merged in. role, the rail and the store LIST are not
+ *  here: they stay as first rendered until a reload (Gary, 2026-11-11). */
+export type TabletServerData = {
+  stores: TabletStore[]
+  checklists: TabletChecklist[]
+  pinRequired: boolean
+  stripTiles: string[]
+}
 
 export type ItemsOutcome = { kind: "ok"; slice: TabletSlice } | { kind: "expired" } | { kind: "failed" }
 
@@ -60,7 +71,7 @@ export function classifyItemsResponse(r: {
 /** The body must be the route's shape before it may replace anything. */
 export function isTabletSlice(x: unknown): x is TabletSlice {
   if (!x || typeof x !== "object") return false
-  const o = x as { store?: unknown; checklists?: unknown }
+  const o = x as { store?: unknown; checklists?: unknown; pinRequired?: unknown; stripTiles?: unknown }
   const s = o.store as Partial<TabletStore> | null | undefined
   return (
     !!s &&
@@ -69,7 +80,10 @@ export function isTabletSlice(x: unknown): x is TabletSlice {
     typeof s.day === "string" &&
     typeof s.headerDate === "string" &&
     Array.isArray(s.staff) &&
-    Array.isArray(o.checklists)
+    Array.isArray(o.checklists) &&
+    typeof o.pinRequired === "boolean" &&
+    Array.isArray(o.stripTiles) &&
+    o.stripTiles.every((k) => typeof k === "string")
   )
 }
 
@@ -95,15 +109,24 @@ export async function readTabletTasks(storeId: string, fetchImpl: typeof fetch =
   }
 }
 
-/** An answered read replaces this store's entry and this store's checklists,
- *  and nothing else. A store the page does not list is ignored (the page's
- *  list is the scope it rendered with). */
+/** An answered read replaces this store's entry, this store's checklists,
+ *  and the two login-wide values (pinRequired, stripTiles), and nothing else.
+ *  A store the page does not list is ignored (the page's list is the scope it
+ *  rendered with, frozen until a reload). */
 export function mergeStoreSlice(prev: TabletServerData, slice: TabletSlice): TabletServerData {
   if (!prev.stores.some((s) => s.id === slice.store.id)) return prev
   return {
     stores: prev.stores.map((s) => (s.id === slice.store.id ? { ...s, ...slice.store } : s)),
     checklists: [...prev.checklists.filter((c) => c.storeId !== slice.store.id), ...slice.checklists],
+    pinRequired: slice.pinRequired,
+    stripTiles: sameKeys(prev.stripTiles, slice.stripTiles) ? prev.stripTiles : slice.stripTiles,
   }
+}
+
+/** Keeps the tile array's identity when nothing changed, so a refresh does
+ *  not re-render the strip for no reason. */
+function sameKeys(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((k, i) => k === b[i])
 }
 
 /** The data on screen after a refresh: the merge on `ok`, the SAME object
