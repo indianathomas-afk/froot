@@ -474,8 +474,10 @@ function subscribeViewport(callback: () => void) {
   }
 }
 
-/** Pixels of the layout viewport the on-screen keyboard covers right now. */
-function useKeyboardInset(): number {
+/** Pixels of the layout viewport the on-screen keyboard covers right now.
+ *  TAB-11 — exported so the Tablet-mode Team Messages page lifts its composer
+ *  the same way this column does. */
+export function useKeyboardInset(): number {
   return useSyncExternalStore(
     subscribeViewport,
     () => keyboardInset(window.innerHeight, window.visualViewport),

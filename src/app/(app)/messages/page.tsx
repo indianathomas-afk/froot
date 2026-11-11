@@ -1,7 +1,9 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
+import { getViewMode } from "@/lib/view-mode-server"
 import { MessagesClient } from "./messages-client"
+import { MessagesTablet } from "./messages-tablet"
 
 // Team Messages hub (Phase I-14) — store feed, typed composer, reactions,
 // corporate updates. Store selection shares the dashboard's localStorage key
@@ -21,6 +23,12 @@ export default async function MessagesPage() {
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   })
+
+  // TAB-11 — Tablet view (this device's `froot_view` cookie): the same props,
+  // laid out as the touch two-pane page. Desktop below is unchanged (R1).
+  if ((await getViewMode()) === "tablet") {
+    return <MessagesTablet stores={stores} role={role ?? "STAFF"} inventoryActive={org.activeModules.includes("inventory")} />
+  }
 
   return (
     <MessagesClient

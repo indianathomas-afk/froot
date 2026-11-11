@@ -119,6 +119,11 @@ export function TabletShell({
   // page as long as they need (TAB-9 ruling 3). The first screen's height now
   // comes from TabletHome itself, which sizes its columns to one screen.
   const isHome = pathname === "/dashboard"
+  // TAB-11, 2026-11-11 — Team Messages owns the whole viewport too: its panes
+  // scroll on their own and the page does not (messages-tablet.tsx), so it gets
+  // no container padding or max width. "Every other route keeps its existing
+  // content and container" above now excepts /messages.
+  const isMessages = pathname === "/messages"
 
   return (
     <div className="flex min-h-dvh bg-[var(--color-background)]">
@@ -166,6 +171,8 @@ export function TabletShell({
       <main className="ml-[88px] flex-1 min-w-0">
         {isHome ? (
           <div className="p-4">{children}</div>
+        ) : isMessages ? (
+          children
         ) : (
           <div className="max-w-6xl mx-auto px-8 py-8">{children}</div>
         )}

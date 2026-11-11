@@ -79,7 +79,7 @@ export type FeedMessage = {
   expiresAt: string | null
 }
 
-type CorpUpdate = {
+export type CorpUpdate = {
   id: string
   title: string
   body: string
@@ -90,7 +90,7 @@ type CorpUpdate = {
   attachments: FeedAttachment[]
 }
 
-type PendingAttachment = {
+export type PendingAttachment = {
   kind: "image" | "document" | "youtube"
   url: string
   filename?: string | null
@@ -110,7 +110,7 @@ export const TYPE_META: Record<string, { label: string; icon: typeof MessageSqua
   general: { label: "General", icon: MessageSquare, className: "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]" },
 }
 
-const EMOJI = ["👍", "🎉", "❤️", "😂", "👀", "🙏"]
+export const EMOJI = ["👍", "🎉", "❤️", "😂", "👀", "🙏"]
 
 const AVATAR_COLORS = ["#F97316", "#0EA5E9", "#8B5CF6", "#10B981", "#EF4444", "#F59E0B", "#6366F1"]
 export function avatarColor(name: string): string {
@@ -159,21 +159,20 @@ function saveStoreId(id: string) {
   window.dispatchEvent(new Event(STORE_EVENT))
 }
 
-// ─── Page component ───────────────────────────────────────────────────────────
+// ─── Shared state (TAB-11) ────────────────────────────────────────────────────
+// TAB-11, 2026-11-11 — the page's state, fetches and posts live in the hooks
+// below, lifted out of the components unchanged, so the desktop page and the
+// Tablet-mode layout (messages-tablet.tsx) run ONE copy of each. Only the JSX
+// differs between the two. Desktop renders exactly what it rendered before.
 
-export function MessagesClient({
-  stores,
-  role,
-  inventoryActive,
-}: {
-  stores: { id: string; name: string }[]
-  role: string
-  inventoryActive: boolean
-}) {
+/** The store this page shows: the saved dashboard store, else the first. */
+export function useMessagesStoreId(stores: { id: string; name: string }[]): string {
   const savedStoreId = useSavedStoreId()
-  const storeId = stores.find((s) => s.id === savedStoreId)?.id ?? stores[0]?.id ?? ""
-  const isManager = role === "ADMIN" || role === "MANAGER"
+  return stores.find((s) => s.id === savedStoreId)?.id ?? stores[0]?.id ?? ""
+}
 
+/** The feed: filters, first page, older pages, local edits, mark-read. */
+export function useMessagesFeed(storeId: string) {
   const [typeFilter, setTypeFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   // Keyed by (store, filters) so any change shows skeletons instead of a
@@ -241,6 +240,52 @@ export function MessagesClient({
     setFeed((prev) => (prev ? { ...prev, messages: prev.messages.filter((m) => m.id !== id) } : prev))
   }
 
+  function prependMessage(m: FeedMessage) {
+    setFeed((prev) => (prev ? { ...prev, messages: [m, ...prev.messages] } : prev))
+  }
+
+  return {
+    typeFilter,
+    setTypeFilter,
+    statusFilter,
+    setStatusFilter,
+    messages,
+    nextCursor,
+    loadingMore,
+    loadMore,
+    replaceMessage,
+    removeMessage,
+    prependMessage,
+  }
+}
+
+// ─── Page component ───────────────────────────────────────────────────────────
+
+export function MessagesClient({
+  stores,
+  role,
+  inventoryActive,
+}: {
+  stores: { id: string; name: string }[]
+  role: string
+  inventoryActive: boolean
+}) {
+  const storeId = useMessagesStoreId(stores)
+  const isManager = role === "ADMIN" || role === "MANAGER"
+  const {
+    typeFilter,
+    setTypeFilter,
+    statusFilter,
+    setStatusFilter,
+    messages,
+    nextCursor,
+    loadingMore,
+    loadMore,
+    replaceMessage,
+    removeMessage,
+    prependMessage,
+  } = useMessagesFeed(storeId)
+
   return (
     <div className="space-y-4 max-w-3xl">
       {/* Header */}
@@ -272,7 +317,7 @@ export function MessagesClient({
       <Composer
         storeId={storeId}
         inventoryActive={inventoryActive}
-        onPosted={(m) => setFeed((prev) => (prev ? { ...prev, messages: [m, ...prev.messages] } : prev))}
+        onPosted={prependMessage}
       />
 
       {/* Filters */}
@@ -344,18 +389,10 @@ export function MessagesClient({
 
 // ─── Corporate updates ────────────────────────────────────────────────────────
 
-function CorporateSection({
-  isAdmin,
-  storeId,
-  stores,
-}: {
-  isAdmin: boolean
-  storeId: string
-  stores: { id: string; name: string }[]
-}) {
+/** This store's corporate updates (null while loading) and a reload. */
+export function useCorporateUpdates(storeId: string) {
   // Keyed by storeId so switching stores shows the skeleton, not stale updates.
   const [updatesRes, setUpdatesRes] = useState<{ storeId: string; updates: CorpUpdate[] } | null>(null)
-  const [expanded, setExpanded] = useState(false)
 
   const load = useCallback(() => {
     if (!storeId) return
@@ -370,15 +407,35 @@ function CorporateSection({
   }, [load])
 
   const updates = updatesRes && updatesRes.storeId === storeId ? updatesRes.updates : null
+  return { updates, load }
+}
+
+/** Which stores an update targets, in words (admins only see it). */
+export function updateTargetLabel(ids: string[], stores: { id: string; name: string }[]): string {
+  if (ids.length === 0) return "All locations"
+  const names = ids.map((id) => stores.find((s) => s.id === id)?.name ?? "Unknown store")
+  return names.join(", ")
+}
+
+function CorporateSection({
+  isAdmin,
+  storeId,
+  stores,
+}: {
+  isAdmin: boolean
+  storeId: string
+  stores: { id: string; name: string }[]
+}) {
+  const { updates, load } = useCorporateUpdates(storeId)
+  const [expanded, setExpanded] = useState(false)
+
   if (updates === null) return <Skeleton className="h-24 w-full" />
   const published = updates.filter((u) => u.publishedAt)
   const shown = expanded ? published : published.slice(0, 1)
   if (published.length === 0 && !isAdmin) return null
 
   function targetLabel(ids: string[]): string {
-    if (ids.length === 0) return "All locations"
-    const names = ids.map((id) => stores.find((s) => s.id === id)?.name ?? "Unknown store")
-    return names.join(", ")
+    return updateTargetLabel(ids, stores)
   }
 
   return (
@@ -421,7 +478,16 @@ function CorporateSection({
   )
 }
 
-function NewUpdateDialog({ stores, onCreated }: { stores: { id: string; name: string }[]; onCreated: () => void }) {
+export function NewUpdateDialog({
+  stores,
+  onCreated,
+  triggerClassName,
+}: {
+  stores: { id: string; name: string }[]
+  onCreated: () => void
+  /** TAB-11 — the tablet sizes the trigger for touch. Desktop passes nothing. */
+  triggerClassName?: string
+}) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState("")
   const [body, setBody] = useState("")
@@ -479,7 +545,11 @@ function NewUpdateDialog({ stores, onCreated }: { stores: { id: string; name: st
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className="bg-white/60 border-[#8A3E17]/30 text-[#8A3E17] hover:bg-white">
+        <Button
+          size="sm"
+          variant="outline"
+          className={cn("bg-white/60 border-[#8A3E17]/30 text-[#8A3E17] hover:bg-white", triggerClassName)}
+        >
           New update
         </Button>
       </DialogTrigger>
@@ -557,11 +627,20 @@ function NewUpdateDialog({ stores, onCreated }: { stores: { id: string; name: st
   )
 }
 
-function DeleteUpdateButton({ id, onDeleted }: { id: string; onDeleted: () => void }) {
+export function DeleteUpdateButton({
+  id,
+  onDeleted,
+  className,
+}: {
+  id: string
+  onDeleted: () => void
+  /** TAB-11 — the tablet sizes the trigger for touch. Desktop passes nothing. */
+  className?: string
+}) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <button className="text-xs text-[#8A3E17]/70 hover:text-[#8A3E17] underline">Delete</button>
+        <button className={cn("text-xs text-[#8A3E17]/70 hover:text-[#8A3E17] underline", className)}>Delete</button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -589,20 +668,22 @@ function DeleteUpdateButton({ id, onDeleted }: { id: string; onDeleted: () => vo
 // team-message composer and the corporate-update dialog so upload behavior,
 // validation, and styling stay identical.
 
-function AttachmentComposer({
+/**
+ * The Photo / File / Video pickers' behaviour: upload, the 4-attachment cap,
+ * the YouTube link field, and the two hidden file inputs (`inputs`, rendered
+ * wherever the caller likes). Shared by the desktop AttachmentComposer and the
+ * tablet composer so uploads behave identically.
+ */
+export function useAttachmentPicker({
   attachments,
   setAttachments,
-  uploading,
   setUploading,
   onError,
-  trailing,
 }: {
   attachments: PendingAttachment[]
   setAttachments: Dispatch<SetStateAction<PendingAttachment[]>>
-  uploading: boolean
   setUploading: (v: boolean) => void
   onError: (msg: string | null) => void
-  trailing?: ReactNode
 }) {
   const [youtubeOpen, setYoutubeOpen] = useState(false)
   const [youtubeUrl, setYoutubeUrl] = useState("")
@@ -642,6 +723,65 @@ function AttachmentComposer({
     setYoutubeOpen(false)
   }
 
+  const inputs = (
+    <>
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) uploadFile(f)
+          e.target.value = ""
+        }}
+      />
+      <input
+        ref={docInputRef}
+        type="file"
+        accept=".pdf,.docx,.xlsx,application/pdf"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) uploadFile(f)
+          e.target.value = ""
+        }}
+      />
+    </>
+  )
+
+  return {
+    inputs,
+    openPhoto: () => photoInputRef.current?.click(),
+    openFile: () => docInputRef.current?.click(),
+    youtubeOpen,
+    setYoutubeOpen,
+    youtubeUrl,
+    setYoutubeUrl,
+    addYoutube,
+    removeAttachment: (idx: number) => setAttachments((prev) => prev.filter((_, i) => i !== idx)),
+  }
+}
+
+function AttachmentComposer({
+  attachments,
+  setAttachments,
+  uploading,
+  setUploading,
+  onError,
+  trailing,
+}: {
+  attachments: PendingAttachment[]
+  setAttachments: Dispatch<SetStateAction<PendingAttachment[]>>
+  uploading: boolean
+  setUploading: (v: boolean) => void
+  onError: (msg: string | null) => void
+  trailing?: ReactNode
+}) {
+  const { inputs, openPhoto, openFile, youtubeOpen, setYoutubeOpen, youtubeUrl, setYoutubeUrl, addYoutube, removeAttachment } =
+    useAttachmentPicker({ attachments, setAttachments, setUploading, onError })
+
   return (
     <>
       {/* Pending attachments */}
@@ -652,7 +792,7 @@ function AttachmentComposer({
               {a.kind === "image" ? <Camera className="h-3 w-3" /> : a.kind === "youtube" ? <CirclePlay className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
               <span className="truncate">{a.filename ?? (a.kind === "youtube" ? "YouTube video" : a.url)}</span>
               <button
-                onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                onClick={() => removeAttachment(idx)}
                 className="ml-1 hover:text-[var(--color-destructive)]"
               >
                 ×
@@ -672,34 +812,12 @@ function AttachmentComposer({
       )}
 
       <div className="flex items-center gap-2">
-        <input
-          ref={photoInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            if (f) uploadFile(f)
-            e.target.value = ""
-          }}
-        />
-        <input
-          ref={docInputRef}
-          type="file"
-          accept=".pdf,.docx,.xlsx,application/pdf"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            if (f) uploadFile(f)
-            e.target.value = ""
-          }}
-        />
-        <Button variant="outline" size="sm" onClick={() => photoInputRef.current?.click()} disabled={uploading}>
+        {inputs}
+        <Button variant="outline" size="sm" onClick={openPhoto} disabled={uploading}>
           <Camera className="h-4 w-4" />
           Photo
         </Button>
-        <Button variant="outline" size="sm" onClick={() => docInputRef.current?.click()} disabled={uploading}>
+        <Button variant="outline" size="sm" onClick={openFile} disabled={uploading}>
           <Paperclip className="h-4 w-4" />
           File
         </Button>
@@ -716,7 +834,9 @@ function AttachmentComposer({
 
 // ─── Composer ─────────────────────────────────────────────────────────────────
 
-function Composer({
+/** The composer's draft and its one POST. After a post the type returns to
+ *  General (desktop has always done this; TAB-11 R4 keeps it on the tablet). */
+export function useComposer({
   storeId,
   inventoryActive,
   onPosted,
@@ -782,6 +902,68 @@ function Composer({
     ingredientQuery.trim().length > 0 && ingredients
       ? ingredients.filter((i) => i.name.toLowerCase().includes(ingredientQuery.trim().toLowerCase())).slice(0, 6)
       : []
+
+  const placeholder =
+    type === "shoutout" ? "Who crushed it today?" : type === "shortage" ? "What are we running low on?" : "Share with the team…"
+  const canPost = !(posting || uploading || !body.trim() || !storeId)
+
+  return {
+    type,
+    setType,
+    body,
+    setBody,
+    shiftPhase,
+    setShiftPhase,
+    attachments,
+    setAttachments,
+    uploading,
+    setUploading,
+    posting,
+    error,
+    setError,
+    linkedIngredient,
+    setLinkedIngredient,
+    ingredientQuery,
+    setIngredientQuery,
+    ingredientMatches,
+    placeholder,
+    canPost,
+    post,
+  }
+}
+
+function Composer({
+  storeId,
+  inventoryActive,
+  onPosted,
+}: {
+  storeId: string
+  inventoryActive: boolean
+  onPosted: (m: FeedMessage) => void
+}) {
+  const {
+    type,
+    setType,
+    body,
+    setBody,
+    shiftPhase,
+    setShiftPhase,
+    attachments,
+    setAttachments,
+    uploading,
+    setUploading,
+    posting,
+    error,
+    setError,
+    linkedIngredient,
+    setLinkedIngredient,
+    ingredientQuery,
+    setIngredientQuery,
+    ingredientMatches,
+    placeholder,
+    canPost,
+    post,
+  } = useComposer({ storeId, inventoryActive, onPosted })
 
   return (
     <Card>
@@ -861,9 +1043,7 @@ function Composer({
         )}
 
         <Textarea
-          placeholder={
-            type === "shoutout" ? "Who crushed it today?" : type === "shortage" ? "What are we running low on?" : "Share with the team…"
-          }
+          placeholder={placeholder}
           rows={3}
           maxLength={2000}
           value={body}
@@ -879,7 +1059,7 @@ function Composer({
           trailing={
             <>
               <span className="flex-1" />
-              <Button onClick={post} disabled={posting || uploading || !body.trim() || !storeId}>
+              <Button onClick={post} disabled={!canPost}>
                 {posting ? "Posting…" : "Post"}
               </Button>
             </>
@@ -939,14 +1119,9 @@ export function MessageAttachments({ attachments }: { attachments: FeedAttachmen
   )
 }
 
-export function ReactionBar({
-  message,
-  onChanged,
-}: {
-  message: FeedMessage
-  onChanged: (m: FeedMessage) => void
-}) {
-  async function toggle(emoji: string) {
+/** Toggle one of my reactions: optimistic, then the PUT/DELETE. */
+export function useReactionToggle(message: FeedMessage, onChanged: (m: FeedMessage) => void) {
+  return async function toggle(emoji: string) {
     const existing = message.reactions.find((r) => r.emoji === emoji)
     const mine = existing?.reactedByMe ?? false
     // Optimistic update, then reconcile from the server response.
@@ -965,6 +1140,16 @@ export function ReactionBar({
       method: mine ? "DELETE" : "PUT",
     }).catch(() => {})
   }
+}
+
+export function ReactionBar({
+  message,
+  onChanged,
+}: {
+  message: FeedMessage
+  onChanged: (m: FeedMessage) => void
+}) {
+  const toggle = useReactionToggle(message, onChanged)
 
   return (
     <div className="flex flex-wrap items-center gap-1 mt-2">
@@ -993,7 +1178,8 @@ export function ReactionBar({
   )
 }
 
-function MessageCard({
+/** One card's edit / resolve / delete, and who may do which. */
+export function useMessageActions({
   message,
   isManager,
   onChanged,
@@ -1004,8 +1190,6 @@ function MessageCard({
   onChanged: (m: FeedMessage) => void
   onDeleted: (id: string) => void
 }) {
-  const meta = TYPE_META[message.type] ?? TYPE_META.general
-  const Icon = meta.icon
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(message.body)
   // Snapshot of "now" at mount — the 15-minute edit window doesn't need to
@@ -1035,6 +1219,30 @@ function MessageCard({
     })
     if (res.ok) onChanged(await res.json())
   }
+
+  async function deleteMessage() {
+    const res = await fetch(`/api/messages/${message.id}`, { method: "DELETE" })
+    if (res.ok) onDeleted(message.id)
+  }
+
+  return { editing, setEditing, draft, setDraft, canEdit, canDelete, ticketish, saveEdit, setStatus, deleteMessage }
+}
+
+function MessageCard({
+  message,
+  isManager,
+  onChanged,
+  onDeleted,
+}: {
+  message: FeedMessage
+  isManager: boolean
+  onChanged: (m: FeedMessage) => void
+  onDeleted: (id: string) => void
+}) {
+  const meta = TYPE_META[message.type] ?? TYPE_META.general
+  const Icon = meta.icon
+  const { editing, setEditing, draft, setDraft, canEdit, canDelete, ticketish, saveEdit, setStatus, deleteMessage } =
+    useMessageActions({ message, isManager, onChanged, onDeleted })
 
   return (
     <Card>
@@ -1143,12 +1351,7 @@ function MessageCard({
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={async () => {
-                          const res = await fetch(`/api/messages/${message.id}`, { method: "DELETE" })
-                          if (res.ok) onDeleted(message.id)
-                        }}
-                      >
+                      <AlertDialogAction onClick={deleteMessage}>
                         Delete
                       </AlertDialogAction>
                     </AlertDialogFooter>
