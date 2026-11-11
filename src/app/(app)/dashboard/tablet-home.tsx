@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AlertTriangle, ArrowRight, Check, ChevronDown, ChevronRight, Clock, Delete, GraduationCap } from "lucide-react"
@@ -14,11 +14,22 @@ import { formatWindowTime } from "@/lib/checklist-status-display"
 import { resolveSingleStore, saveStoreId, useSavedStoreId } from "@/lib/dashboard-store"
 import { pickTodayChecklist, type TodayEntry } from "@/lib/tablet-today"
 import { dueChipFor, dueRowSuffix } from "@/lib/tablet-due"
-import { formatInstant } from "@/lib/display-time"
+import {
+  CHIP_TONE_CLASS,
+  IDLE_CHECK_MS,
+  cardsBusy,
+  cardsReducer,
+  dueChipTone,
+  hrChipFor,
+  initialCards,
+  restoreTarget,
+  visibleExpanded,
+  type CardsEvent,
+} from "@/lib/tablet-cards"
 import { dayRolledOver, mayRefreshServer, nextShownDay, pruneOverrides, type TickOverride } from "@/lib/tablet-refresh"
 import type { OwedSummary } from "@/lib/hr-compliance"
 import { fetchCard } from "./card-fetch"
-import { StatStrip } from "./tablet-strip"
+import { StripDetail, StripRow, renderedTileKeys, useStripSummary } from "./tablet-strip"
 import { MessagesColumn } from "./tablet-messages"
 import {
   TabletRefreshProvider,
@@ -82,6 +93,15 @@ function pickerOptions(store: TabletStore): PickerOption[] {
 // on submit, on reload, and when the panel moves to another checklist.
 // PARTIAL SUBMIT sends the same submit desktop's "Submit Partial" sends, after
 // a confirm sheet; desktop sends it with no confirm.
+//
+// TAB-9, 2026-11-10 — appended; "Each column scrolls on its own; the page
+// does not" above is SPENT, kept. The page scrolls now (ruling 3): the first
+// screen opens as before, and the overdue list (in place, under the header)
+// and an expanded card (below the first screen) make it longer. Each column
+// keeps one screen's height and its own scroll, but no longer carries
+// overscroll-contain, so a flick that reaches a column's end carries on into
+// the page instead of stopping dead (audit point 2). Expansion, idle collapse
+// and scroll restore: the TAB-9 block in TabletHome and src/lib/tablet-cards.ts.
 //
 // SUBMIT IS A DELIBERATE TAP, NEVER A SIDE EFFECT OF A TICK (Gary, 2026-11-09,
 // TAB-1 fix — replaces adec345's last-tick submit). When every item is ticked
@@ -313,9 +333,118 @@ export function TabletHome({
   const rows = shownToday ? shownToday.rows : undefined
   const checklistsById = useMemo(() => new Map(view.checklists.map((c) => [c.id, c])), [view.checklists])
 
+  // ── TAB-9: expandable cards, the overdue list in place, a page that scrolls ──
+  // All of it is React state in this component (ruling 7): never settings, a
+  // cookie or storage, so a reload, another device or another day starts it
+  // collapsed. The rules are pure, in src/lib/tablet-cards.ts.
+  const scope = `${storeId}:${shownDay}`
+  const [cards, dispatchCards] = useReducer(cardsReducer, scope, (sc) => initialCards(sc, 0))
+  const act = useCallback((e: CardsEvent) => dispatchCards(e), [])
+  // Ruling 4, the day half: a new day (TAB-5's rollover, which only happens
+  // while nothing is busy) or another store starts collapsed.
+  useLayoutEffect(() => {
+    act({ type: "scope", scope })
+  }, [act, scope])
+
+  // Ruling 4, the idle half: five minutes with no touch collapses the open
+  // card and the open list. The latest touch lives in a ref, so a touch does
+  // not re-render the page; the check runs every IDLE_CHECK_MS. NOTHING ELSE
+  // collapses them — a refresh cycle never does.
+  const lastTouch = useRef(0)
+  const idleNow = useRef(cards.idle)
+  useLayoutEffect(() => {
+    idleNow.current = cards.idle
+  })
+  useEffect(() => {
+    lastTouch.current = Date.now()
+    const touched = () => {
+      lastTouch.current = Date.now()
+      if (idleNow.current) act({ type: "touch", at: lastTouch.current })
+    }
+    const opts = { capture: true, passive: true } as const
+    const events = ["pointerdown", "touchstart", "keydown", "wheel"] as const
+    for (const ev of events) window.addEventListener(ev, touched, opts)
+    const id = window.setInterval(() => act({ type: "tick", at: Date.now(), lastTouchAt: lastTouch.current }), IDLE_CHECK_MS)
+    return () => {
+      for (const ev of events) window.removeEventListener(ev, touched, opts)
+      window.clearInterval(id)
+    }
+  }, [act])
+
+  // Scrolled away from the top (ruling 3's page scroll).
+  const [scrolled, setScrolled] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    onScroll()
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
+
+  // The strip's payload, read here because its tile row sits on the first
+  // screen and an expanded card opens below it (tablet-strip.tsx).
+  const strip = useStripSummary(storeId, stripTiles.length > 0, ctl.register)
+  const shownCard = visibleExpanded(cards.expanded, renderedTileKeys(stripTiles, strip))
+
+  // Ruling 4: what is open holds the refresh, through TAB-5's busy flags.
+  const busy = cardsBusy({ ...cards, expanded: shownCard }, scrolled)
+  useLayoutEffect(() => {
+    for (const [key, on] of Object.entries(busy)) ctl.setBusy(key, on)
+  })
+  useEffect(
+    () => () => {
+      for (const key of Object.keys(cardsBusy({ expanded: null, dueOpen: false, idle: true }, false))) ctl.setBusy(key, false)
+    },
+    [ctl]
+  )
+
+  // Ruling 3: a collapse returns the page to where it was before the first
+  // card opened; opening one brings its detail into view, keeping the tile
+  // row on screen.
+  const savedY = useRef<number | null>(null)
+  const prevCard = useRef<string | null>(null)
+  const stripRowRef = useRef<HTMLDivElement>(null)
+  const detailRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const prev = prevCard.current
+    if (prev === shownCard) return
+    prevCard.current = shownCard
+    const saved = savedY.current
+    savedY.current = restoreTarget(saved, prev, shownCard, window.scrollY)
+    if (shownCard === null) {
+      if (saved !== null) window.scrollTo({ top: saved, behavior: "smooth" })
+      return
+    }
+    const row = stripRowRef.current?.getBoundingClientRect()
+    const detail = detailRef.current?.getBoundingClientRect()
+    if (!row || !detail) return
+    const delta = Math.min(detail.bottom - window.innerHeight + 16, row.top - 16)
+    if (delta > 0) window.scrollBy({ top: delta, behavior: "smooth" })
+  }, [shownCard])
+
+  // The first screen keeps today's height: the columns (and the strip row)
+  // fill what the header leaves of one screen, whatever opens above or below.
+  const headerRef = useRef<HTMLElement>(null)
+  const [headerH, setHeaderH] = useState(56)
+  useLayoutEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const measure = () => setHeaderH(el.getBoundingClientRect().height)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [storeId])
+
+  // The overdue list's feed for this store (TAB-1c's filter and label).
+  const dueChip = dueChipFor(due ?? [], storeId, new Date().toISOString())
+  const dueEmpty = dueChip.label === null
+  useEffect(() => {
+    if (dueEmpty) act({ type: "closeDue" })
+  }, [act, dueEmpty])
+
   if (!store) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex min-h-[calc(100dvh-2rem)] items-center justify-center">
         <p className="text-lg text-[var(--color-muted-foreground)]">
           No store is assigned to this login yet. Ask an admin to add one.
         </p>
@@ -325,8 +454,13 @@ export function TabletHome({
 
   return (
     <TabletRefreshProvider value={ctl}>
-    <div className="grid h-full grid-rows-[auto_minmax(0,1fr)] gap-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+    {/* TAB-9 ruling 3 — the page scrolls (the shell no longer clips it). The
+        first screen is the header plus a box exactly one screen minus the
+        header tall: the columns and, when enabled, the strip row — so it
+        opens as before. The overdue list opens between them (ruling 1) and an
+        expanded card below the box (ruling 2), each making the page longer. */}
+    <div className="flex flex-col gap-4">
+      <header ref={headerRef} className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-baseline gap-3">
           {stores.length > 1 ? (
             <Select value={store.id} onValueChange={saveStoreId} onOpenChange={(open) => ctl.setBusy("store-select", open)}>
@@ -348,9 +482,20 @@ export function TabletHome({
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <ComplianceChip />
-          <DueChip feed={due ?? []} storeId={store.id} onChanged={loadDue} />
+          {dueChip.label && (
+            <DueChip
+              label={dueChip.label}
+              overdue={dueChip.overdue}
+              open={cards.dueOpen}
+              onToggle={() => act({ type: "toggleDue", at: Date.now() })}
+            />
+          )}
         </div>
       </header>
+
+      {cards.dueOpen && dueChip.items.length > 0 && (
+        <DuePanel items={dueChip.items} onClose={() => act({ type: "toggleDue", at: Date.now() })} onChanged={loadDue} />
+      )}
 
       {/* TAB-3 — the stat strip, below both columns (ruling 4). With no tile
           enabled (the default) the columns render exactly as in TAB-2b. With
@@ -358,13 +503,26 @@ export function TabletHome({
           falls BETWEEN rendered children, so when no tile is visible to this
           viewer StatStrip renders null and leaves no strip container and no
           gap (Gary, 2026-11-10). Each tile still asks its own gate. */}
-      {stripTiles.length > 0 ? (
-        <div className="flex min-h-0 flex-col gap-4">
-          {columns("min-h-0 flex-1")}
-          <StatStrip key={store.id} storeId={store.id} tiles={stripTiles} />
+      {/* TAB-9: the box is the first screen below the header (p-4 top and
+          bottom, plus the header's gap: 48px). */}
+      <div className="flex shrink-0 flex-col gap-4" style={{ height: `calc(100dvh - ${48 + headerH}px)` }}>
+        {columns("min-h-0 flex-1")}
+        {stripTiles.length > 0 && (
+          <div ref={stripRowRef} className="empty:hidden">
+            <StripRow
+              data={strip}
+              tiles={stripTiles}
+              expanded={shownCard}
+              onTap={(key) => act({ type: "tap", key, at: Date.now() })}
+            />
+          </div>
+        )}
+      </div>
+
+      {strip && shownCard && (
+        <div ref={detailRef}>
+          <StripDetail data={strip} expanded={shownCard} onShowLess={() => act({ type: "showLess", at: Date.now() })} />
         </div>
-      ) : (
-        columns("min-h-0")
       )}
     </div>
     </TabletRefreshProvider>
@@ -934,7 +1092,7 @@ function dueLabel(entry: TodayRow): string | null {
 function NotStartedPanel({ entry, busy, onStart }: { entry: TodayRow; busy: boolean; onStart: () => void }) {
   const due = dueLabel(entry)
   return (
-    <div className="flex flex-1 flex-col gap-6 overflow-y-auto overscroll-contain bg-[var(--color-primary)] p-8 text-[var(--color-primary-foreground)]">
+    <div className="flex flex-1 flex-col gap-6 overflow-y-auto bg-[var(--color-primary)] p-8 text-[var(--color-primary-foreground)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h2 className="text-4xl font-extrabold uppercase leading-tight tracking-tight">{entry.name}</h2>
         {due && (
@@ -1026,7 +1184,7 @@ function InProgressPanel({
         </div>
       )}
 
-      <div className="min-h-0 flex-1 snap-y snap-proximity overflow-y-auto overscroll-contain">
+      <div className="min-h-0 flex-1 snap-y snap-proximity overflow-y-auto">
         {doneTasks.length > 0 && (
           <div className="border-b border-[var(--color-border)]">
             <TouchRow onClick={() => setShowDone((v) => !v)} aria-expanded={showDone} className="snap-start font-semibold">
@@ -1133,7 +1291,7 @@ function DonePanel({
   return (
     <div
       className={cn(
-        "flex flex-1 flex-col items-center gap-6 overflow-y-auto overscroll-contain p-8 text-center",
+        "flex flex-1 flex-col items-center gap-6 overflow-y-auto p-8 text-center",
         partial ? "bg-[var(--color-muted)]" : "bg-[var(--color-success-bg)]"
       )}
     >
@@ -1268,19 +1426,55 @@ function ValueSheet({
 }
 
 // ─── Overdue chip + the due list as a bottom sheet (ruling 7) ────────────────
+//
+// TAB-9, 2026-11-10 — appended; "as a bottom sheet" above is SPENT, kept. The
+// list now opens IN PLACE under the header (TAB-9 ruling 1): no overlay,
+// nothing frozen, the page scrolls past it. The chip toggles it; its open
+// state is TabletHome's (it idles shut with the cards, ruling 4). The rows and
+// their actions are the sheet's, unchanged. The chip's filter, count and label
+// are still dueChipFor (TAB-1c); its colour is dueChipTone — this chip alone
+// is red and says "overdue" (TAB-9 ruling 6).
 
-function DueChip({ feed, storeId, onChanged }: { feed: DueItem[]; storeId: string; onChanged: () => Promise<void> }) {
-  const [open, setOpen] = useState(false)
+function DueChip({
+  label,
+  overdue,
+  open,
+  onToggle,
+}: {
+  label: string
+  overdue: number
+  open: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      aria-controls="tablet-due-list"
+      className={cn("flex min-h-14 items-center gap-2 rounded-full px-6 text-lg font-bold", CHIP_TONE_CLASS[dueChipTone(overdue)])}
+    >
+      <AlertTriangle className="h-5 w-5" />
+      {label}
+      <ChevronDown className={cn("h-5 w-5 transition-transform", open && "rotate-180")} />
+    </button>
+  )
+}
+
+function DuePanel({
+  items,
+  onClose,
+  onChanged,
+}: {
+  items: DueItem[]
+  onClose: () => void
+  onChanged: () => Promise<void>
+}) {
   const [completing, setCompleting] = useState<string | null>(null)
-  // TAB-5 ruling 3: the sheet open, or a Complete in flight, holds the refresh.
-  useBusyFlag("due:sheet", open || completing !== null)
-
-  // TAB-1c: the filter and count live in src/lib/tablet-due.ts (pinned by
-  // scripts/verify-tab1c-due-chip.ts). Overdue is `dueAt <= now` — ruling 8 of
-  // CAL-1, the banner's own rule.
+  // TAB-5 ruling 3: a Complete in flight holds the refresh. (The list being
+  // open is TabletHome's "due:list" flag.)
+  useBusyFlag("due:complete", completing !== null)
   const nowIso = new Date().toISOString()
-  const { items, overdue, label } = dueChipFor(feed, storeId, nowIso)
-  if (!label) return null
 
   async function complete(id: string) {
     setCompleting(id)
@@ -1294,50 +1488,44 @@ function DueChip({ feed, storeId, onChanged }: { feed: DueItem[]; storeId: strin
   }
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={cn(
-          "flex min-h-14 items-center gap-2 rounded-full px-6 text-lg font-bold",
-          overdue > 0
-            ? "bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)]"
-            : "border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] text-[var(--color-warning-text)]"
-        )}
-      >
-        <AlertTriangle className="h-5 w-5" />
-        {label}
-        <ChevronRight className="h-5 w-5" />
-      </button>
-      <BottomSheet open={open} onClose={() => setOpen(false)} title="Due at this store">
-        <ul className="divide-y divide-[var(--color-border)]">
-          {items.map((item) => (
-            <li key={item.id} className="flex min-h-16 items-center justify-between gap-4 py-3">
-              <div className="min-w-0">
-                <p className="text-lg font-semibold text-[var(--color-foreground)]">{item.title}</p>
-                <p className="text-base text-[var(--color-muted-foreground)]">
-                  {item.categoryLabel}
-                  {dueRowSuffix(item, nowIso)}
-                </p>
-              </div>
-              {item.templateId ? (
-                // CAL-2 ruling 3: a scheduled checklist completes by submitting
-                // the checklist, so the row links there instead of ticking.
-                item.checklistId ? (
-                  <Button asChild size="touch" variant="outline">
-                    <a href={`/store-view/checklist/${item.checklistId}`}>Open checklist</a>
-                  </Button>
-                ) : null
-              ) : (
-                <Button size="touch" variant="outline" onClick={() => void complete(item.id)} disabled={completing === item.id}>
-                  {completing === item.id ? "Saving…" : "Complete"}
+    <section
+      id="tablet-due-list"
+      aria-label="Due at this store"
+      className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] px-6 py-3"
+    >
+      <div className="flex items-center justify-between gap-4 border-b border-[var(--color-border)] pb-3">
+        <h2 className="text-xl font-bold text-[var(--color-foreground)]">Due at this store</h2>
+        <Button size="touch" variant="outline" onClick={onClose}>
+          Close
+        </Button>
+      </div>
+      <ul className="divide-y divide-[var(--color-border)]">
+        {items.map((item) => (
+          <li key={item.id} className="flex min-h-16 items-center justify-between gap-4 py-3">
+            <div className="min-w-0">
+              <p className="text-lg font-semibold text-[var(--color-foreground)]">{item.title}</p>
+              <p className="text-base text-[var(--color-muted-foreground)]">
+                {item.categoryLabel}
+                {dueRowSuffix(item, nowIso)}
+              </p>
+            </div>
+            {item.templateId ? (
+              // CAL-2 ruling 3: a scheduled checklist completes by submitting
+              // the checklist, so the row links there instead of ticking.
+              item.checklistId ? (
+                <Button asChild size="touch" variant="outline">
+                  <a href={`/store-view/checklist/${item.checklistId}`}>Open checklist</a>
                 </Button>
-              )}
-            </li>
-          ))}
-        </ul>
-      </BottomSheet>
-    </>
+              ) : null
+            ) : (
+              <Button size="touch" variant="outline" onClick={() => void complete(item.id)} disabled={completing === item.id}>
+                {completing === item.id ? "Saving…" : "Complete"}
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
@@ -1355,6 +1543,18 @@ function DueChip({ feed, storeId, onChanged }: { feed: DueItem[]; storeId: strin
 //
 // TAB-5 — re-read on every refresh cycle (ruling 1). The answer replaces the
 // chip: owing nothing now clears it. A failed read keeps what is showing.
+//
+// TAB-9, 2026-11-10 — appended; "the same words, the same colours (red when
+// anything is overdue, amber otherwise)" above is SPENT, kept. Two chips side
+// by side that both went red and both said "overdue" read as one alarm (Gary,
+// TAB-9 ruling 6). This chip now reads "My HR · N" (hrChipFor) and is amber
+// when something is past due, neutral otherwise — never red, never the word
+// "overdue"; only the store's DueChip is. The endpoint, the rule (renders only
+// when the signed-in person owes something) and the /my link are unchanged.
+// ON A SHARED STORE LOGIN it shows whatever the login resolves to through
+// getActiveStaffSelf — a staff member linked to that User, or the one staff
+// member with its email — which may be one PERSON's items on a counter
+// tablet. RULING NOW item in the TAB-9 report; not changed here.
 function ComplianceChip() {
   const [owed, setOwed] = useState<OwedSummary | null>(null)
   const live = useRef(true)
@@ -1375,32 +1575,16 @@ function ComplianceChip() {
   useRefreshLoader(load)
 
   if (!owed) return null
-  const overdue = owed.overdueCount > 0
-  const plural = owed.openCount === 1 ? "" : "s"
+  const chip = hrChipFor(owed)
 
   return (
     <Link
       href="/my"
-      aria-label={`${owed.openCount} outstanding training or document item${plural}. Go to your portal.`}
-      className={cn(
-        "flex min-h-14 items-center gap-2 rounded-full px-6 py-2",
-        overdue
-          ? "bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)]"
-          : "border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] text-[var(--color-warning-text)]"
-      )}
+      aria-label={chip.ariaLabel}
+      className={cn("flex min-h-14 items-center gap-2 rounded-full px-6 py-2 text-lg font-bold", CHIP_TONE_CLASS[chip.tone])}
     >
-      {overdue ? <AlertTriangle className="h-5 w-5 shrink-0" /> : <GraduationCap className="h-5 w-5 shrink-0" />}
-      <span className="min-w-0">
-        <span className="block text-lg font-bold leading-tight">
-          You have {owed.openCount} item{plural} to complete
-          {overdue ? ` · ${owed.overdueCount} overdue` : ""}
-        </span>
-        {owed.nearestDueDate && (
-          <span className="block text-sm opacity-90">
-            Nearest due {formatInstant(owed.nearestDueDate, owed.timeZone, "monthDay")}
-          </span>
-        )}
-      </span>
+      <GraduationCap className="h-5 w-5 shrink-0" />
+      {chip.label}
       <ChevronRight className="h-5 w-5 shrink-0" />
     </Link>
   )

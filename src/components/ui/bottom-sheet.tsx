@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils"
 // shell (the overdue list, the value-entry number pad). Hand-rolled on the
 // existing tokens rather than a new dependency. Escape and a tap on the scrim
 // close it; the close button is a 56px touch target.
+// TAB-9, 2026-11-10 — the overdue list no longer uses this sheet (it opens in
+// place on the page); the name picker, number pad and partial submit still do.
 export function BottomSheet({
   open,
   onClose,
@@ -33,7 +35,9 @@ export function BottomSheet({
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label={title}>
-      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-[var(--color-foreground)]/40" />
+      {/* TAB-9: touch-none — the tablet home scrolls now, and a flick on the
+          scrim must not scroll the page behind an open sheet. */}
+      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 touch-none bg-[var(--color-foreground)]/40" />
       <div
         className={cn(
           "relative z-10 flex max-h-[85dvh] w-full max-w-2xl flex-col rounded-t-3xl bg-[var(--color-card)] shadow-2xl",

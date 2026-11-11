@@ -262,10 +262,12 @@ export function MessagesColumn({ storeId }: { storeId: string }) {
         update && <PinnedUpdate update={update} />
       )}
 
+      {/* TAB-9: no overscroll-contain — at the thread's end a flick carries
+          on into the page, which scrolls now (tablet-home.tsx, audit 2). */}
       <div
         ref={threadRef}
         data-testid="tablet-thread"
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-2"
+        className="min-h-0 flex-1 overflow-y-auto px-5 py-2"
       >
         <Thread thread={thread} onRetry={() => void loadThread(false)} />
       </div>

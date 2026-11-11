@@ -113,6 +113,11 @@ export function TabletShell({
   // The tablet home owns the whole viewport: two columns that scroll on their
   // own while the page does not. Every other route keeps its existing content
   // and container, unchanged, beside the rail.
+  // TAB-9, 2026-11-10 — appended; "while the page does not" above is SPENT,
+  // kept. The home's container no longer clips (was `h-dvh overflow-hidden`):
+  // the document scrolls, so the overdue list and expanded cards can make the
+  // page as long as they need (TAB-9 ruling 3). The first screen's height now
+  // comes from TabletHome itself, which sizes its columns to one screen.
   const isHome = pathname === "/dashboard"
 
   return (
@@ -160,7 +165,7 @@ export function TabletShell({
       </aside>
       <main className="ml-[88px] flex-1 min-w-0">
         {isHome ? (
-          <div className="h-dvh overflow-hidden p-4">{children}</div>
+          <div className="p-4">{children}</div>
         ) : (
           <div className="max-w-6xl mx-auto px-8 py-8">{children}</div>
         )}
