@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { AlertTriangle, ArrowRight, Check, ChevronDown, ChevronRight, Clock, Delete, GraduationCap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { BottomSheet } from "@/components/ui/bottom-sheet"
+import { PinPad } from "@/components/tablet-pin/pin-pad"
+import { isPinRefusal, whoOptions, type PinSession, type WhoOption } from "@/lib/tablet-pin-options"
 import { TouchCheck, TouchRow } from "@/components/ui/touch-row"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
@@ -29,7 +30,16 @@ import {
   visibleExpanded,
   type CardsEvent,
 } from "@/lib/tablet-cards"
-import { dayRolledOver, mayRefreshServer, nextShownDay, pruneOverrides, type TickOverride } from "@/lib/tablet-refresh"
+import { dayRolledOver, nextShownDay, pruneOverrides, type TickOverride } from "@/lib/tablet-refresh"
+import {
+  applyItemsOutcome,
+  initialItemsHealth,
+  itemsNotice,
+  nextItemsHealth,
+  readTabletTasks,
+  type ItemsHealth,
+  type TabletServerData,
+} from "@/lib/tablet-tasks-refresh"
 import type { OwedSummary } from "@/lib/hr-compliance"
 import { fetchCard } from "./card-fetch"
 import { StripDetail, StripRow, renderedTileKeys, useStripSummary } from "./tablet-strip"
@@ -45,22 +55,20 @@ import {
 import type { TabletChecklist, TabletStore, TabletTask } from "./tablet-data"
 
 /** TAB-1b — one button on the name sheet. `id` is what goes in
- *  `completedByStaffId`: "manager" for both generic options, as on desktop. */
-type PickerOption = { key: string; id: string; label: string }
+ *  `completedByStaffId`: "manager" for both generic options, as on desktop.
+ *  TAB-4: the shape (and the list) now live in src/lib/tablet-pin-options.ts,
+ *  shared with every desktop picker; it adds `disabled` / `note` for Q6. */
+type PickerOption = WhoOption
 
 /** TAB-1b — who the following ticks are credited to, for one checklist. */
 type Person = { checklistId: string; id: string; label: string }
 
-/** The desktop picker's list, in its order: the two generic options (both send
- *  "manager", which the task-log route saves as no name), then the store's
- *  ACTIVE staff by name (src/app/(app)/store-view/checklist/[id]/page.tsx). */
-function pickerOptions(store: TabletStore): PickerOption[] {
-  return [
-    { key: "generic:team", id: "manager", label: "Team Member" },
-    { key: "generic:manager", id: "manager", label: "Manager" },
-    ...store.staff.map((s) => ({ key: s.id, id: s.id, label: s.displayName })),
-  ]
-}
+// TAB-1b's pickerOptions() lived here: the two generic options (both send
+// "manager", which the task-log route saves as no name), then the store's
+// ACTIVE staff by name. TAB-4 moved it to whoOptions() in
+// src/lib/tablet-pin-options.ts, unchanged while PINs are off; while they are
+// on (a STORE login, Q2a) the generics go (Q7) and a person with no PIN is
+// greyed out (Q6).
 
 // TAB-1 — the tablet home on /dashboard (Direction 1 · Status Stage).
 //
@@ -157,11 +165,31 @@ async function readError(res: Response): Promise<string | null> {
   }
 }
 
+/** TAB-4 — readError plus the route's `code`, so a PIN refusal can drop the
+ *  device's session and ask again. */
+async function readErrorBody(res: Response): Promise<{ error: string | null; code: string | null }> {
+  try {
+    const body = (await res.json()) as { error?: unknown; code?: unknown }
+    return {
+      error: typeof body.error === "string" ? body.error : null,
+      code: typeof body.code === "string" ? body.code : null,
+    }
+  } catch {
+    return { error: null, code: null }
+  }
+}
+
+type SetPin = React.Dispatch<React.SetStateAction<PinSession | null>>
+
+/** One empty tile list, so a missing prop keeps its identity across renders. */
+const NO_TILES: string[] = []
+
 export function TabletHome({
-  stores,
-  checklists,
-  stripTiles = [],
+  stores: propStores,
+  checklists: propChecklists,
+  stripTiles: propStripTiles = NO_TILES,
   role = null,
+  pinRequired: propPinRequired = false,
 }: {
   stores: TabletStore[]
   checklists: TabletChecklist[]
@@ -172,8 +200,40 @@ export function TabletHome({
   /** TAB-9 fix — the login's role (page.tsx, getUserStoreScope). Only used to
    *  hide the personal HR chip on a shared STORE login (Gary, 2026-11-10). */
   role?: string | null
+  /** TAB-4 — the org's "Require a PIN on shared tablets" is on AND this is a
+   *  STORE login (page.tsx). False = every screen here is exactly TAB-9's. */
+  pinRequired?: boolean
 }) {
-  const router = useRouter()
+  // ── TAB-8: the server half, re-read through GET /api/stores/[id]/tablet-tasks ──
+  // Starts as this render's props (a fresh read). Every answered re-read
+  // replaces the selected store's entry and its checklists (mergeStoreSlice);
+  // a failed or expired one changes nothing. A NEW render's props (a navigation
+  // back to /dashboard) are newer than any earlier fetch, so they replace it.
+  // TAB-8 fix (Gary, 2026-11-11): pinRequired and stripTiles ride on the same
+  // answer, so a Shared Tablets switch flipped either way, or a tile-order
+  // change, shows within one cycle. `role` (the HR chip), the rail and the
+  // store LIST stay as first rendered until a reload — his ruling, kept.
+  const fromProps = (): TabletServerData => ({
+    stores: propStores,
+    checklists: propChecklists,
+    pinRequired: propPinRequired,
+    stripTiles: propStripTiles,
+  })
+  const [live, setLive] = useState<TabletServerData>(fromProps)
+  const [propsSeen, setPropsSeen] = useState(fromProps)
+  if (
+    propsSeen.stores !== propStores ||
+    propsSeen.checklists !== propChecklists ||
+    propsSeen.pinRequired !== propPinRequired ||
+    propsSeen.stripTiles !== propStripTiles
+  ) {
+    const next = fromProps()
+    setPropsSeen(next)
+    setLive(next)
+  }
+  const stores = live.stores
+  const pinRequired = live.pinRequired
+  const stripTiles = live.stripTiles
   const savedStoreId = useSavedStoreId()
   // The latest server render's store. What the page SHOWS may be held one day
   // behind it (TAB-5, below).
@@ -189,8 +249,8 @@ export function TabletHome({
     Object.fromEntries(stores.map((s) => [s.id, s.day]))
   )
   const shownDay = latestStore ? (shown[latestStore.id] ?? latestStore.day) : ""
-  const server = useMemo(() => ({ stores, checklists }), [stores, checklists])
-  const view = useHeld(server, !latestStore || latestStore.day === shownDay)
+  const server = live
+  const view = useHeld(server,!latestStore || latestStore.day === shownDay)
   const store = latestStore ? (view.stores.find((s) => s.id === latestStore.id) ?? latestStore) : undefined
 
   // What the controller's callbacks read: the latest values, not the ones
@@ -240,48 +300,40 @@ export function TabletHome({
 
   // ── TAB-5: the one refresh controller ──
   const cycleRef = useRef<RefreshCycle | null>(null)
-  const ctl = useTabletRefreshController(cycleRef)
+  // TAB-8: a cycle the offline guard skipped is a refresh that did not land.
+  const missedRef = useRef<(() => void) | null>(null)
+  const ctl = useTabletRefreshController(cycleRef, missedRef)
 
-  // The server half (the Tasks panel's items and ticks, the header date) is a
-  // server render: no route returns a checklist's items (tablet-data.ts), so
-  // it is re-read with router.refresh(), which keeps client state and scroll.
-  // ONE AT A TIME: each waits for the last to land, so `syncedFrom` is always
-  // the start of the read that produced the props on screen. A read "lands"
-  // when new server props arrive; one that never does is let go after 20s.
+  // TAB-8 — THE SERVER HALF (the Tasks panel's items and ticks, the header
+  // date, the store's day and picker names) IS RE-READ THROUGH
+  // GET /api/stores/[id]/tablet-tasks, NOT router.refresh(). Until TAB-8 a
+  // failed RSC refresh made Next fall back to a full browser navigation, which
+  // on a counter iPad with the wifi down left Safari's error page up. A failed
+  // fetch keeps the last good list; an expired sign-in shows TAB-4's message
+  // instead of reading the sign-in page as data (src/lib/tablet-tasks-refresh.ts).
+  // ONE AT A TIME: each waits for the last, so `syncedFrom` is always the start
+  // of the read whose answer is on screen.
   const [syncedFrom, setSyncedFrom] = useState(0)
-  const landing = useRef<(() => void) | null>(null)
+  const [health, setHealth] = useState<ItemsHealth>(() => initialItemsHealth(Date.now()))
+  useLayoutEffect(() => {
+    missedRef.current = () => setHealth((h) => nextItemsHealth(h, "missed", Date.now()))
+  }, [])
   const serverChain = useRef<Promise<void>>(Promise.resolve())
   const refreshServer = useCallback((): Promise<void> => {
-    const next = serverChain.current.then(
-      () =>
-        new Promise<void>((resolve) => {
-          // The offline guard, checked as the refresh is about to go out (it
-          // may have waited behind another): never a router.refresh() while
-          // the browser reports itself offline. The next cycle catches up.
-          if (!mayRefreshServer(navigator.onLine !== false)) {
-            resolve()
-            return
-          }
-          const startedAt = Date.now()
-          const timer = window.setTimeout(() => {
-            landing.current = null
-            resolve()
-          }, 20_000)
-          landing.current = () => {
-            window.clearTimeout(timer)
-            landing.current = null
-            setSyncedFrom(startedAt)
-            resolve()
-          }
-          router.refresh()
-        })
-    )
+    const next = serverChain.current.then(async () => {
+      const id = latest.current.storeId
+      if (!id) return
+      const startedAt = Date.now()
+      const outcome = await readTabletTasks(id)
+      if (outcome.kind === "ok") {
+        setLive((prev) => applyItemsOutcome(prev, outcome))
+        setSyncedFrom(startedAt)
+      }
+      setHealth((h) => nextItemsHealth(h, outcome.kind, Date.now()))
+    })
     serverChain.current = next
     return next
-  }, [router])
-  useEffect(() => {
-    landing.current?.()
-  }, [stores, checklists])
+  }, [])
 
   // Ruling 2: move to the server's day if it has moved on and nothing is busy.
   const acceptDay = useCallback(() => {
@@ -298,24 +350,34 @@ export function TabletHome({
   useLayoutEffect(() => {
     acceptDay()
   }, [storeId, acceptDay])
+  // TAB-8 fix (Gary, 2026-11-11): "re-read on store switch". The route answers
+  // for the selected store only, so another store's items, day and names are
+  // as old as the last time it was selected (or the first load). A switch
+  // re-reads it at once instead of waiting up to a cycle, then acceptDay moves
+  // it to the server's day if that has moved on (after midnight). Not on the
+  // first render: the page's own render is that read.
+  const readFor = useRef(storeId)
+  useEffect(() => {
+    if (!storeId || readFor.current === storeId) return
+    readFor.current = storeId
+    void refreshServer().then(acceptDay)
+  }, [storeId, refreshServer, acceptDay])
 
   /** One cycle (ruling 1). The controller calls it only while the page is
    *  visible, idle and not already refreshing. */
   const cycle = useCallback<RefreshCycle>(async (loaders) => {
     // A day the server reached while the page was busy is adopted first.
     acceptDay()
-    const [answered] = await Promise.all([
+    await Promise.all([
       loadToday(true),
       loadDue(),
       ...loaders.map((load) => load().catch(() => undefined)),
     ])
-    // Ruling 4: re-read the items, so ticks made elsewhere show. ONLY right
-    // after a read has just answered: when a refresh's own request fails, Next
-    // falls back to a full browser navigation, which with the store's wifi
-    // down would leave Safari's error page on the counter. (The controller
-    // does not start a cycle while offline; this catches the wifi dropping
-    // during the reads above, and refreshServer checks once more.)
-    if (!answered || !mayRefreshServer(navigator.onLine !== false)) return
+    // Ruling 4: re-read the items, so ticks made elsewhere show. TAB-8: every
+    // cycle, no longer only after the list answered — that gate existed
+    // because a failed router.refresh() navigated the whole page, and a failed
+    // fetch does not. The route's `store.day` is also what moves the page to a
+    // new day (ruling 2): acceptDay() below adopts it while idle.
     await refreshServer()
     acceptDay()
   }, [acceptDay, loadToday, loadDue, refreshServer])
@@ -331,7 +393,8 @@ export function TabletHome({
   }, [loadDue])
 
   /** After a write that changes which checklist is current: re-read the list,
-   *  and re-render the server half for the new row's items / completedAt. */
+   *  and re-read the server half for the new row's items / completedAt (TAB-8:
+   *  through the tablet-tasks route). */
   const refresh = useCallback(async () => {
     await loadToday()
     await refreshServer()
@@ -347,6 +410,16 @@ export function TabletHome({
   const scope = `${storeId}:${shownDay}`
   const [cards, dispatchCards] = useReducer(cardsReducer, scope, (sc) => initialCards(sc, 0))
   const act = useCallback((e: CardsEvent) => dispatchCards(e), [])
+
+  // ── TAB-4: the device's PIN session (Gary, 2026-11-10) ──
+  // One person, one store, one 10-minute token, in React state only — never a
+  // cookie or storage, so a reload drops it. Shared by the Tasks panel and the
+  // due list, so a PIN entered for one is reused by the other (design choice
+  // #1, accepted with the condition that the due list then shows the chip).
+  // Q10: the 5-minute idle (the TAB-9 timer) throws it away, which also
+  // clears the "Completing as …" chip. Only ever set while pinRequired.
+  const [pin, setPin] = useState<PinSession | null>(null)
+  if (cards.idle && pin) setPin(null)
   // Ruling 4, the day half: a new day (TAB-5's rollover, which only happens
   // while nothing is busy) or another store starts collapsed.
   useLayoutEffect(() => {
@@ -477,6 +550,8 @@ export function TabletHome({
     if (dueEmpty) act({ type: "closeDue" })
   }, [act, dueEmpty])
 
+  const notice = store ? itemsNotice(health, (at) => formatWindowTime(at, store.timezone)) : null
+
   if (!store) {
     return (
       <div className="flex min-h-[calc(100dvh-2rem)] items-center justify-center">
@@ -514,6 +589,13 @@ export function TabletHome({
             <h1 className="truncate text-2xl font-bold text-[var(--color-foreground)]">{store.name}</h1>
           )}
           <p className="text-lg text-[var(--color-muted-foreground)]">{store.headerDate}</p>
+          {/* TAB-8 lean 6: one quiet line while the re-read is not landing
+              (2 in a row) or the device is signed out. The list stays. */}
+          {notice && (
+            <p role="status" className="text-sm text-[var(--color-muted-foreground)]">
+              {notice}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {/* TAB-9 fix (Gary, 2026-11-10): hidden on a shared STORE login,
@@ -531,7 +613,15 @@ export function TabletHome({
       </header>
 
       {cards.dueOpen && dueChip.items.length > 0 && (
-        <DuePanel items={dueChip.items} onClose={() => act({ type: "toggleDue", at: Date.now() })} onChanged={loadDue} />
+        <DuePanel
+          items={dueChip.items}
+          onClose={() => act({ type: "toggleDue", at: Date.now() })}
+          onChanged={loadDue}
+          store={store}
+          pinRequired={pinRequired}
+          pin={pin}
+          onPin={setPin}
+        />
       )}
 
       {/* TAB-3 — the stat strip, below both columns (ruling 4). With no tile
@@ -581,6 +671,9 @@ export function TabletHome({
             syncedFrom={view === server ? syncedFrom : 0}
             onRetry={() => void loadToday()}
             onChanged={refresh}
+            pinRequired={pinRequired}
+            pin={pin}
+            onPin={setPin}
           />
         </section>
         <MessagesColumn key={store!.id} storeId={store!.id} />
@@ -598,6 +691,9 @@ function TasksPanel({
   syncedFrom,
   onRetry,
   onChanged,
+  pinRequired,
+  pin,
+  onPin,
 }: {
   store: TabletStore
   /** undefined = loading, null = the list failed to load. */
@@ -607,6 +703,10 @@ function TasksPanel({
   syncedFrom: number
   onRetry: () => void
   onChanged: () => Promise<void>
+  /** TAB-4 — see TabletHome. */
+  pinRequired: boolean
+  pin: PinSession | null
+  onPin: SetPin
 }) {
   // Local ticks on top of the server's rows, keyed `${checklistId}:${taskId}`,
   // so a tap reads instantly and a refused write can be put back.
@@ -634,11 +734,13 @@ function TasksPanel({
   const [partialFor, setPartialFor] = useState<string | null>(null)
   const [partialError, setPartialError] = useState<string | null>(null)
   const [partialFinished, setPartialFinished] = useState<{ id: string; done: number; total: number } | null>(null)
+  // TAB-4 — the PIN sheet: the name just picked and the tap waiting on it.
+  const [pinFor, setPinFor] = useState<{ checklistId: string; task: TabletTask | null; option: PickerOption } | null>(null)
 
   // ── TAB-5: tell the refresh controller when this panel is busy (ruling 3) ──
   const ctl = useTabletRefresh()
   const track = <T,>(p: Promise<T>): Promise<T> => (ctl ? ctl.track(p) : p)
-  useBusyFlag("tasks:sheet", !!valueFor || !!nameSheet || !!partialFor)
+  useBusyFlag("tasks:sheet", !!valueFor || !!nameSheet || !!partialFor || !!pinFor)
   useBusyFlag("tasks:write", busy !== null)
   // Ruling 4: once a server read that began after a tick settled has landed,
   // that tick's local copy is redundant — drop it, so a later change made on
@@ -771,7 +873,20 @@ function TasksPanel({
     }
   }
 
-  async function toggle(c: TabletChecklist, task: TabletTask, value: number | null = null, staffId: string | null = null) {
+  /** TAB-4 — the token this device holds for that person here, or null. */
+  function tokenFor(staffId: string | null): string | null {
+    return pinRequired && pin && staffId && pin.staffId === staffId && pin.storeId === store.id ? pin.token : null
+  }
+
+  async function toggle(
+    c: TabletChecklist,
+    task: TabletTask,
+    value: number | null = null,
+    staffId: string | null = null,
+    // TAB-4: passed in rather than read from `pin`, so a tick fired in the same
+    // event as a fresh PIN check carries the fresh token.
+    token: string | null = null
+  ) {
     const key = `${c.id}:${task.id}`
     const next: Override = task.done ? { done: false, value: null } : { done: true, value }
     const prior = overridesRef.current[key]
@@ -786,10 +901,12 @@ function TasksPanel({
         // TAB-1b: the picked name rides on a tick, exactly as desktop sends it
         // ("manager" for Team Member / Manager). An untick sends none — desktop
         // doesn't, and the route never reads it on an untick.
+        // TAB-4: and the PIN token, when this device holds one for that name.
         body: JSON.stringify({
           taskId: task.id,
           completedByStaffId: next.done ? staffId : null,
           temperatureValue: next.done ? value : null,
+          ...(next.done && token ? { pinToken: token } : {}),
         }),
       }))
     } catch {
@@ -804,12 +921,22 @@ function TasksPanel({
       }
       overridesRef.current = restore(overridesRef.current)
       setOverrides(restore)
+      const refused = res.status === 0 ? { error: null, code: null } : await readErrorBody(res)
+      // TAB-4: the token ran out or is someone else's — drop the session (and
+      // with it the chip), so the next tap asks for a name and PIN again.
+      if (isPinRefusal(refused.code)) onPin(null)
       setError(
         res.status === 0
           ? "That didn't save — no connection. Check the store's wifi and tap it again."
-          : ((await readError(res)) ?? `That didn't save (error ${res.status}). Tap it again.`)
+          : (refused.error ?? `That didn't save (error ${res.status}). Tap it again.`)
       )
       return
+    }
+    // TAB-4 Q8 — SLIDING: a gated tick hands back a fresh 10 minutes.
+    if (next.done && token) {
+      const saved = (await res.json().catch(() => ({}))) as { pinToken?: unknown }
+      const fresh = saved.pinToken
+      if (typeof fresh === "string") onPin((p) => (p && p.staffId === staffId ? { ...p, token: fresh } : p))
     }
     // TAB-5: the write is saved; stamp when, so the first server read that
     // starts after this moment retires the local copy (pruneOverrides). Only
@@ -862,10 +989,12 @@ function TasksPanel({
   }
 
   // ── TAB-1b: who a tick is credited to ──
-  const options = pickerOptions(store)
+  const options = whoOptions(store.staff, pinRequired)
   // Desktop's condition: the picker opens only when the store has staff; with
   // none, a tick saves no name without asking.
-  const asksForName = store.staff.length > 0
+  // TAB-4: while PINs are required it ALWAYS asks — an unnamed tick from this
+  // login is refused (Q7), so with no names the sheet says so instead.
+  const asksForName = pinRequired || store.staff.length > 0
 
   function tapTask(view: TabletChecklist, t: TabletTask) {
     if (t.done) return void toggle(view, t) // untick: no name, as desktop
@@ -877,13 +1006,24 @@ function TasksPanel({
       return
     }
     if (t.requiresTemp) setValueFor({ checklistId: view.id, task: t })
-    else void toggle(view, t, null, who?.id ?? null)
+    else void toggle(view, t, null, who?.id ?? null, tokenFor(who?.id ?? null))
   }
 
   function pickName(o: PickerOption) {
     const target = nameSheet
+    if (!target || o.disabled) return // Q6: a no-PIN name can't be picked
     setNameSheet(null)
-    if (!target) return
+    // TAB-4: while PINs are required a name needs its PIN — unless this device
+    // already holds a live token for that person here (then no re-entry).
+    if (pinRequired && !tokenFor(o.id)) {
+      setPinFor({ checklistId: target.checklistId, task: target.task, option: o })
+      return
+    }
+    applyName(target, o, tokenFor(o.id))
+  }
+
+  /** TAB-1b's pick, unchanged; TAB-4 threads the token through. */
+  function applyName(target: { checklistId: string; task: TabletTask | null }, o: PickerOption, token: string | null) {
     setPerson({ checklistId: target.checklistId, id: o.id, label: o.label })
     if (!target.task) return // Change: nothing to tick
     if (target.task.requiresTemp) {
@@ -891,7 +1031,16 @@ function TasksPanel({
       return
     }
     const c = checklistsById.get(target.checklistId)
-    if (c) void toggle(c, target.task, null, o.id)
+    if (c) void toggle(c, target.task, null, o.id, token)
+  }
+
+  /** TAB-4 — the PIN checked: hold the session, then carry on with the tap. */
+  function pinVerified(token: string) {
+    const t = pinFor
+    setPinFor(null)
+    if (!t) return
+    onPin({ staffId: t.option.id, storeId: store.id, label: t.option.label, token })
+    applyName({ checklistId: t.checklistId, task: t.task }, t.option, token)
   }
 
   // ── Which state ──
@@ -983,6 +1132,10 @@ function TasksPanel({
   // In progress panel altogether). A state update during render, React's
   // documented pattern for resetting state when an input changes.
   if (person && person.checklistId !== shownId) setPerson(null)
+  // TAB-4 — while PINs are required the chip stands only on a live session for
+  // that person: the idle clear (Q10), a refused token, or a different person
+  // verified on the due list all drop it.
+  else if (pinRequired && person && !tokenFor(person.id)) setPerson(null)
 
   const partialRowForSheet = partialFor ? checklistsById.get(partialFor) : undefined
   const partialOpen = partialRowForSheet
@@ -1007,7 +1160,7 @@ function TasksPanel({
           setValueFor(null)
           const c = target ? checklistsById.get(target.checklistId) : undefined
           const who = target && person?.checklistId === target.checklistId ? person.id : null
-          if (c && target) void toggle(c, target.task, v, who)
+          if (c && target) void toggle(c, target.task, v, who, tokenFor(who))
         }}
       />
       <NameSheet
@@ -1016,6 +1169,12 @@ function TasksPanel({
         options={options}
         onClose={() => setNameSheet(null)}
         onPick={pickName}
+      />
+      <PinSheet
+        target={pinFor ? { staffId: pinFor.option.id, name: pinFor.option.label } : null}
+        storeId={store.id}
+        onClose={() => setPinFor(null)}
+        onVerified={pinVerified}
       />
       <BottomSheet
         open={!!partialRowForSheet}
@@ -1092,17 +1251,48 @@ function NameSheet({
               key={o.key}
               size="touch"
               variant="outline"
-              className="h-16 justify-start truncate"
+              className={cn("h-16 justify-start truncate", o.note && "flex-col items-start justify-center gap-0")}
+              disabled={o.disabled}
               onClick={() => onPick(o)}
             >
               {o.label}
+              {/* TAB-4 Q6 — "No PIN — ask a manager", greyed with the button. */}
+              {o.note && <span className="text-sm font-normal">{o.note}</span>}
             </Button>
           ))}
         </div>
-        {shown.length === 0 && (
-          <p className="text-lg text-[var(--color-muted-foreground)]">No name matches “{query}”.</p>
+        {options.length === 0 ? (
+          // TAB-4: PINs required and nobody here has a name to pick yet.
+          <p className="text-lg text-[var(--color-muted-foreground)]">
+            Nobody at this store can be picked yet. Ask a manager to set a PIN for each person on their staff page.
+          </p>
+        ) : (
+          shown.length === 0 && <p className="text-lg text-[var(--color-muted-foreground)]">No name matches “{query}”.</p>
         )}
       </div>
+    </BottomSheet>
+  )
+}
+
+// ─── TAB-4: the PIN sheet ─────────────────────────────────────────────────────
+
+function PinSheet({
+  target,
+  storeId,
+  onClose,
+  onVerified,
+}: {
+  target: { staffId: string; name: string } | null
+  storeId: string
+  onClose: () => void
+  onVerified: (token: string) => void
+}) {
+  return (
+    <BottomSheet open={!!target} onClose={onClose} title="Enter PIN">
+      {target && (
+        // Remounted per person, so it always opens empty.
+        <PinPad key={target.staffId} staffId={target.staffId} storeId={storeId} name={target.name} onVerified={onVerified} />
+      )}
     </BottomSheet>
   )
 }
@@ -1502,26 +1692,86 @@ function DuePanel({
   items,
   onClose,
   onChanged,
+  store,
+  pinRequired,
+  pin,
+  onPin,
 }: {
   items: DueItem[]
   onClose: () => void
   onChanged: () => Promise<void>
+  /** TAB-4 — the store's names, and the device's PIN session (TabletHome). */
+  store: TabletStore
+  pinRequired: boolean
+  pin: PinSession | null
+  onPin: SetPin
 }) {
   const [completing, setCompleting] = useState<string | null>(null)
+  // TAB-4 — the name sheet and PIN sheet for a Complete (itemId null = Change).
+  const [nameFor, setNameFor] = useState<{ itemId: string | null } | null>(null)
+  const [pinFor, setPinFor] = useState<{ itemId: string | null; option: PickerOption } | null>(null)
+  const [error, setError] = useState<string | null>(null)
   // TAB-5 ruling 3: a Complete in flight holds the refresh. (The list being
   // open is TabletHome's "due:list" flag.)
   useBusyFlag("due:complete", completing !== null)
+  useBusyFlag("due:sheet", !!nameFor || !!pinFor)
   const nowIso = new Date().toISOString()
+  // TAB-4 — the live session for THIS store, if the device holds one.
+  const live = pinRequired && pin && pin.storeId === store.id ? pin : null
 
-  async function complete(id: string) {
+  async function complete(id: string, who: PinSession | null = live) {
+    // TAB-4 (Q7): while PINs are required a completion names a verified person.
+    // No live session → the name sheet first; a live one is reused (design
+    // choice #1), and the chip above the list says whose it is.
+    if (pinRequired && !who) {
+      setNameFor({ itemId: id })
+      return
+    }
     setCompleting(id)
-    await fetch(`/api/calendar/occurrences/${id}/complete`, {
+    setError(null)
+    const res = await fetch(`/api/calendar/occurrences/${id}/complete`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      // Switch off: `{}`, exactly as before TAB-4.
+      body: JSON.stringify(pinRequired && who ? { completedByStaffId: who.staffId, pinToken: who.token } : {}),
     }).catch(() => null)
     setCompleting(null)
+    // TAB-4: with PINs on, a refusal says why (it used to be silent, and still
+    // is with the switch off — that path is untouched).
+    if (pinRequired && who) {
+      if (!res) {
+        setError("That didn't save — no connection. Check the store's wifi and try again.")
+      } else if (!res.ok) {
+        const refused = await readErrorBody(res)
+        if (isPinRefusal(refused.code)) onPin(null)
+        setError(refused.error ?? `That didn't save (error ${res.status}). Try again.`)
+      } else {
+        const saved = (await res.json().catch(() => ({}))) as { pinToken?: unknown }
+        const fresh = saved.pinToken
+        if (typeof fresh === "string") onPin((p) => (p && p.staffId === who.staffId ? { ...p, token: fresh } : p))
+      }
+    }
     await onChanged()
+  }
+
+  function pickName(o: PickerOption) {
+    const t = nameFor
+    if (!t || o.disabled) return
+    setNameFor(null)
+    if (live && live.staffId === o.id) {
+      if (t.itemId) void complete(t.itemId, live)
+      return
+    }
+    setPinFor({ itemId: t.itemId, option: o })
+  }
+
+  function pinVerified(token: string) {
+    const t = pinFor
+    setPinFor(null)
+    if (!t) return
+    const session: PinSession = { staffId: t.option.id, storeId: store.id, label: t.option.label, token }
+    onPin(session)
+    if (t.itemId) void complete(t.itemId, session)
   }
 
   return (
@@ -1536,6 +1786,28 @@ function DuePanel({
           Close
         </Button>
       </div>
+      {/* TAB-4 — Gary's condition on design choice #1: whenever a reused token
+          is in play here, the "Completing as …" chip shows whose it is. */}
+      {live && (
+        <div className="-mx-6 flex items-center justify-between gap-3 border-b border-[var(--color-border)] bg-[var(--color-accent)] px-6 py-1">
+          <p className="min-w-0 truncate text-lg text-[var(--color-foreground)]">
+            Completing as <span className="font-bold">{live.label}</span>
+          </p>
+          <button
+            type="button"
+            onClick={() => setNameFor({ itemId: null })}
+            disabled={completing !== null}
+            className="flex min-h-14 shrink-0 items-center px-3 text-lg font-semibold text-[var(--color-primary)] underline underline-offset-4 disabled:opacity-50"
+          >
+            Change
+          </button>
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="mt-3 rounded-xl border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] px-4 py-3 text-base font-medium text-[var(--color-warning-text)]">
+          {error}
+        </p>
+      )}
       <ul className="divide-y divide-[var(--color-border)]">
         {items.map((item) => (
           <li key={item.id} className="flex min-h-16 items-center justify-between gap-4 py-3">
@@ -1562,6 +1834,23 @@ function DuePanel({
           </li>
         ))}
       </ul>
+      {pinRequired && (
+        <>
+          <NameSheet
+            key={nameFor ? `due-name:${nameFor.itemId ?? "change"}` : "due-name:closed"}
+            open={!!nameFor}
+            options={whoOptions(store.staff, true)}
+            onClose={() => setNameFor(null)}
+            onPick={pickName}
+          />
+          <PinSheet
+            target={pinFor ? { staffId: pinFor.option.id, name: pinFor.option.label } : null}
+            storeId={store.id}
+            onClose={() => setPinFor(null)}
+            onVerified={pinVerified}
+          />
+        </>
+      )}
     </section>
   )
 }

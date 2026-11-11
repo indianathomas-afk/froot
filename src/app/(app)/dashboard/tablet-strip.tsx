@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatLaborPct, judgeLaborPct, laborVerdictClass } from "@/lib/labor-judgment"
 import { formatInstant } from "@/lib/display-time"
-import { goalDetail, laborDetail, salesDetail, withoutLaborDollars, type StripSummary } from "@/lib/tablet-cards"
+import { goalDetail, laborDetail, salesCounts, salesDetail, salesTileComparison, withoutLaborDollars, type StripSummary } from "@/lib/tablet-cards"
 import { laborNoValueLabel } from "./labor-pct"
 import { fetchCard } from "./card-fetch"
 
@@ -20,6 +20,9 @@ import { fetchCard } from "./card-fetch"
 //   sales         sales.today.total = SalesPeriodCache.netSales for today, the
 //                 Sales Performance card's "Today so far", with its ▲/▼ vs the
 //                 same weekday last year (DeltaPill's formula).
+//                 TAB-7: measured against last year UP TO THE SAME TIME OF
+//                 DAY (sales.comparison, src/lib/sales-same-time.ts), labelled
+//                 "vs last year by 10:15 AM" — no longer the whole day.
 //   monthly-goal  goal.monthToDate / goal.goalAmount, capped at 100% — the
 //                 Monthly Goal card's "% of goal".
 //   labor-pct     `labor`, MONTH-TO-DATE (audit F4) — the Monthly Goal card's
@@ -54,6 +57,9 @@ import { fetchCard } from "./card-fetch"
 // TabletHome's controller.
 
 const usd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
+// TAB-10: the average sale in cents, as the desktop card shows it ("$11.88").
+const usdCents = (n: number) =>
+  n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /** The strip's payload for `storeId`. `register` adds the re-read to the
  *  TAB-5 refresh cycle. Disabled (no tiles enabled) it fetches nothing, so a
@@ -179,28 +185,72 @@ export function StripDetail({
   )
 }
 
-function DetailRow({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
+function DetailRow({ label, value, valueClass, aside }: { label: string; value: string; valueClass?: string; aside?: React.ReactNode }) {
   return (
     <div className="flex min-h-14 items-center justify-between gap-4 border-b border-[var(--color-border)] py-2 last:border-b-0">
       <span className="text-lg text-[var(--color-muted-foreground)]">{label}</span>
-      <span className={cn("text-xl font-bold text-[var(--color-foreground)]", valueClass)}>{value}</span>
+      <span className="flex items-baseline gap-3">
+        <span className={cn("text-xl font-bold text-[var(--color-foreground)]", valueClass)}>{value}</span>
+        {aside}
+      </span>
     </div>
+  )
+}
+
+/** The Sales tile's ▲/▼ — one rendering for the tile's headline and the
+ *  expanded card's Transactions / Average sale rows (TAB-10), so they cannot
+ *  drift apart. `pct` null renders "—" (TAB-7 lean 5). */
+function DeltaText({ pct }: { pct: number | null }) {
+  return (
+    <span
+      className={cn(
+        "text-sm font-bold",
+        pct === null
+          ? "text-[var(--color-muted-foreground)]"
+          : pct >= 0
+            ? "text-[var(--color-success-text,#1d7c2e)]"
+            : "text-[var(--color-warning-text,#a36a00)]"
+      )}
+    >
+      {pct === null ? "—" : `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(1)}%`}
+    </span>
   )
 }
 
 function SalesBody({ data }: { data: StripSummary }) {
   const d = salesDetail(data)
   if (!d) return null
+  // TAB-10 — from the same summary answer as every other row here (the TAB-5
+  // / TAB-8 refresh cycle re-reads it); desktop's definitions, TAB-7's basis.
+  const n = salesCounts(data)
   const lyDay = d.lastYearDate
     ? new Date(`${d.lastYearDate}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
     : null
   return (
     <div>
       <DetailRow label="Today so far" value={usd(d.todayTotal)} />
+      {/* TAB-7: the figure the ▲/▼ above is measured against. */}
+      {d.lastYearByNow && (
+        <DetailRow label={`Same weekday last year by ${d.lastYearByNow.asOfLabel}`} value={usd(d.lastYearByNow.net)} />
+      )}
       <DetailRow
         label={lyDay ? `Same weekday last year (${lyDay}), whole day` : "Same weekday last year"}
         value={d.lastYearTotal === null ? "No sales recorded" : usd(d.lastYearTotal)}
       />
+      {n && (
+        <>
+          <DetailRow
+            label="Transactions"
+            value={n.transactions.toLocaleString("en-US")}
+            aside={n.transactionsVs.compared ? <DeltaText pct={n.transactionsVs.pct} /> : undefined}
+          />
+          <DetailRow
+            label="Average sale"
+            value={n.averageSale === null ? "—" : usdCents(n.averageSale)}
+            aside={n.averageSaleVs.compared ? <DeltaText pct={n.averageSaleVs.pct} /> : undefined}
+          />
+        </>
+      )}
       <h3 className="mt-5 mb-2 text-lg font-bold text-[var(--color-foreground)]">Hour by hour</h3>
       {d.hours.length === 0 ? (
         <p className="text-lg text-[var(--color-muted-foreground)]">No hourly sales yet today.</p>
@@ -315,24 +365,20 @@ function tile(key: string, s: StripSummary): Tile | null {
     case "sales": {
       if (!s.salesAvailable || !s.sales) return null
       const today = s.sales.today.total
-      const ly = s.sales.lastYear?.total ?? null
-      // DeltaPill (sales-performance-card.tsx): hidden without a positive baseline.
-      const delta = ly && ly > 0 ? ((today - ly) / ly) * 100 : null
+      // TAB-7: today so far against last year up to the same time of day.
+      // No comparison day → no aside; a $0 baseline → "—" (lean 5).
+      const cmp = salesTileComparison(s)
+      const delta = cmp?.pct ?? null
       return {
         key,
         label: "Sales today",
         value: usd(today),
-        aside:
-          delta === null ? undefined : (
-            <span
-              className={cn(
-                "text-sm font-bold",
-                delta >= 0 ? "text-[var(--color-success-text,#1d7c2e)]" : "text-[var(--color-warning-text,#a36a00)]"
-              )}
-            >
-              {delta >= 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
-            </span>
-          ),
+        aside: !cmp ? undefined : (
+          <span className="flex flex-col items-end leading-tight">
+            <DeltaText pct={delta} />
+            <span className="whitespace-nowrap text-xs text-[var(--color-muted-foreground)]">{cmp.label}</span>
+          </span>
+        ),
       }
     }
     case "monthly-goal": {

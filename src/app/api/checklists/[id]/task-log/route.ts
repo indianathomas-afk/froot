@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { tasksForChecklist } from "@/lib/checklist-tasks"
 import { getUserStoreScope } from "@/lib/auth"
 import { resolveTaskLogStaff } from "@/lib/task-log-staff"
+import { checkPinGate } from "@/lib/tablet-pin-gate"
 import { NextResponse } from "next/server"
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -27,7 +28,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // Store-level users must still be able to execute their own checklists —
   // only scope by store assignment, never block completion outright.
-  const { isAdmin, storeIds } = await getUserStoreScope()
+  const { isAdmin, storeIds, role, dbUser } = await getUserStoreScope()
   if (!isAdmin && !storeIds.includes(checklist.storeId)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
@@ -44,7 +45,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     )
   }
 
-  const { taskId, photoUrl, temperatureValue, notes, completedByStaffId } = await req.json()
+  const { taskId, photoUrl, temperatureValue, notes, completedByStaffId, pinToken } = await req.json()
 
   // CHK-3 — THE OWNERSHIP CHECK (the S1 integrity finding, parked on the CHK-3
   // row). This route took `taskId` straight from the body and the only
@@ -85,6 +86,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     })
     if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: 400 })
     staffId = resolved.staffId
+  }
+
+  // TAB-4 (Gary, 2026-11-10) — THE PIN GATE. Ticks only, after CHK-15 has
+  // resolved the name and BEFORE the Pending → In Progress write, so a refused
+  // first tick leaves the checklist exactly as it was (CHK-15's placement).
+  // While the org switch is on, a STORE login — in Tablet OR Desktop view, the
+  // view is a cookie anyone can flip — must name a real person AND carry a
+  // valid PIN token for that person, this store, this org and this login.
+  // Missing secrets refuse (503), never skip. Personal logins pass untouched.
+  // An un-tick records nobody and is never gated. src/lib/tablet-pin-gate.ts.
+  let freshPinToken: string | null = null
+  if (!existing) {
+    const gate = checkPinGate({
+      org,
+      role,
+      userId: dbUser?.id,
+      storeId: checklist.storeId,
+      staffId,
+      token: pinToken,
+    })
+    if (!gate.ok) return NextResponse.json({ error: gate.error, code: gate.code }, { status: gate.status })
+    freshPinToken = gate.freshToken
   }
 
   // Update checklist to In Progress if Pending
@@ -163,5 +186,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     },
   })
 
-  return NextResponse.json({ action: "completed" })
+  // TAB-4 Q8 — SLIDING: a successful gated tick hands back a fresh 10 minutes,
+  // which the client swaps in. Absent when the gate did not apply.
+  return NextResponse.json({ action: "completed", ...(freshPinToken ? { pinToken: freshPinToken } : {}) })
 }

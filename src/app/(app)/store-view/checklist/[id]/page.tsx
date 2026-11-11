@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
+import { pinGateApplies } from "@/lib/tablet-pin-gate"
 import { notFound } from "next/navigation"
 import { ChecklistExecutionClient } from "./checklist-execution-client"
 import { tasksForChecklist } from "@/lib/checklist-tasks"
@@ -49,7 +50,7 @@ export default async function ChecklistExecutionPage({ params }: { params: Promi
     loggedTaskIds: checklist.taskLogs.map((l) => l.taskId),
   })
 
-  const { isAdmin, storeIds } = await getUserStoreScope()
+  const { isAdmin, storeIds, role } = await getUserStoreScope()
   // Non-admins can never view a checklist for a store they aren't assigned to,
   // even by guessing the checklist ID directly.
   if (!isAdmin && !storeIds.includes(checklist.storeId)) return notFound()
@@ -63,7 +64,8 @@ export default async function ChecklistExecutionPage({ params }: { params: Promi
       status: "ACTIVE",
       storeAssignments: { some: { storeId: checklist.storeId } },
     },
-    select: { id: true, displayName: true },
+    // TAB-4: pinSetAt → hasPin below (never the hash).
+    select: { id: true, displayName: true, pinSetAt: true },
     orderBy: { displayName: "asc" },
   })
 
@@ -95,6 +97,13 @@ export default async function ChecklistExecutionPage({ params }: { params: Promi
   })
 
   return (
-    <ChecklistExecutionClient checklist={checklist} staff={staff} staffNames={staffNames} handoffTargets={handoffTargets} />
+    <ChecklistExecutionClient
+      checklist={checklist}
+      staff={staff.map((s) => ({ id: s.id, displayName: s.displayName, hasPin: s.pinSetAt !== null }))}
+      staffNames={staffNames}
+      handoffTargets={handoffTargets}
+      // TAB-4: a STORE login while the org switch is on — Desktop view too (Q2a).
+      pinRequired={pinGateApplies(org, role)}
+    />
   )
 }

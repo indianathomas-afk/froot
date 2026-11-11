@@ -16,6 +16,8 @@ import {
 import { CreateReminderForm, type SaveResult } from "./create-reminder-form"
 import { CreateEventForm } from "./create-event-form"
 import type { StaffOption, StoreOption } from "./calendar-client"
+import { PinDialog, usePinSession } from "@/components/tablet-pin/pin-session"
+import { NO_PIN_NOTE, isPinRefusal } from "@/lib/tablet-pin-options"
 
 // CAL-1 — the detail popover. Read-only fields, the completion control, and
 // (for calendar.manage) Edit / Archive.
@@ -65,6 +67,9 @@ type EventLike = {
 
 type OccurrenceLike = {
   id: string
+  /** TAB-4 — the occurrence's store (the feed carries it), for the PIN and
+   *  for offering only names the complete route accepts there. */
+  storeId?: string
   dueDate: string
   dueAt: string
   status: string
@@ -90,6 +95,7 @@ export function OccurrenceDetail({
   onClose,
   onChanged,
   onSaved,
+  pinRequired = false,
 }: {
   event: EventLike
   date: string
@@ -107,27 +113,60 @@ export function OccurrenceDetail({
    *  but an edit lands you back on the thing you just edited so you can see
    *  that it took. */
   onSaved: () => void
+  /** TAB-4 — a STORE login while the org switch is on: a name and its PIN
+   *  are required to complete (Q7). False = exactly CAL-2's detail. */
+  pinRequired?: boolean
 }) {
   const [notes, setNotes] = useState("")
   const [staffId, setStaffId] = useState("")
+  // TAB-4 — the PIN session (dropped after 5 minutes idle) and the PIN dialog.
+  const pinSession = usePinSession(pinRequired)
+  const [pinTarget, setPinTarget] = useState<{ staffId: string; storeId: string; name: string } | null>(null)
+  // TAB-4 / CHK-15 parity: offer only names the route accepts for this store —
+  // assigned here, or corporate. (A list without store data shows everyone.)
+  const occStore = occurrence?.storeId
+  const pickable = occStore
+    ? staff.filter((s) => !s.storeIds || s.isCorporate || s.storeIds.includes(occStore))
+    : staff
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmArchive, setConfirmArchive] = useState(false)
   const [editing, setEditing] = useState(false)
   const [savedResult, setSavedResult] = useState<(SaveResult & { keptStarted?: number }) | null>(null)
 
-  async function complete() {
+  async function complete(verifiedToken?: string) {
     if (!occurrence) return
+    // TAB-4 (Q7): while PINs are required, a name is required, and its PIN —
+    // unless this page already holds a live token for that person here.
+    let pinToken: string | null = null
+    if (pinRequired) {
+      if (!staffId) {
+        setError("Choose who completed this.")
+        return
+      }
+      const store = occurrence.storeId ?? ""
+      pinToken = verifiedToken ?? pinSession.tokenFor(staffId, store)
+      if (!pinToken) {
+        setPinTarget({ staffId, storeId: store, name: pickable.find((s) => s.id === staffId)?.name ?? "This person" })
+        return
+      }
+    }
     setBusy(true)
     setError(null)
     const res = await fetch(`/api/calendar/occurrences/${occurrence.id}/complete`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ notes: notes || null, completedByStaffId: staffId || null }),
+      body: JSON.stringify({
+        notes: notes || null,
+        completedByStaffId: staffId || null,
+        ...(pinToken ? { pinToken } : {}),
+      }),
     }).catch(() => null)
     setBusy(false)
     if (!res?.ok) {
       const body = await res?.json().catch(() => null)
+      // TAB-4: a stale or mismatched token — drop it so the next try asks.
+      if (isPinRefusal(body?.code)) pinSession.clear()
       // The 409's own sentence is the right thing to show — somebody else
       // finished it, which is information, not an error.
       setError(body?.error ?? "Could not save that.")
@@ -419,24 +458,29 @@ export function OccurrenceDetail({
                       maxLength={2000}
                       className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-2 text-sm"
                     />
-                    {staff.length > 0 && (
+                    {(pinRequired || pickable.length > 0) && (
                       <select
                         value={staffId}
                         onChange={(e) => setStaffId(e.target.value)}
                         aria-label="Who completed this"
                         className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-sm"
                       >
-                        <option value="">Who completed this? (optional)</option>
-                        {staff.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))}
+                        {/* TAB-4: required while PINs are; a no-PIN name is
+                            shown but can't be chosen (Q6). */}
+                        <option value="">{pinRequired ? "Who completed this?" : "Who completed this? (optional)"}</option>
+                        {pickable.map((s) => {
+                          const noPin = pinRequired && !s.hasPin
+                          return (
+                            <option key={s.id} value={s.id} disabled={noPin}>
+                              {noPin ? `${s.name} — ${NO_PIN_NOTE}` : s.name}
+                            </option>
+                          )
+                        })}
                       </select>
                     )}
                     <button
                       type="button"
-                      onClick={complete}
+                      onClick={() => void complete()}
                       disabled={busy}
                       className="min-h-[44px] w-full rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-white disabled:opacity-60"
                     >
@@ -490,6 +534,16 @@ export function OccurrenceDetail({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* TAB-4 — the PIN for the name chosen; on success the completion goes. */}
+      <PinDialog
+        target={pinTarget}
+        onClose={() => setPinTarget(null)}
+        onVerified={(session) => {
+          setPinTarget(null)
+          pinSession.setSession(session)
+          void complete(session.token)
+        }}
+      />
     </>
   )
 }

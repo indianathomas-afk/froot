@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client"
+import type { Db as AppDb } from "@/lib/prisma"
 
 // ─── Square catalog → SquareCategory / SalesItem (N-5-SYNC) ──────────────────
 // The item/variation half of POST /api/square/sales-items/sync, batched.
@@ -41,7 +42,8 @@ export type SquareCatalogObject = {
   }
 }
 
-type Db = Prisma.TransactionClient
+// TAB-4: was Prisma.TransactionClient; see Db in src/lib/prisma.ts.
+type Db = AppDb
 
 export const CHUNK = 200
 

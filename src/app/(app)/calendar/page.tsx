@@ -6,6 +6,7 @@ import { auth } from "@clerk/nextjs/server"
 import { localDateStr } from "@/lib/reports"
 import { DEFAULT_TIME_ZONE } from "@/lib/hr"
 import { CalendarClient } from "./calendar-client"
+import { pinGateApplies } from "@/lib/tablet-pin-gate"
 
 // CAL-1 — /calendar. Server guard, then the grid.
 //
@@ -26,7 +27,7 @@ export default async function CalendarPage() {
 
   const org = await prisma.organization.findUnique({
     where: { clerkOrgId: orgId },
-    select: { id: true, calendarEnabled: true, timezone: true },
+    select: { id: true, calendarEnabled: true, timezone: true, tabletPinRequired: true },
   })
   if (!org?.calendarEnabled) redirect("/dashboard")
 
@@ -59,7 +60,16 @@ export default async function CalendarPage() {
     ? []
     : await prisma.staffMember.findMany({
         where: { organizationId: org.id, status: "ACTIVE" },
-        select: { id: true, fullName: true, displayName: true },
+        // TAB-4: stores + corporate flag (the detail filters to names the
+        // complete route now accepts — CHK-15 parity, Q7) and pinSetAt → hasPin.
+        select: {
+          id: true,
+          fullName: true,
+          displayName: true,
+          isCorporate: true,
+          pinSetAt: true,
+          storeAssignments: { select: { storeId: true } },
+        },
         orderBy: { fullName: "asc" },
       })
 
@@ -99,7 +109,15 @@ export default async function CalendarPage() {
       // one store in scope the picker is still rendered but has one option —
       // simpler than a second layout, and honest about what they are seeing.
       isMultiStore={stores.length > 1}
-      staff={staff.map((s) => ({ id: s.id, name: s.fullName || s.displayName || "" }))}
+      staff={staff.map((s) => ({
+        id: s.id,
+        name: s.fullName || s.displayName || "",
+        storeIds: s.storeAssignments.map((a) => a.storeId),
+        isCorporate: s.isCorporate,
+        hasPin: s.pinSetAt !== null,
+      }))}
+      // TAB-4: a STORE login while the org switch is on (Q2a).
+      pinRequired={pinGateApplies(org, dbUser?.role)}
     />
   )
 }

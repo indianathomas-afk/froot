@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock, CalendarDays, Mail, Award, LayoutDashboard } from "lucide-react"
+import { CheckCircle, XCircle, AlertTriangle, BriefcaseBusiness, Clock, CalendarDays, Mail, Award, LayoutDashboard, KeyRound } from "lucide-react"
 import { InstagramIcon } from "@/components/instagram-icon"
 import Link from "next/link"
 import { getCurrentUser, hrModuleAvailable, laborModuleAvailable, squareLaborAvailable } from "@/lib/auth"
@@ -15,6 +15,9 @@ import { LaborModuleToggle } from "./labor-actions"
 import { SquareLaborToggle } from "./square-labor-actions"
 import { CalendarModuleToggle } from "./calendar-actions"
 import { MilestonesModuleToggle } from "./milestones-actions"
+import { TabletPinToggle } from "./tablet-pin-actions"
+import { pinEnv } from "@/lib/tablet-pin"
+import { readinessLine, tabletPinReadiness } from "@/lib/tablet-pin-staff"
 
 async function getOrgData() {
   const { orgId } = await auth()
@@ -75,6 +78,11 @@ export default async function SettingsPage() {
   // checks — so an admin is never offered a switch nothing can read.
   const showMilestones = hrAvailable && hrActive
   const milestonesOn = !!org?.milestonesEnabled
+  // TAB-4 — the shared-tablet PIN switch, whether both secrets are present
+  // here (Q4: "not configured" otherwise), and the per-store readiness (Q7).
+  const tabletPinOn = !!org?.tabletPinRequired
+  const tabletPinConfigured = pinEnv().ok
+  const pinReadiness = org ? await tabletPinReadiness(org.id) : []
 
   const addOns = [
     { name: "Inventory Management", desc: "Physical counts, COGS tracking, storage areas, and adjustments", module: "inventory" },
@@ -478,6 +486,63 @@ export default async function SettingsPage() {
                   Display Settings &rarr;
                 </span>
               </Link>
+            </CardContent>
+          </Card>
+
+          {/* TAB-4 (Gary, 2026-11-10, Q1). The Calendar card's shape. Off by
+              default; ADMIN only (settings.access here, and the route
+              re-checks). "Not configured" when either secret is missing in
+              this environment — it can't be switched on then (Q4). The
+              readiness lines are information only (Q7). */}
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle>Shared Tablets</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-start justify-between gap-4 p-4 border border-[var(--color-border)] rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 shrink-0 rounded bg-[var(--color-primary)] flex items-center justify-center text-white">
+                    <KeyRound className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-[var(--color-foreground)]">Require a PIN on shared tablets</h3>
+                    <p className="text-sm text-[var(--color-muted-foreground)]">
+                      On a store&apos;s shared login, each person enters their own 4-digit PIN before a checklist
+                      tick or a reminder is recorded in their name. Personal logins are never asked. Set PINs on
+                      each person&apos;s staff page.
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      {!tabletPinConfigured ? (
+                        <>
+                          <AlertTriangle className="h-4 w-4 text-[var(--color-warning)]" />
+                          <span className="text-sm text-[var(--color-warning-text)] font-medium">
+                            Not configured in this environment
+                            {tabletPinOn ? " — PIN-required ticks are being refused until it is" : ""}
+                          </span>
+                        </>
+                      ) : tabletPinOn ? (
+                        <>
+                          <CheckCircle className="h-4 w-4 text-[var(--color-success)]" />
+                          <span className="text-sm text-[var(--color-success-text)] font-medium">Enabled</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="h-4 w-4 text-[var(--color-muted-foreground)]" />
+                          <span className="text-sm text-[var(--color-muted-foreground)]">Disabled</span>
+                        </>
+                      )}
+                    </div>
+                    {pinReadiness.length > 0 && (
+                      <ul className="mt-2 space-y-0.5 text-xs text-[var(--color-muted-foreground)]">
+                        {pinReadiness.map((r) => (
+                          <li key={r.storeId}>{readinessLine(r)}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+                <TabletPinToggle enabled={tabletPinOn} configured={tabletPinConfigured} />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

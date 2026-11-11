@@ -5,6 +5,713 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-11 — TAB-12: Tablet home — choose a message type, rulings R1–R6 — DRAFT
+
+**RATIFIED BY GARY, 2026-11-11, at the TAB-12 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: R1–R5 as the prompt words them,
+now confirmed as his; R6 as quoted; how each is met; and the calls marked
+*(design choice)*, all now ratified as his. The heading's "DRAFT", the
+"DRAFT, awaiting Gary's ratification" line, "whether each sentence is
+literally Gary's is for him to confirm" and "(untracked until
+PRE-PUSH-CHECK)" are spent, kept; `docs/prompts/TAB-12.md` is committed at
+this check. Docs commit: `5b0060f`. Wording untouched.
+
+**DRAFT, awaiting Gary's ratification at the TAB-12 PRE-PUSH-CHECK.** Prompt of
+record: `docs/prompts/TAB-12.md` (untracked until PRE-PUSH-CHECK). Work commit
+`25f823c`. TIER 2. R1–R5 are copied from the prompt, which heads them
+"Rulings (Gary, 2026-11-11)"; they are recorded as the prompt words them, and
+whether each sentence is literally Gary's is for him to confirm at
+ratification. R6 is Gary's own reply in the session, quoted verbatim. The
+calls marked *(design choice)* are Claude's.
+
+**The rulings.**
+- **R1** — "The tablet home's message box gets a small type tag on the left
+  that starts at General. Tapping it opens the same type picker as Team
+  Messages."
+- **R2** — "Quick replies (On it / Done / Thanks) always post as General."
+- **R3** — "After every post, the tag goes back to General."
+- **R4** — "In the home Messages feed, only messages that aren't General show
+  a type badge, so the home screen looks the same as today until someone
+  flags a note."
+- **R5** — "Type only. Type-specific extras like the Shortage ingredient link
+  or shift phase stay on the Team Messages page. No schema, API or permission
+  changes; Desktop mode is untouched." (Its shift-phase clause is replaced by
+  R6.)
+- **R6** — ruled by Gary, 2026-11-11, after the audit stopped as RULING NOW
+  (POST /api/messages refuses a shift note without a phase: 400
+  "shiftPhase is required for shift notes"). His words: "On the home, Shift
+  Note shows Opening / Mid / Closing inside the type picker. One tap picks
+  both the type and the phase, so a shift note never posts without the right
+  phase, and nothing new appears on the home itself. This replaces R5's line
+  about shift phase staying on Team Messages." Build note, also his: "in the
+  home picker only, Shift Note is a full-width row with three 44px phase
+  buttons. Tapping one sets type + phase and closes the picker. The tag reads
+  "Shift Note · <Phase>". After posting, the tag goes back to General with no
+  phase. The Team Messages picker stays exactly as it is." He added staging
+  test 11: "pick Shift Note · Mid, post, and confirm it shows a Shift Note
+  badge on the home and files under Mid on Team Messages."
+
+**How each is met (work commit `25f823c`).**
+- R1: `messages/type-picker.tsx` holds TAB-11's Type button and picker
+  (variant "feed", moved verbatim) and the home's tag + picker (variant
+  "home"), sharing `TABLET_TYPE_ORDER` and `TYPE_META`. The tag sits inside
+  the box, top-left; the text wraps beside it.
+- R2: `send()` builds a quick reply with `postBody(storeId, text)` — General,
+  exactly the body it sent before — and does not touch the tag.
+- R3: after a successful composer post the tag resets to General with no
+  phase.
+- R4: `TypeBadge` renders nothing for General (or an unknown type).
+- R5: the home sends `type` (+ `shiftPhase` for a shift note only) through the
+  same POST /api/messages; no ingredient link; no schema, API, permission or
+  desktop change.
+- R6: the home picker's Shift Note row has three 44px buttons; each one sets
+  type and phase and closes the picker. `postBody` returns nothing to send
+  for a shift note without a phase, and drops a phase on any other type.
+
+**Calls made while building.**
+- *(design choice)* In the home picker the Shift Note row is LAST, nearest the
+  tag; the six others keep TAB-11's General-first order in two columns. A
+  full-width row placed second would leave a hole beside General.
+- *(design choice)* Phase labels are R6's "Opening / Mid / Closing" (Team
+  Messages' select says "Mid-shift"). The home badge shows the type only
+  ("Shift Note"), per R4's "type badge".
+- *(design choice)* "Kept inside the Messages column" is met horizontally (8px
+  in from each edge). Vertically the picker may rise above the column's top:
+  with the keyboard up the column's visible part is far shorter than the
+  picker (~270px). Its height is capped at the visible space above the tag
+  (visualViewport), so it is never under the keyboard or off the top.
+- *(design choice)* Tapping the tag or a type keeps focus in the message box
+  (mousedown default prevented, no auto-focus into the panel), so the iPad
+  keyboard stays up while choosing.
+- *(design choice)* The box stays 56px, as today. The tag's and the text's
+  padding were trimmed (tag 8px / 6px, text 4px / 10px) so "Message the
+  team…" fits on one line beside "General" down to iPad mini landscape
+  (column ~399px; it is ~417px at 1180, not ~396 — rail 88 + p-4 + gap-4).
+  The box does not grow with text; past one line it scrolls, as it always
+  has.
+- *(design choice)* The tag is capped at 62% of the box; a long label
+  ("Shift Note · Closing") truncates where it would not fit.
+- *(design choice)* A failed send keeps the tag (and the draft), since R3
+  speaks of a post.
+- Known: at 1024px landscape (column ~355px) the placeholder ends in an
+  ellipsis beside the General tag, a Shift Note tag truncates, and the
+  picker's Shift Note row wraps its phase buttons under the label. Every
+  other measured width keeps them on one line.
+
+## 2026-11-11 — TAB-11: Team Messages in Tablet mode, rulings R1–R5 — DRAFT
+
+**RATIFIED BY GARY, 2026-11-11, at the TAB-11 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: R1–R5 as the prompt words them,
+now confirmed as his; how each is met; and the calls marked *(design
+choice)*, all now ratified as his. The heading's "DRAFT", the "DRAFT,
+awaiting Gary's ratification" line, "whether each sentence is literally
+Gary's is for him to confirm" and "(untracked until PRE-PUSH-CHECK)" are
+spent, kept; `docs/prompts/TAB-11.md` is committed at this check. Docs
+commit: `ac5a383`. Wording untouched.
+
+**R6 — RULED BY GARY, 2026-11-11, at the TAB-11 PRE-PUSH-CHECK**, in his
+words: "Keep the type icons the code already has. Customer and Staffing
+sharing an icon is fine for now because the label always shows next to it.
+TAB-11 makes no desktop changes." This makes the *(design choice)* below on
+type icons (`TYPE_META`'s icons, not the canvas's) his ruling. The heading's
+"R1–R5" is kept as written.
+
+**DRAFT, awaiting Gary's ratification at the TAB-11 PRE-PUSH-CHECK.** Prompt of
+record: `docs/prompts/TAB-11.md` (untracked until PRE-PUSH-CHECK). Work commit
+`498322a`. TIER 2. The five rulings below are copied from the prompt, which
+heads them "Rulings (Gary, 2026-11-11)". They are recorded as the prompt
+words them; whether each sentence is literally Gary's is for him to confirm
+at ratification. The calls marked *(design choice)* are Claude's.
+
+**The rulings (R1–R5, as the prompt states them).**
+- **R1** — "Tablet mode only. The desktop Team Messages page stays exactly as
+  it is."
+- **R2** — "Landscape (1024px wide and up) is two panes. Narrower (iPad
+  portrait) is one column: header band, then the feed, then the composer
+  pinned at the bottom."
+- **R3** — "On the tablet, General is listed first in every type list
+  (filters and picker) because it's the default. Desktop order doesn't
+  change."
+- **R4** — "On the tablet, the message type goes back to General after every
+  post."
+- **R5** — "No new features. No schema, API or permission changes. Same feed
+  order, status options, reactions and delete rules as desktop, and only
+  controls desktop already has."
+
+**How each is met (work commit `498322a`).**
+- R1: `messages/page.tsx` renders `MessagesTablet` only when `getViewMode()`
+  is "tablet" (the dashboard's branch). Desktop's state moved into hooks
+  that both layouts call; desktop JSX is unchanged. `/my/messages` still
+  renders the desktop client.
+- R2: the `lg` breakpoint (1024px viewport) switches between the two-pane
+  and one-column layouts. `TabletShell` gives `/messages` a full-bleed
+  container so only the panes scroll.
+- R3: `TABLET_TYPE_ORDER` in `messages-tablet.tsx`; desktop's `TYPE_META`
+  order is untouched.
+- R4: the audit found desktop's `Composer.post()` ALREADY reset the type to
+  General. The tablet calls the same function (`useComposer`), so no new
+  code was needed.
+- R5: every read and write is a desktop hook. Desktop's controls that the
+  canvas does not draw are kept at touch size: the store picker
+  (multi-store), Edit (15-minute window), Resolve/Reopen, the shift-phase
+  select, the Shortage ingredient link, admins' New update / Delete on
+  corporate updates, Load older messages.
+
+**Calls made while building.**
+- *(design choice)* No collapse chevron on the corporate card: desktop has no
+  way to hide it (prompt audit item 3).
+- *(design choice)* Type icons are the code's `TYPE_META` icons, not the
+  canvas's (the canvas draws distinct Shift Note / Shortage / Staffing
+  icons; the code has Customer and Staffing sharing `UserRound`). Changing
+  them would change desktop too.
+- *(design choice)* A reaction nobody has used is a bordered pill on the
+  card background, as the canvas draws it (desktop shows no border there).
+  Mine = tinted with count; others' only = muted with count, as desktop.
+- *(design choice)* The Photo / File / Video labels drop to icons (with
+  accessible names) when the composer's content box is under 660px. Measured,
+  the row needs about 650px with labels and the longest type name, so it does
+  not fit at 1024px landscape (564px pane) or iPad mini portrait. It does fit
+  at 1180 landscape and 820 portrait, which match the canvas.
+- *(design choice)* In portrait, the header band folds away while the
+  keyboard is up, so the feed keeps room above the composer. TAB-2's tablet
+  Messages column does the same.
+- *(design choice)* The empty feed says "…give someone a shoutout below"
+  (desktop says "above"; the tablet composer is below).
+- *(design choice)* While a file uploads, the composer shows "Uploading…" as
+  text above the box, not desktop's spinner (§ Design System: no spinners),
+  and not inside the button row where it could push Post off the edge.
+- Known: at 1024px landscape a Shortage/Equipment card seen by a manager
+  wraps its type badge under the name, because the Resolve button shares the
+  line. Every other card and width keeps one line.
+
+## 2026-11-11 — TAB-10: transactions and average sale on the tablet's expanded Sales card — DRAFT
+
+**RATIFIED BY GARY, 2026-11-11, at the TAB-10 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: the audit, leans 1–6 as built,
+the departures and calls marked *(design choice)* (the first, "desktop shows
+▼100.0% there", as superseded by the addendum), and the 2026-11-11 addendum
+with its *(design choice)* that the rule applies to any selection with 0
+transactions, all now ratified as his. His 2026-11-11 ruling quoted in the
+addendum ("On the desktop card, …") was already his words. The heading's
+"DRAFT", the "DRAFT, awaiting Gary's ratification" line, "nothing below
+quotes him" and "(untracked until PRE-PUSH-CHECK)" are spent, kept;
+`docs/prompts/TAB-10.md` is committed at this check. Docs commits: `fbb30e3`
+and `ef71fe8`. Wording untouched.
+
+**DRAFT, awaiting Gary's ratification at the TAB-10 PRE-PUSH-CHECK.** Prompt of
+record: `docs/prompts/TAB-10.md` (untracked until PRE-PUSH-CHECK). Work commit
+`e12bc2d`. TIER 2. The leans in the prompt are **Claude's design choices**,
+not Gary's rulings; nothing below quotes him. The prompt's "settled" items
+(TAB-7's same-time basis and helper, last year = today − 364, the desktop
+card's definitions, no new Square calls) are built as written.
+
+**Audit (brief, no artifact).**
+1. *Desktop's source.* The Sales Performance card reads
+   `/api/dashboard/sales`. Transactions = `selected.orders` (Σ
+   `SalesPeriodCache.orderCount` over the window; on Today, today's row).
+   Average sale = `selected.avgSale` = net ÷ orders, null at 0. The
+   comparisons use the route's `comparisonBasis` (TAB-7 `compareSelection` →
+   `compareTodayWithDay`, hourly rows carrying `orderCount`): the card's
+   `compOrders = basis.orders` (pro-rated to the time of day, so possibly
+   fractional) and `compAvg = basis.net ÷ basis.orders` (null at 0), both
+   through `DeltaPill` → `pctChange`.
+2. *Tablet's source.* `/api/dashboard/summary` answered `sales.today.total`,
+   today's and last year's hourly net, `sales.lastYear` (whole day), and
+   `sales.comparison` — TAB-7's `DayComparison`, which ALREADY carries last
+   year's same-time order count (`comparison.orders`, built from
+   `lastYearDay.orderCount` and the hourly `orderCount`). Missing: today's
+   order count. Whole-day and hourly order counts are not on the payload.
+3. *Where the rows go.* The expanded card (`SalesBody`,
+   `tablet-strip.tsx`) shows Today so far, Same weekday last year by <time>
+   (same-time only), Same weekday last year (<date>), whole day, then the
+   hour-by-hour table (Hour · bars · Today · Last year). The page scrolls
+   (TAB-9), so two more rows fit on an iPad either way.
+No trigger fired: the caches hold every figure; desktop's route is not
+touched; only the summary route's answer and the expanded card change (plus
+the pure helper in `src/lib/tablet-cards.ts` that the card reads through).
+
+**The leans as built.**
+
+1. **Two rows below the dollar rows**, "Transactions" and "Average sale",
+   each with today's figure and a ▲/▼ against last year at the same time.
+   The pill is the tile's own: the tile's inline span became one
+   `DeltaText` component that the tile and both rows render, same classes,
+   same output. Last year's figure 0 → "—", not a percentage; no comparison
+   day at all → no pill (the tile's rule: no aside).
+2. **The collapsed tile is unchanged** — dollars and the headline ▲/▼.
+3. **Same fields and helper as desktop.** The summary route adds one field,
+   `sales.today.orders` = today's `SalesPeriodCache.orderCount`. The
+   same-time comparison order count was already there (`comparison.orders`),
+   so nothing else was added. `salesCounts` (`src/lib/tablet-cards.ts`)
+   computes the desktop card's `compOrders` / `compAvg` from it through the
+   one `pctChange`. Desktop's route, card and `src/lib/sales-same-time.ts`
+   are byte-identical to `885d65f`.
+4. **Past days and the whole-day row unchanged.** (The summary route is
+   always today.)
+5. **Refresh on the existing cycle.** The rows read the same
+   `useStripSummary` answer the card already re-reads on the TAB-5 / TAB-8
+   cycle. No timer, no new fetch.
+6. **No Transactions column in the hour-by-hour table.** *(design choice:
+   a comparison table would need two more columns — today and last year —
+   beside four already, which crowds iPad portrait, and the hourly order
+   counts would be two more route fields. Skipped.)*
+
+**Departures and calls.**
+- *(design choice)* With 0 transactions today the Average sale reads "—"
+  and so does its pill. Desktop computes the pill as `pctChange(avgSale ?? 0,
+  compAvg)`, so on Today before the first sale (when last year had one by
+  then) it shows "—" next to **▼100.0%**. The tablet does not copy that.
+- *(design choice)* A payload without `today.orders` (an older answer)
+  leaves both rows out rather than reading 0, the same refusal TAB-8 uses
+  for a field it cannot trust.
+- *(design choice)* Average sale shows cents ("$11.88"), as desktop does;
+  the tablet's other dollar rows stay whole dollars.
+- Known difference kept: desktop's small pills render NOTHING at a 0
+  baseline; the tablet renders "—" (the prompt's lean 1 and TAB-7 lean 5's
+  tile rule). The numbers are the same; only the empty state differs.
+
+**Fixture.** `scripts/verify-tab10.ts` 41/41: the route's order count
+(NC against `885d65f`), the maths, the card reading `salesCounts(data)` from
+the summary answer (NC: `885d65f`, and a mutant feeding the card from page
+props), desktop byte-unchanged (NC: the same check flags the summary route),
+no new Square call or timer, and on dev (`br-broad-wave-a6vpjdw0`, read-only)
+7 stores × 4 store-local moments = 28 comparisons of the tablet's figures
+against the desktop's for the same store and moment, 0 mismatches (NC: a
+whole-day order baseline differs from the same-time one).
+
+**Addendum 2026-11-11 — the desktop Average sale at 0 transactions (TAB-10
+fix, fix commit `742f98d`).** Gary's ruling on the report's RULING NOW,
+verbatim: "On the desktop card, Average sale shows "—" and no percentage when
+today has 0 transactions, the same as the tablet. Transactions keeps its
+pill." Built: the desktop Sales Performance card's Average sale baseline is
+null when the selection has no average, so `DeltaPill` renders nothing; the
+value already read "—". Transactions, Gross and the headline are unchanged.
+The first departure above ("desktop shows ▼100.0% there") is superseded,
+kept. The "known difference" above is unchanged: at 0 transactions desktop
+shows no pill and the tablet shows a "—" pill. *(design choice: the rule
+applies to any selection with 0 transactions, not only Today, because a
+closed past day showed the same ▼100.0%; the card computes one average per
+window and has no today-only branch.)* `scripts/verify-tab10.ts` 50/50.
+
+## 2026-11-11 — TAB-7: today's sales vs last year at the same time of day — DRAFT
+
+**RATIFIED BY GARY, 2026-11-11, at the TAB-7 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: the audit, leans 1–9 as built,
+the departures marked *(design choice)* (the range-ending-today departure as
+superseded by the addendum), and the 2026-11-11 addendum with its *(design
+choice)* on an uncached last day, all now ratified as his. His 2026-11-11
+ruling quoted in the addendum ("Cut it. …") was already his words. The
+heading's "DRAFT", the "DRAFT, awaiting Gary's ratification" line, "nothing
+below quotes him" and "(untracked until PRE-PUSH-CHECK)" are spent, kept;
+`docs/prompts/TAB-7.md` is committed at this check. Docs commits: `979b6e7`
+and `8f34e1b`. Wording untouched.
+
+**DRAFT, awaiting Gary's ratification at the TAB-7 PRE-PUSH-CHECK.** Prompt of
+record: `docs/prompts/TAB-7.md` (untracked until PRE-PUSH-CHECK). Work commit
+`316ffd4`. TIER 2. The leans in the prompt are **Claude's design choices**,
+not Gary's rulings; nothing below quotes him. The prompt's "settled" items
+(last year = today − 364 days; net sales per `docs/FORECASTING.md`; no new
+Square calls) were already Froot's convention and are unchanged.
+
+**Audit (brief, no artifact).**
+1. *Surfaces.* Three show a today-vs-last-year sales comparison: the desktop
+   Sales Performance card (`/api/dashboard/sales`, `selected.net` against
+   `compareData.net`, plus the Gross / Transactions / Average sale pills); the
+   tablet Sales tile (`/api/dashboard/summary`, `sales.today.total` against
+   `sales.lastYear.total`); and TAB-9's expanded Sales card (same payload,
+   "Same weekday last year …, whole day"). All three measured today so far
+   against the comparison day's WHOLE day. The All-locations rollup
+   (`/api/dashboard/rollup`) shows no last-year comparison at all.
+2. *Hourly coverage and bucketing.* `SalesHourlyCache` and `SalesPeriodCache`
+   are written in the same transaction from the same aggregation
+   (`writeSalesCache`, `src/lib/sales-sync.ts`), on every path (dashboard
+   gap-fill, webhook, reconcile cron, forecasting backfill, manual sync), both
+   bucketed by `created_at` in the store's zone since `e14f14b` (2026-07-09).
+   The schema's shared header comment still says "COMPLETED, closed_at"; it is
+   stale for both caches equally, not a bucketing difference. On dev
+   (`br-broad-wave-a6vpjdw0`): 2,425 cached days with sales, 0 without hourly
+   rows, 0 where Σ hourly differs from the period net by more than a cent.
+3. *Period row without hourly rows.* Cannot arise from current code (one
+   transaction); none on dev. The fallback below is defensive.
+4. *Store-local now.* Both routes take `store.timezone` and `localDateStr`;
+   hours are store-local wall-clock buckets. No trigger fired.
+
+**The leans as built.**
+
+1. **Today's comparison figure** = the comparison day's hourly net for every
+   hour before the current store-local hour, plus the current hour × (minutes
+   past ÷ 60). Computed on the server at request time
+   (`compareTodayWithDay`, `src/lib/sales-same-time.ts`), from one instant
+   that also decides "today", so it cannot straddle midnight.
+2. **Past days unchanged:** a finished day compares with the full day.
+3. **One shared helper**, `src/lib/sales-same-time.ts`, pure (no imports).
+   Both routes call `compareTodayWithDay`; the desktop `DeltaPill` and the
+   tablet tile share `pctChange`. *(design choice: the rollup has no
+   comparison, so there is nothing to sum per store and no drop-out count;
+   the fixture checks the rollup reads no comparison day instead.)*
+4. **Labels:** desktop "Prior Wed last year by 10:15 AM · Nov 12, 2025";
+   tablet tile "vs last year by 10:15 AM" under the ▲/▼; the expanded card
+   adds a "Same weekday last year by 10:15 AM" row above the whole-day row.
+   Past days keep the existing wording. *(design choice: the whole-day row
+   stays in the expanded card, since the hour-by-hour table needs it.)*
+5. **No meaningful comparison, no percentage.** A same-time baseline of $0
+   shows "—" (a grey pill on desktop, a grey "—" on the tile). *(design
+   choice: a period row of $0 with no hourly rows is a day with no sales, so
+   it is a same-time $0 → "—", not a fallback. Other no-baseline cases keep
+   the old behaviour: no pill.)*
+6. **Fallback:** today, comparison day with sales but no hourly rows →
+   full-day comparison labelled "(full day)". Never mixed within one figure.
+7. **Refresh:** no new timer. The tablet re-reads the summary on TAB-5's
+   cycle, so the same-time figure moves with the clock. The desktop card
+   fetches on load and selection change, as before; its label names the time
+   the figure runs to.
+8. **Store timezone, never the server's.** Known limit: on a DST change day
+   the comparison is wall clock against wall clock. The 1 AM bucket holds two
+   real hours after fall-back and 2 AM does not exist after spring-forward.
+   Right for a store shut at 1–3 AM, slightly off for one that is open.
+9. **Goal and pacing maths untouched** (`pacing.ts`, Monthly Goal card,
+   projections, rollup).
+
+**Departures from the prompt, all (design choice):**
+- Same-time applies to **every compare mode** on a single-day Today
+  selection (prior period, 4 weeks prior, prior year too), not only "same
+  weekday last year". Today so far against any whole day has the same defect.
+- The desktop **Transactions and Average sale** pills also use the same-time
+  basis (hourly order counts, pro-rated like net). The **Gross** pill is
+  hidden on a same-time basis, because the hourly cache has no gross and a
+  whole-day gross beside a same-time net would mix the two methods.
+- Rollup untouched (lean 3 above).
+- A **range ending today** (This week, Month to date) is unchanged: it still
+  compares window totals, today's partial day included.
+
+**Evidence.** `scripts/verify-tab7.ts` 64/64. Structural checks run against
+the pre-TAB-7 sources (`8365e0a`) as negative controls and fail there. A
+mutant helper that weights every hour fully fails 18. Database section is
+read-only on dev `br-broad-wave-a6vpjdw0` (branch id from `neon.branch_id`
+in the same run). Local check on a temporary mocked page under `/menu`,
+deleted before the commit: tile, expanded card and desktop card at 8:31 AM PT
+read "$203 by 8:31 AM" against a $2,150 day ($100 + $200 × 31/60).
+
+**Addendum 2026-11-11 — ranges ending today (Gary's ruling).** The report
+put the last departure above as RULING NOW. Gary, quoted: "Cut it. When a
+range ends today (This week, Month to date, any range that includes today),
+compare against last year's matching range with its last day cut at the same
+time of day, using the same helper. Ranges that end before today are
+unchanged." That departure ("A range ending today … is unchanged") is
+superseded by this ruling; its text above is kept.
+
+Built in fix commit `3f92131`. `compareWindowEndingToday` counts every earlier
+day of the comparison window in full and passes the last day through
+`compareTodayWithDay`. The figure takes the last day's method and label ("by
+10:15 AM", or "(full day)" when the last day has sales but no hourly rows).
+`compareSelection` is now the one entry point the route calls: single day
+today, single past day, range ending today, or range ending before today
+(null, window totals as before). Applies to every compare mode, as for single
+days. The desktop card needed no logic change. *(design choice: when the
+window's last day is not cached at all, the earlier days count and the method
+is a plain "full-day" with no suffix, since there is no partial day to cut;
+the existing gap-fill makes this rare.)*
+
+Evidence: `verify-tab7` 88/88. Section 10 runs negative controls against
+`316ffd4` and 7-day windows on dev `br-broad-wave-a6vpjdw0`. A mutant without
+the "ends before today" guard fails 2; a mutant that does not cut fails 10.
+Local check: This week at 8:39 AM PT read $4,730 (3 × $1,500 + $100 + $200 ×
+39/60) "by 8:39 AM"; Last week read the whole window with no "by".
+
+## 2026-11-10 — TAB-8: read-only route for the tablet's Tasks refresh — DRAFT
+
+**RATIFIED BY GARY, 2026-11-11, at the TAB-8 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: the audit, leans 1–9 as built,
+the departures marked *(design choice)*, the 2026-11-11 addendum with its
+frozen-until-reload list, and the *(Claude's note, not a ruling)* paragraph,
+all now ratified as his. His 2026-11-11 ruling quoted in the addendum was
+already his words. The heading's "DRAFT", the "DRAFT, awaiting Gary's
+ratification" line, "nothing below quotes him" and "(untracked until
+PRE-PUSH-CHECK)" are spent, kept; `docs/prompts/TAB-8.md` is committed at
+this check. Docs commits: `a8c17d2` and `4cd349a`. Wording untouched.
+
+**DRAFT, awaiting Gary's ratification at the TAB-8 PRE-PUSH-CHECK.** Prompt of
+record: `docs/prompts/TAB-8.md` (untracked until PRE-PUSH-CHECK). Work commit
+`c18b0d7`. TIER 2. The leans in the prompt are **Claude's design choices**,
+not Gary's rulings; nothing below quotes him.
+
+**Audit (brief, no artifact).** The tablet's 60-second refresh and TAB-5's
+date-change reload did not call an API route for the items: they called
+`router.refresh()`, which re-renders `/dashboard` and re-runs
+`loadTabletData` (`dashboard/tablet-data.ts`). That path writes nothing. A new
+day's checklist is created by Start (`POST /api/checklists`) or the calendar
+materialise cron, never by a read, so a read-only refresh cannot break the
+overnight rollover. No escalation trigger fired.
+
+**The leans as built.**
+
+1. **One new GET route that only reads:** `GET /api/stores/[id]/tablet-tasks`
+   (`src/app/api/stores/[id]/tablet-tasks/route.ts`, body in `read.ts`). It
+   returns `{ store, checklists }` for one store: the store's day, header date
+   and picker names (TAB-4's `hasPin`), and today's checklists with items and
+   ticks. *(design choice: store-scoped, not `/api/checklists/[id]/items`.
+   The panel's refresh also carries the store's day, header date and staff
+   list, and the date-change reload needs the server's day. A per-checklist
+   route could not carry those without keeping `router.refresh()`.)*
+2. **Gates in task-log's order:** orgId 401, org 404, store in this org and
+   active 404, store scope 403 (`getUserStoreScope`, asked only after the
+   store is found). The store stands where task-log has the checklist. These
+   are also the exact gates of `GET /api/stores/[id]/templates`, which the
+   panel already calls. No capability added; DEBT-107 stays open. *(design
+   choice: `isActive: true` in the store lookup, because the page lists only
+   active stores.)*
+3. **Zero writes.** `verify-tab8` checks the route, `read.ts`, `tablet-data.ts`
+   and the libs they call for every write shape, and measures on dev that
+   reads change no checklist, tick, AuditLog row or `startedAt`.
+4. **Reads through `tasksForChecklist`, by delegation.** `read.ts` calls
+   `loadTabletData`, the function `/dashboard` renders the tablet with, so the
+   payload is identical by construction. *(design choice: delegation rather
+   than a second task query. `verify-tpl3` now lists `tablet-data.ts` as a
+   checklist reader (it called `tasksForChecklist` since TAB-1 and was never
+   on the list) and pins that `read.ts` has no task query of its own.)*
+5. **The 60-second refresh and the date-change reload use the new route**, as
+   does the re-read after this device's own Start / tick / submit. Those
+   writes keep their routes. First load is still the server render.
+   *(design choice: the post-write re-read moved too, so the tablet home has
+   no `router.refresh()` left and one source for the server half. Also, the
+   items read now runs every cycle, not only after the list answered: that
+   gate existed because a failed `router.refresh()` navigated the page, and a
+   failed fetch does not.)*
+6. **A failed refresh keeps the last good list.** TAB-5's offline guard shows
+   nothing, so one quiet line was added under the header date:
+   "Not updated since 10:42 AM" (store time), after 2 refreshes in a row that
+   did not land, cleared on the next success. *(design choice: a cycle the
+   offline guard skips counts as a refresh that did not land, via
+   `skippedOnlyForOffline`. Otherwise the line could never show while the
+   browser reports itself offline, the commonest outage.)*
+7. **`redirect: "manual"`.** An opaque redirect, status 0 or any 3xx is an
+   expired sign-in and shows TAB-4's message word for word ("This device's
+   sign-in has expired. Reload the page, sign in again, and try once more.")
+   while keeping the list. *(design choice: a 401, or a 200 that is not JSON,
+   is treated as expired too. The second is TAB-4's own `verifyPin` rule.)*
+8. **TAB-5's rules unchanged:** the 60-second timer, the store-local day
+   rollover (the route's `store.day` moves the page, while idle), the busy
+   skip, and the offline guard.
+9. **Desktop and every other caller unchanged.** `verify-tab8` A5 diffs
+   `page.tsx`, `tablet-data.ts`, the execution page and every write route
+   against the TAB-8 base `29abe48`: empty.
+
+**Departures from the prompt, all (design choice):** the route name and store
+scope (1), delegation instead of a direct `tasksForChecklist` call in the
+route file (4), the post-write re-read moving too (5), offline-skipped cycles
+counting toward the line (6), 401 and non-JSON 200 read as expired (7).
+
+**Evidence.** `verify-tab8` 86/86, part C on dev `br-broad-wave-a6vpjdw0`
+(branch id from `neon.branch_id` in the same run): payload equal to the
+render's field for field for an open, a fresh and a past checklist; 403 for a
+store outside scope. Local check on a temporary mocked page under `/menu`,
+deleted before the commit: ok → merged, fail ×2 → line, ok → cleared,
+expired → TAB-4 message with the list kept, offline ×2 → line with no fetch.
+Not observed: a real Clerk expiry against this route (CHK-8 observed the same
+opaque-redirect arm on staging for its own route), and a real iPad.
+
+**Addendum 2026-11-11 — the fix, and what stays frozen until a reload
+(appended; the text above is kept).** A read-only audit after `c18b0d7`, at
+Gary's request, found that `router.refresh()` had re-rendered the whole of
+`/dashboard` (layout included), not only the Tasks items. Two of TabletHome's
+props froze at first load: `pinRequired` and `stripTiles`. With the Shared
+Tablets switch turned ON mid-day, ticks were refused `pin_required` with no
+PIN pad offered. Turned OFF, the PIN pad was refused 409. Both lasted until a
+reload. The audit answer to item 4 above left out the PIN-required flag the
+prompt named; that was the miss. The strip tile data, TAB-9's expanded card,
+the SELF-1 compliance chip, the overdue chip and Messages were never part of
+the server render and were not affected.
+
+**Gary's ruling, 2026-11-11, verbatim:** "Add pinRequired and stripTiles to
+the tablet-tasks answer, and re-read on store switch. Leave role, the rail
+and the store list frozen until a reload. Don't bring back router.refresh()."
+
+**Built in `1e5ebc1`:**
+- The route answers `pinRequired` (`pinGateApplies(org, role)`) and
+  `stripTiles` (`stripTileKeys(org.tabletLayout)`), which are `page.tsx`'s own
+  calls. The tablet renders both from the merged state, so a switch flipped
+  either way, or a tile change, shows within one cycle.
+- An answer without the two fields is refused as a failed read, never read
+  as "off". *(design choice)*
+- A store switch re-reads that store at once, then adopts its day. Before
+  this, a switched-to store could show data up to a cycle old, or a skeleton
+  for up to a minute after midnight.
+
+**Frozen until a reload, by that ruling** (each used to update every cycle
+under `router.refresh()`):
+1. `role` — only whether the personal HR chip shows in the tablet header.
+2. The tablet rail (`TabletShell`, from `(app)/layout.tsx`): entries gated by
+   the login's role and `deniedCapabilities`, the org's `calendarEnabled`,
+   STAFF's `staffHasChecklists` (the Checklists entry appearing once a
+   checklist opens), and the shell's own store list. The rail's unread badge
+   is not frozen: on `/dashboard` the Messages column publishes it every
+   cycle.
+3. The store list: which stores the login can see, and their order. A new or
+   removed store assignment, or a store deactivated, needs a reload. The
+   selected store's own name, timezone, day, header date and staff still
+   update every cycle through the route.
+
+Also no longer re-run every cycle: the layout's STAFF-to-`/my` redirect and
+the page's `dashboard.view` check. Neither is a data gate. The route still
+checks org and store scope on every read, and a refused read keeps the list
+and shows the "Not updated since …" line. *(Claude's note, not a ruling.)*
+
+**Evidence.** `verify-tab8` 114/114, part C on dev `br-broad-wave-a6vpjdw0`:
+the fixture org's switch OFF → ON → OFF and a tile reorder, each picked up by
+one read and merge, with negative controls (a failed or expired read moves
+nothing; the `c18b0d7` answer shape is refused). Local mocked check: tiles
+on and off, PIN switch on and off, and a store switch, each followed in one
+cycle.
+
+## 2026-11-10 — TAB-4: per-person PIN on shared tablets, rulings Q1–Q11 — DRAFT
+
+**RATIFIED BY GARY, 2026-11-10, at the TAB-4 PRE-PUSH-CHECK:** "I ratify
+the TAB-4 entry. Q1–Q11 are my rulings. I worked them through in the
+planning chat and I stand behind each one as recorded. I accept the three
+design choices and judgement calls a through l. On e: resetting a PIN
+clearing the lockout is how a manager gets someone unstuck, and I want it
+that way. On g: a lockout following the person to every store is right. The
+calendar detail now showing only store and corporate staff, switch on or
+off, is fine as a consequence of the CHK-15 parity fix." This covers the
+whole entry below: rulings Q1–Q11, the go-ahead and the three design
+choices, the gated route list, the calendar-detail consequence, the
+correct-5th-PIN answer, and Claude's judgement calls (a)–(l), all now
+ratified as his. The heading's "DRAFT", the "DRAFT, awaiting Gary's
+ratification" line, "for ratification" and "(all three untracked until
+PRE-PUSH-CHECK)" are spent, kept; `docs/prompts/TAB-4.md`,
+`TAB-4_AUDIT.md` and `TAB-4_PLAN.md` are committed at this check. Docs
+commit: `e8cfa05`. Wording untouched.
+
+**DRAFT, awaiting Gary's ratification at the TAB-4 PRE-PUSH-CHECK.** Prompt
+of record: `docs/prompts/TAB-4.md`; audit: `docs/prompts/TAB-4_AUDIT.md`;
+plan: `docs/prompts/TAB-4_PLAN.md` with its dated addendum (all three
+untracked until PRE-PUSH-CHECK). Work commit: 0064bf9. Migration
+`20261111050000_tab4_tablet_pin` (`docs/MIGRATIONS.md`).
+
+**Gary's rulings, 2026-11-10, quoted verbatim** (pasted in chat after the
+audit stop; the planning chat's leans are in the audit and are not quoted
+here as rulings):
+
+> Q1. Off by default. It's a per-org switch on a new /settings card, using the Calendar switch pattern.
+>
+> Q2. (a). The PIN applies to anything a STORE login records, in either Tablet or Desktop view. Personal logins are unchanged, because the login already records the person.
+>
+> Q3. Yes. Name sheet, then a digits-only PIN pad, then a "Completing as …" chip.
+>
+> Q4. 4-digit PIN, salted scrypt, with a server-side secret mixed in. Use two separate env vars:
+> - TABLET_PIN_PEPPER is mixed into the hash. Rotating it invalidates every PIN, so note that in the code and the docs.
+> - TABLET_TOKEN_SECRET signs the token. Rotating it only expires open sessions.
+> If either var is missing, fail closed: the settings card shows "not configured" and can't be switched on, and the server refuses PIN-required writes with a clear error. A missing var must never silently skip the check. I'll add both vars in Vercel for Preview and Production.
+>
+> Q5.
+> (i) Yes. ADMIN sets PINs for anyone. MANAGER sets PINs for staff in their own stores, on /staff/[id].
+> (ii) Yes, with one change: a MANAGER can set and reset their own PIN. Only an ADMIN can set or reset another MANAGER's or another ADMIN's PIN.
+> (iii) Not in v1.
+> (iv) Yes. A reset requires entering a new PIN, and no screen or API ever returns an existing PIN or its hash.
+>
+> Q6. Yes. Staff without a PIN show greyed out with "No PIN — ask a manager" and can't be picked.
+>
+> Q7. Yes, both. When the switch is on, hide "Team Member" and "Manager" for STORE logins in both views, and have the server refuse unnamed or token-less writes from STORE logins. This covers every route that records a person, not just task-log. That includes task-log, the calendar "due" complete route, and checklist submit if it records a person. List the exact routes in your plan before building.
+> While you're in the calendar complete route, bring its staff check up to CHK-15 parity: in the org, active, and assigned to the store (or corporate).
+> The settings card shows a per-store readiness line, e.g. "University: 9 of 14 active staff have PINs". It's information only and doesn't block switching on.
+>
+> Q8. Yes. The signed token is tied to the staff member, store, org and login, and lasts 10 minutes. It's sliding: each successful write returns a fresh 10-minute token, which the client swaps in. The routes from Q7 verify it.
+>
+> Q9. Yes, base version. 5 wrong PINs lock that staff member for 5 minutes. The count lives in the new staff columns, not AuditLog. The count resets on a correct PIN or when the lock expires. Write one AuditLog row per lockout. No escalation in v1. File a backlog row for "email a manager on repeated lockouts" to pick up with the notifications work.
+>
+> Q10. Yes. After 5 minutes idle, clear the chip and throw away the token on the device.
+>
+> Q11. Yes. Messages are unchanged.
+>
+> Comments: the corporate-not-assigned case stays as is (by CHK-15 design).
+
+**Gary's go-ahead on the plan, same day, quoted:** "Go, build to
+TAB-4_PLAN.md. I accept the three design choices. For #1, the "Completing as
+…" chip must be visible on the tablet due list whenever a reused token is in
+play." His build requirements (atomic lockout as one conditional update;
+`crypto.timingSafeEqual` for token and hash; the token check covering expiry,
+person, store, org and login; the verify route as the only reader of the
+hash, and no raw SQL reading full staff rows; seven named fixture cases) are
+recorded in the plan's addendum and enforced by `scripts/verify-tab4-pin.ts`.
+
+**The three design choices Gary accepted** (TAB-4_PLAN.md):
+1. The tablet due list reuses a live token for that store instead of asking
+   again — and, per his condition, shows "Completing as … · Change" whenever
+   it does.
+2. The three desktop screens (checklist page, due banner, calendar detail)
+   drop a held token after 5 minutes without a touch, as the tablet does.
+3. `pinHash` is omitted from every Prisma read at the root
+   (`src/lib/prisma.ts`), not route by route.
+
+**Why Q2 was asked as (a)/(b)/(c).** The audit found that Tablet mode is a
+per-device cookie any role flips with one tap, so a rule keyed on the view is
+a UI gate. The role is what the server can trust (TAB-4_AUDIT.md, headline
+finding).
+
+**THE GATED ROUTES (Q7's list).** `POST /api/checklists/[id]/task-log`, ticks
+only, and `POST /api/calendar/occurrences/[id]/complete`. Checklist submit
+records no person (`Checklist` has no completedBy column; on a calendar-backed
+checklist it stamps only the login), so it is not gated. Every HR route that
+names a staff member refuses a STORE login acting for someone else.
+
+**THE CALENDAR EVENT DETAIL NOW LISTS ONLY STAFF ASSIGNED TO THE STORE, PLUS
+CORPORATE STAFF — FOR EVERY ORG, WITH THE SWITCH ON OR OFF.** This is a
+consequence of Q7's CHK-15 parity on the complete route, not a separate
+ruling. Before TAB-4 the route checked only "in the org", and the detail's
+"Who completed this?" picker offered every active person in the org. Since the
+route now refuses a name that is not assigned to the occurrence's store (or
+corporate), the picker offers only those names, so it never offers a choice
+the route will refuse. Corporate staff stay in this list because the route
+accepts them (Gary's comment above); the checklist pickers still leave them
+out, unchanged.
+
+**A CORRECT 5TH PIN DOES NOT COME BACK LOCKED — including in the
+parallel-attempt race.** A try that wins one of the 5 slots at the
+reservation step never reads the lock again: the compare decides, and a right
+PIN returns "ok" before anything else happens (fixture B14, with negative
+control B15). What the race CAN do is this: while that 5th try is still being
+compared, a 6th try finds every slot taken and sets the 5-minute lock itself,
+writing the one AuditLog lockout row (fixture C16). The 5th try still returns
+"ok" and its token works for 10 minutes, sliding, because a lock blocks PIN
+entry, not a token already issued. But the name stays locked for 5 minutes
+for anyone who enters the PIN again, even though the last try that got a
+slot was correct. A correct PIN that arrives as the 6th try is locked out, as
+designed (fixture C10).
+
+**Claude's judgement calls, for ratification:**
+- **a.** The one reader of `pinHash` is `src/lib/tablet-pin-attempt.ts`,
+  imported only by the verify route, rather than code inline in the route.
+  This is so the fixture can drive the lockout against real rows, because
+  Clerk's `auth()` does not run outside Next. Fixture B7/B8 enforce "one
+  reader, one importer".
+- **b.** The reservation is `updateManyAndReturn` — still one
+  `UPDATE … RETURNING`. `update` throws on no match, and the client logs every
+  throw as `prisma:error`, which would put a false error line in production
+  logs on every locked try (seen in the first dev run).
+- **c.** `POST /api/tablet-pin/verify` answers 409 while the switch is off, so
+  it is not left standing as a way to guess PINs.
+- **d.** Turning the switch OFF is always allowed, even with a secret missing,
+  so an admin can always get a store ticking again.
+- **e.** Setting or resetting a PIN also clears any lockout.
+- **f.** A MANAGER's "own" record is the one `resolveSelfStaff` resolves (the
+  linked login, or the one record with their email). "Another MANAGER's or
+  ADMIN's" is a staff record whose login is a MANAGER or ADMIN: the linked
+  User, or an org User sharing its email. The highest role wins.
+- **g.** A lock is per staff member, across stores (Q9: "lock that staff
+  member").
+- **h.** A signed-out device's verify request is redirected to `/sign-in`,
+  which answers 200 with a page. The PIN pad says the sign-in has expired
+  rather than "error 200" (found in the local check).
+- **i.** On the desktop due banner, "Change" drops the session, and the next
+  Complete asks for a name.
+- **j.** The global omit gives the Prisma client its own type, so four helpers
+  moved from `Prisma.TransactionClient` to a new `Db` type exported from
+  `src/lib/prisma.ts` (type-only; no behaviour change).
+- **k.** `scripts/verify-chk15.ts` checks A4 and A9 were widened to the new
+  picker shape, with a dated note in the file. Both still refuse a picker that
+  renders `staffNames`.
+- **l.** The backlog row Gary asked for is NOTIFY-18.
+
 ## 2026-11-10 — TAB-9: a Tablet home that scrolls, cards that expand, an overdue list that opens in place — DRAFT
 
 **RATIFIED BY GARY, 2026-11-10, at the TAB-9 PRE-PUSH-CHECK:** "Ratify as

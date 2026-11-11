@@ -1,5 +1,5 @@
-import type { AuditLog, Prisma } from "@prisma/client"
-import { prisma } from "@/lib/prisma"
+import type { AuditLog } from "@prisma/client"
+import { prisma, type Db } from "@/lib/prisma"
 import { NutritionFileError, readLabelBytes } from "@/lib/nutrition-files"
 import { INBOX_ENTITY, nutritionAudit, type NutritionAuditEntity } from "@/lib/nutrition-record"
 import type { NutritionContext } from "@/lib/nutrition-access"
@@ -45,7 +45,7 @@ export function readLimitFrom(times: number[], now: number): ReadLimit | null {
 
 /** Per-org limit, counted from the audit trail so it holds across instances. */
 // `db` defaults to the app client; the fixture passes a transaction it rolls back.
-export async function readLimitReached(orgId: string, now = Date.now(), db: Prisma.TransactionClient = prisma): Promise<ReadLimit | null> {
+export async function readLimitReached(orgId: string, now = Date.now(), db: Db = prisma): Promise<ReadLimit | null> {
   const rows = await db.auditLog.findMany({
     where: { organizationId: orgId, entityType: { in: READ_ENTITIES }, action: { in: COUNTED }, createdAt: { gte: new Date(now - DAY_MS) } },
     select: { createdAt: true },
@@ -67,7 +67,7 @@ export async function recordReuse(
   subject: ReadSubject,
   prior: Pick<AuditLog, "id" | "metadata" | "createdAt">,
   doc: Omit<ReadDoc, "fileUrl"> & { fileUrl?: string },
-  db: Prisma.TransactionClient = prisma
+  db: Db = prisma
 ): Promise<ReadResult | null> {
   const meta = prior.metadata as { output?: unknown; model?: string; readAt?: string } | null
   const parsed = meta?.output !== undefined ? parseLabelOutput(meta.output) : null
@@ -86,7 +86,7 @@ export function findRecentRead(
   fileHash: string,
   where: { entityType: NutritionAuditEntity; entityId?: string }[],
   now = Date.now(),
-  db: Prisma.TransactionClient = prisma
+  db: Db = prisma
 ) {
   return db.auditLog.findFirst({
     where: {

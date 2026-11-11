@@ -2,7 +2,499 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-10 — TAB-9: Tablet home scrolls, cards expand in place, overdue list opens in place (HR chip hidden on STORE logins)
+## UNPROMOTED — 2026-11-11 — TAB-12: Tablet home — choose a message type (type tag in the composer)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`25f823c`, docs `5b0060f`; the PRE-PUSH-CHECK is the commit immediately
+after `5b0060f`. **TIER 2:** a type tag on the tablet home's existing
+message box. No migration, no env var, no permission, no cron, no API
+route, no Square call. DECISIONS 2026-11-11 TAB-12 (R1–R6 and the design
+choices) RATIFIED by Gary at this check: "Ratify as written". Prompt of
+record `docs/prompts/TAB-12.md`, committed at this check.
+
+**Blast radius: the tablet home's Messages column, plus a move under
+tablet `/messages`.** Both render only when `getViewMode()` is "tablet";
+Desktop mode is untouched. TAB-11's Type button and picker moved verbatim
+out of `messages-tablet.tsx` into the shared `messages/type-picker.tsx`
+(variant "feed"); that move is the one way Team Messages can regress, so
+staging test 8 checks it. Nothing new writes: the home's Send goes through
+the same POST `/api/messages`, now carrying `type` (and `shiftPhase` for a
+shift note only). Quick replies send exactly the General body they sent
+before.
+
+**What ships.** A 44px tag inside the "Message the team…" box, top-left,
+starting at General (R1). It opens a picker that spans the Messages column,
+opens upward, never flips under the keyboard, and caps its height at the
+visible space above the tag: 48px rows in 2 columns (1 if too narrow),
+General first, focus kept in the box. R6: Shift Note is a full-width row of
+Opening / Mid / Closing; one tap sets type + phase and the tag reads
+"Shift Note · Mid". The tag returns to General with no phase after every
+post (R3); quick replies always post General and leave the tag alone (R2).
+Home thread rows show a 26px type badge after "Name · time" for
+non-General messages only (R4).
+
+Files: 5 in `25f823c` (+403/−79): new
+`src/app/(app)/messages/type-picker.tsx`; changed
+`messages/messages-tablet.tsx`, `dashboard/tablet-messages.tsx`,
+`src/lib/tablet-messages.ts` (`postBody(type, phase)`),
+`scripts/verify-tab2-messages.ts` (+3 checks). Checks: scoped eslint 0
+problems, `npm run build` green, `verify-tab2-messages` ALL PASS. Verified
+locally only on a temporary mocked `/menu` page, deleted before the commit,
+at 1180x820, 1133x744, 1024x768, 820x1180 and 744x1133: no sideways
+scroll, every picker control ≥ 44px, box stays 56px, Shift Note · Mid →
+POST `{type shift_note, shiftPhase mid}` → badge and tag back to General,
+Shortage + "Done" → Done posts General and the tag stays Shortage, picker
+fully visible with a simulated keyboard. Known: at 1024px landscape the
+placeholder ellipsizes beside the tag, a Shift Note tag truncates, and the
+picker's phase buttons wrap under the label. Not observed: real staging
+data, a real iPad, a real keyboard.
+
+**Rollback.** `git revert 25f823c`. No schema or data to undo. The home
+box loses its tag and posts General only; Team Messages goes back to its
+inline picker, which renders the same. Messages already posted with a type
+keep it, as any desktop-typed message does.
+
+**Staging tests owed (Gary, iPad, Tablet mode, after push; staging-SHA
+precondition first).** The ten in `docs/prompts/TAB-12.md` § Staging
+tests — tag at rest, picker open/close, Equipment post and badge, feed
+filter, Shortage + "Done" posts General, no badge on General, keyboard,
+Team Messages unchanged, Desktop unchanged, portrait — plus Gary's test 11:
+pick Shift Note · Mid, post, and confirm it shows a Shift Note badge on the
+home and files under Mid on Team Messages.
+
+## UNPROMOTED — 2026-11-11 — TAB-11: Team Messages in Tablet mode (touch two-pane in landscape, one column in portrait)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`498322a`, docs `ac5a383`; the PRE-PUSH-CHECK is the commit immediately
+after `ac5a383`. **TIER 2:** a new tablet layout over the state the
+desktop page already has. No migration, no env var, no permission, no cron,
+no API route, no Square call. DECISIONS 2026-11-11 TAB-11 (R1–R5 and the
+design choices) RATIFIED by Gary at this check: "Ratify as written". R6,
+ruled at the same check: "Keep the type icons the code already has.
+Customer and Staffing sharing an icon is fine for now because the label
+always shows next to it. TAB-11 makes no desktop changes." Prompt of record
+`docs/prompts/TAB-11.md`, committed at this check.
+
+**Blast radius: `/messages` in Tablet mode, plus a refactor under desktop
+`/messages`.** The tablet layout only renders when `getViewMode()` is
+"tablet". Desktop `/messages` and `/my/messages` keep their JSX, but
+`messages-client.tsx`'s state, fetches and posts moved into shared hooks
+that the desktop components now call. That move is the one way desktop can
+regress, so staging test 1 checks desktop first. `TabletShell` changes only
+for `/messages` (full-bleed container). `useKeyboardInset` is now exported
+from the tablet home's Messages column; its behaviour there is unchanged.
+Nothing new writes: every post, reaction, edit, delete and resolve is the
+desktop hook's existing call to the existing route.
+
+**What ships.** 1024px and wider: rail | 372px left panel (title,
+corporate updates card, TYPE grid of 8 chips, STATUS select) | feed with
+the composer pinned at its bottom; each pane scrolls on its own, the page
+does not. Narrower: one column — header band with a sideways type strip and
+the status select, feed, composer. General is first in every tablet type
+list; desktop order is unchanged. The type returns to General after a post
+(desktop's `useComposer.post()` already did this). Composer: 52px box
+growing to about 4 lines, a Type popover, Photo / File / Video, Post.
+Desktop controls the canvas doesn't draw are kept at touch size (store
+picker, Edit, Resolve/Reopen, shift phase, Shortage ingredient link, admin
+New update / Delete, Load older). With the iPad keyboard up, the composer
+sits directly above it (TAB-2's visualViewport measure); in portrait the
+header band folds away while typing.
+
+Files: 5 in `498322a` (+1128/−88): new
+`src/app/(app)/messages/messages-tablet.tsx`; changed
+`messages/messages-client.tsx`, `messages/page.tsx`,
+`dashboard/tablet-messages.tsx`, `src/components/layout/tablet-shell.tsx`.
+Checks: scoped eslint and `npm run build` green. No fixture script. Verified
+locally only on a temporary mocked `/menu` page, deleted before the commit,
+at 1180x820, 1024x768, 820x1180 and 744x1133: no page scroll in either
+axis, every control ≥ 44px, Shortage filter → one card, picker → Shortage →
+post → Shortage badge and type back to General, reaction count toggles,
+simulated 400px keyboard puts the composer's bottom on the keyboard's top.
+Known: at 1024px landscape a manager's Shortage/Equipment card wraps its
+type badge under the name (Resolve shares the line). Not observed: real
+staging data, a real iPad, a real keyboard.
+
+**Rollback.** `git revert 498322a`. No schema or data to undo. Tablet
+`/messages` goes back to the desktop layout inside the tablet shell;
+desktop goes back to its pre-hook code, which renders the same.
+
+**Staging tests owed (Gary, iPad, Tablet mode, after push; staging-SHA
+precondition first).** The nine in `docs/prompts/TAB-11.md` § Staging
+tests: desktop unchanged; landscape two panes with the composer fixed;
+type and status filters; post as Shortage and type back to General;
+Photo / File / Video; reactions; "Show 1 more" and trash only where desktop
+shows it; portrait one column; keyboard keeps the composer visible.
+
+## UNPROMOTED — 2026-11-11 — TAB-10: transactions and average sale on the tablet's expanded Sales card (desktop Average sale "—" at 0 transactions)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`e12bc2d`, docs `fbb30e3`; fix commit `742f98d` (Gary's ruling,
+2026-11-11, "On the desktop card, Average sale shows "—" and no percentage
+when today has 0 transactions, the same as the tablet. Transactions keeps
+its pill."), docs `ef71fe8`; the PRE-PUSH-CHECK is the commit immediately
+after `ef71fe8`. **TIER 2:** display change over caches Froot already has,
+plus one additive field on an existing route. No migration, no env var, no
+permission, no cron, no new Square, sync or gap-fill call. DECISIONS
+2026-11-11 TAB-10 (with its 2026-11-11 desktop-Average-sale addendum)
+RATIFIED by Gary at this check: "Ratify as written". Prompt of record
+`docs/prompts/TAB-10.md`, committed at this check.
+
+**Blast radius: the Sales cards on `/dashboard`, and they only read.**
+Two surfaces: the tablet's expanded Sales card (TAB-9, fed by
+`/api/dashboard/summary`) and, for the fix only, the desktop Sales
+Performance card's Average sale pill. The collapsed tablet Sales tile, the
+whole-day row, the hour-by-hour table, desktop's `/api/dashboard/sales`
+route and `src/lib/sales-same-time.ts` are untouched. Nothing writes.
+
+**What ships.** `/api/dashboard/summary` adds one field,
+`sales.today.orders` (today's `SalesPeriodCache.orderCount`); last year's
+same-time order count was already on the payload (`sales.comparison.orders`,
+TAB-7). `salesCounts` (`src/lib/tablet-cards.ts`) computes the desktop
+card's `compOrders` / `compAvg` from it through the one `pctChange`. The
+expanded card adds "Transactions" and "Average sale" rows below the dollar
+rows, each with a ▲/▼ against last year at the same time; the tile's pill
+became one `DeltaText` component rendered by the tile and both rows. Last
+year 0 → "—"; no comparison day → no pill; 0 transactions today → Average
+sale "—" and its pill "—"; a payload without `today.orders` leaves both
+rows out. Average sale shows cents ("$11.88"). No Transactions column in
+the hour table. Refreshes on the existing TAB-5 / TAB-8 cycle; no new timer
+or fetch. Fix: the desktop card's Average sale baseline is null when the
+selection has no average, so no pill renders at 0 transactions (was
+▼100.0%), for any selection, not only Today. Transactions, Gross and the
+headline are unchanged.
+
+Files: 4 in `e12bc2d` (+436/−18), 3 in `742f98d` (+56/−7): new
+`scripts/verify-tab10.ts`; changed `src/app/api/dashboard/summary/route.ts`,
+`src/lib/tablet-cards.ts`, `dashboard/tablet-strip.tsx`,
+`dashboard/sales-performance-card.tsx` (fix only). Checks: verify-tab10
+50/50 (negative controls against `885d65f` and `e12bc2d`, a props-fed
+mutant and an old-baseline mutant; DB sections read-only on dev
+`br-broad-wave-a6vpjdw0`: 7 stores × 4 store-local moments = 28 tablet vs
+desktop comparisons, 0 mismatches), verify-tab1-today 13/13,
+verify-tab1c-due-chip 11/11, verify-tab2-messages 23/23,
+verify-tab3-layout 28/28, verify-tab4-pin 78/78, verify-tab5-refresh 32/32,
+verify-tab7 88/88, verify-tab8 114/114, verify-tab9-cards 84/84,
+verify-goal-engine 15/15, verify-f4-rollup-webhook 24/24, verify-bug20
+21/21; scoped eslint and `npm run build` green. Verified locally only on
+mocked temporary `/menu` pages, deleted before each commit: 9 transactions,
+$11.88 average, ▲5.9% / ▲1.0%; 0 transactions → desktop "AVERAGE SALE —"
+with no pill. Not observed: real staging sales data, a real iPad.
+
+**Rollback.** `git revert 742f98d e12bc2d` (fix first, then work). No
+schema or data to undo: nothing writes. The tablet card goes back to
+dollars only; the desktop Average sale goes back to ▼100.0% at 0
+transactions.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+From the TAB-10 row. (1) During opening hours, tap the tablet Sales tile:
+"Transactions" and "Average sale" rows appear under the whole-day row, each
+with a ▲/▼. (2) Desktop Sales Performance on Today for the same store in the
+same minute: the same Transactions and Average sale and the same ▲/▼ (a
+minute apart they can drift by the pro-rated hour). (3) The collapsed Sales
+tile looks as before. (4) Leave the card open past a refresh (about a
+minute): the rows follow new sales without a reload. (5) Desktop Sales
+Performance on Today before the store's first sale (with last year having
+sales by then): Average sale reads "—" with no pill; Transactions shows 0
+and its ▼.
+
+## UNPROMOTED — 2026-11-11 — TAB-7: today's sales compared with last year at the same time of day (desktop card, tablet tile, ranges ending today)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`316ffd4`, docs `979b6e7`; fix commit `3f92131` (Gary's ruling,
+2026-11-11, "Cut it."), docs `8f34e1b`; the PRE-PUSH-CHECK is the commit
+immediately after `8f34e1b`. **TIER 2:** display and query change over
+caches Froot already has. No migration, no env var, no permission, no cron,
+no new Square, sync or gap-fill call. DECISIONS 2026-11-11 TAB-7 (with its
+2026-11-11 ranges-ending-today addendum) RATIFIED by Gary at this check:
+"Ratify as written". Prompt of record `docs/prompts/TAB-7.md`, committed at
+this check.
+
+**Blast radius: the sales comparison on `/dashboard` only, and it only
+reads.** Three surfaces: the desktop Sales Performance card
+(`/api/dashboard/sales`), the tablet Sales tile and TAB-9's expanded Sales
+card (`/api/dashboard/summary`). The All-locations rollup has no last-year
+comparison and is untouched. Goal and pacing maths (`pacing.ts`, Monthly
+Goal card, projections, rollup) are untouched. Past days and ranges ending
+before today compare exactly as before.
+
+**What ships.** `src/lib/sales-same-time.ts` (pure, no imports):
+`compareTodayWithDay` takes the comparison day's hourly net for every hour
+before the current store-local hour plus the current hour × minutes/60,
+from one instant that also decides "today". A past day compares with its
+full day. Today against a day with sales but no hourly rows falls back to
+the full day, labelled "(full day)"; never mixed within one figure. A $0
+same-time baseline shows "—", no percentage. `compareWindowEndingToday`
+(fix) counts every earlier day of a range ending today in full and cuts the
+last day through `compareTodayWithDay`; `compareSelection` is the one entry
+point the sales route calls. Applies to every compare mode.
+`/api/dashboard/summary` adds `sales.comparison` (`lastYear.total` stays
+the whole day); `/api/dashboard/sales` adds `comparisonBasis`. Labels:
+desktop "Prior Wed last year by 10:15 AM · Nov 12, 2025" (ranges: "Same
+period last year by 10:15 AM"); tablet tile "vs last year by 10:15 AM"
+under the ▲/▼; the expanded card adds a "Same weekday last year by
+10:15 AM" row above the whole-day row. On a same-time basis the desktop
+Transactions and Average sale pills use hourly order counts pro-rated the
+same way, and the Gross pill is hidden (the hourly cache has no gross).
+No new timer: the tablet moves with TAB-5's cycle; the desktop card on load
+and selection change. Store timezone, never the server's. Known limit: a
+DST change day compares wall clock against wall clock.
+
+Files: 7 in `316ffd4` (+618/−29), 4 in `3f92131` (+212/−35): new
+`src/lib/sales-same-time.ts`, `scripts/verify-tab7.ts`; changed
+`src/app/api/dashboard/sales/route.ts`,
+`src/app/api/dashboard/summary/route.ts`,
+`dashboard/sales-performance-card.tsx`, `dashboard/tablet-strip.tsx`,
+`src/lib/tablet-cards.ts`. Checks: verify-tab7 88/88 (negative controls
+against `8365e0a` and `316ffd4`; DB sections read-only on dev
+`br-broad-wave-a6vpjdw0`; mutants caught), verify-tab1-today 13/13,
+verify-tab1c-due-chip 11/11, verify-tab2-messages 23/23,
+verify-tab3-layout 28/28, verify-tab4-pin 78/78, verify-tab5-refresh 32/32,
+verify-tab8 114/114, verify-tab9-cards 84/84, verify-tpl3 44/44,
+verify-goal-engine 15/15, verify-f4-rollup-webhook 24/24, verify-bug20
+21/21; scoped eslint and `npm run build` green. Verified locally only on a
+mocked temporary `/menu` page, deleted before each commit: "$203 by
+8:31 AM" against a $2,150 day; This week "$4,730 by 8:39 AM". Not observed:
+real staging sales data, a real iPad.
+
+**Rollback.** `git revert 3f92131 316ffd4` (fix first, then work). No
+schema or data to undo: nothing writes. Every surface goes back to today so
+far against the comparison's whole day.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+From the TAB-7 row. (1) During opening hours, desktop Sales Performance on
+Today: the label reads "Prior <weekday> last year by <time>" and the figure
+is well under last year's whole day. (2) Tablet Sales tile: the ▲/▼ has "vs
+last year by <time>" under it; tapping it shows the "Same weekday last year
+by <time>" row above the whole-day row. (3) Desktop, Yesterday: no "by", a
+full-day comparison as before. (4) All locations unchanged. (5) Desktop,
+This week and Month to date during opening hours: "Same period last year by
+<time>"; Last week: no "by".
+
+## UNPROMOTED — 2026-11-11 — TAB-8: tablet Tasks refresh reads a read-only route (no router.refresh(); PIN switch and tiles follow within a minute)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`c18b0d7`, docs `a8c17d2`; fix commit `1e5ebc1` (Gary's ruling,
+2026-11-11), docs `4cd349a`; the PRE-PUSH-CHECK is the commit immediately
+after `4cd349a`. **TIER 2:** one new read-only route and the tablet home
+switched onto it. No migration, no env var, no permission, no cron.
+DECISIONS 2026-11-10 TAB-8 (with its 2026-11-11 addendum) RATIFIED by Gary
+at this check: "Ratify as written". Prompt of record `docs/prompts/TAB-8.md`,
+committed at this check.
+
+**Blast radius: the tablet home on `/dashboard` only** (Tablet view, every
+login that gets it). Desktop `/dashboard`, the checklist execution page,
+`tablet-data.ts`, `page.tsx` and every write route are unchanged
+(`verify-tab8` A5 diffs them against the TAB-8 base `29abe48`: empty). First
+load is still the server render.
+
+**What ships.** `GET /api/stores/[id]/tablet-tasks` (`route.ts`, body in
+`read.ts`): one store's day, header date, picker names (TAB-4's `hasPin`),
+today's checklists with items and ticks, `pinRequired`
+(`pinGateApplies(org, role)`) and `stripTiles`
+(`stripTileKeys(org.tabletLayout)`). Built by delegating to
+`loadTabletData`, so it equals the first render by construction. Gates in
+task-log's order: 401, org 404, store (in org, active) 404, store scope 403.
+No capability added. **Zero writes** (checked by `verify-tab8` and measured
+on dev). The tablet home re-reads through it on the 60-second cycle, on
+TAB-5's day rollover, after its own Start / tick / submit, and at once on a
+store switch; no `router.refresh()` is left in it. Writes keep their routes.
+`redirect: "manual"`: an opaque redirect, 3xx, 401 or a non-JSON 200 shows
+TAB-4's expired sign-in message and keeps the list. A failed read keeps the
+list; after 2 refreshes in a row that did not land (offline-skipped cycles
+count), a quiet "Not updated since <time>" line shows under the header
+date, cleared on the next success. An answer without `pinRequired` /
+`stripTiles` is refused as a failed read, never read as "off". TAB-5's
+timer, rollover, busy skip and offline guard are unchanged.
+
+**Behaviour change, ruled (frozen until a reload).** Under
+`router.refresh()` the whole `/dashboard` (layout included) re-rendered
+every cycle. Now three things update only on a reload: `role` (whether the
+personal HR chip shows in the tablet header), the tablet rail (`TabletShell`
+entries and its store list; its unread badge still updates), and the store
+list itself (a new or removed assignment, or a deactivated store). The
+selected store's name, timezone, day, header date and staff still update
+every cycle. The layout's STAFF-to-`/my` redirect and the page's
+`dashboard.view` check no longer re-run each cycle; the route still checks
+org and store scope on every read.
+
+Files: 8 in `c18b0d7` (+776/−56), 4 in `1e5ebc1` (+228/−27): new
+`src/app/api/stores/[id]/tablet-tasks/{route,read}.ts`,
+`src/lib/tablet-tasks-refresh.ts`, `scripts/verify-tab8.ts`; changed
+`dashboard/tablet-home.tsx`, `dashboard/tablet-refresh.tsx`,
+`src/lib/tablet-refresh.ts`, `scripts/verify-tpl3.ts` (`tablet-data.ts`
+added to the checklist-reader list). Checks: verify-tab8 114/114 (part C on
+dev `br-broad-wave-a6vpjdw0`), verify-tpl3 44/44, verify-tab1-today 13/13,
+verify-tab1c-due-chip 11/11, verify-tab2-messages 23/23, verify-tab3-layout
+28/28, verify-tab4-pin 78/78, verify-tab5-refresh 32/32, verify-tab9-cards
+84/84, verify-chk15 28/28; scoped eslint and `npm run build` green.
+Verified locally only on a mocked temporary `/menu` page, deleted before
+each commit. Not observed: a real Clerk expiry against this route, and a
+real iPad.
+
+**Rollback.** `git revert 1e5ebc1 c18b0d7` (fix first, then work). No
+schema or data to undo: the route only reads. The tablet goes back to
+`router.refresh()` every cycle.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+From the TAB-8 row. (1) The tablet home loads as before. (2) Tick on
+desktop: the tablet shows it within a minute. (3) Turn the iPad's wifi off
+for 2+ minutes: the list stays and "Not updated since <time>" appears, no
+Safari error page; wifi back on: the line clears. (4) Clear the `__session`
+cookie: within a minute the sign-in message shows and the list stays.
+(5) With a STORE login on the tablet, turn the Shared Tablets switch on in
+`/settings`: within a minute the name sheet drops "Team Member" / "Manager"
+and asks for a PIN; turn it off: within a minute the generic options return
+and ticks save without a PIN. (6) Reorder or enable a strip tile in
+`/settings`: the tablet follows within a minute. (7) A multi-store login
+switching stores sees that store's current ticks at once.
+
+## UNPROMOTED — 2026-11-10 — TAB-4: per-person PIN on shared tablets (off by default; calendar detail lists store + corporate staff)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`0064bf9`; docs commit `e8cfa05`; the PRE-PUSH-CHECK is the commit
+immediately after `e8cfa05`. **TIER 3:** a migration, three new routes, a
+server gate on two write routes, and a change to what a STORE login can
+record. DECISIONS 2026-11-10 TAB-4 RATIFIED by Gary at this check, in his
+own words (quoted there). Prompt of record `docs/prompts/TAB-4.md`, audit
+`TAB-4_AUDIT.md`, plan `TAB-4_PLAN.md`, all committed at this check.
+
+**Migration `20261111050000_tab4_tablet_pin`** (`docs/MIGRATIONS.md`).
+Additive only, no backfill: `Organization.tabletPinRequired` (boolean,
+default false) and `StaffMember.pinHash`, `pinSetAt`, `pinFailedAttempts`
+(default 0), `pinLockedUntil`. Dev `br-broad-wave-a6vpjdw0` applied
+2026-11-11 05:04:48 UTC (2026-11-10 21:04:48 PST), by Gary. Staging
+`br-square-feather-a63z92vz`: OWED, the Vercel build on Gary's push.
+Production `br-sparkling-block-a620qvg4`: OWED, at promotion.
+
+**Env vars (Gary adds in Vercel, Preview AND Production, separate values
+per environment, Sensitive):** `TABLET_PIN_PEPPER` (mixed into every PIN
+hash; ROTATING IT INVALIDATES EVERY PIN) and `TABLET_TOKEN_SECRET` (signs
+the 10-minute token; rotating it only ends open sessions). Missing = FAIL
+CLOSED: the switch shows "not configured" and can't be turned on, and while
+it is already on every PIN-required write is refused with a 503, never
+skipped. A deployment carries the env values that existed when it was
+BUILT, so the staging deployment must postdate the save.
+
+**Blast radius with the switch OFF (the default, every org):** nothing
+asks for a PIN anywhere. Two things change for every org regardless:
+(1) `POST /api/calendar/occurrences/[id]/complete` now checks the named
+person at CHK-15 parity (in the org, active, assigned to the occurrence's
+store or corporate) for every login, where before it checked only "in the
+org"; (2) so the calendar event detail's "Who completed this?" picker lists
+only staff assigned to the store plus corporate staff. Gary ratified this as
+a consequence of the parity fix. Also global: `pinHash` is omitted from every
+Prisma read at the root (`src/lib/prisma.ts`), which gave the client its own
+type; four helpers moved from `Prisma.TransactionClient` to the new `Db`
+type (type-only).
+
+**What ships with the switch ON (STORE logins only, Tablet OR Desktop
+view; personal logins are never asked).** The gate
+(`src/lib/tablet-pin-gate.ts`) on `POST /api/checklists/[id]/task-log`
+(ticks only) and the calendar complete route: a named person with a valid
+token bound to person, store, org and login, or refused; unnamed is refused.
+Each successful write returns a fresh 10-minute token (sliding). Checklist
+submit records no person and is not gated; messages are unchanged (Q11).
+New routes: `POST /api/tablet-pin/verify` (409 while the switch is off;
+5 wrong PINs lock that person for 5 minutes across every store, reserved
+atomically by one `updateManyAndReturn`; one AuditLog row
+`staff.pin.lockout` per lockout), `PUT /api/staff/[id]/pin` (ADMIN anyone;
+MANAGER own record and their stores' staff, never another MANAGER's or an
+ADMIN's; a set or reset also clears any lockout), `POST
+/api/settings/tablet-pin` (ADMIN; refuses ON without both secrets; OFF is
+always allowed). Screens: tablet Tasks panel and due list (name sheet
+without "Team Member" / "Manager", no-PIN names greyed "No PIN — ask a
+manager", digits-only PIN pad, "Completing as … · Change" chip, shown on
+the due list whenever a reused token is in play, cleared with the token at
+5 minutes idle); desktop checklist picker, due banner and calendar detail
+(PIN dialog, token dropped after 5 minutes idle). `/settings` "Shared
+Tablets" card with per-store readiness lines (information only);
+`/staff/[id]` "Shared-tablet PIN" status and Set / Reset PIN (the PIN and
+its hash are never shown or returned).
+
+Files: 36 in `0064bf9` (+2396/−111), including new `src/lib/tablet-pin*.ts`
+(six), `src/components/tablet-pin/{pin-pad,pin-session}.tsx`, the three new
+routes, `src/app/(app)/settings/tablet-pin-actions.tsx`,
+`src/app/(app)/staff/[id]/pin-control.tsx`, `scripts/verify-tab4-pin.ts`
+and the migration. Checks: verify-tab4-pin 78/78 (part C on dev
+`br-broad-wave-a6vpjdw0`, three runs); re-run on the applied schema:
+verify-chk15 28/28 (A4/A9 widened to the new picker shape, dated note in
+the file), verify-tab3-layout 28/28, verify-tab1-today 13/13,
+verify-tab1c-due-chip 11/11, verify-tab2-messages 23/23,
+verify-tab5-refresh 32/32, verify-tab9-cards 84/84; scoped eslint and
+`npm run build` green. Verified locally only on a mocked temporary `/menu`
+page, deleted before the commit. Follow-up filed: NOTIFY-18 (email a
+manager on repeated lockouts, planned).
+
+**Rollback.** `git revert 0064bf9`. The five columns stay (additive only);
+no code reads them after the revert, so an org left with
+`tabletPinRequired = true` and staff left with PIN hashes are inert. The
+calendar complete route goes back to the "in the org" check and the
+calendar detail back to every active person in the org.
+
+**Staging tests owed (Gary, after push; staging-SHA precondition first).**
+Adjusted from the TAB-4 prompt's draft list to what was built. Before
+pushing: both env vars saved in Preview. (0) The staging build log shows
+`20261111050000_tab4_tablet_pin` applied. (1) Switch off: `/settings`
+"Shared Tablets" reads off; as Tommy (STORE) the tablet name sheet still
+offers "Team Member" and "Manager", and ticks save as before. The calendar
+event detail lists only that store's staff plus corporate. (2) As
+`indianathomas` (ADMIN), set PINs for two staff on `/staff/[id]` (status
+only, never the PIN); the readiness line on `/settings` counts them. Turn
+the switch on. As Tommy: the generic options are gone; a staff member with
+no PIN is greyed "No PIN — ask a manager" and can't be picked. (3) Pick a
+name, enter the correct PIN, tick: it saves with that name (check on
+desktop). On the due list, the "Completing as … · Change" chip shows while
+the token is reused. (4) Enter a wrong PIN 5 times: that name locks for
+5 minutes; one AuditLog row `staff.pin.lockout` exists (Neon console,
+staging, branch named beside the result). Reset that PIN as ADMIN: the lock
+clears. (5) Leave the tablet untouched 5 minutes: the chip clears and the
+next tick asks for a name and PIN again. (6) Tommy in Desktop view: the
+checklist picker, due banner and calendar detail ask for a PIN. As
+`indianathomas` (personal login), nothing asks for a PIN in either view.
+(7) Posting a message still works without a PIN. (8) Turn the switch off
+again unless Gary wants staging left on.
+
+## 8417fc3 — 2026-11-10 — TAB-9: Tablet home scrolls, cards expand in place, overdue list opens in place (HR chip hidden on STORE logins)
+
+**PROMOTED 2026-11-10 in merge `8417fc3`** ("Merge branch 'staging'",
+2026-11-10 19:23:10 -0800 (PST) = 2026-11-11 03:23:10 UTC, read from
+`git show -s --format=%ci 8417fc3`), `--no-ff`. First parent `833e926`
+(prior tip of `main`), second parent `1a0424d` (staging tip, the TAB-9
+PRE-PUSH-CHECK). **The whole Tablet mode series in one merge:** TAB-1,
+TAB-1b, TAB-1c, TAB-2, TAB-2b, TAB-3, TAB-5, TAB-9. **30 commits** in
+`833e926..8417fc3` besides the merge: TAB-1 `adec345`, `d5a9094`,
+`c83a5c3`, `9a4d607`; TAB-1b `9f3c944`, `2757c9d`, `2e21b02`, `e4cdab2`;
+TAB-1c `1f03674`, `d35d034`, `13fd5ea`; TAB-2 `ab80e5b`, `b1dafbd`,
+`35fb734`, `57a879a`; TAB-2b `007dfd0`, `0e9768c`, `318af62`, `1487091`;
+TAB-3 `c38d998`, `d09aa17`, `8332266`; TAB-5 `ab29d62`, `573da37`,
+`81cb5f0`, `446d085`; TAB-9 `44b80c5`, `9253bca`, `5da4897`, `1a0424d`.
+51 files (`git diff --shortstat 8417fc3^1 8417fc3`). **One migration:**
+`20261110200000_tab3_display_layouts` (the TAB-3 entry below). Measured at
+this stamp by `git rev-parse` after `git fetch`: `main` = `origin/main` =
+`staging` (local, fast-forwarded to `main` by this pass) = `8417fc3`;
+`origin/staging` = `1a0424d` until Gary pushes the merge-back. The seven
+other TAB entries below point here. Stamped post-merge 2026-11-10 on
+`staging` (PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-10 — TAB-9: …". Spent, kept below: the "Staging
+only, not on `main`. NOT pushed at writing" line and the "Staging tests
+owed" list.
+
+**Rollback (whole series).** `git revert -m 1 8417fc3`. The TAB-3
+migration only adds two nullable JSONB columns, so leaving it in place
+after a code revert is harmless (additive-only schema).
+
+**Staging verdict (Gary, verbatim, covering every phase in the series):**
+"Everything is tested and working great". Gary's report, not browser
+evidence: no org id or instance was captured with it. **One exception,
+TAB-5 test (6)** (overnight store-local rollover): NOT observed before
+promotion. Gary chose to ship and watch for it; it is owed as a production
+observation (the TAB-5 entry below).
+
+**Production.** The TAB-3 migration applied via vercel-build at `8417fc3`,
+CONFIRMED by Gary 2026-11-10: "Production build log shows
+20261110200000_tab3_display_layouts applied" (`docs/MIGRATIONS.md`). (Was:
+"pending Gary's confirmation from the production build log"; spent.) No post-deploy production check recorded at this
+stamp.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `44b80c5`; docs commit `9253bca`; fix commit `5da4897` (Gary's rulings 8–9
@@ -98,7 +590,24 @@ leave it 5 minutes untouched: the card collapses AND the page returns to the
 top; tick an item from desktop and it appears within about a minute after
 that.
 
-## UNPROMOTED — 2026-11-10 — TAB-5: Tablet home keeps itself current (one refresh controller, store-local day rollover, offline guard)
+## 8417fc3 — 2026-11-10 — TAB-5: Tablet home keeps itself current (one refresh controller, store-local day rollover, offline guard)
+
+**PROMOTED 2026-11-10 in merge `8417fc3`**, with the rest of the Tablet
+mode series (the TAB-9 entry above carries the merge facts). Its commits:
+`ab29d62` (work), `573da37` (docs), `81cb5f0` (fix),
+`446d085` (PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-10 on `staging`
+(PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-10 — TAB-5: …". Spent, kept below: the "Staging only, not on
+`main`. NOT pushed at writing" line and the "Staging tests owed" list.
+Staging: covered by Gary's verdict recorded on the TAB-9 entry above.
+Rollback (whole series): `git revert -m 1 8417fc3`.
+
+**Rider 2026-11-10, promotion: staging test (6) (overnight store-local
+rollover) was NOT observed before promotion.** Gary chose to ship and watch
+for it. It is covered by the `verify-tab5-refresh` fixture and a mocked
+day-change check. **Owed as a production observation** the first morning a
+tablet is left on overnight: without a touch, the header shows the new date
+and the new day's checklist.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `ab29d62`; docs commit `573da37`; fix commit `81cb5f0` (Gary's offline
@@ -179,7 +688,26 @@ iPad's wifi off for 2 minutes with Safari in Tablet mode. The page stays as it
 was (no Safari error page). Turn wifi back on; ticks made elsewhere meanwhile
 appear within a few seconds.
 
-## UNPROMOTED — 2026-11-10 — TAB-3: Display settings — Dashboard and Tablet card picker, tablet stat strip
+## 8417fc3 — 2026-11-10 — TAB-3: Display settings — Dashboard and Tablet card picker, tablet stat strip
+
+**PROMOTED 2026-11-10 in merge `8417fc3`**, with the rest of the Tablet
+mode series (the TAB-9 entry above carries the merge facts). Its commits:
+`c38d998` (work), `d09aa17` (docs), `8332266`
+(PRE-PUSH-CHECK). **One migration**,
+`20261110200000_tab3_display_layouts`. Stamped post-merge 2026-11-10 on `staging`
+(PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-10 — TAB-3: …". Spent, kept below: the "Staging only, not on
+`main`. NOT pushed at writing" line and the "Staging tests owed" list.
+Staging: covered by Gary's verdict recorded on the TAB-9 entry above.
+Rollback (whole series): `git revert -m 1 8417fc3`. The two JSONB columns stay;
+leaving them after a code revert is harmless.
+
+**Migration, production:** applied via vercel-build at `8417fc3` —
+CONFIRMED by Gary 2026-11-10: "Production build log shows
+20261110200000_tab3_display_layouts applied" (`docs/MIGRATIONS.md`). (Was:
+"pending Gary's confirmation from the production build log"; spent.)
+Staging: test (0) (`_prisma_migrations` row with a `finished_at`) was in
+the list Gary's verdict covers; no `finished_at` value was pasted.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `c38d998`; docs commit `d09aa17`; the PRE-PUSH-CHECK is the commit
@@ -248,7 +776,17 @@ show locked; turn on Sales, Goal and Labor % and reorder them; the tablet
 shows the strip below the columns in that order. (6) Turn all three off: no
 strip and no gap below the columns.
 
-## UNPROMOTED — 2026-11-10 — TAB-2b: Tablet mode — no floating help button over Send; Help moves to the rail
+## 8417fc3 — 2026-11-10 — TAB-2b: Tablet mode — no floating help button over Send; Help moves to the rail
+
+**PROMOTED 2026-11-10 in merge `8417fc3`**, with the rest of the Tablet
+mode series (the TAB-9 entry above carries the merge facts). Its commits:
+`007dfd0` (work), `0e9768c` (docs), `318af62` (fix),
+`1487091` (PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-10 on `staging`
+(PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-10 — TAB-2b: …". Spent, kept below: the "Staging only, not on
+`main`. NOT pushed at writing" line and the "Staging tests owed" list.
+Staging: covered by Gary's verdict recorded on the TAB-9 entry above.
+Rollback (whole series): `git revert -m 1 8417fc3`.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `007dfd0`; docs commit `0e9768c`; fix commit `318af62` (Gary's ruling on
@@ -284,7 +822,17 @@ and nothing covers Send. (2) Tap Help in the rail. Help opens, the same as
 the floating button did. (3) Switch to Desktop mode. The floating ? button is
 back in its usual place and works.
 
-## UNPROMOTED — 2026-11-10 — TAB-2: Tablet mode — the Messages column (pinned Corporate Update, chat-order thread, composer, live refresh)
+## 8417fc3 — 2026-11-10 — TAB-2: Tablet mode — the Messages column (pinned Corporate Update, chat-order thread, composer, live refresh)
+
+**PROMOTED 2026-11-10 in merge `8417fc3`**, with the rest of the Tablet
+mode series (the TAB-9 entry above carries the merge facts). Its commits:
+`ab80e5b` (work), `b1dafbd` (docs), `35fb734` (fix),
+`57a879a` (PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-10 on `staging`
+(PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-10 — TAB-2: …". Spent, kept below: the "Staging only, not on
+`main`. NOT pushed at writing" line and the "Staging tests owed" list.
+Staging: covered by Gary's verdict recorded on the TAB-9 entry above.
+Rollback (whole series): `git revert -m 1 8417fc3`.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `ab80e5b`; docs commit `b1dafbd`; fix commit `35fb734` (Gary's rulings 6–8,
@@ -342,7 +890,17 @@ tablet has rendered the message. (6) In Safari Responsive Design Mode at
 the composer is reachable. (7) On a real iPad, tap the composer: the
 composer stays visible above the keyboard.
 
-## UNPROMOTED — 2026-11-10 — TAB-1c: Tablet overdue chip characterized; SELF-1 compliance chip on the tablet
+## 8417fc3 — 2026-11-10 — TAB-1c: Tablet overdue chip characterized; SELF-1 compliance chip on the tablet
+
+**PROMOTED 2026-11-10 in merge `8417fc3`**, with the rest of the Tablet
+mode series (the TAB-9 entry above carries the merge facts). Its commits:
+`1f03674` (work), `d35d034` (docs), `13fd5ea`
+(PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-10 on `staging`
+(PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-10 — TAB-1c: …". Spent, kept below: the "Staging only, not on
+`main`. NOT pushed at writing" line and the "Staging tests owed" list.
+Staging: covered by Gary's verdict recorded on the TAB-9 entry above.
+Rollback (whole series): `git revert -m 1 8417fc3`.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `1f03674`; docs commit `d35d034`; the PRE-PUSH-CHECK is the commit
@@ -386,7 +944,17 @@ appears with the same count as Tommy's desktop banner. (5) Complete the
 reminder from the sheet: the chip count drops, or the chip disappears at
 zero.
 
-## UNPROMOTED — 2026-11-09 — TAB-1b: Tablet "who completed this" parity with desktop + partial submit
+## 8417fc3 — 2026-11-09 — TAB-1b: Tablet "who completed this" parity with desktop + partial submit
+
+**PROMOTED 2026-11-10 in merge `8417fc3`**, with the rest of the Tablet
+mode series (the TAB-9 entry above carries the merge facts). Its commits:
+`9f3c944` (work), `2757c9d` (docs), `2e21b02` (fix),
+`e4cdab2` (PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-10 on `staging`
+(PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-09 — TAB-1b: …". Spent, kept below: the "Staging only, not on
+`main`. NOT pushed at writing" line and the "Staging tests owed" list.
+Staging: covered by Gary's verdict recorded on the TAB-9 entry above.
+Rollback (whole series): `git revert -m 1 8417fc3`.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `9f3c944`; docs commit `2757c9d`; fix commit `2e21b02`; the PRE-PUSH-CHECK
@@ -431,7 +999,17 @@ sends nothing; again → Submit partial: the panel shows "Partial submitted ·
 n of N" and desktop shows the checklist submitted as partial. (6) Reload:
 the chip is gone, and the next tick on a new checklist asks again.
 
-## UNPROMOTED — 2026-11-09 — TAB-1: Tablet mode (Tablet/Desktop switch, rail shell, touch sizes, Tasks column, explicit Submit)
+## 8417fc3 — 2026-11-09 — TAB-1: Tablet mode (Tablet/Desktop switch, rail shell, touch sizes, Tasks column, explicit Submit)
+
+**PROMOTED 2026-11-10 in merge `8417fc3`**, with the rest of the Tablet
+mode series (the TAB-9 entry above carries the merge facts). Its commits:
+`adec345` (work), `d5a9094` (docs), `c83a5c3` (fix),
+`9a4d607` (PRE-PUSH-CHECK). No migration. Stamped post-merge 2026-11-10 on `staging`
+(PROMOTE-DOCS_2026-11-10_TAB); the heading previously read
+"UNPROMOTED — 2026-11-09 — TAB-1: …". Spent, kept below: the "Staging only, not on
+`main`. NOT pushed at writing" line and the "Staging tests owed" list.
+Staging: covered by Gary's verdict recorded on the TAB-9 entry above.
+Rollback (whole series): `git revert -m 1 8417fc3`.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `adec345`; docs commit `d5a9094`; fix commit `c83a5c3`; the PRE-PUSH-CHECK

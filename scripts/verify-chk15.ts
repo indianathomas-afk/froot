@@ -76,8 +76,12 @@ function namesQueryOk(page: string, client: string): boolean {
     !block.includes("status:") &&
     page.includes("staffNames={staffNames}") &&
     /staffById = Object\.fromEntries\(\[\.\.\.staffNames, \.\.\.staff\]/.test(client) &&
-    // the picker still renders only `staff`
-    client.includes("{staff.map((s) => (") &&
+    // the picker still renders only `staff`.
+    // TAB-4, 2026-11-10 — appended: the picker now builds its buttons through
+    // whoOptions(staff.map(…), pinRequired) (src/lib/tablet-pin-options.ts),
+    // so either shape counts as "renders `staff`"; the staffNames refusal is
+    // unchanged.
+    (client.includes("{staff.map((s) => (") || /whoOptions\(\s*staff\.map\(\(s\) => \(/.test(client)) &&
     !client.includes("staffNames.map((s) => (")
   )
 }
@@ -99,7 +103,12 @@ check("A5. NC: guard removed → A1 rejects", routeOrderOk(unguarded), false)
 check("A6. NC: call moved after the create → A1 rejects", routeOrderOk(afterCreate), false)
 check("A7. NC: raw body id saved again → A2 rejects", routeNoRawPath(rawPath), false)
 check("A8. NC: ACTIVE filter removed → A3 rejects", pickerActiveOk(PAGE.replace('      status: "ACTIVE",\n', "")), false)
-check("A9. NC: picker renders staffNames → A4 rejects", namesQueryOk(PAGE, CLIENT.replace("{staff.map((s) => (", "{staffNames.map((s) => (")), false)
+check(
+  "A9. NC: picker renders staffNames → A4 rejects",
+  // TAB-4: the NC swaps whichever picker shape is present (see A4).
+  namesQueryOk(PAGE, CLIENT.replace("{staff.map((s) => (", "{staffNames.map((s) => (").replace(/whoOptions\(\s*staff\.map\(/, "whoOptions(staffNames.map(")),
+  false
+)
 
 // ─── B. DATABASE (dev) ───────────────────────────────────────────────────────
 async function db() {

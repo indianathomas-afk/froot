@@ -84,6 +84,24 @@ check(
 )
 check("4. blank, whitespace-only, or no store → nothing to send", [postBody(LB, ""), postBody(LB, "  \n "), postBody("", "Hi")], [null, null, null])
 check("5. quick replies go to the feed (no reply field exists)", quickReplyTarget(), "feed")
+// TAB-12 (2026-11-11): the home composer posts the type its tag shows (R1);
+// a shift note carries its phase (R6); a General body is unchanged.
+check("5a. TAB-12 — a typed post carries the tag's type, no phase", postBody(LB, " Fryer 2 is down ", "equipment"), {
+  storeId: LB,
+  type: "equipment",
+  body: "Fryer 2 is down",
+})
+check("5b. TAB-12 R6 — a shift note carries its phase", postBody(LB, "Walk-in restocked", "shift_note", "mid"), {
+  storeId: LB,
+  type: "shift_note",
+  body: "Walk-in restocked",
+  shiftPhase: "mid",
+})
+check(
+  "5c. TAB-12 R6 — a shift note with no phase is never sent; a phase on any other type is dropped",
+  [postBody(LB, "Walk-in restocked", "shift_note", null), postBody(LB, "Out of oat milk", "shortage", "mid")],
+  [null, { storeId: LB, type: "shortage", body: "Out of oat milk" }]
+)
 
 console.log("\n2 · The chat-order thread (ruling 6: oldest top, newest bottom)")
 const older = { id: "m1", body: "Truck is late", createdAt: "2026-11-10T14:00:00.000Z" }

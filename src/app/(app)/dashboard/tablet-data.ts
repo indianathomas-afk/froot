@@ -38,8 +38,10 @@ export type TabletChecklist = {
   sections: { key: string; name: string; tasks: TabletTask[] }[]
 }
 
-/** TAB-1b — one name on the "Who's completing these?" sheet. */
-export type TabletStaff = { id: string; displayName: string }
+/** TAB-1b — one name on the "Who's completing these?" sheet.
+ *  TAB-4: `hasPin` (from pinSetAt — never the hash, which nothing but the
+ *  verify route reads) greys out a no-PIN name while PINs are required. */
+export type TabletStaff = { id: string; displayName: string; hasPin: boolean }
 
 export type TabletStore = {
   id: string
@@ -146,14 +148,14 @@ export async function loadTabletData(
           status: "ACTIVE",
           storeAssignments: { some: { storeId: { in: stores.map((s) => s.id) } } },
         },
-        select: { id: true, displayName: true, storeAssignments: { select: { storeId: true } } },
+        select: { id: true, displayName: true, pinSetAt: true, storeAssignments: { select: { storeId: true } } },
         orderBy: { displayName: "asc" },
       })
     : []
   const staffFor = (storeId: string): TabletStaff[] =>
     staffRows
       .filter((m) => m.storeAssignments.some((a) => a.storeId === storeId))
-      .map((m) => ({ id: m.id, displayName: m.displayName }))
+      .map((m) => ({ id: m.id, displayName: m.displayName, hasPin: m.pinSetAt !== null }))
 
   return {
     stores: stores.map((s) => ({

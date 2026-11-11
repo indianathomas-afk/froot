@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from "react"
-import { isBusy, shouldRunCycle, TABLET_REFRESH_MS } from "@/lib/tablet-refresh"
+import { isBusy, shouldRunCycle, skippedOnlyForOffline, TABLET_REFRESH_MS } from "@/lib/tablet-refresh"
 
 // TAB-5 — THE ONE REFRESH CONTROLLER FOR THE TABLET HOME (the rules are pure,
 // in src/lib/tablet-refresh.ts). Until TAB-5 the Messages column (TAB-2) and
@@ -25,6 +25,13 @@ import { isBusy, shouldRunCycle, TABLET_REFRESH_MS } from "@/lib/tablet-refresh"
 // false, because a cycle can end in router.refresh() and a failed refresh is a
 // full browser navigation. The browser's `online` event runs a cycle at once,
 // the way becoming visible does.
+//
+// TAB-8, 2026-11-10 — appended; the paragraph above is kept. No cycle calls
+// router.refresh() any more: the Tasks panel re-reads through
+// GET /api/stores/[id]/tablet-tasks (src/lib/tablet-tasks-refresh.ts), and a
+// failed fetch only keeps what is showing. The guard stays as ruled. A cycle it
+// skips is now reported (`missed`), so the tablet's "Not updated since …" line
+// can show while the browser reports itself offline.
 
 type Loader = () => Promise<unknown>
 export type RefreshCycle = (loaders: Loader[]) => Promise<void>
@@ -71,12 +78,19 @@ export function useBusyFlag(key: string, on: boolean) {
  *  registered loader and does the cycle's work; it runs only when
  *  shouldRunCycle() says so, and never twice at once. A ref, so TabletHome can
  *  build the cycle from the controller it gets back. */
-export function useTabletRefreshController(cycle: RefObject<RefreshCycle | null>): TabletRefresh {
+export function useTabletRefreshController(
+  cycle: RefObject<RefreshCycle | null>,
+  /** TAB-8 — told when a cycle was skipped ONLY because the browser reports
+   *  itself offline (at most once a second), so the tablet can count it as a
+   *  refresh that did not land. The skip itself is unchanged. */
+  missed?: RefObject<(() => void) | null>
+): TabletRefresh {
   const loaders = useRef(new Set<Loader>())
   const flags = useRef(new Map<string, boolean>())
   const writes = useRef(0)
   const refreshing = useRef(false)
   const lastRun = useRef(0)
+  const lastMiss = useRef(0)
 
   const ctl = useMemo<TabletRefresh>(
     () => ({
@@ -112,6 +126,10 @@ export function useTabletRefreshController(cycle: RefObject<RefreshCycle | null>
         online: navigator.onLine !== false,
       }
       const work = cycle.current
+      if (work && skippedOnlyForOffline(state) && Date.now() - lastMiss.current >= 1_000) {
+        lastMiss.current = Date.now()
+        missed?.current?.()
+      }
       if (!work || !shouldRunCycle(state)) return
       if (Date.now() - lastRun.current < 1_000) return
       refreshing.current = true
@@ -135,7 +153,7 @@ export function useTabletRefreshController(cycle: RefObject<RefreshCycle | null>
       window.removeEventListener("focus", onBack)
       window.removeEventListener("online", onBack)
     }
-  }, [ctl, cycle])
+  }, [ctl, cycle, missed])
 
   return ctl
 }
