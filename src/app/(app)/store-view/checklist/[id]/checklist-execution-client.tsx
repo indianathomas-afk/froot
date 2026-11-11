@@ -8,6 +8,8 @@ import { groupTasksBySection } from "@/lib/sections"
 import { checklistState, isCompletedLate } from "@/lib/checklist-lifecycle"
 import { frozenWindow, formatWindowTime, COMPLETED_LATE_BADGE } from "@/lib/checklist-status-display"
 import { HandoffBanner, HandoffComposer, type HandoffTarget } from "./handoff-notes"
+import { PinDialog, usePinSession } from "@/components/tablet-pin/pin-session"
+import { isPinRefusal, whoOptions } from "@/lib/tablet-pin-options"
 
 // CHK-7 — iPhone capture, made sendable. ONE canvas re-encode answers two
 // separate problems: (1) the iPhone default capture format is HEIC, which most
@@ -83,6 +85,20 @@ async function readError(res: Response): Promise<string | null> {
   }
 }
 
+/** TAB-4 — readError plus the route's `code`, so a PIN refusal drops the
+ *  page's session and the next pick asks for the PIN again. */
+async function readErrorBody(res: Response): Promise<{ error: string | null; code: string | null }> {
+  try {
+    const data = await res.json()
+    return {
+      error: typeof data?.error === "string" ? data.error : null,
+      code: typeof data?.code === "string" ? data.code : null,
+    }
+  } catch {
+    return { error: null, code: null }
+  }
+}
+
 interface TaskAttachment {
   id: string
   label: string
@@ -118,6 +134,8 @@ interface TaskLog {
 interface StaffMember {
   id: string
   displayName: string
+  /** TAB-4 — from pinSetAt; the picker list only (staffNames leaves it out). */
+  hasPin?: boolean
 }
 
 interface Props {
@@ -155,9 +173,13 @@ interface Props {
   // CHK-15: names for ticks already saved — display only, never the picker.
   staffNames: StaffMember[]
   handoffTargets: HandoffTarget[]
+  /** TAB-4 — the org switch is on AND this is a STORE login (page.tsx). The
+   *  task-log route enforces it; this decides what the picker asks. False =
+   *  this page is exactly as before TAB-4. */
+  pinRequired?: boolean
 }
 
-export function ChecklistExecutionClient({ checklist, staff, staffNames, handoffTargets }: Props) {
+export function ChecklistExecutionClient({ checklist, staff, staffNames, handoffTargets, pinRequired = false }: Props) {
   const router = useRouter()
   const tasks = checklist.template.tasks
 
@@ -174,6 +196,11 @@ export function ChecklistExecutionClient({ checklist, staff, staffNames, handoff
   })
   // Which task is showing the staff picker
   const [pickingStaffFor, setPickingStaffFor] = useState<string | null>(null)
+  // TAB-4 — a STORE login's PIN session on this page (Q2a: Desktop view too),
+  // and the PIN dialog for the name just picked. Dropped after 5 minutes idle
+  // (design choice #3, accepted by Gary).
+  const pinSession = usePinSession(pinRequired)
+  const [pinTarget, setPinTarget] = useState<{ taskId: string; staffId: string; name: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   // CHK-7 — the photo a crew member shoots, keyed by task. A photo is an
@@ -259,21 +286,35 @@ export function ChecklistExecutionClient({ checklist, staff, staffNames, handoff
   // CHK-7: carries `photoUrl` — the reason that column existed on this route
   // and was never populated — and RETURNS WHETHER THE WRITE LANDED so callers
   // can put the screen back instead of showing a tick the record does not have.
-  async function logTask(taskId: string, staffId?: string, photoUrl?: string | null): Promise<boolean> {
+  async function logTask(taskId: string, staffId?: string, photoUrl?: string | null, pinToken?: string | null): Promise<boolean> {
     let res: Response
     try {
       res = await fetch(`/api/checklists/${checklist.id}/task-log`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ taskId, completedByStaffId: staffId ?? null, photoUrl: photoUrl ?? null }),
+        // TAB-4: the PIN token rides on a tick when this page holds one.
+        body: JSON.stringify({
+          taskId,
+          completedByStaffId: staffId ?? null,
+          photoUrl: photoUrl ?? null,
+          ...(pinToken ? { pinToken } : {}),
+        }),
       })
     } catch {
       setTaskError(taskId, "That did not save — no connection. Check the store's wifi and tap it again.")
       return false
     }
     if (!res.ok) {
-      setTaskError(taskId, (await readError(res)) ?? `That did not save (error ${res.status}). Tap it again.`)
+      const refused = await readErrorBody(res)
+      // TAB-4: a stale or mismatched token — drop it so the next pick asks.
+      if (isPinRefusal(refused.code)) pinSession.clear()
+      setTaskError(taskId, refused.error ?? `That did not save (error ${res.status}). Tap it again.`)
       return false
+    }
+    // TAB-4 Q8 — sliding: swap in the fresh 10 minutes.
+    if (pinToken && staffId) {
+      const saved = await res.json().catch(() => ({}))
+      pinSession.swap(staffId, (saved as { pinToken?: unknown }).pinToken)
     }
     setTaskError(taskId, null)
     return true
@@ -346,7 +387,9 @@ export function ChecklistExecutionClient({ checklist, staff, staffNames, handoff
       })
     } else {
       // Show staff picker (or complete directly if no staff)
-      if (staff.length > 0) {
+      // TAB-4: while PINs are required it always asks — an unnamed tick from
+      // this login is refused (Q7).
+      if (pinRequired || staff.length > 0) {
         setPickingStaffFor(taskId)
       } else {
         setCompleted((prev) => new Set([...prev, taskId]))
@@ -355,14 +398,28 @@ export function ChecklistExecutionClient({ checklist, staff, staffNames, handoff
         })
       }
     }
-  }, [completed, staff, isClosedFact, staffMap, photoUrls])
+  }, [completed, staff, isClosedFact, staffMap, photoUrls, pinRequired])
 
-  async function selectStaff(taskId: string, staffId: string) {
+  async function selectStaff(taskId: string, staffId: string, name?: string) {
     setPickingStaffFor(null)
+    // TAB-4: while PINs are required a name needs its PIN, unless this page
+    // already holds a live token for that person at this store.
+    let token: string | null = null
+    if (pinRequired) {
+      token = pinSession.tokenFor(staffId, checklist.storeId)
+      if (!token) {
+        setPinTarget({ taskId, staffId, name: name ?? "This person" })
+        return
+      }
+    }
+    await commitStaff(taskId, staffId, token)
+  }
+
+  async function commitStaff(taskId: string, staffId: string, token: string | null) {
     setCompleted((prev) => new Set([...prev, taskId]))
     setStaffMap((prev) => ({ ...prev, [taskId]: staffId }))
     // CHK-7: the photo staged on this task rides along on the completion write.
-    const ok = await logTask(taskId, staffId, photoUrls[taskId])
+    const ok = await logTask(taskId, staffId, photoUrls[taskId], token)
     if (!ok) {
       setCompleted((prev) => { const n = new Set(prev); n.delete(taskId); return n })
       setStaffMap((prev) => { const n = { ...prev }; delete n[taskId]; return n })
@@ -592,29 +649,32 @@ export function ChecklistExecutionClient({ checklist, staff, staffNames, handoff
                           <p className="text-xs font-medium text-[var(--color-foreground)] mb-2 flex items-center gap-1">
                             <User className="h-3.5 w-3.5" /> Who completed this task?
                           </p>
+                          {/* TAB-4: one list for every picker
+                              (src/lib/tablet-pin-options.ts). PINs off: Team
+                              Member, Manager, then the staff — as before.
+                              PINs on (STORE login): no generics (Q7), a no-PIN
+                              name greyed and unpickable (Q6). */}
                           <div className="grid grid-cols-2 gap-1.5">
-                            <button
-                              onClick={() => selectStaff(task.id, "manager")}
-                              className="text-sm py-2 px-3 bg-white border border-[var(--color-border)] rounded-md hover:border-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors text-left"
-                            >
-                              Team Member
-                            </button>
-                            <button
-                              onClick={() => selectStaff(task.id, "manager")}
-                              className="text-sm py-2 px-3 bg-white border border-[var(--color-border)] rounded-md hover:border-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors text-left"
-                            >
-                              Manager
-                            </button>
-                            {staff.map((s) => (
+                            {whoOptions(
+                              staff.map((s) => ({ id: s.id, displayName: s.displayName, hasPin: !!s.hasPin })),
+                              pinRequired
+                            ).map((o) => (
                               <button
-                                key={s.id}
-                                onClick={() => selectStaff(task.id, s.id)}
-                                className="text-sm py-2 px-3 bg-white border border-[var(--color-border)] rounded-md hover:border-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors text-left"
+                                key={o.key}
+                                disabled={o.disabled}
+                                onClick={() => !o.disabled && selectStaff(task.id, o.id, o.label)}
+                                className="text-sm py-2 px-3 bg-white border border-[var(--color-border)] rounded-md hover:border-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors text-left disabled:opacity-50 disabled:hover:border-[var(--color-border)] disabled:hover:bg-white"
                               >
-                                {s.displayName}
+                                {o.label}
+                                {o.note && <span className="block text-xs text-[var(--color-muted-foreground)]">{o.note}</span>}
                               </button>
                             ))}
                           </div>
+                          {pinRequired && !staff.some((s) => s.hasPin) && (
+                            <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">
+                              Nobody at this store can be picked yet. Ask a manager to set a PIN for each person on their staff page.
+                            </p>
+                          )}
                           <button
                             onClick={() => setPickingStaffFor(null)}
                             className="mt-2 text-xs text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] w-full text-center"
@@ -727,6 +787,17 @@ export function ChecklistExecutionClient({ checklist, staff, staffNames, handoff
           )}
         </div>
       </div>
+      {/* TAB-4 — the PIN for the name just picked; on success the tick goes. */}
+      <PinDialog
+        target={pinTarget ? { staffId: pinTarget.staffId, storeId: checklist.storeId, name: pinTarget.name } : null}
+        onClose={() => setPinTarget(null)}
+        onVerified={(session) => {
+          const t = pinTarget
+          setPinTarget(null)
+          pinSession.setSession(session)
+          if (t) void commitStaff(t.taskId, t.staffId, session.token)
+        }}
+      />
     </div>
   )
 }

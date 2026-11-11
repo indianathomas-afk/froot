@@ -1,6 +1,9 @@
 import { auth } from "@clerk/nextjs/server"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
+import { pinGateApplies } from "@/lib/tablet-pin-gate"
+import { loadPinStaffByStore } from "@/lib/tablet-pin-staff"
+import type { PinStaff } from "@/lib/tablet-pin-options"
 import { businessDayWindow } from "@/lib/reports"
 import { isOverdue, isCompletedLate } from "@/lib/checklist-lifecycle"
 import { frozenWindow, STATE_BADGES, COMPLETED_LATE_BADGE } from "@/lib/checklist-status-display"
@@ -36,17 +39,20 @@ const STATUS_STYLES: Record<string, { label: string; classes: string }> = {
   Missed: { label: STATE_BADGES.missed!.label, classes: STATE_BADGES.missed!.classes },
 }
 
+/** TAB-4 — no PIN flow (the early returns, and every non-STORE login). */
+const NO_PIN: { pinRequired: boolean; pinStaffByStore: Record<string, PinStaff[]> } = { pinRequired: false, pinStaffByStore: {} }
+
 async function getChecklists(requestedStoreId: string | undefined) {
   // CHK-4: taken before the early returns so every branch hands back the same
   // shape — the render destructures `now` and an empty branch that omitted it
   // would be a type error rather than a missing badge.
   const now = new Date()
   const { orgId } = await auth()
-  if (!orgId) return { checklists: [], stores: [], lockedStoreId: null, selectedStoreId: "all", now }
+  if (!orgId) return { checklists: [], stores: [], lockedStoreId: null, selectedStoreId: "all", now, pin: NO_PIN }
   const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
-  if (!org) return { checklists: [], stores: [], lockedStoreId: null, selectedStoreId: "all", now }
+  if (!org) return { checklists: [], stores: [], lockedStoreId: null, selectedStoreId: "all", now, pin: NO_PIN }
 
-  const { isAdmin, storeIds } = await getUserStoreScope()
+  const { isAdmin, storeIds, role } = await getUserStoreScope()
 
   // Stores visible in the filter dropdown — admins see everything, everyone else
   // only ever sees their own assignments.
@@ -96,7 +102,16 @@ async function getChecklists(requestedStoreId: string | undefined) {
     orderBy: { date: "desc" },
   })
 
+  // TAB-4 — the due banner's PIN flow for a STORE login while the switch is
+  // on; the names are only loaded then.
+  const pinRequired = pinGateApplies(org, role)
+  const pin = {
+    pinRequired,
+    pinStaffByStore: pinRequired ? await loadPinStaffByStore(org.id, stores.map((s) => s.id)) : {},
+  }
+
   return {
+    pin,
     checklists,
     stores,
     lockedStoreId: !isAdmin && storeIds.length === 1 ? storeIds[0] : null,
@@ -114,13 +129,13 @@ export default async function ChecklistsPage({
   searchParams: Promise<{ store?: string }>
 }) {
   const { store } = await searchParams
-  const { checklists, stores, lockedStoreId, selectedStoreId, now } = await getChecklists(store)
+  const { checklists, stores, lockedStoreId, selectedStoreId, now, pin } = await getChecklists(store)
 
   return (
     <div>
       {/* CAL-1. This is the NAV-1 "Daily Tasks" target — where STORE and STAFF
           land — so the reminder banner belongs here as much as on /dashboard. */}
-      <CalendarDueBanner />
+      <CalendarDueBanner pinRequired={pin.pinRequired} pinStaffByStore={pin.pinStaffByStore} />
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-[var(--color-foreground)]">Daily Checklists</h1>
         <p className="text-sm text-[var(--color-muted-foreground)] mt-1">

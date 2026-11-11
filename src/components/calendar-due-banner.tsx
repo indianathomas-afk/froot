@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from "react"
 import { AlertTriangle, CalendarClock, Check, ChevronDown } from "lucide-react"
+import { PinDialog, WhoDialog, usePinSession } from "@/components/tablet-pin/pin-session"
+import { isPinRefusal, type PinSession, type PinStaff } from "@/lib/tablet-pin-options"
 
 // ── CAL-1: THE DUE-REMINDER BANNER ───────────────────────────────────────────
 //
@@ -136,9 +138,25 @@ function chipsFor(items: DueItem[], nowIso: string): StoreChip[] {
   )
 }
 
-export function CalendarDueBanner() {
+export function CalendarDueBanner({
+  pinRequired = false,
+  pinStaffByStore = {},
+}: {
+  /** TAB-4 — the org switch is on AND this is a STORE login. The complete
+   *  route enforces it; this decides whether Complete asks for a name + PIN.
+   *  False (the default, every existing mount) = exactly CAL-2c's banner. */
+  pinRequired?: boolean
+  /** TAB-4 — each store's pickable names with hasPin (lib/tablet-pin-staff). */
+  pinStaffByStore?: Record<string, PinStaff[]>
+} = {}) {
   const [data, setData] = useState<DueResponse | null>(null)
   const [completing, setCompleting] = useState<string | null>(null)
+  // TAB-4 — a STORE login's PIN session (dropped after 5 minutes idle, design
+  // choice #3), the name and PIN dialogs, and a refusal's sentence.
+  const pinSession = usePinSession(pinRequired)
+  const [whoFor, setWhoFor] = useState<{ itemId: string; storeId: string } | null>(null)
+  const [pinTarget, setPinTarget] = useState<{ itemId: string; staffId: string; storeId: string; name: string } | null>(null)
+  const [pinError, setPinError] = useState<string | null>(null)
   const [caughtUp, setCaughtUp] = useState(false)
   // Whether this session has ever SEEN something due. The "all caught up" state
   // fires only on a non-empty → empty TRANSITION, so a first load with nothing
@@ -193,14 +211,47 @@ export function CalendarDueBanner() {
     }
   }, [])
 
-  async function complete(id: string) {
+  async function complete(id: string, verified?: PinSession) {
+    // TAB-4 (Q7): while PINs are required a completion names a verified person
+    // for the item's store — the live session if it is for that store, else
+    // the name dialog, then the PIN.
+    let who: PinSession | null = null
+    if (pinRequired) {
+      const item = data?.items.find((i) => i.id === id)
+      if (!item) return
+      const live = pinSession.session && pinSession.session.storeId === item.storeId ? pinSession.session : null
+      who = verified ?? live
+      if (!who) {
+        setWhoFor({ itemId: id, storeId: item.storeId })
+        return
+      }
+    }
     setCompleting(id)
+    setPinError(null)
     const res = await fetch(`/api/calendar/occurrences/${id}/complete`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      // Switch off: `{}`, exactly as before TAB-4.
+      body: JSON.stringify(who ? { completedByStaffId: who.staffId, pinToken: who.token } : {}),
     }).catch(() => null)
     setCompleting(null)
+    // TAB-4: with PINs on, a refusal says why (the off path stays silent, as
+    // it always was), and a success swaps in the fresh token (Q8).
+    if (who) {
+      if (!res) {
+        setPinError("That didn't save — no connection. Check the store's wifi and try again.")
+        return
+      }
+      if (res.ok) {
+        const saved = (await res.json().catch(() => ({}))) as { pinToken?: unknown }
+        pinSession.swap(who.staffId, saved.pinToken)
+      } else if (res.status !== 409) {
+        const body = (await res.json().catch(() => ({}))) as { error?: unknown; code?: unknown }
+        if (isPinRefusal(body.code)) pinSession.clear()
+        setPinError(typeof body.error === "string" ? body.error : `That didn't save (error ${res.status}).`)
+        return
+      }
+    }
     // A 409 means somebody else got there first — the right response is to
     // re-read, not to argue with the floor about who tapped first.
     if (!res?.ok && res?.status !== 409) return
@@ -299,6 +350,45 @@ export function CalendarDueBanner() {
       }`}
       role="status"
     >
+      {/* TAB-4 — whose PIN is in play, and why a completion was refused. */}
+      {pinRequired && (pinSession.session || pinError) && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+          {pinSession.session && (
+            <p>
+              Completing as <span className="font-semibold">{pinSession.session.label}</span>
+              <button type="button" onClick={pinSession.clear} className="ml-2 min-h-[44px] underline underline-offset-2">
+                Change
+              </button>
+            </p>
+          )}
+          {pinError && <p role="alert" className="font-medium">{pinError}</p>}
+        </div>
+      )}
+      {pinRequired && (
+        <>
+          <WhoDialog
+            open={!!whoFor}
+            staff={whoFor ? (pinStaffByStore[whoFor.storeId] ?? []) : []}
+            onClose={() => setWhoFor(null)}
+            onPick={(o) => {
+              const t = whoFor
+              setWhoFor(null)
+              if (!t) return
+              setPinTarget({ itemId: t.itemId, staffId: o.id, storeId: t.storeId, name: o.label })
+            }}
+          />
+          <PinDialog
+            target={pinTarget}
+            onClose={() => setPinTarget(null)}
+            onVerified={(session) => {
+              const t = pinTarget
+              setPinTarget(null)
+              pinSession.setSession(session)
+              if (t) void complete(t.itemId, session)
+            }}
+          />
+        </>
+      )}
       <div className="flex items-center gap-3">
         {overdue ? <AlertTriangle className="h-5 w-5 shrink-0" /> : <CalendarClock className="h-5 w-5 shrink-0" />}
         <div className="min-w-0 flex-1">

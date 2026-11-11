@@ -32,7 +32,16 @@ export type StoreOption = { id: string; name: string }
  *  because two stores in different zones are not on the same day, and the grid
  *  marks today for whichever one is selected. */
 export type CalendarStoreOption = StoreOption & { today: string }
-export type StaffOption = { id: string; name: string }
+export type StaffOption = {
+  id: string
+  name: string
+  /** TAB-4 — the person's stores and corporate flag, so the detail offers only
+   *  names the complete route accepts for that store (CHK-15 parity, Q7). */
+  storeIds?: string[]
+  isCorporate?: boolean
+  /** TAB-4 — from pinSetAt, never the hash. */
+  hasPin?: boolean
+}
 
 type EventRow = {
   id: string
@@ -183,6 +192,7 @@ export function CalendarClient({
   canManage,
   isMultiStore,
   staff,
+  pinRequired = false,
 }: {
   stores: CalendarStoreOption[]
   /** The org-local date (Organization.timezone -> DEFAULT_TIME_ZONE), used only
@@ -195,6 +205,8 @@ export function CalendarClient({
   isAdmin: boolean
   isMultiStore: boolean
   staff: StaffOption[]
+  /** TAB-4 — a STORE login while the org switch is on (calendar/page.tsx). */
+  pinRequired?: boolean
 }) {
   const [storeId, setStoreId] = useState<string>(stores[0]?.id ?? "")
   // The grid opens on the month the SELECTED store is actually in. Initialised
@@ -656,6 +668,7 @@ export function CalendarClient({
           }
           stores={stores}
           staff={staff}
+          pinRequired={pinRequired}
           canManage={canManage}
           isAdmin={isAdmin}
           categoryLabel={categoryLabel(detailEvent.category)}

@@ -40,6 +40,8 @@ import { getRaiseEligibility, getRaiseSettings, raiseHiddenForViewer, redactForV
 import { getManualRaiseDates, getRaiseDetailVisibility } from "@/lib/raise-history"
 import { RaiseCard } from "../raise-badge"
 import { LastRaiseControl } from "./last-raise-control"
+import { PinControl } from "./pin-control"
+import { decidePinAccess, staffLoginRole } from "@/lib/tablet-pin-access"
 
 // HR-1 shell, progressively filled: Overview (HR-1), Notes (HR-2), Documents
 // (HR-4), Training (HR-6/7), Compliance (HR-8).
@@ -203,6 +205,29 @@ export default async function StaffDetailPage({
   // Stores available in the Edit dialog — scoped like the rest of the app:
   // ADMIN sees all org stores, MANAGER only their own.
   const { isAdmin, storeIds: viewerStoreIds } = await getUserStoreScope()
+  // TAB-4 (Q5) — may this viewer set or reset this person's PIN? The same
+  // rule PUT /api/staff/[id]/pin applies (src/lib/tablet-pin-access.ts), so
+  // the button shows exactly when the route would accept it. "Has a PIN" is
+  // pinSetAt; the hash is never read here (or anywhere but the verify route).
+  const pinAccess =
+    canManage && dbUser
+      ? decidePinAccess(
+          {
+            role: dbUser.role,
+            isAdmin,
+            storeIds: viewerStoreIds,
+            selfStaffId:
+              dbUser.role === "MANAGER"
+                ? await resolveSelfStaff(org.id, dbUser).then((r) => (r.ok ? r.staffMember.id : null))
+                : null,
+          },
+          {
+            id: member.id,
+            storeIds: member.storeAssignments.map((a) => a.storeId),
+            loginRole: isAdmin ? null : await staffLoginRole(org.id, member),
+          }
+        )
+      : null
   const editStores = canManage
     ? await prisma.store.findMany({
         where: {
@@ -824,6 +849,19 @@ export default async function StaffDetailPage({
                 <dt className="text-[var(--color-muted-foreground)]">Email</dt>
                 <dd className="text-[var(--color-foreground)] font-medium">{member.email ?? "—"}</dd>
               </div>
+              {/* TAB-4 (Q5). Status only — never the PIN. Shown to staff
+                  managers; the button only to a viewer the route allows. */}
+              {canManage && (
+                <div>
+                  <dt className="text-[var(--color-muted-foreground)]">Shared-tablet PIN</dt>
+                  <dd className="mt-0.5 flex flex-wrap items-center gap-2 text-[var(--color-foreground)] font-medium">
+                    {member.pinSetAt ? "PIN set" : "No PIN"}
+                    {pinAccess?.ok && (
+                      <PinControl staffId={member.id} displayName={member.displayName} hasPin={member.pinSetAt !== null} />
+                    )}
+                  </dd>
+                </div>
+              )}
               {/* MS-1. A CIVIL DATE (@db.Date) — formatCivilDate, never the
                   member's zone, which would shift it a day back. */}
               <div>

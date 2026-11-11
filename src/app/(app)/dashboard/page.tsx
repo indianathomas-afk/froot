@@ -1,6 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
+import { pinGateApplies } from "@/lib/tablet-pin-gate"
+import { loadPinStaffByStore } from "@/lib/tablet-pin-staff"
 import { getUserStoreScope, laborModuleAvailable } from "@/lib/auth"
 import { dashboardAnchorTimeZone, dashboardHeaderDate } from "@/lib/reports"
 import { can } from "@/lib/permissions"
@@ -115,6 +117,9 @@ async function getDashboardData() {
     tabletLayout: org.tabletLayout,
     // TAB-9 fix: the login's role, for the tablet HR chip only.
     role,
+    // TAB-4: the PIN flow runs for a STORE login while the org switch is on
+    // (Q2a). The routes enforce it; this only decides what the screen asks.
+    pinRequired: pinGateApplies(org, role),
   }
 }
 
@@ -133,7 +138,15 @@ export default async function DashboardPage() {
     // TAB-3: the stat strip's tiles, in the ADMIN's order (all off by default).
     // Per-viewer gates are the summary payload's, applied in the strip.
     // TAB-9 fix: `role` only hides the personal HR chip on a STORE login.
-    return <TabletHome stores={tablet.stores} checklists={tablet.checklists} stripTiles={stripTileKeys(data.tabletLayout)} role={data.role} />
+    return (
+      <TabletHome
+        stores={tablet.stores}
+        checklists={tablet.checklists}
+        stripTiles={stripTileKeys(data.tabletLayout)}
+        role={data.role}
+        pinRequired={data.pinRequired}
+      />
+    )
   }
 
   // BUG-15. The header date is formatted HERE, in each store's own zone, and
@@ -143,6 +156,8 @@ export default async function DashboardPage() {
   // date uses the same zone rule as /api/dashboard/rollup.
   const now = new Date()
   const rollupHeaderDate = dashboardHeaderDate(now, dashboardAnchorTimeZone(stores))
+  // TAB-4 — the due banner's names, only while a STORE login needs PINs.
+  const pinStaffByStore = data.pinRequired ? await loadPinStaffByStore(data.orgId, stores.map((s) => s.id)) : {}
 
   return (
     <>
@@ -154,7 +169,7 @@ export default async function DashboardPage() {
       <ComplianceBanner />
       {/* CAL-1. Below SELF-1's: a person owing training and a store owing a
           reminder are different obligations, and the personal one reads first. */}
-      <CalendarDueBanner />
+      <CalendarDueBanner pinRequired={data.pinRequired} pinStaffByStore={pinStaffByStore} />
       <DashboardClient
         stores={stores.map((s) => ({
           id: s.id,

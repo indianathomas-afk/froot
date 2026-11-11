@@ -3,6 +3,8 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { getUserStoreScope } from "@/lib/auth"
 import { calendarDenialBody, calendarDenialStatus, requireCalendar } from "@/lib/calendar-access"
+import { resolveTaskLogStaff } from "@/lib/task-log-staff"
+import { checkPinGate } from "@/lib/tablet-pin-gate"
 
 // CAL-1 — COMPLETING AN OCCURRENCE.
 //
@@ -39,6 +41,8 @@ const bodySchema = z.object({
   notes: z.string().trim().max(2000).nullish(),
   photoUrl: z.string().trim().url().max(2000).nullish(),
   completedByStaffId: z.string().nullish(),
+  // TAB-4: the PIN token, required from a STORE login while the switch is on.
+  pinToken: z.string().nullish(),
 })
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -87,7 +91,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // THE TASK-LOG GATE, VERBATIM (task-log/route.ts:23-26). Store-level users
   // must still be able to complete their own store's work; an admin is
   // unrestricted.
-  const { isAdmin, storeIds, dbUser } = await getUserStoreScope()
+  const { isAdmin, storeIds, dbUser, role } = await getUserStoreScope()
   if (!isAdmin && !storeIds.includes(occurrence.storeId)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
@@ -108,15 +112,43 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // A staff attribution must belong to this org. Never trusted from the client
   // without that check — it is the one id in this body that names a person.
+  //
+  // TAB-4 (Gary, 2026-11-10, Q7) — CHK-15 PARITY, appended rather than
+  // rewriting the sentence above. This used to check the org and nothing else,
+  // so a terminated person, or one from another store, could be named here
+  // while task-log refused them. It now uses task-log's own resolver
+  // (src/lib/task-log-staff.ts): in the org, ACTIVE, and assigned to the
+  // occurrence's store or corporate. For EVERY login, switch on or off. The
+  // cross-org refusal reads the same as an unknown id, as it does there.
   let completedByStaffId: string | null = null
   if (body.completedByStaffId) {
-    const staff = await prisma.staffMember.findFirst({
-      where: { id: body.completedByStaffId, organizationId: access.org.id },
-      select: { id: true },
+    const resolved = await resolveTaskLogStaff({
+      organizationId: access.org.id,
+      storeId: occurrence.storeId,
+      staffId: body.completedByStaffId,
     })
-    if (!staff) return NextResponse.json({ error: "That staff member is not in this organization" }, { status: 400 })
-    completedByStaffId = staff.id
+    if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: 400 })
+    completedByStaffId = resolved.staffId
   }
+
+  // TAB-4 — THE PIN GATE, the same one task-log applies (src/lib/tablet-pin-gate.ts).
+  // While the switch is on, a STORE login must name a real person and carry
+  // that person's PIN token for this store; unnamed is refused, missing secrets
+  // refuse (503). Before the write, so a refusal changes nothing.
+  const pinOrg = await prisma.organization.findUnique({
+    where: { id: access.org.id },
+    select: { id: true, tabletPinRequired: true },
+  })
+  if (!pinOrg) return NextResponse.json({ error: "Org not found" }, { status: 404 })
+  const gate = checkPinGate({
+    org: pinOrg,
+    role,
+    userId: dbUser?.id,
+    storeId: occurrence.storeId,
+    staffId: completedByStaffId,
+    token: body.pinToken,
+  })
+  if (!gate.ok) return NextResponse.json({ error: gate.error, code: gate.code }, { status: gate.status })
 
   // updateMany FILTERED ON status: "Open" — the 409 above is the friendly
   // answer, this is the RACE-PROOF one. Two simultaneous requests both pass the
@@ -144,5 +176,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // it on its next run, from nextDueDate() against this row's dueDate — one
   // author for every occurrence write, so "one open occurrence per event per
   // store" has one place to be enforced.
-  return NextResponse.json(updated)
+  // TAB-4 Q8 — sliding: a gated completion hands back a fresh 10 minutes.
+  return NextResponse.json(gate.freshToken ? { ...updated, pinToken: gate.freshToken } : updated)
 }

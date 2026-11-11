@@ -1,5 +1,5 @@
 import type { IngredientNutrition, Prisma } from "@prisma/client"
-import { prisma } from "@/lib/prisma"
+import { prisma, type Db } from "@/lib/prisma"
 import { NUTRIENT_KEYS } from "@/lib/nutrition"
 import { isDownloadOnly } from "@/lib/nutrition-files"
 import { proofState, staleAt } from "@/lib/nutrition-proof"
@@ -97,7 +97,7 @@ export const INBOX_ENTITY = "NutritionLabelInbox"
 export type NutritionAuditEntity = "Ingredient" | typeof INBOX_ENTITY
 
 export function nutritionAudit(
-  tx: Prisma.TransactionClient,
+  tx: Db,
   ctx: Pick<NutritionContext, "org" | "dbUser">,
   action: NutritionAuditAction,
   entityId: string | null,

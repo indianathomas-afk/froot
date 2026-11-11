@@ -1,5 +1,5 @@
-import type { Allergen, Prisma } from "@prisma/client"
-import { prisma } from "@/lib/prisma"
+import type { Allergen } from "@prisma/client"
+import { prisma, type Db } from "@/lib/prisma"
 import type { NutrientValues } from "@/lib/nutrition"
 import { resolveServing, type ItemOverride, type ServingSpec } from "@/lib/nutrition-label"
 import { itemVerification, type ItemVerification } from "@/lib/nutrition-proof"
@@ -18,7 +18,7 @@ export type ServingSettings = {
 }
 
 // `db` lets scripts/verify-n2-label.ts read inside its rolled-back transaction.
-export async function loadServingSettings(organizationId: string, db: Prisma.TransactionClient = prisma): Promise<ServingSettings> {
+export async function loadServingSettings(organizationId: string, db: Db = prisma): Promise<ServingSettings> {
   const [org, sizes] = await Promise.all([
     db.organization.findUnique({ where: { id: organizationId }, select: { nutritionServingFlOz: true } }),
     db.nutritionSizeVolume.findMany({ where: { organizationId }, select: { variationName: true, volumeFlOz: true } }),
