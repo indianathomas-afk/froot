@@ -26486,7 +26486,16 @@ phases:
     # pushed). The docs SHA is the commit immediately after 25f823c (its own
     # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
     # No migration. Rollback: `git revert 25f823c`.
-    status: in_progress
+    # in_progress -> staging 2026-11-11 at the TAB-12 PRE-PUSH-CHECK (the
+    # commit immediately after 5b0060f; its own SHA cannot be written inside
+    # itself). Docs SHA: 5b0060f (this row, DECISIONS DRAFT). The check
+    # committed the prompt of record docs/prompts/TAB-12.md and wrote the
+    # DEPLOY_LOG UNPROMOTED entry. DECISIONS 2026-11-11 TAB-12 (R1–R6, how
+    # each is met, the design choices) RATIFIED by Gary at this check:
+    # "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" and
+    # "untracked until PRE-PUSH-CHECK" are spent, kept. No migration.
+    # Rollback stays `git revert 25f823c`. NOT pushed at writing.
+    status: staging
     title: "Tablet home — choose a message type (type tag in the composer)"
     commits:
       - "25f823c"
@@ -26496,6 +26505,10 @@ phases:
       # lib/tablet-messages.ts postBody(type, phase), verify-tab2 +3 checks
       # + the commit immediately after 25f823c: docs(TAB-12) — this row,
       # DECISIONS DRAFT
+      - "5b0060f"
+      # + the commit immediately after 5b0060f: docs(TAB-12) PRE-PUSH-CHECK —
+      # DECISIONS ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
     notes: >
       ── BUILD 2026-11-11 (TAB-12). ──
       BUILT, not yet checked on staging. TIER 2: no schema, migration,

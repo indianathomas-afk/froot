@@ -2,6 +2,66 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-11 — TAB-12: Tablet home — choose a message type (type tag in the composer)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`25f823c`, docs `5b0060f`; the PRE-PUSH-CHECK is the commit immediately
+after `5b0060f`. **TIER 2:** a type tag on the tablet home's existing
+message box. No migration, no env var, no permission, no cron, no API
+route, no Square call. DECISIONS 2026-11-11 TAB-12 (R1–R6 and the design
+choices) RATIFIED by Gary at this check: "Ratify as written". Prompt of
+record `docs/prompts/TAB-12.md`, committed at this check.
+
+**Blast radius: the tablet home's Messages column, plus a move under
+tablet `/messages`.** Both render only when `getViewMode()` is "tablet";
+Desktop mode is untouched. TAB-11's Type button and picker moved verbatim
+out of `messages-tablet.tsx` into the shared `messages/type-picker.tsx`
+(variant "feed"); that move is the one way Team Messages can regress, so
+staging test 8 checks it. Nothing new writes: the home's Send goes through
+the same POST `/api/messages`, now carrying `type` (and `shiftPhase` for a
+shift note only). Quick replies send exactly the General body they sent
+before.
+
+**What ships.** A 44px tag inside the "Message the team…" box, top-left,
+starting at General (R1). It opens a picker that spans the Messages column,
+opens upward, never flips under the keyboard, and caps its height at the
+visible space above the tag: 48px rows in 2 columns (1 if too narrow),
+General first, focus kept in the box. R6: Shift Note is a full-width row of
+Opening / Mid / Closing; one tap sets type + phase and the tag reads
+"Shift Note · Mid". The tag returns to General with no phase after every
+post (R3); quick replies always post General and leave the tag alone (R2).
+Home thread rows show a 26px type badge after "Name · time" for
+non-General messages only (R4).
+
+Files: 5 in `25f823c` (+403/−79): new
+`src/app/(app)/messages/type-picker.tsx`; changed
+`messages/messages-tablet.tsx`, `dashboard/tablet-messages.tsx`,
+`src/lib/tablet-messages.ts` (`postBody(type, phase)`),
+`scripts/verify-tab2-messages.ts` (+3 checks). Checks: scoped eslint 0
+problems, `npm run build` green, `verify-tab2-messages` ALL PASS. Verified
+locally only on a temporary mocked `/menu` page, deleted before the commit,
+at 1180x820, 1133x744, 1024x768, 820x1180 and 744x1133: no sideways
+scroll, every picker control ≥ 44px, box stays 56px, Shift Note · Mid →
+POST `{type shift_note, shiftPhase mid}` → badge and tag back to General,
+Shortage + "Done" → Done posts General and the tag stays Shortage, picker
+fully visible with a simulated keyboard. Known: at 1024px landscape the
+placeholder ellipsizes beside the tag, a Shift Note tag truncates, and the
+picker's phase buttons wrap under the label. Not observed: real staging
+data, a real iPad, a real keyboard.
+
+**Rollback.** `git revert 25f823c`. No schema or data to undo. The home
+box loses its tag and posts General only; Team Messages goes back to its
+inline picker, which renders the same. Messages already posted with a type
+keep it, as any desktop-typed message does.
+
+**Staging tests owed (Gary, iPad, Tablet mode, after push; staging-SHA
+precondition first).** The ten in `docs/prompts/TAB-12.md` § Staging
+tests — tag at rest, picker open/close, Equipment post and badge, feed
+filter, Shortage + "Done" posts General, no badge on General, keyboard,
+Team Messages unchanged, Desktop unchanged, portrait — plus Gary's test 11:
+pick Shift Note · Mid, post, and confirm it shows a Shift Note badge on the
+home and files under Mid on Team Messages.
+
 ## UNPROMOTED — 2026-11-11 — TAB-11: Team Messages in Tablet mode (touch two-pane in landscape, one column in portrait)
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit

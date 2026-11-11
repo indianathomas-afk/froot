@@ -7,6 +7,15 @@ decisions too.)
 
 ## 2026-11-11 — TAB-12: Tablet home — choose a message type, rulings R1–R6 — DRAFT
 
+**RATIFIED BY GARY, 2026-11-11, at the TAB-12 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: R1–R5 as the prompt words them,
+now confirmed as his; R6 as quoted; how each is met; and the calls marked
+*(design choice)*, all now ratified as his. The heading's "DRAFT", the
+"DRAFT, awaiting Gary's ratification" line, "whether each sentence is
+literally Gary's is for him to confirm" and "(untracked until
+PRE-PUSH-CHECK)" are spent, kept; `docs/prompts/TAB-12.md` is committed at
+this check. Docs commit: `5b0060f`. Wording untouched.
+
 **DRAFT, awaiting Gary's ratification at the TAB-12 PRE-PUSH-CHECK.** Prompt of
 record: `docs/prompts/TAB-12.md` (untracked until PRE-PUSH-CHECK). Work commit
 `25f823c`. TIER 2. R1–R5 are copied from the prompt, which heads them
