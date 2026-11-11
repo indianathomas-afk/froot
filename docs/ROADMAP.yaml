@@ -26269,6 +26269,10 @@ phases:
     # pushed). The docs SHA is the commit immediately after e12bc2d (its own
     # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging.
     # No migration. Rollback: `git revert e12bc2d`.
+    # 2026-11-11: fix commit 742f98d on Gary's ruling before PRE-PUSH-CHECK;
+    # docs SHA fbb30e3, and the fix's docs are the commit immediately after
+    # 742f98d. Still in_progress. The rollback above is superseded:
+    # `git revert 742f98d e12bc2d` (fix first, then work).
     status: in_progress
     title: "Tablet expanded Sales card — transactions and average sale"
     commits:
@@ -26278,7 +26282,40 @@ phases:
       # and Average sale rows + DeltaText, verify-tab10
       # + the commit immediately after e12bc2d: docs(TAB-10) — this row,
       # DECISIONS DRAFT
+      - "fbb30e3"
+      # fix(TAB-10) — desktop Sales Performance card: Average sale "—" with
+      # no percentage at 0 transactions; verify-tab10 section 7
+      - "742f98d"
+      # + the commit immediately after 742f98d: docs(TAB-10) — this row's
+      # fix rider, DECISIONS DRAFT addendum
     notes: >
+      ── RIDER 2026-11-11, TAB-10 fix (prepended; nothing below is edited). ──
+      Gary's ruling on the report's RULING NOW, quoted: "On the desktop card,
+      Average sale shows "—" and no percentage when today has 0
+      transactions, the same as the tablet. Transactions keeps its pill."
+      Built in fix commit 742f98d.
+      WHAT SHIPS: sales-performance-card.tsx, the Average sale MiniMetric's
+      baseline is null when the selection has no average (0 transactions),
+      so no pill renders; the value already read "—". Before, it measured 0
+      against last year's average (▼100.0%). Transactions, Gross and the
+      headline unchanged. Applies to any selection with 0 transactions, not
+      only Today (design choice: a closed past day showed the same
+      ▼100.0%). The build rider's "desktop shows ▼100.0% there" below is
+      superseded, kept.
+      FIXTURES: verify-tab10 50/50 (section 4 pins the card's diff since
+      885d65f to that one line and its comment; new section 7 with negative
+      controls against e12bc2d's card and an old-baseline mutant; dev
+      br-broad-wave-a6vpjdw0 parity 28 comparisons, 0 mismatches). Siblings
+      re-run unchanged: tab1-today 13/13, tab1c 11/11, tab2 23/23, tab3
+      28/28, tab4 78/78, tab5 32/32, tab7 88/88, tab8 114/114, tab9 84/84,
+      goal-engine 15/15, f4-rollup-webhook 24/24, bug20 21/21. Build green;
+      scoped eslint 0 problems. Local check on a temporary page under /menu
+      rendering the real card over a stubbed /api/dashboard/sales, deleted
+      before the commit: 0 transactions → "TRANSACTIONS 0 ▼ 100.0%",
+      "AVERAGE SALE —" with no pill; 9 transactions → ▲5.9% / $11.88 ▲1.0%.
+      STAGING TEST ADDED (5): desktop Sales Performance on Today before the
+      store's first sale (with last year having sales by then): Average sale
+      reads "—" with no pill; Transactions shows 0 and its ▼.
       ── RIDER 2026-11-11, TAB-10 build (prepended; nothing below is edited). ──
       BUILT, not yet checked on staging. TIER 2: no schema, migration,
       permission, env var, cron or new Square call. Prompt

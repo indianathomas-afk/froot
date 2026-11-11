@@ -88,6 +88,20 @@ no new Square call or timer, and on dev (`br-broad-wave-a6vpjdw0`, read-only)
 against the desktop's for the same store and moment, 0 mismatches (NC: a
 whole-day order baseline differs from the same-time one).
 
+**Addendum 2026-11-11 — the desktop Average sale at 0 transactions (TAB-10
+fix, fix commit `742f98d`).** Gary's ruling on the report's RULING NOW,
+verbatim: "On the desktop card, Average sale shows "—" and no percentage when
+today has 0 transactions, the same as the tablet. Transactions keeps its
+pill." Built: the desktop Sales Performance card's Average sale baseline is
+null when the selection has no average, so `DeltaPill` renders nothing; the
+value already read "—". Transactions, Gross and the headline are unchanged.
+The first departure above ("desktop shows ▼100.0% there") is superseded,
+kept. The "known difference" above is unchanged: at 0 transactions desktop
+shows no pill and the tablet shows a "—" pill. *(design choice: the rule
+applies to any selection with 0 transactions, not only Today, because a
+closed past day showed the same ▼100.0%; the card computes one average per
+window and has no today-only branch.)* `scripts/verify-tab10.ts` 50/50.
+
 ## 2026-11-11 — TAB-7: today's sales vs last year at the same time of day — DRAFT
 
 **RATIFIED BY GARY, 2026-11-11, at the TAB-7 PRE-PUSH-CHECK:** "Ratify as
