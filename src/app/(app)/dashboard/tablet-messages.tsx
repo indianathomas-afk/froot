@@ -6,7 +6,8 @@ import { ArrowRight, Paperclip, Pin, Play, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import { MessageAttachments, type FeedAttachment, type FeedMessage } from "@/app/(app)/messages/messages-client"
+import { MessageAttachments, TYPE_META, type FeedAttachment, type FeedMessage } from "@/app/(app)/messages/messages-client"
+import { MessageTypePicker } from "@/app/(app)/messages/type-picker"
 import {
   QUICK_REPLIES,
   chatOrder,
@@ -65,8 +66,18 @@ import { timeAgo, type Comms } from "./dashboard-client"
 // strip, under the same ruling 8 rule; a send in flight now holds the whole
 // page's cycle, not just this column's. The REFRESH_MS line that stood here
 // is spent.
+//
+// ── TAB-12, 2026-11-11 (Gary, R1–R6; DECISIONS 2026-11-11 TAB-12). The
+// composer posts with a type: a tag inside the message box, starting at
+// General, opens TAB-11's type picker (shared, ../messages/type-picker.tsx).
+// Quick replies always post General and leave the draft's tag alone (R2);
+// the tag returns to General after every composer post (R3); only non-General
+// messages show a type badge in this thread (R4); type only — no ingredient
+// link (R5); Shift Note picks its phase inside the picker (R6). The "type
+// "general"" in the endpoint list above now holds for quick replies only.
 
 export function MessagesColumn({ storeId }: { storeId: string }) {
+  const columnRef = useRef<HTMLElement>(null)
   // ── Pinned Corporate Update + unread count (the desktop card's endpoint) ──
   // undefined = loading, null = failed. A failure only hides the pinned card
   // and the count; the thread has its own read. A failed REFRESH keeps what
@@ -165,13 +176,17 @@ export function MessagesColumn({ storeId }: { storeId: string }) {
 
   // ── The composer ──
   const [draft, setDraft] = useState("")
+  // TAB-12: the draft's type (R1) and, for a shift note, its phase (R6).
+  const [draftType, setDraftType] = useState("general")
+  const [draftPhase, setDraftPhase] = useState<string | null>(null)
   // Which control is sending, for its label; null when idle.
   const [sending, setSending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function send(text: string, source: "composer" | "quick") {
     if (sendingRef.current) return
-    const payload = postBody(storeId, text)
+    // R2: a quick reply is always General, whatever the draft's tag says.
+    const payload = source === "composer" ? postBody(storeId, text, draftType, draftPhase) : postBody(storeId, text)
     if (!payload) return
     sendingRef.current = true
     ctl?.setBusy("messages:send", true)
@@ -204,7 +219,12 @@ export function MessagesColumn({ storeId }: { storeId: string }) {
       }
       const posted = (await res.json()) as FeedMessage
       setThread((prev) => withPosted(prev ?? [], posted))
-      if (source === "composer") setDraft("")
+      if (source === "composer") {
+        setDraft("")
+        // R3: back to General, no phase, after every post.
+        setDraftType("general")
+        setDraftPhase(null)
+      }
       showNewest()
     } finally {
       sendingRef.current = false
@@ -227,6 +247,7 @@ export function MessagesColumn({ storeId }: { storeId: string }) {
 
   return (
     <section
+      ref={columnRef}
       className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)]"
       // The iPad keyboard: lift the composer by exactly what the keyboard
       // covers (visualViewport), so it stays above it. 0 with no keyboard.
@@ -293,24 +314,41 @@ export function MessagesColumn({ storeId }: { storeId: string }) {
             void send(draft, "composer")
           }}
         >
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              // Return sends (a hardware keyboard, or the iPad's Return key);
-              // Shift+Return keeps a line break.
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault()
-                void send(draft, "composer")
-              }
-            }}
-            rows={1}
-            maxLength={2000}
-            placeholder="Message the team…"
-            aria-label="Message"
-            enterKeyHint="send"
-            className="max-h-36 min-h-14 flex-1 resize-none rounded-3xl border border-[var(--color-border)] bg-[var(--color-background)] px-5 py-3.5 text-lg text-[var(--color-foreground)] placeholder:text-[var(--color-muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40"
-          />
+          {/* TAB-12: the box is this wrapper; the type tag sits inside it,
+              top-left, and the text wraps beside it. */}
+          <div className="flex max-h-36 min-h-14 min-w-0 flex-1 items-start rounded-3xl border border-[var(--color-border)] bg-[var(--color-background)] focus-within:ring-2 focus-within:ring-[var(--color-primary)]/40">
+            <div className="max-w-[62%] shrink-0 py-[5px] pl-[5px]">
+              <MessageTypePicker
+                variant="home"
+                type={draftType}
+                shiftPhase={draftPhase}
+                onPick={(t, phase) => {
+                  setDraftType(t)
+                  setDraftPhase(phase)
+                }}
+                boundaryRef={columnRef}
+                keyboardInset={inset}
+              />
+            </div>
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                // Return sends (a hardware keyboard, or the iPad's Return key);
+                // Shift+Return keeps a line break.
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault()
+                  void send(draft, "composer")
+                }
+              }}
+              rows={1}
+              maxLength={2000}
+              placeholder="Message the team…"
+              aria-label="Message"
+              enterKeyHint="send"
+              className="max-h-[142px] min-h-[54px] min-w-0 flex-1 resize-none bg-transparent pt-[14px] pr-2.5 pb-3 pl-1 text-lg text-[var(--color-foreground)] placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap placeholder:text-[var(--color-muted-foreground)] focus:outline-none"
+            />
+          </div>
           <Button
             type="submit"
             size="touch"
@@ -429,6 +467,7 @@ function Thread({ thread, onRetry }: { thread: FeedMessage[] | null | undefined;
             <p className="text-lg">
               <span className="font-bold text-[var(--color-foreground)]">{m.author.name}</span>
               <span className="text-[var(--color-muted-foreground)]"> · {timeAgo(m.createdAt)}</span>
+              <TypeBadge type={m.type} />
             </p>
             <div
               className={cn(
@@ -448,6 +487,23 @@ function Thread({ thread, onRetry }: { thread: FeedMessage[] | null | undefined;
         </li>
       ))}
     </ol>
+  )
+}
+
+// TAB-12 R4 — only a non-General message shows its type, so the home reads
+// as it did until someone flags a note. An unknown type shows nothing.
+function TypeBadge({ type }: { type: string }) {
+  if (type === "general") return null
+  const meta = TYPE_META[type]
+  if (!meta) return null
+  return (
+    <span
+      data-testid="tablet-type-badge"
+      className="ml-2 inline-flex h-[26px] items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-secondary)] px-2.5 align-middle text-sm font-[650] text-[var(--color-foreground)]"
+    >
+      <meta.icon className="h-[15px] w-[15px] shrink-0" />
+      {meta.label}
+    </span>
   )
 }
 

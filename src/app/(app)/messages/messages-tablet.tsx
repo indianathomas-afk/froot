@@ -19,7 +19,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   AlertDialog,
@@ -54,6 +53,7 @@ import {
   type CorpUpdate,
   type FeedMessage,
 } from "./messages-client"
+import { MessageTypePicker, TABLET_TYPE_ORDER } from "./type-picker"
 
 // TAB-11, 2026-11-11 — Team Messages in Tablet mode (Claude Design canvas
 // "Froot Tablet Messages", frames "A · Option 2"). Gary's rulings R1–R5
@@ -78,8 +78,8 @@ import {
 // in portrait the header band also folds away while typing so the feed keeps
 // some room (the same choice TAB-2's Messages column makes).
 
-/** R3 — General first, then desktop's order for the rest. */
-const TABLET_TYPE_ORDER = ["general", "shift_note", "shortage", "equipment", "customer_feedback", "staffing", "shoutout"]
+// R3's TABLET_TYPE_ORDER (General first) and the Type button + picker moved
+// to ./type-picker.tsx in TAB-12, shared with the tablet home's composer.
 
 const STATUS_OPTIONS = [
   { value: "all", label: "Any status" },
@@ -584,10 +584,7 @@ function TabletComposer({
     setUploading: c.setUploading,
     onError: c.setError,
   })
-  const [pickerOpen, setPickerOpen] = useState(false)
   const boxRef = useRef<HTMLTextAreaElement>(null)
-  const meta = TYPE_META[c.type] ?? TYPE_META.general
-  const TypeIcon = meta.icon
 
   // The message box grows with its text, to about four lines, then scrolls.
   useLayoutEffect(() => {
@@ -729,55 +726,7 @@ function TabletComposer({
 
       {/* Row 2 — type, attachments, Post */}
       <div className="flex items-center gap-2">
-        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              data-testid="tablet-type-button"
-              className="inline-flex h-12 shrink-0 items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-secondary)] px-4 data-[state=open]:border-[var(--color-primary)]"
-            >
-              <span className="text-[15px] text-[var(--color-muted-foreground)]">Type</span>
-              <TypeIcon className="h-[18px] w-[18px] text-[var(--color-foreground)]" />
-              <span className="text-base font-bold text-[var(--color-foreground)]">{meta.label}</span>
-              {pickerOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent
-            side="top"
-            align="start"
-            sideOffset={8}
-            className="w-[440px] max-w-[calc(100vw-7rem)] rounded-2xl p-4"
-          >
-            <p className="mb-3 text-[15px] font-semibold text-[var(--color-muted-foreground)]">Message type</p>
-            <div className="grid grid-cols-2 gap-2">
-              {TABLET_TYPE_ORDER.map((t) => {
-                const m = TYPE_META[t]
-                const active = c.type === t
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => {
-                      c.setType(t)
-                      setPickerOpen(false)
-                    }}
-                    className={cn(
-                      "flex h-[52px] items-center gap-3 rounded-xl border px-4 text-[17px] font-semibold transition-colors",
-                      active
-                        ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
-                        : "border-[var(--color-border)] text-[var(--color-foreground)] active:bg-[var(--color-accent)]"
-                    )}
-                  >
-                    <m.icon className="h-5 w-5 shrink-0" />
-                    <span className="flex-1 text-left">{m.label}</span>
-                    {active && <Check className="h-5 w-5 shrink-0" />}
-                  </button>
-                )
-              })}
-            </div>
-          </PopoverContent>
-        </Popover>
+        <MessageTypePicker variant="feed" type={c.type} onPick={c.setType} />
 
         <button type="button" aria-label="Photo" className={pill} onClick={picker.openPhoto} disabled={c.uploading}>
           <Camera className="h-[18px] w-[18px]" />

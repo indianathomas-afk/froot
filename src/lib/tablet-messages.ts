@@ -40,11 +40,17 @@ export type QuickReply = (typeof QUICK_REPLIES)[number]
 
 /** The body POST /api/messages receives for a typed or quick-reply message.
  *  `null` means there is nothing to send (blank after trimming), which the
- *  route would refuse anyway (`body: z.string().trim().min(1)`). */
-export function postBody(storeId: string, text: string): { storeId: string; type: "general"; body: string } | null {
+ *  route would refuse anyway (`body: z.string().trim().min(1)`).
+ *  TAB-12: the composer passes the type its tag shows (R1); quick replies
+ *  pass nothing and stay General (R2). A shift note carries its phase (R6 —
+ *  the route refuses a shift note without one); no other type sends a phase,
+ *  and a General post's body is exactly what it was before TAB-12. */
+export type PostBody = { storeId: string; type: string; body: string; shiftPhase?: string }
+export function postBody(storeId: string, text: string, type: string = "general", shiftPhase: string | null = null): PostBody | null {
   const body = text.trim()
   if (!storeId || body.length === 0) return null
-  return { storeId, type: "general", body }
+  if (type === "shift_note") return shiftPhase ? { storeId, type, body, shiftPhase } : null
+  return { storeId, type, body }
 }
 
 /** Where a quick reply goes. Always the feed: there is no reply field to
