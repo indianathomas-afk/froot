@@ -2,6 +2,82 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-11 — TAB-13: Tablet home — checklist switcher on the hero (Design Option 1)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`993977f`, docs `b106aa7`; the PRE-PUSH-CHECK is the commit immediately
+after `b106aa7`. **TIER 2:** a tab row and a re-coloured hero on the tablet
+home's Tasks panel. No migration, no env var, no permission, no cron, no
+API route, no Square call. DECISIONS 2026-11-11 TAB-13 (R1–R8, RN-1–RN-7,
+Gary's additions 1–3, the design choices) RATIFIED by Gary at this check:
+"Ratify as written". Prompt of record `docs/prompts/TAB-13.md`, committed
+at this check; audit `docs/prompts/TAB-13_AUDIT.md`. The main → staging
+catch-up (`c21fe51`) is NOT in this push; it is left for the next
+promotion, on Gary's instruction.
+
+**Blast radius: the tablet home's Tasks panel (`TasksPanel` in
+`dashboard/tablet-home.tsx`) and the tablet home's portrait grid column.**
+Both render only when `getViewMode()` is "tablet"; Desktop Home imports no
+changed file. The hero reads the same list it read before, GET
+`/api/stores/[id]/templates` (RN-4) — no new query and no new fetch. Tab
+taps make no request and do not change the URL. Start still creates the
+checklist row through the existing path, Start / Continue open the
+existing inline tick list in the card, and View opens the existing Done
+screen (RN-1, RN-5). Nothing navigates. The one shared piece is the new
+`src/lib/checklist-types.ts`, which nothing outside the tablet home reads
+yet.
+
+**What ships.** With two or more checklists today, a row of 84px tabs sits
+above the hero, one per checklist, in RN-3 order: in progress, due now,
+upcoming, completed (Missed never shows, as before). Each tab has a type
+icon chip, the uppercase type name and "X of Y" or "Done"; the selected
+tab is filled with its type colour; the row scrolls sideways when the tabs
+don't fit (about 2½ at landscape). The hero takes the selected checklist's
+type colour, ink and icon: Due / Completed chip, type name, "N tasks ·
+status", an "X of Y done" bar, and Start / Continue / View. The auto-pick
+follows live data until a tab is tapped or a checklist is opened; opening
+counts as a manual pick, so the card never swaps under an open tick list
+or Done screen (addition 1). Reload, store change or day change reset to
+auto. Same-type duplicates show the template name (RN-6). One checklist →
+no tab row; none → the existing empty state, unchanged. The type key
+(`checklistTypeStyle`, keyed on the TemplateType name, Closer → Closing,
+unknown → grey clipboard-check) is ready for the Checklists-page phase.
+
+Files: 6 in `993977f` (+779/−104): new `src/lib/checklist-types.ts`,
+`dashboard/tablet-checklist-switcher.tsx`,
+`scripts/verify-tab13-switcher.ts` (24 checks); changed
+`dashboard/tablet-home.tsx` (TasksPanel and the portrait
+`grid-cols-[minmax(0,1fr)]` only), `src/lib/tablet-today.ts`
+(`orderTodayChecklists`, switcher state), `scripts/verify-tab10.ts` (check
+3c pinned to TAB-10's work commit, RN-7). Checks reported by the build
+session: `npm run build` green, scoped eslint clean,
+verify-tab13-switcher, verify-tab1-today, verify-tab8 and verify-tab10 all
+pass. Verified locally only on a temporary mocked `/menu` page (no org, no
+Clerk session), deleted before the commit, at 1106x834, 936x768, 746x1194
+and 656x1133. Contrast on fills: Mid-Shift 3.51, Cleaning 3.36, grey 4.25
+(large-text pass; every line on a fill ≥ 20px bold), Closer 5.75, Opener
+8.71, Management 14.6. Not observed: real staging data, a real iPad,
+Desktop Home screenshots (code-path evidence only).
+
+**Known, not fixed (Gary's addition 3).** DEBT-130: the tablet type
+colours ignore the admin-chosen TemplateType `colorKey`. DEBT-131: a
+Completed checklist is still editable at `/store-view/checklist/[id]`,
+which is why View opens the Done screen. DEBT-132: the templates route's
+`taskCount` ignores per-store exclusions, so an unstarted checklist's
+total can change on Start.
+
+**Rollback.** `git revert 993977f`. No schema or data to undo. The tablet
+home goes back to the single orange hero picked by `pickTodayChecklist`.
+Checklist rows started from the new hero are ordinary rows and stay.
+
+**Staging tests owed (Gary, iPad, Tablet mode, after push; staging-SHA
+precondition first; org `org_3G02wO4QlVVSWppi8aqlnSZnsDa`, Clerk
+`verified-snapper-7`).** Gate 3 checks 1–8 of `docs/prompts/TAB-13.md` on
+real data — tab order and selection (Carson if it has several checklists
+today), switching with no request, Start / Continue / View targets, store
+switch resets, one / none, unmapped type grey, Desktop Home unchanged with
+before/after screenshots, portrait fit.
+
 ## UNPROMOTED — 2026-11-11 — TAB-12: Tablet home — choose a message type (type tag in the composer)
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit

@@ -7,6 +7,15 @@ decisions too.)
 
 ## 2026-11-11 — TAB-13: Tablet home — checklist switcher on the hero, rulings R1–R8, RN-1–RN-7 — DRAFT
 
+**RATIFIED BY GARY, 2026-11-11, at the TAB-13 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: R1–R8 with RN-1–RN-7 as
+recorded, his additions 1–3 as quoted, how each is met, and the calls
+marked *(design choice)*, all now ratified as his. The heading's "DRAFT",
+the "DRAFT, awaiting Gary's ratification of THIS WORDING" line and
+"(untracked until PRE-PUSH-CHECK)" are spent, kept;
+`docs/prompts/TAB-13.md` is committed at this check. Docs commit:
+`b106aa7`. Wording untouched.
+
 **DRAFT, awaiting Gary's ratification of THIS WORDING at the TAB-13
 PRE-PUSH-CHECK.** The rulings themselves were ratified in session (quoted
 below); what the check ratifies is that this entry records them faithfully.

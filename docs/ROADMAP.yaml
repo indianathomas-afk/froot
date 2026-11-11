@@ -26565,7 +26565,18 @@ phases:
     # what that means until the code is on staging (docs/WORKFLOW.md session
     # completion rule 2, and the TAB-11 / TAB-12 precedent). Not promoted.
     # No migration. Rollback: `git revert 993977f`.
-    status: in_progress
+    # in_progress -> staging 2026-11-11 at the TAB-13 PRE-PUSH-CHECK (the
+    # commit immediately after b106aa7; its own SHA cannot be written inside
+    # itself). Docs SHA: b106aa7 (this row, DEBT-130/131/132, DECISIONS
+    # DRAFT, the audit). The check committed the prompt of record
+    # docs/prompts/TAB-13.md and wrote the DEPLOY_LOG UNPROMOTED entry.
+    # DECISIONS 2026-11-11 TAB-13 (R1–R8, RN-1–RN-7, additions 1–3, the
+    # design choices) RATIFIED by Gary at this check: "Ratify as written".
+    # The notes' "DRAFT until PRE-PUSH-CHECK" and "untracked until
+    # PRE-PUSH-CHECK" are spent, kept. No migration. Rollback stays
+    # `git revert 993977f`. The main -> staging catch-up (c21fe51) is left
+    # for the next promotion, on Gary's instruction. NOT pushed at writing.
+    status: staging
     title: "Tablet home — checklist switcher on the hero (Design Option 1)"
     commits:
       - "993977f"
@@ -26576,6 +26587,10 @@ phases:
       # (new, 24 checks), verify-tab10 check 3c pinned (RN-7)
       # + the commit immediately after 993977f: docs(TAB-13) — this row,
       # DEBT-130/131/132, DECISIONS DRAFT, the audit
+      - "b106aa7"
+      # + the commit immediately after b106aa7: docs(TAB-13) PRE-PUSH-CHECK —
+      # DECISIONS ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
     deferred:
       - The Checklists page in the type colours (later phase; the type key is ready for it)
       - A read-only view of a completed checklist (DEBT-131)
