@@ -2,6 +2,84 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-11 — TAB-14: Tablet Checklists page — type-first, this store only
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`500037a`, docs `c8bff9f`; the PRE-PUSH-CHECK is the commit immediately
+after `c8bff9f`. **TIER 2:** a tablet-only branch of `/checklists`. No
+migration, no env var, no permission, no cron, no Square call, no write
+route; one ADDITIVE field on a read-only route. DECISIONS 2026-11-11 TAB-14
+(R1–R9, RN-1–RN-7 including the `verify-tab8` A4/A5 change, Gary's
+amendments at "go", the design choices) RATIFIED by Gary at this check:
+"Ratify as written". Prompt of record `docs/prompts/TAB-14.md`, committed
+at this check; audit `docs/prompts/TAB-14_AUDIT.md`.
+
+**Blast radius: tablet-mode `/checklists`, plus three shared pieces.**
+`checklists/page.tsx` returns the new `ChecklistsTablet` only when
+`getViewMode()` is "tablet", before any desktop code runs; the desktop
+page's diff is additions only. Shared, with desktop unchanged by
+construction: (1) `CalendarDueBanner` gains an optional `storeId` and joins
+the tablet refresh cycle only inside a `TabletRefreshProvider` — both
+desktop mounts (`/dashboard`, `/checklists`) pass neither; (2) GET
+`/api/stores/[id]/templates` returns `expectedStartAt` from the window it
+already computes (no new query; every other caller ignores the key);
+(3) tablet Home's Start POST, its RN-6 title rule and `dueLabel` moved into
+`src/lib/checklist-start.ts`, `checklist-types.ts` and `tablet-today.ts`
+with no behaviour change (RN-2) — pinned equal to Home's old code by
+`verify-tab14-checklists` cases 13 and 26.
+
+**What ships.** On a tablet, `/checklists` shows today's checklists for
+THIS tablet's store only (the store tablet Home and the rail resolve; no
+picker, no store names), from tablet Home's list, so an unstarted
+checklist appears too. Tiles in TAB-13's RN-3 order (in progress, due now,
+upcoming); completed fold into a "Done today" row with View. Each tile: a
+band in the type's colour with icon, type name (RN-6), the template name
+as a second line when it doesn't already say the type (Closer = Closing),
+"N tasks", and a Due chip or "Opens <time>" in the store's zone; below,
+status, "X of Y done", a bar in the type colour, one Start / Continue
+button. Start with no row creates it as tablet Home does, then opens
+`/store-view/checklist/[id]`; Continue and View link there. Landscape two
+columns (titles 60px), portrait one column with the band sideways (48px).
+The overdue banner shows this store's items only, same actions, hidden
+when none. The page re-reads on tablet Home's 60s cycle (list, banner,
+ticks) with Home's "Not updated since …" line.
+
+Files: 12 in `500037a` (+1055/−57): new `checklists/checklists-tablet.tsx`,
+`src/lib/checklist-start.ts`, `scripts/verify-tab14-checklists.ts` (32
+checks); changed `checklists/page.tsx`, `dashboard/tablet-home.tsx`
+(moves only), `components/calendar-due-banner.tsx`, the templates and
+tablet-tasks routes (one field; one comment), `src/lib/checklist-types.ts`,
+`tablet-due.ts`, `tablet-today.ts`, `scripts/verify-tab8.ts` (A4 allows
+the new caller; A5 pins TAB-8's own diff, `29abe48`→`c18b0d7` — RN-7).
+Checks at this PRE-PUSH-CHECK: `npm run build` green;
+verify-tab14-checklists 32/32, verify-tab13-switcher, verify-tab1-today,
+verify-tab8 114/114, verify-tab10 50/50, all exit 0. Verified locally only
+on a temporary mocked `/menu` page (signed out, no org), deleted before the
+commit, at 1194x834 and 834x1194. Not observed: real staging data, a real
+iPad, the after shots.
+
+**Known, not fixed.** DEBT-131: View opens the editable execution page.
+DEBT-130: type colours ignore the admin-chosen TemplateType colour.
+DEBT-132: an unstarted tile's task count can change on Start. DEBT-133
+(new): the tablet Done screen's "Up next" button says Start on an
+in-progress checklist (label only; predates TAB-13).
+
+**Rollback.** `git revert 500037a`. No schema or data to undo; tablet
+`/checklists` goes back to the desktop list in the rail, and tablet Home
+keeps its inline copies. Rows started from the new tiles are ordinary
+rows and stay.
+
+**Staging tests owed (after Gary's push; staging-SHA precondition first;
+org `org_3G02wO4QlVVSWppi8aqlnSZnsDa`, Clerk `verified-snapper-7`; after
+shots at 834px, as the Gate 0 before shots).** Gate 5 of
+`docs/prompts/TAB-14.md`: one store at Las Brisas; RN-3 order + Done
+today; Start creates and opens, Continue, View; banner Las Brisas only or
+hidden; Overdue Test's template line (Completed on staging, so in Done
+today); desktop `/checklists` unchanged vs the before shot; tablet Home's
+Start still POSTs 201 and opens the tick list in the card, and the TAB-13
+tabs still swap the hero (RN-2 addition). Gary on the iPad: portrait, and
+a second store if available.
+
 ## def04fa — 2026-11-11 — TAB-13: Tablet home — checklist switcher on the hero (Design Option 1)
 
 **PROMOTED 2026-11-11 in merge `def04fa`** (`def04fa30532a459e039af9609143930f5b4bb99`,

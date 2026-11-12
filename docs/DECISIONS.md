@@ -5,7 +5,17 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
-## 2026-11-11 — TAB-14: Tablet Checklists page, type-first, this store only — rulings R1–R9, RN-1–RN-6 — DRAFT
+## 2026-11-11 — TAB-14: Tablet Checklists page, type-first, this store only — rulings R1–R9, RN-1–RN-7 — DRAFT
+
+**RATIFIED BY GARY, 2026-11-11, at the TAB-14 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: R1–R9 and RN-1–RN-6 as
+recorded with his amendments at "go" as quoted, the Gate 5 addition,
+**RN-7 (the `verify-tab8.ts` A4/A5 change to another phase's test)**, and
+the calls marked *(design choice)*, all now ratified as his. The heading's
+"DRAFT", the "DRAFT, awaiting Gary's ratification of THIS WORDING" line,
+"(untracked until PRE-PUSH-CHECK)" and RN-7's "AWAITING GARY'S
+RATIFICATION … NOT RATIFIED" are spent, kept; `docs/prompts/TAB-14.md` is
+committed at this check. Docs commit: `c8bff9f`. Wording untouched.
 
 **DRAFT, awaiting Gary's ratification of THIS WORDING at the TAB-14
 PRE-PUSH-CHECK.** The rulings themselves were ratified in session (quoted
@@ -85,14 +95,38 @@ his amendments are quoted verbatim below.
   Gary at "go", verbatim: "change to (b). Reuse Home's background refresh on
   the tablet page. Tablets get left on this page, and "Opens <time>" and the
   order must stay current."
-- **RN-7 — `scripts/verify-tab8.ts` checks A4 and A5** (proposed at Gate 3;
-  Gary: **"Ratify as recommended"**). Both are TAB-8's own scope pins, tripped
-  by rulings above, not by a defect. A4's list of callers of the
-  tablet-tasks route gains the tablet Checklists page (RN-6 makes it one).
-  A5 compares TAB-8's work commit `c18b0d7` with its parent `29abe48`
-  instead of the working tree, so it pins TAB-8's own diff and no longer
-  fails on a later phase's edit (RN-1's field) — TAB-13 RN-7's pattern for
-  `verify-tab10`. 114/114 after the change.
+- **RN-7 — `scripts/verify-tab8.ts` checks A4 and A5 — AWAITING GARY'S
+  RATIFICATION at the TAB-14 PRE-PUSH-CHECK. NOT RATIFIED.** It changes
+  another phase's test. History: proposed at Gate 3; Gary replied "Ratify as
+  recommended", and the change was made in work commit `500037a`. At the
+  PRE-PUSH-CHECK Gary asked for it to be recorded here for his ratification
+  "the way RN-7 was" (TAB-13's RN-7, `verify-tab10` check 3c) and said "Don't
+  treat it as ratified yet." Both checks are TAB-8's own scope pins; neither
+  failure was a defect.
+  - **A4, before** (`verify-tab8.ts` at `adc0f9e`, line 150): every file in
+    `src/` that names the tablet-tasks route or its reader must be exactly
+    tablet Home and `src/lib/tablet-tasks-refresh.ts`. **Why it failed:** RN-6
+    as amended reuses Home's refresh on the tablet Checklists page, which
+    re-reads through that route (`checklists-tablet.tsx:144`), so the page is
+    a third caller. **Now** (line 155): the same check with
+    `src/app/(app)/checklists/checklists-tablet.tsx` added to the allowed
+    list; any other caller still fails, and A4's negative check ("a desktop
+    file calling it → caught") still passes.
+  - **A5, before** (lines 168-172): `git diff` from TAB-8's base `29abe48` to
+    the WORKING TREE over nine files (the desktop dashboard page, tablet-data,
+    the execution page and client, dashboard-client, the templates route, and
+    the task-log / submit / create write routes) must be empty. **Why it
+    failed:** RN-1 as amended adds `expectedStartAt` to the templates route
+    (`route.ts:149`), and any later edit to any of the nine files would fail
+    it the same way: it pinned "nothing changed since TAB-8", not "TAB-8
+    changed nothing". **Now** (lines 69, 178-186): the same nine files, diffed
+    from `29abe48` to TAB-8's work commit `c18b0d7` (its parent is `29abe48`,
+    checked), so it pins TAB-8's own diff; its negative check now asks that
+    the same diff sees a file TAB-8 did change (tablet-home.tsx). TAB-13 RN-7's
+    pattern.
+  - **Not the RN-2 refactor.** Neither check was tripped by moving code out
+    of tablet Home; A4 by RN-6's reuse of the refresh, A5 by RN-1's field.
+  - Result: 114/114 (was 112/114).
 
 **Gate 5 addition (Gary at "go", verbatim).** "take the "after" shots at the
 same 834px width as the Gate 0 "before" shots."

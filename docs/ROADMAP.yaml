@@ -26730,7 +26730,19 @@ phases:
     # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging
     # (docs/WORKFLOW.md session completion rule 2; TAB-11/12/13 precedent).
     # Not promoted. No migration. Rollback: `git revert 500037a`.
-    status: in_progress
+    # in_progress -> staging 2026-11-11 at the TAB-14 PRE-PUSH-CHECK (the
+    # commit immediately after c8bff9f; its own SHA cannot be written inside
+    # itself). Docs SHA: c8bff9f (this row, DEBT-133, DECISIONS DRAFT, the
+    # audit). The check committed the prompt of record docs/prompts/TAB-14.md
+    # and wrote the DEPLOY_LOG UNPROMOTED entry. DECISIONS 2026-11-11 TAB-14
+    # (R1–R9, RN-1–RN-7 incl. the verify-tab8 A4/A5 change, Gary's
+    # amendments at "go", the design choices) RATIFIED by Gary at this check:
+    # "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" and
+    # "untracked until PRE-PUSH-CHECK" are spent, kept. Verify at the check:
+    # verify-tab14-checklists 32/32, verify-tab13-switcher, verify-tab1-today,
+    # verify-tab8 114/114, verify-tab10 50/50, all exit 0; build green. No
+    # migration. Rollback stays `git revert 500037a`. NOT pushed at writing.
+    status: staging
     title: "Tablet Checklists page — type-first, this store only"
     commits:
       - "500037a"
@@ -26741,6 +26753,10 @@ phases:
       # verify-tab14-checklists (new, 32 checks), verify-tab8 A4/A5 (RN-7)
       # + the commit immediately after 500037a: docs(TAB-14) — this row,
       # DEBT-133, DECISIONS DRAFT, the audit
+      - "c8bff9f"
+      # + the commit immediately after c8bff9f: docs(TAB-14) PRE-PUSH-CHECK —
+      # DECISIONS ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
     deferred:
       - A read-only view of a completed checklist — View still opens the editable execution page (DEBT-131)
       - Reconciling the type key with the admin-chosen TemplateType colour (DEBT-130)
