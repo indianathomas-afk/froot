@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { tasksForChecklist } from "@/lib/checklist-tasks"
 import { groupTasksBySection } from "@/lib/sections"
 import { businessDayWindow, dashboardHeaderDate, localDateStr } from "@/lib/reports"
+import { canonicalYouTubeUrl, youTubeVideoId } from "@/lib/messages"
 
 // TAB-1 — the item lists behind the tablet Tasks panel. READ-ONLY.
 // TAB-1b adds each store's picker names (still read-only, still no route).
@@ -27,6 +28,68 @@ export type TabletTask = {
   isCritical: boolean
   done: boolean
   value: number | null
+  /** TAB-15 — the task's training, or null when it has none (the row then
+   *  renders exactly as before). See taskHowTo() below. */
+  howTo: TaskHowTo | null
+  /** TAB-15 — Task.estimatedTimeMinutes, shown on the How-to panel. */
+  minutes: number | null
+}
+
+// ── TAB-15: a task's training resources ──────────────────────────────────────
+// THE SAME TWO FIELDS DESKTOP RENDERS, AND NOTHING ELSE. The execution page
+// (store-view/checklist/[id]/checklist-execution-client.tsx, "Watch Training
+// Video" and the attachment link under it) reads Task.videoUrl and the one
+// TaskAttachment (@unique on taskId, so at most one). Neither is gated by role
+// there: the page's only gates are the org and getUserStoreScope's store
+// check, which loadTabletData's callers already apply (dashboard/page.tsx and
+// readTabletTasksFor). So a task has 0, 1 or 2 resources, never more.
+//
+// The classification happens HERE, on the server, so the client never parses
+// a URL and canonicalYouTubeUrl (src/lib/messages.ts, which imports Prisma)
+// stays out of the browser bundle.
+export type TaskVideo =
+  /** Embedded inline: youtube.com/embed with playsinline=1, as the tablet
+   *  Messages column already plays a Corporate Update's video. */
+  | { kind: "youtube"; id: string }
+  /** A direct video file (.mp4/.m4v/.mov/.webm): a <video playsInline>. */
+  | { kind: "file"; url: string }
+  /** Anything else (a Drive or Loom page…): not embeddable, so it opens in a
+   *  new window, as desktop opens every video. */
+  | { kind: "link"; url: string }
+export type TaskDoc = { label: string; url: string; kind: "image" | "document" }
+export type TaskHowTo = { video: TaskVideo | null; doc: TaskDoc | null }
+
+/** http(s) only. Task.videoUrl is free text (templates/route.ts saves it
+ *  unvalidated) and desktop puts it straight into an href; the tablet refuses
+ *  any other scheme (javascript:, data:…) rather than render it. */
+function webUrl(raw: string | null | undefined): URL | null {
+  if (!raw) return null
+  try {
+    const u = new URL(raw.trim())
+    return u.protocol === "https:" || u.protocol === "http:" ? u : null
+  } catch {
+    return null
+  }
+}
+
+export function taskHowTo(
+  videoUrl: string | null,
+  attachment: { label: string; url: string; contentType: string } | null
+): TaskHowTo | null {
+  let video: TaskVideo | null = null
+  const v = webUrl(videoUrl)
+  if (v) {
+    const yt = canonicalYouTubeUrl(v.href)
+    const id = yt ? youTubeVideoId(yt) : null
+    if (id) video = { kind: "youtube", id }
+    else if (/\.(mp4|m4v|mov|webm)$/i.test(v.pathname)) video = { kind: "file", url: v.href }
+    else video = { kind: "link", url: v.href }
+  }
+  const a = attachment && webUrl(attachment.url) ? attachment : null
+  const doc: TaskDoc | null = a
+    ? { label: a.label, url: a.url, kind: a.contentType.startsWith("image/") ? "image" : "document" }
+    : null
+  return video || doc ? { video, doc } : null
 }
 
 export type TabletChecklist = {
@@ -98,6 +161,10 @@ export async function loadTabletData(
                   sectionId: true,
                   sectionName: true,
                   section: { select: { name: true, sortOrder: true } },
+                  // TAB-15 — the desktop execution page's training fields.
+                  estimatedTimeMinutes: true,
+                  videoUrl: true,
+                  attachment: { select: { label: true, url: true, contentType: true } },
                 },
               },
             },
@@ -130,6 +197,8 @@ export async function loadTabletData(
           isCritical: t.isCritical,
           done: logs.has(t.id),
           value: logs.get(t.id)?.temperatureValue ?? null,
+          howTo: taskHowTo(t.videoUrl, t.attachment),
+          minutes: t.estimatedTimeMinutes,
         })),
       })),
     }

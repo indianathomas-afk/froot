@@ -4,7 +4,8 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { writeViewCookie } from "@/lib/view-mode"
 
-// PWA-1 (2026-11-11) — DRAFT ruling R1, awaiting Gary at PRE-PUSH-CHECK:
+// PWA-1 (2026-11-11) — ruling R1, ratified by Gary at the PWA-1 PRE-PUSH-CHECK
+// (docs/DECISIONS.md, 2026-11-11 — PWA-1):
 // "When Froot is opened from the iPad home screen icon and nothing is saved on
 // that device yet, it opens in Tablet mode. Once someone picks Tablet or Desktop
 // on that device, their choice always wins. Opening Froot in Safari or on a
