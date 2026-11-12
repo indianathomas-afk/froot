@@ -26866,6 +26866,7 @@ phases:
     deferred:
       - Ask a manager (design A4, C1, C2) — TAB-16; the three button slots are marked in tablet-howto.tsx
       - A per-video title under the player (the design's "Turning on the menu displays") — no field exists; adding one is a schema change
+      - Revisit when PIN is rolled out — Gary 2026-11-12, "If PIN is ever rolled out, revisit this." While a How-to is open the PIN session (TAB-4 Q10) waits the same 15 minutes as the rest of the page, not 5
     notes: >
       ── BUILD 2026-11-12 (TAB-15). ──
       BUILT, not yet checked on staging. TIER 2: no schema, migration,
@@ -26931,7 +26932,10 @@ phases:
       the tick's window chosen from the open How-to in tablet-home.tsx,
       default unchanged at IDLE_COLLAPSE_MS. The idle is one page-wide
       timer, so while a How-to is open an expanded card, the overdue list
-      and the PIN session also wait 15 minutes. VERIFIED: scoped eslint and
+      and the PIN session also wait 15 minutes — ACCEPTED AS BUILT by Gary
+      the same day ("Accepted as built: while a How-to is open, the whole
+      page waits 15 minutes before going idle, including the PIN session.
+      If PIN is ever rolled out, revisit this."; see deferred). VERIFIED: scoped eslint and
       npm run build green at ba72497; verify-tab9-cards.ts passes in full
       with new cases 13 (5:00 not idle, 14:59.999 not idle, 15:00 idle, a
       touch restarts it, closed = the unchanged 5:00); verify-tab7 and

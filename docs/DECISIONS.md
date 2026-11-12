@@ -35,6 +35,13 @@ next check is back on five. Pinned by `scripts/verify-tab9-cards.ts` cases 13.
 page, so they never restart the window; a video longer than 15 minutes with
 nobody touching the screen is still closed.
 
+**ACCEPTED AS BUILT BY GARY, 2026-11-12, his words:** "Accepted as built:
+while a How-to is open, the whole page waits 15 minutes before going idle,
+including the PIN session. If PIN is ever rolled out, revisit this." So the
+page-wide 15 minutes, PIN session included, is now Gary's ruling, not only
+Claude's implementation. The revisit is carried as a deferred item on the
+TAB-15 row in `docs/ROADMAP.yaml`.
+
 ## 2026-11-11 — PWA-1: Froot as a home-screen app on iPad — draft ruling R1 — DRAFT
 
 **RATIFIED BY GARY, 2026-11-11, at the PWA-1 PRE-PUSH-CHECK:** "Ratify as
