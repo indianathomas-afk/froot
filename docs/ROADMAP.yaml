@@ -26742,7 +26742,25 @@ phases:
     # verify-tab14-checklists 32/32, verify-tab13-switcher, verify-tab1-today,
     # verify-tab8 114/114, verify-tab10 50/50, all exit 0; build green. No
     # migration. Rollback stays `git revert 500037a`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11 at merge 90a98b5 ("Merge branch
+    # 'staging'", parents def04fa + def7c2b; 4 commits adc0f9e, 500037a,
+    # c8bff9f, def7c2b), stamped post-merge 2026-11-11 on `staging` (R1) by
+    # the promotion pass (the commit immediately after 90a98b5), NOT pushed
+    # at writing. Gate 5 on staging (def7c2b, org
+    # org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk verified-snapper-7, Las Brisas,
+    # 834px): 1 one store, 2 order + Done today, 3 Start (POST 201, opened the
+    # new Closer row) / Continue / View, 4 banner Las Brisas only
+    # (?storeId=), 5 Overdue Test template line, 6 desktop unchanged — all
+    # PASS, observed by Claude; 7 tablet Home Start opens the tick list in the
+    # card and the TAB-13 tabs swap the hero, and portrait — observed by
+    # Gdogg (Gary) on the iPad, "All working"; second store NOT observed;
+    # landscape not observed on staging (local mock only). TAB-4 production
+    # migration evidence still PENDING (Neon console signed out). Full
+    # record: DEPLOY_LOG `90a98b5 — 2026-11-11 — TAB-14`. The "NOT pushed at
+    # writing" comments above are spent (Gary pushed def7c2b to staging),
+    # kept. No migration. Rollback: `git revert -m 1 90a98b5`.
+    status: shipped
+    shipped: 2026-11-11
     title: "Tablet Checklists page — type-first, this store only"
     commits:
       - "500037a"
