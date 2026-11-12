@@ -12,6 +12,9 @@ import Link from "next/link"
 import { formatCivilDate } from "@/lib/display-time"
 import { StoreFilter } from "./store-filter"
 import { CalendarDueBanner } from "@/components/calendar-due-banner"
+import { getViewMode } from "@/lib/view-mode-server"
+import { loadTabletData } from "../dashboard/tablet-data"
+import { ChecklistsTablet } from "./checklists-tablet"
 
 // CHK-4: `Missed` JOINS THE MAP, AND THE `?? STATUS_STYLES.Pending` FALLBACK AT
 // THE RENDER SITE BELOW STAYS. Those are two separate decisions and both are
@@ -123,11 +126,54 @@ async function getChecklists(requestedStoreId: string | undefined) {
   }
 }
 
+/** TAB-14 — the tablet branch's server half. READ-ONLY. The store list is
+ *  tablet Home's, exactly (dashboard/page.tsx: active stores, name asc, the
+ *  login's scope), NOT this page's desktop list above, which has no isActive
+ *  filter: the client resolves the tablet's store with resolveSingleStore(),
+ *  which falls back to the FIRST store, so the list must be the one Home and
+ *  the rail resolve over or the three could land on different stores.
+ *  loadTabletData is Home's own read (tick-level counts, the store-zone
+ *  header date, the store's day). */
+async function getTabletChecklists() {
+  const { orgId } = await auth()
+  if (!orgId) return null
+  const org = await prisma.organization.findUnique({ where: { clerkOrgId: orgId } })
+  if (!org) return null
+  const { isAdmin, storeIds, role } = await getUserStoreScope()
+  const stores = await prisma.store.findMany({
+    where: { organizationId: org.id, isActive: true, ...(isAdmin ? {} : { id: { in: storeIds } }) },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, timezone: true },
+  })
+  const tablet = await loadTabletData(org.id, stores)
+  // The banner's PIN flow, as the desktop branch passes it (TAB-4).
+  const pinRequired = pinGateApplies(org, role)
+  const pinStaffByStore = pinRequired ? await loadPinStaffByStore(org.id, stores.map((s) => s.id)) : {}
+  return { ...tablet, pinRequired, pinStaffByStore }
+}
+
 export default async function ChecklistsPage({
   searchParams,
 }: {
   searchParams: Promise<{ store?: string }>
 }) {
+  // TAB-14 — TABLET MODE GETS ITS OWN PAGE (this device's `froot_view`
+  // cookie), the dashboard's and Team Messages' branch pattern. Returns before
+  // anything below runs, so the desktop page — its queries, filter, cards and
+  // banner — is untouched. Tablet: today's checklists for THIS store only,
+  // type-first tiles (./checklists-tablet.tsx).
+  if ((await getViewMode()) === "tablet") {
+    const tablet = await getTabletChecklists()
+    return (
+      <ChecklistsTablet
+        stores={tablet?.stores ?? []}
+        checklists={tablet?.checklists ?? []}
+        pinRequired={tablet?.pinRequired ?? false}
+        pinStaffByStore={tablet?.pinStaffByStore ?? {}}
+      />
+    )
+  }
+
   const { store } = await searchParams
   const { checklists, stores, lockedStoreId, selectedStoreId, now, pin } = await getChecklists(store)
 

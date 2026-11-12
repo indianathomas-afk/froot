@@ -14,13 +14,15 @@ import { cn } from "@/lib/utils"
 import { formatWindowTime } from "@/lib/checklist-status-display"
 import { resolveSingleStore, saveStoreId, useSavedStoreId } from "@/lib/dashboard-store"
 import {
+  dueChipLabel,
   initialSwitcher,
   orderTodayChecklists,
   shownChecklist,
   switcherReducer,
   type TodayEntry,
 } from "@/lib/tablet-today"
-import { checklistTypeStyle, normalizeTypeName } from "@/lib/checklist-types"
+import { checklistTitle, checklistTypeStyle } from "@/lib/checklist-types"
+import { readError, startTodayChecklist } from "@/lib/checklist-start"
 import { ChecklistHero, ChecklistTabs } from "./tablet-checklist-switcher"
 import { dueChipFor, dueRowSuffix } from "@/lib/tablet-due"
 import {
@@ -166,14 +168,8 @@ function useHeld<T>(value: T, usable: boolean): T {
   return usable ? value : held
 }
 
-async function readError(res: Response): Promise<string | null> {
-  try {
-    const body = (await res.json()) as { error?: unknown }
-    return typeof body.error === "string" ? body.error : null
-  } catch {
-    return null
-  }
-}
+// TAB-14: readError() moved to src/lib/checklist-start.ts, unchanged, with
+// Start's POST (RN-2); imported above.
 
 /** TAB-4 — readError plus the route's `code`, so a PIN refusal can drop the
  *  device's session and ask again. */
@@ -1004,27 +1000,15 @@ function TasksPanel({
     }
     // No row yet: instantiate today's checklist exactly as Start Daily
     // Checklist does. A login without checklists.create is refused there and
-    // here alike — no permission changes.
+    // here alike — no permission changes. TAB-14 RN-2: the POST and its error
+    // sentences moved to startTodayChecklist() (src/lib/checklist-start.ts),
+    // unchanged, shared with the tablet Checklists page.
     setBusy(`start:${entry.id}`)
     setError(null)
     try {
-      let res: Response
-      try {
-        res = await fetch("/api/checklists", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ templateId: entry.id, storeId: store.id }),
-        })
-      } catch {
-        setError("Couldn't start — no connection. Check the store's wifi and try again.")
-        return
-      }
-      if (!res.ok) {
-        setError(
-          res.status === 403
-            ? "This login can't start a checklist that hasn't been started today. Ask a manager to start it."
-            : ((await readError(res)) ?? `Couldn't start (error ${res.status}).`)
-        )
+      const started = await startTodayChecklist(entry.id, store.id)
+      if (!started.ok) {
+        setError(started.error)
         return
       }
       // The tick list opens on the new row once the re-read below brings it
@@ -1116,10 +1100,9 @@ function TasksPanel({
   // The tab and hero title are the TYPE name (R5). Two checklists of the same
   // type today would read identically, so those — and a template with no type
   // name at all — show the template's own name instead (colour and icon still
-  // come from the type).
-  const typeOf = (e: TodayRow) => e.type?.trim() || e.name
-  const labelOf = (e: TodayRow) =>
-    ordered.some((o) => o.id !== e.id && normalizeTypeName(typeOf(o)) === normalizeTypeName(typeOf(e))) ? e.name : typeOf(e)
+  // come from the type). TAB-14: the rule moved to checklistTitle() in
+  // src/lib/checklist-types.ts, unchanged, so the Checklists page shares it.
+  const labelOf = (e: TodayRow) => checklistTitle(e, ordered)
   const shown = shownChecklist(sw, ordered.map((e) => e.id))
   const entry = shown.id ? ordered.find((e) => e.id === shown.id) : undefined
   const tabbed = ordered.length > 1
@@ -1415,11 +1398,9 @@ function PanelSkeleton() {
   )
 }
 
-function dueLabel(entry: TodayRow): string | null {
-  if (!entry.expectedEndAt) return null
-  const at = formatWindowTime(new Date(entry.expectedEndAt), entry.timeZone)
-  return entry.lifecycleState === "overdue" ? `Overdue · was due ${at}` : `Due ${at}`
-}
+// TAB-14 RN-2: dueLabel() moved to dueChipLabel() in src/lib/tablet-today.ts,
+// unchanged, so the tablet Checklists page's Due chip reads the same.
+const dueLabel = dueChipLabel
 
 // ─── In progress: dark sticky banner, remaining items under section headers ──
 

@@ -1,4 +1,5 @@
 import type { ChecklistState } from "@/lib/checklist-lifecycle"
+import { formatWindowTime } from "@/lib/checklist-status-display"
 
 // TAB-1 — WHICH CHECKLIST THE TABLET'S TASKS PANEL SHOWS.
 //
@@ -155,4 +156,37 @@ export function shownChecklist(
   if (state.open && orderedIds.includes(state.open.id)) return { id: state.open.id, view: state.open.view }
   if (state.manual && orderedIds.includes(state.manual)) return { id: state.manual, view: null }
   return { id: orderedIds[0] ?? null, view: null }
+}
+
+// ─── TAB-14 — the tablet Checklists page ─────────────────────────────────────
+//
+// R4 (Gary, 2026-11-11): the page uses TAB-13's order unchanged — call
+// orderTodayChecklists() first — and then splits it. The first three ranks
+// (in progress, not started and due now, not started and upcoming) are big
+// tiles, in that order; COMPLETED collapses into a "Done today" row at the
+// bottom, in the same order. Missed never arrives here (orderTodayChecklists
+// drops it, and so does the source route).
+
+export function splitForChecklistsPage<T extends TodayEntry>(ordered: T[]): { tiles: T[]; doneToday: T[] } {
+  return {
+    tiles: ordered.filter((e) => e.lifecycleState !== "completed"),
+    doneToday: ordered.filter((e) => e.lifecycleState === "completed"),
+  }
+}
+
+// The hero's / tile's time chip, in the STORE's zone. dueChipLabel is tablet
+// Home's dueLabel() MOVED HERE UNCHANGED by TAB-14 (RN-2) so the Checklists
+// page's chip reads the same. opensChipLabel is TAB-14 RN-1 (Gary,
+// 2026-11-11): an upcoming checklist's window START, formatted "the same way
+// dueLabel does" — formatWindowTime in the store's zone.
+
+export function dueChipLabel(e: { expectedEndAt: string | null; lifecycleState: ChecklistState; timeZone: string }): string | null {
+  if (!e.expectedEndAt) return null
+  const at = formatWindowTime(new Date(e.expectedEndAt), e.timeZone)
+  return e.lifecycleState === "overdue" ? `Overdue · was due ${at}` : `Due ${at}`
+}
+
+export function opensChipLabel(e: { expectedStartAt?: string | null; timeZone: string }): string | null {
+  if (!e.expectedStartAt) return null
+  return `Opens ${formatWindowTime(new Date(e.expectedStartAt), e.timeZone)}`
 }

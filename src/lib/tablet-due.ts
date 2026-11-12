@@ -52,3 +52,13 @@ export function dueRowSuffix(item: TabletDueItem, nowIso: string): string {
   if (item.daysOverdue > 0) return ` · ${item.daysOverdue} ${item.daysOverdue === 1 ? "day" : "days"} overdue`
   return " · overdue"
 }
+
+/** TAB-14 — the due feed's URL. No store = every store the actor can see (the
+ *  desktop banner, unchanged); a store = that store only, through the route's
+ *  existing `?storeId=` (api/calendar/due/route.ts → resolveStoreScope, which
+ *  answers [that store] when the actor may see it and [] when not). That is
+ *  the same set dueChipFor() keeps for tablet Home's chip. Used by
+ *  CalendarDueBanner; pinned by scripts/verify-tab14-checklists.ts. */
+export function dueFeedUrl(storeId?: string | null): string {
+  return storeId ? `/api/calendar/due?storeId=${encodeURIComponent(storeId)}` : "/api/calendar/due"
+}

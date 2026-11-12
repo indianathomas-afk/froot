@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useId, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
 import { AlertTriangle, CalendarClock, Check, ChevronDown } from "lucide-react"
 import { PinDialog, WhoDialog, usePinSession } from "@/components/tablet-pin/pin-session"
 import { isPinRefusal, type PinSession, type PinStaff } from "@/lib/tablet-pin-options"
+import { useBusyFlag, useRefreshLoader } from "@/app/(app)/dashboard/tablet-refresh"
+import { dueFeedUrl } from "@/lib/tablet-due"
 
 // ── CAL-1: THE DUE-REMINDER BANNER ───────────────────────────────────────────
 //
@@ -138,9 +140,36 @@ function chipsFor(items: DueItem[], nowIso: string): StoreChip[] {
   )
 }
 
+// TAB-14 — ONE STORE, AND THE TABLET'S REFRESH CYCLE. Both are opt-in and the
+// two existing mounts (desktop /dashboard, desktop /checklists) opt into
+// neither, so they behave exactly as before:
+//   - `storeId` asks the feed for that store only, through the route's
+//     existing `?storeId=` (api/calendar/due/route.ts, resolveStoreScope), so
+//     the counts, the "N days overdue" figure and the list are that store's.
+//     Same items tablet Home's overdue chip keeps (src/lib/tablet-due.ts).
+//   - inside a TabletRefreshProvider (the tablet Checklists page) the feed is
+//     re-read on every refresh cycle, and an open name/PIN dialog or a
+//     completion in flight marks the page busy. Outside one both hooks are
+//     no-ops (useTabletRefresh tolerates no provider) — the desktop case.
+async function fetchDue(url: string): Promise<DueResponse | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(12_000) })
+    // 404 is the module being off (ruling 9) — silence, not an error.
+    if (!res.ok) {
+      if (res.status !== 404) console.error(`[calendar] due feed failed: HTTP ${res.status}`)
+      return null
+    }
+    return (await res.json()) as DueResponse
+  } catch (err) {
+    console.error("[calendar] due feed fetch error:", err)
+    return null
+  }
+}
+
 export function CalendarDueBanner({
   pinRequired = false,
   pinStaffByStore = {},
+  storeId,
 }: {
   /** TAB-4 — the org switch is on AND this is a STORE login. The complete
    *  route enforces it; this decides whether Complete asks for a name + PIN.
@@ -148,6 +177,9 @@ export function CalendarDueBanner({
   pinRequired?: boolean
   /** TAB-4 — each store's pickable names with hasPin (lib/tablet-pin-staff). */
   pinStaffByStore?: Record<string, PinStaff[]>
+  /** TAB-14 — only this store's items (the tablet Checklists page). Absent =
+   *  every store the actor can see, as before. */
+  storeId?: string
 } = {}) {
   const [data, setData] = useState<DueResponse | null>(null)
   const [completing, setCompleting] = useState<string | null>(null)
@@ -173,24 +205,33 @@ export function CalendarDueBanner({
   const innerRef = useRef<HTMLDivElement | null>(null)
   const listId = useId()
 
-  async function load(): Promise<DueResponse | null> {
-    try {
-      const res = await fetch("/api/calendar/due", { signal: AbortSignal.timeout(12_000) })
-      // 404 is the module being off (ruling 9) — silence, not an error.
-      if (!res.ok) {
-        if (res.status !== 404) console.error(`[calendar] due feed failed: HTTP ${res.status}`)
-        return null
-      }
-      return (await res.json()) as DueResponse
-    } catch (err) {
-      console.error("[calendar] due feed fetch error:", err)
-      return null
-    }
+  const feedUrl = dueFeedUrl(storeId)
+  // TAB-14: the fetch moved to fetchDue() above, unchanged; only the URL can
+  // now carry a store.
+  function load(): Promise<DueResponse | null> {
+    return fetchDue(feedUrl)
   }
+
+  // TAB-14 — the tablet refresh cycle's re-read (a no-op without a provider).
+  // A failed re-read keeps what is showing, as the controller's other parts do.
+  const reread = useCallback(
+    () =>
+      fetchDue(feedUrl).then((d) => {
+        if (!d) return
+        if (d.items.length > 0) hadItems.current = true
+        setData(d)
+      }),
+    [feedUrl]
+  )
+  useRefreshLoader(reread)
+  useBusyFlag("calendar-due-banner", whoFor !== null || pinTarget !== null || completing !== null)
 
   useEffect(() => {
     let live = true
-    load().then((d) => {
+    // TAB-14: fetchDue(feedUrl) is what load() does; named directly so the
+    // effect can list its one input. Desktop's feedUrl never changes, so this
+    // still runs once, on mount, as before.
+    fetchDue(feedUrl).then((d) => {
       if (!live || !d) return
       if (d.items.length > 0) hadItems.current = true
       // CAL-2c — THE STORED PREFERENCE IS READ AFTER MOUNT, NEVER IN THE
@@ -209,7 +250,7 @@ export function CalendarDueBanner({
     return () => {
       live = false
     }
-  }, [])
+  }, [feedUrl])
 
   async function complete(id: string, verified?: PinSession) {
     // TAB-4 (Q7): while PINs are required a completion names a verified person

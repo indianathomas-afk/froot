@@ -141,6 +141,12 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       // NextResponse.json; the client formats it in the store's zone.
       lifecycleState: state,
       expectedEndAt: window?.end?.toISOString() ?? null,
+      // TAB-14 RN-1 (Gary, 2026-11-11): the window's START, for the tablet
+      // Checklists page's "Opens <time>" chip. ADDITIVE AND READ-ONLY, and from
+      // data this route already has — the same `window` as expectedEndAt
+      // above (the row's frozen window, else today's from the store's hours),
+      // so no new query. Every other caller ignores the extra key.
+      expectedStartAt: window?.start?.toISOString() ?? null,
       completedLate: existing?.completedLate ?? false,
       timeZone: store.timezone,
     }

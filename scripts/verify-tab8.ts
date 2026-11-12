@@ -65,6 +65,8 @@ const LIB = "src/lib/tablet-tasks-refresh.ts"
 const PAGE = "src/app/(app)/dashboard/page.tsx"
 /** The commit TAB-8 was built on (staging tip at the repo gate). */
 const BASE = "29abe48"
+/** TAB-8's work commit (BASE is its parent) — A5 compares the two (TAB-14 RN-7). */
+const TAB8_WORK = "c18b0d7"
 
 // ─── A. STRUCTURE ────────────────────────────────────────────────────────────
 
@@ -147,8 +149,11 @@ function structure() {
     }).sort()
   // src/generated/ is the ROADMAP's typed copy (prebuild), prose not code.
   const all = walk("src").filter((p) => !p.startsWith(join("src", "generated")))
-  const expectedUsers = [HOME, LIB].map((p) => join(p)).sort()
-  check("A4. nothing else in src/ calls the route or its reader", users(all), expectedUsers)
+  // TAB-14 RN-7 (Gary, 2026-11-11): the tablet Checklists page re-reads
+  // through this route on Home's refresh cycle (TAB-14 RN-6), so it joins the
+  // list by ruling. Any OTHER caller still fails here.
+  const expectedUsers = [HOME, LIB, "src/app/(app)/checklists/checklists-tablet.tsx"].map((p) => join(p)).sort()
+  check("A4. nothing else in src/ calls the route or its reader (tablet Home, its lib, and the TAB-14 tablet Checklists page)", users(all), expectedUsers)
   check("A4 NC. a desktop file calling it → caught", users([...all, "scripts/verify-tab8.ts"]).length > expectedUsers.length, true)
 
   // A5 — desktop and every other caller unchanged since the TAB-8 base.
@@ -163,14 +168,23 @@ function structure() {
     "src/app/api/checklists/[id]/submit/route.ts",
     "src/app/api/checklists/route.ts",
   ]
+  // TAB-14 RN-7 (Gary, 2026-11-11), TAB-13 RN-7's pattern: this compared the
+  // WORKING TREE with BASE, so it failed the moment any later phase edited one
+  // of these files (TAB-14 was the first: one additive field on the templates
+  // route). What it pins is TAB-8's OWN diff, so it now compares TAB-8's work
+  // commit with BASE, its parent.
   let diff = "?"
   try {
-    diff = execFileSync("git", ["diff", "--stat", BASE, "--", ...untouched], { encoding: "utf8" }).trim()
+    diff = execFileSync("git", ["diff", "--stat", BASE, TAB8_WORK, "--", ...untouched], { encoding: "utf8" }).trim()
   } catch (e) {
     diff = `git failed: ${(e as Error).message}`
   }
-  check(`A5. desktop page, execution page, tablet-data and every write route unchanged since ${BASE}`, diff, "")
-  check("A5 NC. the diff check sees a changed file", execFileSync("git", ["diff", "--stat", BASE, "--", HOME], { encoding: "utf8" }).trim() !== "", true)
+  check(`A5. TAB-8 (${TAB8_WORK}) left the desktop page, execution page, tablet-data and every write route unchanged`, diff, "")
+  check(
+    "A5 NC. the diff check sees a file TAB-8 did change",
+    execFileSync("git", ["diff", "--stat", BASE, TAB8_WORK, "--", HOME], { encoding: "utf8" }).trim() !== "",
+    true
+  )
 
   // A6 — redirect: "manual" plus expired-session detection.
   const manual = (s: string) => /redirect:\s*"manual"/.test(code(s)) && /opaqueredirect/.test(code(s)) && /status === 0/.test(code(s))
