@@ -10,7 +10,8 @@ import { resolveSelfStaff } from "@/lib/hr"
 import { can } from "@/lib/permissions"
 import { UsageBeacon } from "@/components/usage-beacon"
 import { TabletShell } from "@/components/layout/tablet-shell"
-import { getViewMode } from "@/lib/view-mode-server"
+import { getViewMode, hasSavedViewMode } from "@/lib/view-mode-server"
+import { StandaloneTabletDefault } from "@/components/layout/standalone-tablet-default"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { orgId, userId } = await auth()
@@ -148,7 +149,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // TAB-1 — the per-device Tablet/Desktop switch (Gary's ruling 2). Read from
   // the `froot_view` cookie HERE so the right shell is on first paint; absent
   // means desktop, and the desktop branch below is unchanged.
-  const viewMode = await getViewMode()
+  const [viewMode, viewSaved] = await Promise.all([getViewMode(), hasSavedViewMode()])
   if (viewMode === "tablet") {
     // The rail shows the store name from the dashboard's own store selection,
     // so it needs the stores this login can see — the same scope rule as
@@ -205,6 +206,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         selfHref={selfHref}
       />
       <AppShell>{children}</AppShell>
+      {/* PWA-1 — nothing saved on this device yet: if this is a home-screen
+          launch, save Tablet and redraw (draft ruling R1). Absent once any
+          choice is saved, so the switch always wins. Safari and desktop
+          browsers fall through it untouched. */}
+      {!viewSaved && <StandaloneTabletDefault />}
       {/* ENG-1. Renders nothing; beacons the pathname on every route change.
           Mounted here rather than inside AppShell so it is unaffected by the
           sidebar-collapse state AppShell owns. */}
