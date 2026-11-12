@@ -36,6 +36,12 @@
  *   - A LABOR DOLLAR FIGURE REACHING TABLET STATE ("Labor dollars — never
  *     shown on the tablet; percentages only"). Cases 12.
  *
+ * TAB-15 RULING (Gary, 2026-11-12), cases 13:
+ *   - THE HOW-TO IDLE WINDOW WRONG: "While a How-to is open (panel, player or
+ *     expanded row), the idle timer waits 15 minutes instead of 5. Idle stays
+ *     exactly the same everywhere else." Idle at 5:00 with a How-to open, not
+ *     idle at 15:00, or the 5-minute window moved when none is open.
+ *
  * WHAT IT CANNOT DETECT: the React wiring (that the listeners and the idle
  * timer are attached, that the busy flags reach the controller), the layout
  * (first screen unchanged, flicks chaining out of the columns on iPad), and
@@ -44,12 +50,14 @@
  */
 import {
   CHIP_TONE_CLASS,
+  HOWTO_IDLE_MS,
   IDLE_COLLAPSE_MS,
   cardsBusy,
   cardsReducer,
   dueChipTone,
   goalDetail,
   hrChipFor,
+  idleWindow,
   initialCards,
   isIdle,
   laborDetail,
@@ -363,6 +371,30 @@ console.log("\n12 · TAB-9 fix: labor dollars never reach the tablet — percent
   check("12c nothing to drop → the same object", withoutLaborDollars(full) === full, true)
   check("12d labor absent → the same object (still no Labor card)", withoutLaborDollars(noLabor) === noLabor, true)
   check("12e no dollar sign anywhere in the expanded Labor card", /\$/.test(JSON.stringify(laborDetail(clean))), false)
+}
+
+console.log("\n13 · TAB-15 ruling: an open How-to stretches the idle to 15 minutes, nothing else")
+{
+  check("13  the How-to window is fifteen minutes", HOWTO_IDLE_MS, 900_000)
+  check("13a idleWindow: How-to open → 15 min, closed → the unchanged 5", [idleWindow(true), idleWindow(false)], [900_000, IDLE_COLLAPSE_MS])
+  const open = run(initialCards(SCOPE, T0), { type: "tap", key: "sales", at: T0 })
+  const at5 = run(open, { type: "tick", at: T0 + IDLE_COLLAPSE_MS, lastTouchAt: T0, idleAfterMs: idleWindow(true) })
+  check("13b How-to open, 5:00 untouched → NOT idle, card still open, same object", [at5 === open, at5.idle, at5.expanded], [true, false, "sales"])
+  const almost = run(open, { type: "tick", at: T0 + HOWTO_IDLE_MS - 1, lastTouchAt: T0, idleAfterMs: idleWindow(true) })
+  check("13c How-to open, 14:59.999 → still not idle", almost.idle, false)
+  const at15 = run(open, { type: "tick", at: T0 + HOWTO_IDLE_MS, lastTouchAt: T0, idleAfterMs: idleWindow(true) })
+  check("13d How-to open, 15:00 → idle, collapses as before", [at15.idle, at15.expanded], [true, null])
+  check(
+    "13e How-to closed → idle at 5:00 exactly as TAB-9 (explicit window = default)",
+    [
+      run(open, { type: "tick", at: T0 + IDLE_COLLAPSE_MS, lastTouchAt: T0, idleAfterMs: idleWindow(false) }).idle,
+      run(open, { type: "tick", at: T0 + IDLE_COLLAPSE_MS, lastTouchAt: T0 }).idle,
+    ],
+    [true, true]
+  )
+  const touched = run(open, { type: "tick", at: T0 + HOWTO_IDLE_MS, lastTouchAt: T0 + 60_000, idleAfterMs: idleWindow(true) })
+  check("13f a touch at 1:00 restarts the 15-minute window too", touched.idle, false)
+  check("13g isIdle with the How-to window", [isIdle(T0, T0 + HOWTO_IDLE_MS - 1, HOWTO_IDLE_MS), isIdle(T0, T0 + HOWTO_IDLE_MS, HOWTO_IDLE_MS)], [false, true])
 }
 
 console.log(failures === 0 ? "\n✓ ALL PASS\n" : `\n✗ ${failures} CHECK(S) FAILED\n`)

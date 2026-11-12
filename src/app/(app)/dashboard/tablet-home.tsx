@@ -29,6 +29,7 @@ import { dueChipFor, dueRowSuffix } from "@/lib/tablet-due"
 import {
   CHIP_TONE_CLASS,
   IDLE_CHECK_MS,
+  idleWindow,
   cardsBusy,
   cardsReducer,
   dueChipTone,
@@ -444,8 +445,11 @@ export function TabletHome({
   // Held here, not in TasksPanel, because in landscape the panel takes the
   // Messages column's place. React state only. Closed by: its own X / Hide,
   // the task being ticked (TasksPanel), a new day or store (the scope check),
-  // and the TAB-9 5-minute idle — the line below, the same pattern as the PIN
+  // and the TAB-9 idle — the line below, the same pattern as the PIN
   // session's — which also sends the page to the top (pageScrollReset).
+  // TAB-15 ruling (Gary, 2026-11-12): while a How-to is open the idle waits
+  // 15 minutes instead of 5 (HOWTO_IDLE_MS, the tick below); nothing else
+  // changes.
   // While open it holds the TAB-5 refresh like any sheet (TasksPanel's
   // "tasks:howto" busy flag).
   const [howToState, setHowTo] = useState<HowToOpen | null>(null)
@@ -472,8 +476,13 @@ export function TabletHome({
   // collapses them — a refresh cycle never does.
   const lastTouch = useRef(0)
   const idleNow = useRef(cards.idle)
+  // TAB-15: an open How-to (panel, player, image or expanded row — all one
+  // state) stretches the window to HOWTO_IDLE_MS. A ref, so the interval
+  // below reads the current value without being re-created.
+  const howToOpen = useRef(howTo !== null)
   useLayoutEffect(() => {
     idleNow.current = cards.idle
+    howToOpen.current = howTo !== null
   })
   useEffect(() => {
     lastTouch.current = Date.now()
@@ -484,7 +493,10 @@ export function TabletHome({
     const opts = { capture: true, passive: true } as const
     const events = ["pointerdown", "touchstart", "keydown", "wheel"] as const
     for (const ev of events) window.addEventListener(ev, touched, opts)
-    const id = window.setInterval(() => act({ type: "tick", at: Date.now(), lastTouchAt: lastTouch.current }), IDLE_CHECK_MS)
+    const id = window.setInterval(
+      () => act({ type: "tick", at: Date.now(), lastTouchAt: lastTouch.current, idleAfterMs: idleWindow(howToOpen.current) }),
+      IDLE_CHECK_MS
+    )
     return () => {
       for (const ev of events) window.removeEventListener(ev, touched, opts)
       window.clearInterval(id)

@@ -27,6 +27,12 @@ import { comparisonSuffix, pctChange, type DayComparison } from "@/lib/sales-sam
 /** Ruling 4: five minutes with no touch. */
 export const IDLE_COLLAPSE_MS = 5 * 60_000
 
+/** TAB-15 ruling (Gary, 2026-11-12): "While a How-to is open (panel, player
+ *  or expanded row), the idle timer waits 15 minutes instead of 5. Idle stays
+ *  exactly the same everywhere else." A training video runs longer than five
+ *  minutes and nobody touches the screen while watching one. */
+export const HOWTO_IDLE_MS = 15 * 60_000
+
 /** How often the tablet home checks the idle rule. Well under the window, so
  *  a card collapses within a few seconds of the five minutes. */
 export const IDLE_CHECK_MS = 5_000
@@ -59,8 +65,10 @@ export type CardsEvent =
   /** Any touch on the page that is not one of the above. */
   | { type: "touch"; at: number }
   /** The idle check. `lastTouchAt` is the page's latest touch (kept in a ref
-   *  so a touch does not re-render the page). */
-  | { type: "tick"; at: number; lastTouchAt: number }
+   *  so a touch does not re-render the page). `idleAfterMs` is the window
+   *  to apply: IDLE_COLLAPSE_MS unless given — HOWTO_IDLE_MS while a How-to
+   *  is open (TAB-15). */
+  | { type: "tick"; at: number; lastTouchAt: number; idleAfterMs?: number }
   /** A refresh cycle landed (TAB-5). Changes nothing — ruling 4. */
   | { type: "refresh" }
   /** The page moved to another day or store. */
@@ -75,9 +83,15 @@ export function toggleExpanded(current: string | null, key: string): string | nu
   return current === key ? null : key
 }
 
-/** Ruling 4: has the page gone IDLE_COLLAPSE_MS without a touch? */
-export function isIdle(lastTouchAt: number, now: number): boolean {
-  return now - lastTouchAt >= IDLE_COLLAPSE_MS
+/** Ruling 4: has the page gone IDLE_COLLAPSE_MS without a touch? `windowMs`
+ *  is HOWTO_IDLE_MS while a How-to is open (TAB-15); nothing else passes it. */
+export function isIdle(lastTouchAt: number, now: number, windowMs: number = IDLE_COLLAPSE_MS): boolean {
+  return now - lastTouchAt >= windowMs
+}
+
+/** TAB-15: the idle window for the page right now. */
+export function idleWindow(howToOpen: boolean): number {
+  return howToOpen ? HOWTO_IDLE_MS : IDLE_COLLAPSE_MS
 }
 
 /** The whole state machine. Returns the SAME object when nothing changes, so
@@ -97,7 +111,7 @@ export function cardsReducer(s: CardsState, e: CardsEvent): CardsState {
       return { ...s, lastTouchAt: Math.max(s.lastTouchAt, e.at), idle: false }
     case "tick": {
       const last = Math.max(s.lastTouchAt, e.lastTouchAt)
-      if (!isIdle(last, e.at)) return s.idle ? { ...s, lastTouchAt: last, idle: false } : s
+      if (!isIdle(last, e.at, e.idleAfterMs)) return s.idle ? { ...s, lastTouchAt: last, idle: false } : s
       if (s.idle && s.expanded === null && !s.dueOpen) return s
       return { ...s, expanded: null, dueOpen: false, lastTouchAt: last, idle: true }
     }

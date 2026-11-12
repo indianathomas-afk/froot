@@ -39,7 +39,8 @@ import type { TabletTask, TaskDoc, TaskHowTo, TaskVideo } from "./tablet-data"
 // panel, in the player's bottom bar, and beside Mark done in B's expanded row.
 
 /** What is open, held by TabletHome so the Messages column can give way to the
- *  panel and the 5-minute idle can close it. `scope` is TabletHome's
+ *  panel and the idle can close it (15 minutes while one is open — TAB-15
+ *  ruling, HOWTO_IDLE_MS in src/lib/tablet-cards.ts). `scope` is TabletHome's
  *  store:day — a new day or store drops it. "panel" is the side panel in
  *  landscape and the expanded row in portrait. */
 export type HowToLayer = "panel" | "player" | "image"
