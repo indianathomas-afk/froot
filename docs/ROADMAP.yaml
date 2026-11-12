@@ -26840,6 +26840,103 @@ phases:
       TAB-13 tabs still swap the hero (RN-2 addition). Gary on the iPad:
       portrait, and a second store if available.
 
+  - id: TAB-15
+    track: platform
+    size: M
+    # planned -> in_progress 2026-11-12 at the work commit d7331ec (NOT
+    # pushed). The docs SHA is the commit immediately after d7331ec (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging
+    # (docs/WORKFLOW.md session completion rule 2; TAB-11..14 precedent).
+    # Not promoted. No migration. Rollback: `git revert d7331ec`.
+    status: in_progress
+    title: "Tablet checklist — training how-tos on tasks (Watch / Guide)"
+    commits:
+      - "d7331ec"
+      # TAB-15: dashboard/tablet-data.ts (payload + taskHowTo), tablet-howto.tsx
+      # (new), tablet-home.tsx (pill, panel slot, Mark done, toast),
+      # standalone-tablet-default.tsx (R1 comment only)
+      # + the commit immediately after d7331ec: docs(TAB-15) — this row
+    deferred:
+      - Ask a manager (design A4, C1, C2) — TAB-16; the three button slots are marked in tablet-howto.tsx
+      - A per-video title under the player (the design's "Turning on the menu displays") — no field exists; adding one is a schema change
+    notes: >
+      ── BUILD 2026-11-12 (TAB-15). ──
+      BUILT, not yet checked on staging. TIER 2: no schema, migration,
+      permission, env var, cron, Square or write-route change; additive
+      fields on two read paths (loadTabletData and therefore GET
+      /api/stores/[id]/tablet-tasks). Prompt docs/prompts/TAB-15.md
+      (untracked until PRE-PUSH-CHECK). Design: "Tablet checklist — training
+      resources" PDF, boards A1, A2, A3 and B (A4, C1, C2 are TAB-16).
+      WHY: desktop shows a task's training under it ("Watch Training Video",
+      the attachment link); tablet mode never did, so a team member who did
+      not know a task had nowhere to look.
+      WHAT SHIPS (tablet mode only — the desktop execution page is not in
+      the diff):
+        - Payload. loadTabletData selects Task.videoUrl, the one
+          TaskAttachment (@unique on taskId) and estimatedTimeMinutes — the
+          execution page's fields, under the same gates (org + getUserStoreScope
+          store check; neither surface has a role gate on training). So a task
+          has 0, 1 or 2 resources. taskHowTo() classifies on the server:
+          YouTube -> embed id (canonicalYouTubeUrl), .mp4/.m4v/.mov/.webm ->
+          <video playsInline>, any other http(s) page -> opens in a new
+          window; a non-http(s) videoUrl (javascript:, data:) is NOT rendered
+          — the one place the tablet shows less than desktop, on purpose.
+        - A1 pill on unticked tasks with training only: Watch (video) /
+          Guide (document only) / +1 when both, 44px, left of the tick circle.
+          The row is split into text button + pill + circle button; text and
+          circle both call the existing tap, unchanged. Tasks with no
+          training render through the unchanged TouchRow.
+        - A2 landscape: the panel takes the Messages column's grid cell
+          (Messages stays mounted, display:none, so a draft survives). Row
+          highlighted, pill solid "Open". HOW-TO eyebrow, title, "<Name>
+          checklist · ~N min", 16:9 video (plays INLINE, playsinline=1), the
+          document row with Open, Mark done pinned at the bottom. X restores
+          Messages.
+        - A3 full-screen player from the corner button: Back to checklist,
+          centred title, Open guide when there is a document, Watch again +
+          Mark done. Leaving it drops the inline copy back to its poster, so
+          two never play at once.
+        - B portrait: the row expands in place (thumbnail left, document and
+          Mark done right), pill reads Hide, one row at a time. Rotating moves
+          the same open task between panel and expanded row.
+        - Mark done = tapTask, the existing tick path ("Who completed this
+          task?", PIN, °F pad). The panel closes once the task reads done.
+          The "done · N of M" toast with Undo IS built: an un-tick path
+          already exists (tap a done row), and Undo is that toggle.
+        - Documents. An image opens in an in-app viewer with Back to
+          checklist; a PDF (the only other type the upload route accepts)
+          opens with target="_blank". Nothing navigates the app's own window.
+        - An open how-to sets the TAB-5 busy flag "tasks:howto"; the TAB-9
+          idle closes it (the PIN session's pattern) and the page returns to
+          the top through the existing pageScrollReset.
+        - Planned cleanup from PWA-1: standalone-tablet-default.tsx's "DRAFT
+          ruling R1" comment now records the ratification.
+      CHOICE MADE, FOR GARY TO CONFIRM: the prompt's step 3 says Play opens
+      the full-screen player; its test 3 says the video plays inline in the
+      panel. Built: Play plays inline, the corner button opens full screen.
+      VERIFIED: tsc, scoped eslint and npm run build green at d7331ec.
+      Visual check on a temporary public /menu page (deleted before the
+      commit) rendering the new components with sample data, 1180x820: the
+      three pill states at 44px, the A2 panel, the B expanded row, the A3
+      player with its iframe at 16:9 and Back removing it, the toast. NOT
+      verified: the real tablet Home (the preview browser was signed out),
+      YouTube playback (the pane draws cross-origin frames blank), anything
+      on an iPad. Dev DB (br-broad-wave-a6vpjdw0, read-only probe): 1 live
+      task with a videoUrl, on www.youtube.com; 0 TaskAttachment rows.
+      OUT OF SCOPE, TRIAGED: COMMENT — Task.videoUrl is saved unvalidated
+      (api/templates routes) and desktop puts it straight into an href;
+      COMMENT — the 5-minute idle closes a video still playing, and taps
+      inside a YouTube iframe never reach the page's touch listeners;
+      COMMENT — tablet-messages.tsx's pinned update uses raw hex colours.
+      STAGING TESTS (Gary's iPad, home-screen app): 1 video task "Watch",
+      document-only "Guide", plain task unchanged; 2 landscape pill opens
+      the panel in Messages' place, X brings Messages back; 3 video plays
+      inline and full screen, Back returns to the panel; 4 Mark done (panel
+      and player) asks "Who completed this task?", ticks, count updates,
+      toast Undo unticks; 5 a document opens and there is a way back inside
+      the home-screen app; 6 portrait expands in place, one at a time;
+      7 desktop /store-view/checklist/[id] unchanged. Fixture needed: a
+      template task with a YouTube URL and one with a PDF (name them TAB-15).
   - id: PWA-1
     track: platform
     size: S
