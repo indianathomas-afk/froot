@@ -5,6 +5,153 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-11 — TAB-14: Tablet Checklists page, type-first, this store only — rulings R1–R9, RN-1–RN-7 — DRAFT
+
+**RATIFIED BY GARY, 2026-11-11, at the TAB-14 PRE-PUSH-CHECK:** "Ratify as
+written". This covers the whole entry below: R1–R9 and RN-1–RN-6 as
+recorded with his amendments at "go" as quoted, the Gate 5 addition,
+**RN-7 (the `verify-tab8.ts` A4/A5 change to another phase's test)**, and
+the calls marked *(design choice)*, all now ratified as his. The heading's
+"DRAFT", the "DRAFT, awaiting Gary's ratification of THIS WORDING" line,
+"(untracked until PRE-PUSH-CHECK)" and RN-7's "AWAITING GARY'S
+RATIFICATION … NOT RATIFIED" are spent, kept; `docs/prompts/TAB-14.md` is
+committed at this check. Docs commit: `c8bff9f`. Wording untouched.
+
+**DRAFT, awaiting Gary's ratification of THIS WORDING at the TAB-14
+PRE-PUSH-CHECK.** The rulings themselves were ratified in session (quoted
+below); what the check ratifies is that this entry records them faithfully.
+Prompt of record: `docs/prompts/TAB-14.md` (untracked until PRE-PUSH-CHECK).
+Audit: `docs/prompts/TAB-14_AUDIT.md`. Work commit `500037a`. TIER 2.
+Design source: "Froot Tablet — Checklists" PDF, boards "Checklists · Tablet
+landscape", "Checklists · Tablet portrait (with store-only overdue alert)" and
+"Checklist type key" only. Where the mock and TAB-13's ratified rulings
+disagree, TAB-13 wins (prompt).
+
+**Where the words come from.** R1–R9 were PROPOSED in Gary's prompt
+("Proposed rulings (ratify, amend, or strike at Gate 1)"). The Gate 1 audit
+proposed RULING NOW items 1–6 (Claude's recommendations; numbered RN-1–RN-6
+below — TAB-14's own, NOT TAB-13's RN-1–RN-7). Gary replied **"Ratify as
+recommended"**, then at "go" amended four of them and added a Gate 5 rule;
+his amendments are quoted verbatim below.
+
+**The rulings as ratified (R-number = the prompt's).**
+- **R1 — Scope.** Tablet-mode `/checklists` only. Out: desktop
+  `/checklists`, Home (tablet and desktop — TAB-13 keeps working), the
+  execution page, template admin, schema and any API write route.
+  DEBT-130/131/132 stay open.
+- **R2 — One store.** The tablet's current store, the one tablet Home uses:
+  `localStorage["froot.dashboard.store"]` resolved by `resolveSingleStore`
+  over Home's store list (audit c). No picker, no store name on cards; store
+  switching stays on Home.
+- **R3 — Which checklists.** GET `/api/stores/[id]/templates`, Home's list
+  (TAB-13 RN-4), so an unstarted checklist appears.
+- **R4 — Order and grouping.** TAB-13's RN-3 order; the first three groups
+  are tiles; completed collapse into "Done today" (icon chip, type name,
+  Completed chip, View).
+- **R5 — Tile.** Band in the type's fill and ink: icon chip, type name (RN-6
+  naming), "N tasks", Due chip; template-name second line ≥ 19px bold (rule:
+  RN-3 below); upcoming shows "Opens <time>" instead of Due; body: status,
+  "X of Y done", bar in the type colour; one full-width Start / Continue
+  button. Counts: the tick list's own once a row exists, the route's
+  `taskCount` before (DEBT-132).
+- **R6 — Buttons.** Start / Continue / View go to
+  `/store-view/checklist/[id]`, where "View Checklist" goes today. Start with
+  no row creates it as tablet Home does (shared helper, RN-2), then opens it.
+  An upcoming checklist can be started (audit f: tablet Home allows it). No
+  new route; View still opens the editable page (DEBT-131).
+- **R7 — Layout.** Landscape two columns; portrait one column with the band
+  sideways; the page scrolls; nothing shrinks below the board; type names
+  ≥ 48px in landscape. Header "Today's checklists", date, "X of Y done".
+- **R8 — Overdue banner.** This store's items only, the existing banner's
+  data and actions; hidden when none. Home's "N overdue" chip (TAB-1 /
+  TAB-1c / TAB-9 — not TAB-12, which is message types) reads the same feed
+  and counts the same items, so no ruling was needed: the banner is used,
+  scoped through the feed's existing `?storeId=`. No "Finish it" action.
+- **R9 — Accessibility and code.** Real `<button>` / `<a>`, targets ≥ 44px,
+  text on a fill ≥ 19px bold, lucide-react and existing tokens, no new
+  dependency, literal Tailwind class names.
+
+**RULING NOW items, as ratified ("Ratify as recommended") and amended.**
+- **RN-1 — "Opens <time>".** (a) add the window start to GET
+  `/api/stores/[id]/templates` as one additive read-only field. AMENDED by
+  Gary at "go", verbatim: "the new read-only field must come from data the
+  route already loads (no new query). Display it in the store's timezone,
+  the same way dueLabel does."
+- **RN-2 — Shared helpers.** (a) move tablet Home's create-run POST and its
+  RN-6 label into shared helpers that Home calls with no behaviour change.
+  AMENDED by Gary at "go", verbatim: "add an explicit Gate 5 check that
+  tablet Home's Start still creates the run (POST 201) and opens the tick
+  list in the card, and that the TAB-13 tabs still swap the hero."
+- **RN-3 — Template-name line.** (a) shown when the template name does not
+  contain the type name. AMENDED by Gary at "go", verbatim: "compare names
+  with the same normalization and aliases as checklist-types.ts
+  (case-insensitive, letters only, Closer = Closing)."
+- **RN-4 — Today rows Home's list drops** (template archived or deactivated
+  mid-day, store unassigned mid-day): (a) follow Home — not shown on the
+  tablet page.
+- **RN-5 — Empty state.** (a) tablet Home's "No checklists today" copy, not
+  the page's admin copy (which points at a button the tablet does not have).
+- **RN-6 — Refresh.** Recommended (a), read on each visit only. AMENDED by
+  Gary at "go", verbatim: "change to (b). Reuse Home's background refresh on
+  the tablet page. Tablets get left on this page, and "Opens <time>" and the
+  order must stay current."
+- **RN-7 — `scripts/verify-tab8.ts` checks A4 and A5 — AWAITING GARY'S
+  RATIFICATION at the TAB-14 PRE-PUSH-CHECK. NOT RATIFIED.** It changes
+  another phase's test. History: proposed at Gate 3; Gary replied "Ratify as
+  recommended", and the change was made in work commit `500037a`. At the
+  PRE-PUSH-CHECK Gary asked for it to be recorded here for his ratification
+  "the way RN-7 was" (TAB-13's RN-7, `verify-tab10` check 3c) and said "Don't
+  treat it as ratified yet." Both checks are TAB-8's own scope pins; neither
+  failure was a defect.
+  - **A4, before** (`verify-tab8.ts` at `adc0f9e`, line 150): every file in
+    `src/` that names the tablet-tasks route or its reader must be exactly
+    tablet Home and `src/lib/tablet-tasks-refresh.ts`. **Why it failed:** RN-6
+    as amended reuses Home's refresh on the tablet Checklists page, which
+    re-reads through that route (`checklists-tablet.tsx:144`), so the page is
+    a third caller. **Now** (line 155): the same check with
+    `src/app/(app)/checklists/checklists-tablet.tsx` added to the allowed
+    list; any other caller still fails, and A4's negative check ("a desktop
+    file calling it → caught") still passes.
+  - **A5, before** (lines 168-172): `git diff` from TAB-8's base `29abe48` to
+    the WORKING TREE over nine files (the desktop dashboard page, tablet-data,
+    the execution page and client, dashboard-client, the templates route, and
+    the task-log / submit / create write routes) must be empty. **Why it
+    failed:** RN-1 as amended adds `expectedStartAt` to the templates route
+    (`route.ts:149`), and any later edit to any of the nine files would fail
+    it the same way: it pinned "nothing changed since TAB-8", not "TAB-8
+    changed nothing". **Now** (lines 69, 178-186): the same nine files, diffed
+    from `29abe48` to TAB-8's work commit `c18b0d7` (its parent is `29abe48`,
+    checked), so it pins TAB-8's own diff; its negative check now asks that
+    the same diff sees a file TAB-8 did change (tablet-home.tsx). TAB-13 RN-7's
+    pattern.
+  - **Not the RN-2 refactor.** Neither check was tripped by moving code out
+    of tablet Home; A4 by RN-6's reuse of the refresh, A5 by RN-1's field.
+  - Result: 114/114 (was 112/114).
+
+**Gate 5 addition (Gary at "go", verbatim).** "take the "after" shots at the
+same 834px width as the Gate 0 "before" shots."
+
+**Calls made while building *(design choice)*.**
+- `dueLabel` moved too (to `dueChipLabel`, `src/lib/tablet-today.ts`),
+  beyond the two moves named at Gate 1, so the Due and "Opens" chips share
+  one formatter; `verify-tab14-checklists` case 26 pins it equal to Home's
+  old code, as case 13 does for `checklistTitle`.
+- "Done today" rows also carry the template-name line (RN-3's rule), so a
+  completed "Overdue Test" still says which Cleaning it was.
+- No TAB-5 day hold: Home holds yesterday on screen while a tick list is
+  open; this page opens none, so a re-read after midnight shows the new day.
+- Start on a checklist whose row exists but has no ticks is a link to that
+  row with no POST, as Home's `start()` opens an existing row.
+- A Start answer with no id (e.g. an expired sign-in answering with the
+  sign-in page) says "That didn't open. Reload the page and tap Start
+  again." and claims nothing about whether it started.
+- Two tiles in a row share a height; the buttons sit at the bottom
+  (`landscape:mt-auto`) so one does not float above empty card.
+- The banner keeps its existing (desktop) styling inside the page (R8,
+  "the existing banner").
+- The tablet-tasks route's "only caller" comment gained a line naming the
+  second caller.
+
 ## 2026-11-11 — TAB-13: Tablet home — checklist switcher on the hero, rulings R1–R8, RN-1–RN-7 — DRAFT
 
 **RATIFIED BY GARY, 2026-11-11, at the TAB-13 PRE-PUSH-CHECK:** "Ratify as

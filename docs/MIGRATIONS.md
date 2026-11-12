@@ -2734,6 +2734,32 @@ before the commit.
 
 ## 2026-11-10 — `20261111050000_tab4_tablet_pin` (TAB-4)
 
+**SHIPPED 2026-11-11 in merge `c21fe51`** (DEPLOY_LOG `c21fe51 — 2026-11-10 —
+TAB-4`; the TAB-12 entry carries the merge facts), with TAB-7, TAB-8, TAB-10,
+TAB-11 and TAB-12. Stamped post-merge 2026-11-11 on `staging` by the TAB-13
+promotion pass (late: `c21fe51` got no docs pass when it was made;
+prepended, nothing below is edited). The two OWED cells in the table below
+are superseded by this stamp, kept. Per branch at this stamp:
+
+- **production `br-sparkling-block-a620qvg4`: EVIDENCE PENDING.** Gary's
+  ruling for this record: production-branch evidence with the branch column,
+  or "evidence pending", not "applied". No `_prisma_migrations` row or
+  `information_schema` read was taken on this branch: the Neon console showed
+  a login page to this session. **Supporting, not branch-identified:** the
+  production build log of deployment `froot-1kpsm7gn1` (built from
+  `c21fe51`; `vercel inspect --logs`, read by this pass, host redacted)
+  shows `prisma migrate deploy` → "4 migrations found", "Applying migration
+  `20261111050000_tab4_tablet_pin`", "All migrations have been successfully
+  applied", at 2026-11-11T20:02:32Z. To close: the read-only query below on
+  `br-sparkling-block`, branch id from the server (R4).
+  `SELECT current_setting('neon.branch_id', true) AS neon_branch, migration_name, finished_at FROM "_prisma_migrations" WHERE migration_name = '20261111050000_tab4_tablet_pin';`
+- **staging `br-square-feather-a63z92vz`:** applied by the Vercel build on
+  Gary's push (TAB-4 PRE-PUSH-CHECK `7397e35`). No `finished_at` read.
+  Indirect: on 2026-11-11 the staging server answered
+  GET `/api/stores/[id]/tablet-tasks` with `pinRequired: false`, which
+  selects `Organization.tabletPinRequired` (`tablet-tasks/read.ts:48`) and
+  would fail without the column.
+
 **APPLIED TO DEV ONLY, by Gary**, with `npx prisma migrate deploy`, after the
 TAB-4 build STOP and before the work commit `0064bf9` (§ A migration STOPS the
 session). Staging and production get it from the Vercel build on Gary's push

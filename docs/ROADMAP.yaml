@@ -25605,7 +25605,18 @@ phases:
     # words (quoted there). The notes' "DRAFT until PRE-PUSH-CHECK" is spent,
     # kept. Migration still OWED on staging (the Vercel build on Gary's push)
     # and production (at promotion). NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11, stamped post-merge 2026-11-11 on
+    # `staging` by the TAB-13 promotion pass (late: c21fe51 got no docs pass
+    # when it was made): merge c21fe51, "Promote TAB-4, TAB-7, TAB-8, TAB-10,
+    # TAB-11, TAB-12" (DEPLOY_LOG entry `c21fe51 — ... — TAB-4: ...`; the
+    # TAB-12 entry carries the merge facts). The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole promotion):
+    # `git revert -m 1 c21fe51`, after `git revert -m 1 def04fa` once that
+    # is pushed.
+    # Migration 20261111050000_tab4_tablet_pin: production
+    # (br-sparkling-block) evidence PENDING — see docs/MIGRATIONS.md.
+    status: shipped
+    shipped: 2026-11-11
     title: "Per-person attribution on shared tablets"
     commits:
       - "0064bf9"
@@ -25872,7 +25883,16 @@ phases:
     # "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" and
     # "untracked until PRE-PUSH-CHECK" are spent, kept. No migration. Rollback
     # stays `git revert 3f92131 316ffd4`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11, stamped post-merge 2026-11-11 on
+    # `staging` by the TAB-13 promotion pass (late: c21fe51 got no docs pass
+    # when it was made): merge c21fe51, "Promote TAB-4, TAB-7, TAB-8, TAB-10,
+    # TAB-11, TAB-12" (DEPLOY_LOG entry `c21fe51 — ... — TAB-7: ...`; the
+    # TAB-12 entry carries the merge facts). The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole promotion):
+    # `git revert -m 1 c21fe51`, after `git revert -m 1 def04fa` once that
+    # is pushed.
+    status: shipped
+    shipped: 2026-11-11
     title: "Sales comparison — today so far vs last year at the same time of day (desktop + tablet)"
     commits:
       - "316ffd4"
@@ -26008,7 +26028,16 @@ phases:
     # check: "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" and
     # "untracked until PRE-PUSH-CHECK" are spent, kept. No migration. Rollback
     # stays `git revert 1e5ebc1 c18b0d7`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11, stamped post-merge 2026-11-11 on
+    # `staging` by the TAB-13 promotion pass (late: c21fe51 got no docs pass
+    # when it was made): merge c21fe51, "Promote TAB-4, TAB-7, TAB-8, TAB-10,
+    # TAB-11, TAB-12" (DEPLOY_LOG entry `c21fe51 — ... — TAB-8: ...`; the
+    # TAB-12 entry carries the merge facts). The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole promotion):
+    # `git revert -m 1 c21fe51`, after `git revert -m 1 def04fa` once that
+    # is pushed.
+    status: shipped
+    shipped: 2026-11-11
     title: "Read-only checklist-items endpoint so the tablet Tasks panel refreshes without router.refresh()"
     commits:
       - "c18b0d7"
@@ -26283,7 +26312,16 @@ phases:
     # check: "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" and
     # "untracked until PRE-PUSH-CHECK" are spent, kept. No migration.
     # Rollback stays `git revert 742f98d e12bc2d`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11, stamped post-merge 2026-11-11 on
+    # `staging` by the TAB-13 promotion pass (late: c21fe51 got no docs pass
+    # when it was made): merge c21fe51, "Promote TAB-4, TAB-7, TAB-8, TAB-10,
+    # TAB-11, TAB-12" (DEPLOY_LOG entry `c21fe51 — ... — TAB-10: ...`; the
+    # TAB-12 entry carries the merge facts). The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole promotion):
+    # `git revert -m 1 c21fe51`, after `git revert -m 1 def04fa` once that
+    # is pushed.
+    status: shipped
+    shipped: 2026-11-11
     title: "Tablet expanded Sales card — transactions and average sale"
     commits:
       - "e12bc2d"
@@ -26412,7 +26450,16 @@ phases:
     # desktop changes. The notes' "DRAFT until PRE-PUSH-CHECK" and
     # "untracked until PRE-PUSH-CHECK" are spent, kept. No migration.
     # Rollback stays `git revert 498322a`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11, stamped post-merge 2026-11-11 on
+    # `staging` by the TAB-13 promotion pass (late: c21fe51 got no docs pass
+    # when it was made): merge c21fe51, "Promote TAB-4, TAB-7, TAB-8, TAB-10,
+    # TAB-11, TAB-12" (DEPLOY_LOG entry `c21fe51 — ... — TAB-11: ...`; the
+    # TAB-12 entry carries the merge facts). The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole promotion):
+    # `git revert -m 1 c21fe51`, after `git revert -m 1 def04fa` once that
+    # is pushed.
+    status: shipped
+    shipped: 2026-11-11
     title: "Team Messages in Tablet mode — touch two-pane layout"
     commits:
       - "498322a"
@@ -26495,7 +26542,16 @@ phases:
     # "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" and
     # "untracked until PRE-PUSH-CHECK" are spent, kept. No migration.
     # Rollback stays `git revert 25f823c`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11, stamped post-merge 2026-11-11 on
+    # `staging` by the TAB-13 promotion pass (late: c21fe51 got no docs pass
+    # when it was made): merge c21fe51, "Promote TAB-4, TAB-7, TAB-8, TAB-10,
+    # TAB-11, TAB-12" (DEPLOY_LOG entry `c21fe51 — ... — TAB-12: ...`; the
+    # TAB-12 entry carries the merge facts). The "NOT pushed" / "staging"
+    # comments above are spent, kept. Rollback (whole promotion):
+    # `git revert -m 1 c21fe51`, after `git revert -m 1 def04fa` once that
+    # is pushed.
+    status: shipped
+    shipped: 2026-11-11
     title: "Tablet home — choose a message type (type tag in the composer)"
     commits:
       - "25f823c"
@@ -26576,7 +26632,26 @@ phases:
     # PRE-PUSH-CHECK" are spent, kept. No migration. Rollback stays
     # `git revert 993977f`. The main -> staging catch-up (c21fe51) is left
     # for the next promotion, on Gary's instruction. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11 at merge def04fa ("Merge branch
+    # 'staging'", parents c21fe51 + fdf7488; 3 commits 993977f, b106aa7,
+    # fdf7488), stamped post-merge 2026-11-11 on `staging` (R1) by the
+    # promotion pass, NOT pushed at writing. The same pass fast-forwarded
+    # staging through c21fe51 (the main -> staging catch-up) and stamped
+    # c21fe51's rows. Gate 3 on staging (fdf7488, org
+    # org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk verified-snapper-7, Las Brisas):
+    # 1 order PASS, 2 switching PASS (no request), 3 Start / Continue / View
+    # PASS (View: Overdue Test completed on staging), 4-6 covered by
+    # verify-tab13-switcher + the observed reload reset, not observed on
+    # staging (Gary's ruling), 7 desktop after captured / before NOT
+    # captured (ruled covered by code evidence), 8 portrait PASS, observed by Gary
+    # on the iPad (scrolling tab row, no page scroll, OPENER unclipped). Goal tile missing = data
+    # (staging tabletLayout monthly-goal enabled:false); Cleaning 1 task real,
+    # not DEBT-132. Full record: DEPLOY_LOG `def04fa — 2026-11-11 — TAB-13`.
+    # The "NOT pushed at writing" comments above are spent (Gary pushed
+    # fdf7488 to staging), kept. No migration. Rollback:
+    # `git revert -m 1 def04fa`.
+    status: shipped
+    shipped: 2026-11-11
     title: "Tablet home — checklist switcher on the hero (Design Option 1)"
     commits:
       - "993977f"
@@ -26647,6 +26722,105 @@ phases:
       org org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk verified-snapper-7):
       Gate 3 checks 1–8 of docs/prompts/TAB-13.md on real data (Carson if it
       has several checklists today), desktop Home before/after screenshots.
+  - id: TAB-14
+    track: platform
+    size: M
+    # planned -> in_progress 2026-11-11 at the work commit 500037a (NOT
+    # pushed). The docs SHA is the commit immediately after 500037a (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging
+    # (docs/WORKFLOW.md session completion rule 2; TAB-11/12/13 precedent).
+    # Not promoted. No migration. Rollback: `git revert 500037a`.
+    # in_progress -> staging 2026-11-11 at the TAB-14 PRE-PUSH-CHECK (the
+    # commit immediately after c8bff9f; its own SHA cannot be written inside
+    # itself). Docs SHA: c8bff9f (this row, DEBT-133, DECISIONS DRAFT, the
+    # audit). The check committed the prompt of record docs/prompts/TAB-14.md
+    # and wrote the DEPLOY_LOG UNPROMOTED entry. DECISIONS 2026-11-11 TAB-14
+    # (R1–R9, RN-1–RN-7 incl. the verify-tab8 A4/A5 change, Gary's
+    # amendments at "go", the design choices) RATIFIED by Gary at this check:
+    # "Ratify as written". The notes' "DRAFT until PRE-PUSH-CHECK" and
+    # "untracked until PRE-PUSH-CHECK" are spent, kept. Verify at the check:
+    # verify-tab14-checklists 32/32, verify-tab13-switcher, verify-tab1-today,
+    # verify-tab8 114/114, verify-tab10 50/50, all exit 0; build green. No
+    # migration. Rollback stays `git revert 500037a`. NOT pushed at writing.
+    status: staging
+    title: "Tablet Checklists page — type-first, this store only"
+    commits:
+      - "500037a"
+      # TAB-14: checklists/page.tsx (tablet branch), checklists-tablet.tsx
+      # (new), calendar-due-banner.tsx (storeId + refresh cycle), templates
+      # route (additive expectedStartAt), lib/checklist-start.ts (new) and
+      # moves out of tablet-home.tsx (RN-2, no behaviour change),
+      # verify-tab14-checklists (new, 32 checks), verify-tab8 A4/A5 (RN-7)
+      # + the commit immediately after 500037a: docs(TAB-14) — this row,
+      # DEBT-133, DECISIONS DRAFT, the audit
+      - "c8bff9f"
+      # + the commit immediately after c8bff9f: docs(TAB-14) PRE-PUSH-CHECK —
+      # DECISIONS ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
+    deferred:
+      - A read-only view of a completed checklist — View still opens the editable execution page (DEBT-131)
+      - Reconciling the type key with the admin-chosen TemplateType colour (DEBT-130)
+      - The templates route's taskCount ignoring per-store exclusions (DEBT-132)
+      - The Done screen's "Up next" button saying Start on an in-progress checklist (DEBT-133)
+    notes: >
+      ── BUILD 2026-11-11 (TAB-14). ──
+      BUILT, not yet checked on staging. TIER 2: no schema, migration,
+      permission, env var, cron, Square or write-route change; one ADDITIVE
+      field on a read-only route. Prompt docs/prompts/TAB-14.md (untracked
+      until PRE-PUSH-CHECK). Audit docs/prompts/TAB-14_AUDIT.md. Design:
+      "Froot Tablet — Checklists" PDF, boards "Checklists · Tablet
+      landscape", "Checklists · Tablet portrait" and "Checklist type key".
+      R1–R9 with RN-1–RN-7 and Gary's amendments at "go" in DECISIONS
+      2026-11-11 TAB-14, DRAFT until PRE-PUSH-CHECK.
+      WHY: in tablet mode /checklists was the desktop admin list in the
+      rail — every store the login can see, each card titled with the store
+      name, the type a small grey tag, and the overdue banner listing other
+      stores. It also showed rows only, so a checklist nobody had started was
+      missing (staging, Las Brisas, 2026-11-11: Closer Checklist).
+      WHAT SHIPS (tablet mode only; desktop /checklists returns before any
+      tablet code and its diff is additions only):
+        - One store: the tablet's own (localStorage froot.dashboard.store
+          resolved over tablet Home's store list, as Home and the rail do).
+          No picker, no store names.
+        - The list is tablet Home's (GET /api/stores/[id]/templates), in
+          TAB-13's RN-3 order: in progress, due now, upcoming as tiles;
+          completed in a "Done today" row (icon, type name, template line
+          when it applies, Completed chip, View).
+        - Tile: band in the type's fill and ink — icon chip, type name (RN-6
+          naming), template name as a second line when it doesn't already
+          say the type (same normalization and aliases as
+          checklist-types.ts), "N tasks", Due chip or "Opens <time>" for an
+          upcoming one, in the store's zone; body: status, "X of Y done",
+          bar in the type colour; one full-width Start / Continue.
+        - Start with no row = tablet Home's POST (now shared,
+          lib/checklist-start.ts), then /store-view/checklist/[id]; Continue
+          and View link there. Upcoming checklists can be started (Home
+          allows it).
+        - Landscape two columns, titles 60px; portrait one column with the
+          band sideways, titles 48px; the page scrolls.
+        - Overdue banner: this store's items only (the feed's existing
+          ?storeId=), same actions; hidden when none.
+        - Re-reads on tablet Home's 60s refresh cycle (list, banner, ticks),
+          with Home's "Not updated since …" line.
+      VERIFIED LOCALLY on a temporary mocked page under /menu (deleted before
+      the commit; signed out, no org) at 1194x834 and 834x1194: RN-3 order,
+      Opens 7:00 PM in the store's zone, template line on Overdue Test only,
+      every line on a fill 24px bold, controls ≥ 44px, no sideways scroll,
+      Start = one POST then navigation to the new row, refresh cycles
+      re-reading templates / ?storeId= banner / tablet-tasks. Build green;
+      scoped eslint clean; verify-tab14-checklists 32/32 (alias mutation
+      caught); verify-tab13-switcher, tab1-today, tab8 (114/114 after RN-7),
+      tab10, tab1c, tab5-refresh pass. Not run on a real iPad or real data.
+      STAGING TESTS (Gate 5 of docs/prompts/TAB-14.md, plus Gary's additions;
+      staging-SHA precondition first; org org_3G02wO4QlVVSWppi8aqlnSZnsDa,
+      Clerk verified-snapper-7; "after" shots at 834px, as the Gate 0
+      "before" shots): one store at Las Brisas; RN-3 order + Done today;
+      Start creates and opens, Continue, View; banner Las Brisas only or
+      hidden; Overdue Test's template line (Completed on staging today, so
+      in Done today); desktop unchanged vs the before shot; tablet Home's
+      Start still POSTs 201 and opens the tick list in the card, and the
+      TAB-13 tabs still swap the hero (RN-2 addition). Gary on the iPad:
+      portrait, and a second store if available.
 
 bugs:
   - id: BUG-1
@@ -39786,6 +39960,27 @@ debt:
       (store-view-client.tsx) shows the same count. Fix is one filter in that
       route — TIER 2, a read-only route.
       RELATED: TAB-13, TPL-3.
+
+  - id: DEBT-133
+    status: planned
+    title: >
+      Tablet Done screen's "Up next" button says Start on a checklist that
+      is already in progress
+    notes: >
+      FILED 2026-11-11 by the TAB-14 session, on Gary's instruction (TAB-14
+      prompt, Gate 4: "log only, don't fix"). THE ID FILLS THE NEXT FREE SLOT
+      (DEBT-132 was the highest). WHAT IS TRUE TODAY: tablet Home's Done
+      screen picks "Up next" as the first not-completed checklist in tab
+      order (dashboard/tablet-home.tsx:1126) and, when it is due now, shows a
+      button labelled "Start" (:1633-1636) whatever its state. start()
+      opens an existing row without a POST, so the button does the right
+      thing; only the LABEL is wrong for an in-progress checklist (it should
+      read Continue, as the hero's does). PREDATES TAB-13, checked: the
+      button is TAB-1's (adec345, git blame), and before TAB-13 "Up next"
+      was pickTodayChecklist's `current` (993977f^ tablet-home.tsx:1068),
+      which can already be in progress. TAB-14 did not touch it.
+      Display-only — TIER 1 once ruled.
+      RELATED: TAB-1, TAB-13, TAB-14.
 
 rulings:
   - id: R1

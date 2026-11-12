@@ -108,3 +108,58 @@ export function checklistTypeKey(typeName: string | null | undefined): Checklist
 export function checklistTypeStyle(typeName: string | null | undefined): ChecklistTypeStyle {
   return CHECKLIST_TYPE_STYLES[checklistTypeKey(typeName)]
 }
+
+// ─── Naming ──────────────────────────────────────────────────────────────────
+//
+// TAB-14 RN-2 MOVED the title rule here from tablet Home's TasksPanel
+// (tablet-home.tsx, `typeOf` / `labelOf`), unchanged, so the tablet
+// Checklists page names a checklist exactly as Home does.
+//
+// TAB-13 RN-6: the title is the TYPE name, unless another checklist today has
+// the same type (normalizeTypeName) — or the template has no type name at all —
+// in which case it is the template's own name. Colour and icon still come from
+// the type. NOTE: the duplicate test compares normalizeTypeName only, no
+// aliases, exactly as Home did; moving it changed nothing.
+
+export interface NamedChecklist {
+  id: string
+  /** The template's own name. */
+  name: string
+  /** The TemplateType name (legacy `type` when unset), as the route sends it. */
+  type?: string | null
+}
+
+/** The type name as the org spells it, or the template name when there is none. */
+export function checklistTypeName(e: NamedChecklist): string {
+  return e.type?.trim() || e.name
+}
+
+/** TAB-13 RN-6. `all` is today's list (the tab row / the page's tiles). */
+export function checklistTitle(e: NamedChecklist, all: NamedChecklist[]): string {
+  const mine = normalizeTypeName(checklistTypeName(e))
+  return all.some((o) => o.id !== e.id && normalizeTypeName(checklistTypeName(o)) === mine) ? e.name : checklistTypeName(e)
+}
+
+/** Every normalized name that reads as this type: its own, plus every alias
+ *  of the same key ("Closer" → closer, closing). An unknown type is only its
+ *  own name. */
+function typeNameVariants(typeName: string): string[] {
+  const own = normalizeTypeName(typeName)
+  const key = checklistTypeKey(typeName)
+  if (key === "other") return own ? [own] : []
+  return [own, ...Object.keys(BY_NAME).filter((n) => BY_NAME[n] === key)]
+}
+
+/** TAB-14 R5 + RN-3 (as amended by Gary, 2026-11-11): the template name as a
+ *  second line under the type name, when the template name does not already
+ *  say the type. Compared with THIS module's normalization and aliases —
+ *  case-insensitive, letters only, Closer = Closing — so "Closer Checklist"
+ *  (type Closer), "Closing duties" (type Closer) and "Mid Shift Checklist"
+ *  (type Mid-Shift) get no line, and "Overdue Test" (type Cleaning) does.
+ *  Null when the title is already the template name (RN-6). */
+export function templateNameLine(e: NamedChecklist, all: NamedChecklist[]): string | null {
+  const title = checklistTitle(e, all)
+  if (title === e.name) return null
+  const template = normalizeTypeName(e.name)
+  return typeNameVariants(title).some((n) => n.length > 0 && template.includes(n)) ? null : e.name
+}

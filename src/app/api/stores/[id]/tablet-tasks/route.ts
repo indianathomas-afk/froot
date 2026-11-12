@@ -19,6 +19,9 @@ import { readTabletTasksFor } from "./read"
 // (POST /api/checklists) and the calendar materialise cron.
 //
 // The only caller is the tablet home (src/app/(app)/dashboard/tablet-home.tsx).
+// TAB-14, 2026-11-11 — appended; the line above is spent, kept. The tablet
+// Checklists page (src/app/(app)/checklists/checklists-tablet.tsx) re-reads
+// through it too, on the same refresh cycle (TAB-14 RN-6, Gary).
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { orgId } = await auth()
