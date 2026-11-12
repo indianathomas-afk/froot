@@ -26742,7 +26742,25 @@ phases:
     # verify-tab14-checklists 32/32, verify-tab13-switcher, verify-tab1-today,
     # verify-tab8 114/114, verify-tab10 50/50, all exit 0; build green. No
     # migration. Rollback stays `git revert 500037a`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11 at merge 90a98b5 ("Merge branch
+    # 'staging'", parents def04fa + def7c2b; 4 commits adc0f9e, 500037a,
+    # c8bff9f, def7c2b), stamped post-merge 2026-11-11 on `staging` (R1) by
+    # the promotion pass (the commit immediately after 90a98b5), NOT pushed
+    # at writing. Gate 5 on staging (def7c2b, org
+    # org_3G02wO4QlVVSWppi8aqlnSZnsDa, Clerk verified-snapper-7, Las Brisas,
+    # 834px): 1 one store, 2 order + Done today, 3 Start (POST 201, opened the
+    # new Closer row) / Continue / View, 4 banner Las Brisas only
+    # (?storeId=), 5 Overdue Test template line, 6 desktop unchanged — all
+    # PASS, observed by Claude; 7 tablet Home Start opens the tick list in the
+    # card and the TAB-13 tabs swap the hero, and portrait — observed by
+    # Gdogg (Gary) on the iPad, "All working"; second store NOT observed;
+    # landscape not observed on staging (local mock only). TAB-4 production
+    # migration evidence still PENDING (Neon console signed out). Full
+    # record: DEPLOY_LOG `90a98b5 — 2026-11-11 — TAB-14`. The "NOT pushed at
+    # writing" comments above are spent (Gary pushed def7c2b to staging),
+    # kept. No migration. Rollback: `git revert -m 1 90a98b5`.
+    status: shipped
+    shipped: 2026-11-11
     title: "Tablet Checklists page — type-first, this store only"
     commits:
       - "500037a"
@@ -26821,6 +26839,100 @@ phases:
       Start still POSTs 201 and opens the tick list in the card, and the
       TAB-13 tabs still swap the hero (RN-2 addition). Gary on the iPad:
       portrait, and a second store if available.
+
+  - id: PWA-1
+    track: platform
+    size: S
+    # planned -> in_progress 2026-11-11 at the work commit 630e88b (NOT
+    # pushed). The docs SHA is the commit immediately after 630e88b (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to
+    # staging. Not promoted. No migration. Rollback: `git revert 630e88b`.
+    # in_progress -> staging 2026-11-11 at the PWA-1 PRE-PUSH-CHECK (the
+    # commit immediately after 870d3d4; its own SHA cannot be written inside
+    # itself). Docs SHA: 870d3d4 (this row, DECISIONS DRAFT). The check
+    # committed the prompt of record docs/prompts/PWA-1.md and wrote the
+    # DEPLOY_LOG UNPROMOTED entry. DECISIONS 2026-11-11 PWA-1 R1 RATIFIED by
+    # Gary at this check: "Ratify as written". The notes' "DRAFT until
+    # PRE-PUSH-CHECK" and "untracked until PRE-PUSH-CHECK" are spent, kept.
+    # Build green at the check. No migration. Rollback stays
+    # `git revert 630e88b`. NOT pushed at writing.
+    status: staging
+    title: "Froot as a home-screen app on iPad — manifest, cream icons, Tablet by default from the icon"
+    commits:
+      - "630e88b"
+      # PWA-1: manifest.ts (id, scope, cream colours, 192/512/maskable
+      # icons), public/icons/ (new), apple-icon.png (cream tile), root
+      # layout (viewport.themeColor, apple-mobile-web-app-capable via
+      # metadata.other), lib/froot-cream.ts (new), view-mode.ts
+      # (writeViewCookie, isSavedViewMode), view-mode-server.ts
+      # (hasSavedViewMode), view-switch.tsx (uses the shared writer),
+      # standalone-tablet-default.tsx (new), (app)/layout.tsx (mounts it)
+      # + the commit immediately after 630e88b: docs(PWA-1) — this row,
+      # DECISIONS DRAFT
+      - "870d3d4"
+      # + the commit immediately after 870d3d4: docs(PWA-1) PRE-PUSH-CHECK —
+      # DECISIONS R1 ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
+    open:
+      - "iPad staging test (Gary, after push; staging-SHA precondition first): (1) Safari -> Share -> Add to Home Screen: icon is the orange slice on a solid cream tile, not black and not a screenshot; name reads Froot. (2) Launch from the icon: no address bar, tabs or Safari buttons; time/battery strip readable. (3) Sign in (the icon app has its own login): it opens in Tablet mode — expect one brief Desktop paint on this very first launch only. (4) Switch to Desktop, close the app fully, relaunch from the icon: still Desktop; switch back to Tablet. (5) The same URL in Safari: Desktop by default, as before."
+    deferred:
+      - Push notifications
+      - Offline support / service worker
+      - App Store wrapper (Capacitor or similar)
+    notes: >
+      ── BUILD 2026-11-11 (PWA-1). ──
+      BUILT, not yet checked on staging. TIER 2: no schema, migration,
+      permission, API route, env var or dependency. Prompt
+      docs/prompts/PWA-1.md (untracked until PRE-PUSH-CHECK). Draft ruling R1
+      in DECISIONS 2026-11-11 PWA-1, DRAFT until PRE-PUSH-CHECK; it amends
+      TAB-1 ruling 2 ("never switches on its own") for one case.
+      THE PROMPT WAS PARTLY ALREADY DONE. manifest.ts (standalone,
+      start_url /dashboard) existed since 28bbd8a, apple-icon.png since
+      c473b72, and appleWebApp {capable: true, title, statusBarStyle
+      "default"} since TAB-1 (adec345). PWA-1 is the delta on top of them.
+      WHAT SHIPS:
+        - Manifest: + id "/" and scope "/"; start_url stays /dashboard (works
+          for every role: signed out -> /sign-in, no org -> org picker ->
+          /dashboard, HR employee login -> /my); background_color and
+          theme_color #fff3e8 (were white / brand orange); icons 192, 512 and
+          512 maskable (was the transparent 500px /icon.png).
+        - Icons: solid cream #fff3e8 tile (= --color-background oklch(97% .02
+          65)), slice centred, no alpha; 15% padding, maskable 20%. Replaces
+          c473b72's WHITE apple-icon: its seam reason does not hold, since all
+          of the mark's white sits inside its orange ring (measured with
+          sharp; transparency is only the corners outside the circle). Brand
+          orange was rejected because it swallows the ring. Generated with
+          Next's bundled sharp 0.34.5; script not committed.
+        - Root layout: viewport.themeColor = cream; no viewportFit.
+        - FIX NOW: Next 16.2.9 renders appleWebApp.capable as the unprefixed
+          mobile-web-app-capable only (next/dist/esm/lib/metadata/
+          metadata.js:587), so TAB-1's "older iOS reads this meta tag" never
+          had the apple- tag to read. Added via metadata.other; both render.
+        - Tablet by default from the icon: the (app) layout mounts
+          StandaloneTabletDefault in the desktop branch only when
+          hasSavedViewMode() is false. On display-mode standalone (or
+          navigator.standalone) it writes froot_view=tablet through the
+          switch's own writer and router.refresh()es. A saved choice never
+          reaches it. FLASH: the server cannot see display-mode, so the FIRST
+          home-screen launch on a device paints Desktop for one render; every
+          later launch is drawn Tablet by the server. The HR employee /my
+          redirect runs before the branch, so those logins are unchanged.
+      VERIFIED LOCALLY (dev server, signed out): build green;
+      /manifest.webmanifest 200 application/manifest+json with the fields
+      above; /apple-icon.png, /icons/icon-192.png, /icons/icon-512.png,
+      /icons/icon-maskable-512.png 200, read back with sharp as 180x180,
+      192x192, 512x512, 512x512, 3 channels, no alpha; /sign-in head carries
+      apple-mobile-web-app-capable, apple-mobile-web-app-title,
+      apple-mobile-web-app-status-bar-style, apple-touch-icon, theme-color
+      #fff3e8 and rel=manifest. StandaloneTabletDefault on a temporary page
+      under /menu (deleted before the commit): ordinary tab wrote no cookie;
+      navigator.standalone=true and a stubbed (display-mode: standalone)
+      each wrote froot_view=tablet and fired an RSC refresh. Not run on a
+      real iPad, a signed-in session or staging.
+      COMMENT (not filed): an app installed from desktop Chrome/Edge also
+      launches display-mode standalone, so it would get the Tablet default
+      too; the switch fixes it and sticks. src/app/icon.png (the
+      transparent favicon) is unchanged.
 
 bugs:
   - id: BUG-1

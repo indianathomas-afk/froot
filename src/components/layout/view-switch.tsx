@@ -4,15 +4,14 @@ import { useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Monitor, Tablet } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { VIEW_COOKIE, VIEW_COOKIE_MAX_AGE, type ViewMode } from "@/lib/view-mode"
+import { writeViewCookie, type ViewMode } from "@/lib/view-mode"
 
 // TAB-1 — the Tablet/Desktop switch. Every role sees it (it changes how this
 // device draws Froot, never what anyone may see or do). A tap writes the
 // per-device cookie and refreshes, and the (app) layout renders the other shell.
-// This is the ONLY writer of the cookie: nothing switches automatically.
-function setView(mode: ViewMode) {
-  document.cookie = `${VIEW_COOKIE}=${mode}; path=/; max-age=${VIEW_COOKIE_MAX_AGE}; samesite=lax`
-}
+// Nothing switches automatically — the one PWA-1 exception (home-screen launch,
+// nothing saved yet) is standalone-tablet-default.tsx, and it never overrides a
+// choice made here.
 
 export function ViewSwitch({
   current,
@@ -27,7 +26,7 @@ export function ViewSwitch({
 
   function choose(mode: ViewMode) {
     if (mode === current || pending) return
-    setView(mode)
+    writeViewCookie(mode)
     startTransition(() => router.refresh())
   }
 

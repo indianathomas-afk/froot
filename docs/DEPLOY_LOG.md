@@ -2,7 +2,147 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-11 — TAB-14: Tablet Checklists page — type-first, this store only
+## UNPROMOTED — 2026-11-11 — PWA-1: Froot as a home-screen app on iPad — manifest, cream icons, Tablet by default from the icon
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`630e88b`, docs `870d3d4`; the PRE-PUSH-CHECK is the commit immediately
+after `870d3d4`. **TIER 2:** web-app config, icons and one client island.
+No migration, no env var, no permission, no API route, no cron, no Square
+or Clerk call, no dependency. DECISIONS 2026-11-11 PWA-1 R1 (Tablet by
+default from the home-screen icon; amends TAB-1 ruling 2 for that one
+case) RATIFIED by Gary at this check: "Ratify as written". Prompt of
+record `docs/prompts/PWA-1.md`, committed at this check.
+
+**Blast radius: every page's `<head>`, the install manifest and icons,
+and one client island in the desktop shell.** Root layout: `viewport.themeColor`
+becomes cream `#fff3e8`, and `apple-mobile-web-app-capable` is added through
+`metadata.other` (Next 16.2.9 emitted only the unprefixed
+`mobile-web-app-capable` — FIX NOW). `manifest.ts` gains `id`/`scope` "/",
+cream colours and 192 / 512 / 512-maskable icons in `public/icons/`;
+`start_url` stays `/dashboard`. `src/app/apple-icon.png` is regenerated on a
+solid cream tile (was white). The `(app)` layout mounts
+`StandaloneTabletDefault` only in the DESKTOP branch and only when
+`hasSavedViewMode()` is false; it acts only when the page runs as a
+home-screen app (`display-mode: standalone` or `navigator.standalone`),
+saving `froot_view=tablet` with the switch's own writer and refreshing. A
+saved choice never reaches it; Safari and desktop browsers fall through
+untouched. `view-switch.tsx` now calls the shared `writeViewCookie` (same
+cookie, same values). The HR employee `/my` redirect runs before the
+branch, so those logins are unchanged.
+
+Files: 12 in `630e88b` (+135/−20): new `public/icons/icon-192.png`,
+`icon-512.png`, `icon-maskable-512.png`, `src/lib/froot-cream.ts`,
+`components/layout/standalone-tablet-default.tsx`; changed
+`src/app/apple-icon.png`, `src/app/layout.tsx`, `src/app/manifest.ts`,
+`src/app/(app)/layout.tsx`, `components/layout/view-switch.tsx`,
+`src/lib/view-mode.ts`, `src/lib/view-mode-server.ts`. Checks at this
+PRE-PUSH-CHECK: `npm run build` green. Verified locally by the build
+session only (dev server, signed out): manifest fields, the four icons 200
+at 180/192/512/512 with no alpha (read back with sharp), all six head tags,
+and the component on a temporary `/menu` page (deleted) for both detection
+paths and an ordinary tab. Not observed: a real iPad, a signed-in session,
+staging.
+
+**Known, not fixed.** The FIRST home-screen launch on a device paints
+Desktop for one render before the refresh (the server cannot see
+display-mode); later launches are drawn Tablet by the server. An app
+installed from desktop Chrome/Edge is also display-mode standalone and
+gets the Tablet default (COMMENT; the switch fixes it and sticks).
+
+**Rollback.** `git revert 630e88b`. No schema or data to undo. Devices
+whose first home-screen launch already saved `froot_view=tablet` keep it —
+it is an ordinary saved choice, changed with the switch.
+
+**Staging tests owed (Gary, on the iPad, after his push; staging-SHA
+precondition first).** The PWA-1 row's `open:` test: Add to Home Screen
+shows the orange slice on a solid cream tile named Froot; launch from the
+icon has no Safari chrome and a readable status strip; first sign-in opens
+in Tablet (one brief Desktop paint expected, first launch only); switch to
+Desktop, fully close, relaunch → still Desktop, then back to Tablet; the
+same URL in Safari → Desktop by default.
+
+## 90a98b5 — 2026-11-11 — TAB-14: Tablet Checklists page — type-first, this store only
+
+**PROMOTED 2026-11-11 in merge `90a98b5`** (`90a98b5593f4b16642b6d5a4a36c05323d1c31ec`,
+"Merge branch 'staging'", 2026-11-11 18:10:15 -0800 (PST) = 2026-11-12
+02:10:15 UTC), `--no-ff`. First parent `def04fa` (prior tip of `main`, the
+TAB-13 promotion), second parent `def7c2b` (staging tip, the TAB-14
+PRE-PUSH-CHECK). **4 commits** in `90a98b5^1..90a98b5^2`: `adc0f9e` (the
+TAB-13 promotion docs, a staging commit riding this promotion per R1),
+`500037a` (work), `c8bff9f` (docs), `def7c2b` (PRE-PUSH-CHECK); **19
+files**, 2132 insertions, 71 deletions (`git diff --shortstat 90a98b5^1
+90a98b5`). No migration (no `prisma/` change in the range). The merge's
+tree equals `def7c2b`'s. Made locally by the promotion session on Gary's
+instruction, **NOT pushed at writing**: measured by `git rev-parse` after
+`git fetch`, `main` = `staging` (local, fast-forwarded to `90a98b5` by this
+pass) = `90a98b5`; `origin/main` = `def04fa` and `origin/staging` =
+`def7c2b` until Gary pushes. Stamped post-merge 2026-11-11 on `staging`
+(R1); the heading previously read "UNPROMOTED — 2026-11-11 — TAB-14: …".
+Spent, kept below: "Staging only, not on `main`. NOT pushed at writing"
+(Gary pushed `def7c2b` to staging before this pass) and the "Staging tests
+owed" list (results below).
+
+**Rollback.** `git revert -m 1 90a98b5`. No schema or data to undo. If
+production is broken: Vercel → Deployments → promote the previous production
+deployment (built from `def04fa`, `froot-g27vbkl4u`) back to current, then
+revert at leisure.
+
+**Staging evidence, Gate 5 (2026-11-11, the promotion session, Claude in
+Chrome).** Precondition, read before testing: org
+`org_3G02wO4QlVVSWppi8aqlnSZnsDa`, Clerk `verified-snapper-7` (development
+instance), both from `window.Clerk`; the staging alias served deployment
+`froot-axz90amdu` (`dpl_B8jwbsss…`), the only deployment with
+`githubCommitSha` = `def7c2b` = local HEAD then. Store Las Brisas
+(`cmrd1a4hz000004jjl91v23nm`), the only store this login sees. Viewport
+834×884 (the width of the Gate 0 "before" shots, Gary's rule), Tablet mode.
+1. **One store — PASS, observed by Claude.** "Today's checklists",
+   "Wednesday, November 11", "1 of 4 done"; no store picker (0 comboboxes in
+   the page), no store name on any tile; the rail reads Las Brisas.
+2. **Order and Done today — PASS, observed by Claude.** Opener (In
+   progress, "Overdue · was due 9:00 AM") → Mid-Shift (Not started, "Due
+   7:00 PM") → Closer (Not started, "Opens 8:00 PM"); Done today: Cleaning
+   "Overdue Test", Completed, View. RN-3 order. Titles 48px; no sideways
+   scroll (scrollWidth 834).
+3. **Buttons — PASS, observed by Claude.** Start on Closer (no row): POST
+   `/api/checklists` → **201**, the page opened
+   `/store-view/checklist/cmwcwrnft000108jqaaog1b1x` ("Las Brisas • Closer",
+   0 / 28); back on the page the Closer tile's Start then linked to that row
+   (no second POST). This check CREATED that staging Checklist row, as Gate 5
+   requires. Continue (Opener) opened the existing run
+   `cmwcbabmg000308l4yeplm4rm` (10 / 45). View (Overdue Test) opened
+   `cmwcns195000108l6sqwvxq8g` (Cleaning, 1 / 1). Mid-Shift's Start (a
+   Pending row) links to its existing row `cmwcnehkz000008jy0yxnvqqp`; link
+   target read, not clicked.
+4. **Banner — PASS, observed by Claude.** Three items, all Las Brisas
+   (Deposit, Test, Test 11-10-26; "47 days overdue"), Complete actions as
+   before; the feed was requested as `/api/calendar/due?storeId=<Las
+   Brisas>`. This login sees one store, so the scope shows in the request,
+   not in the content; a multi-store login was not tested.
+5. **Template line — PASS, observed by Claude.** "Overdue Test" (type
+   Cleaning) is Completed on staging, so it shows in Done today as CLEANING
+   with "Overdue Test" under it; Opener, Mid-Shift and Closer Checklist show
+   no second line.
+6. **Desktop — PASS, observed by Claude.** Switched to Desktop, shot at
+   834px, switched back (cookie re-read `froot_view=tablet`). Same layout,
+   copy, banner and "View Checklist" links as the Gate 0 before shot; the
+   desktop banner requested the unscoped `/api/calendar/due`. Four cards
+   instead of three: the fourth is the Closer row check 3 created (data).
+7. **Tablet Home (RN-2 addition) — observed by Gdogg (Gary), on the iPad:**
+   tablet Home's Start still opens the tick list in the card, and the
+   TAB-13 tabs still swap the hero. "All working." The POST status code on
+   Home was not read; 201 was read by Claude on the Checklists page's Start,
+   which calls the same shared helper.
+- **Portrait — observed by Gdogg (Gary), on the iPad:** tablet Checklists in
+  portrait. "All working."
+- **Second store — NOT OBSERVED.**
+- **Not observed on staging:** landscape (the Chrome window stayed 834 wide;
+  landscape was checked only on the local mock at 1194×834).
+- After shots (834px; not committed): tablet top and bottom, desktop.
+
+**TAB-4 migration, production evidence:** still PENDING. The Neon console
+showed a login page to this pass, so no `br-sparkling-block` query was run
+(MIGRATIONS.md, TAB-4 section, unchanged).
+
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `500037a`, docs `c8bff9f`; the PRE-PUSH-CHECK is the commit immediately

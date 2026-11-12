@@ -1,5 +1,6 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { ClerkProvider } from "@clerk/nextjs"
+import { FROOT_CREAM } from "@/lib/froot-cream"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -22,6 +23,22 @@ export const metadata: Metadata = {
   // purpose, or not at all. A home-screen launch keeps its own cookie jar, so
   // the crew signs in once and picks Tablet again inside the home-screen app.
   appleWebApp: { title: "Froot", capable: true, statusBarStyle: "default" },
+  // PWA-1 (2026-11-11) — the premise above that this meta tag reaches older iOS
+  // was not true of this Next. 16.2.9 renders `capable` as the UNPREFIXED
+  // `mobile-web-app-capable` only (node_modules/next/dist/esm/lib/metadata/
+  // metadata.js:587), so `apple-mobile-web-app-capable` — the name older iOS
+  // reads — was never in the head. Emitted explicitly here, alongside the
+  // unprefixed one; both say the same thing as manifest.ts display:"standalone".
+  other: { "apple-mobile-web-app-capable": "yes" },
+}
+
+// PWA-1 (2026-11-11) — the browser/status-bar tint, the same cream as the
+// manifest. viewportFit is deliberately NOT "cover": with statusBarStyle
+// "default" iOS keeps the status bar as dark text on light and keeps content out
+// of the status-bar and home-indicator areas itself, so no safe-area padding is
+// needed. ("black-translucent" would draw white status text over a cream app.)
+export const viewport: Viewport = {
+  themeColor: FROOT_CREAM,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
