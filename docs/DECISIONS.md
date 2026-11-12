@@ -5,6 +5,51 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-11 — PWA-1: Froot as a home-screen app on iPad — draft ruling R1 — DRAFT
+
+**DRAFT — awaiting Gary's ratification at PRE-PUSH-CHECK.** R1 below is the
+prompt's draft wording, NOT yet Gary's ruling; he ratifies it in his own words
+at the check. Prompt of record: `docs/prompts/PWA-1.md` (untracked until
+PRE-PUSH-CHECK). Work commit `630e88b`. TIER 2.
+
+**R1 — Tablet by default from the home-screen icon (draft, the prompt's
+words).** "When Froot is opened from the iPad home screen icon and nothing is
+saved on that device yet, it opens in Tablet mode. Once someone picks Tablet or
+Desktop on that device, their choice always wins. Opening Froot in Safari or on
+a computer stays Desktop by default and never switches on its own."
+
+**What it amends.** TAB-1 ruling 2 (2026-11-09, below): "The Tablet/Desktop
+switch is saved per device. It defaults to Desktop and never switches on its
+own." R1 makes one exception — a home-screen launch with nothing saved — and
+leaves the rest standing: saved per device, the switch always wins, Safari and
+desktop browsers default Desktop.
+
+**How it is built** (for checking the record against the code).
+`src/app/(app)/layout.tsx` mounts `StandaloneTabletDefault`
+(`src/components/layout/standalone-tablet-default.tsx`) in the desktop branch
+only when `hasSavedViewMode()` is false. It checks
+`matchMedia("(display-mode: standalone)")` or `navigator.standalone`, never the
+user agent or viewport, then writes `froot_view=tablet` with the switch's own
+writer and refreshes. The first home-screen launch on a device paints Desktop
+for one render before the refresh; later launches are drawn Tablet by the
+server.
+
+**Claude's calls (design choices, for the record).**
+- *Icon tile cream `#fff3e8`, not white or brand orange.* The prompt allowed
+  cream or orange. c473b72 had chosen white because a warm tile would "draw a
+  visible seam" against the mark's white pith; measured, all of that white
+  sits inside the orange ring, so the tile never touches it. Orange swallows
+  the ring. Cream is `--color-background`, which every in-app logo already
+  sits on.
+- *`apple-mobile-web-app-capable` emitted through `metadata.other`.* Next
+  16.2.9 renders `appleWebApp.capable` only as the unprefixed
+  `mobile-web-app-capable`, so the Apple-prefixed tag was missing (FIX NOW).
+- *Junk cookie values count as "nothing saved".* Only `tablet` or `desktop`
+  is a saved choice (`isSavedViewMode`).
+- *An app installed from desktop Chrome/Edge is also display-mode
+  standalone* and would get the Tablet default. Left as is (COMMENT): install
+  prompts are out of scope, and the switch fixes it for good.
+
 ## 2026-11-11 — TAB-14: Tablet Checklists page, type-first, this store only — rulings R1–R9, RN-1–RN-7 — DRAFT
 
 **RATIFIED BY GARY, 2026-11-11, at the TAB-14 PRE-PUSH-CHECK:** "Ratify as
