@@ -2,6 +2,78 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-12 — TAB-15: Tablet checklist — training how-tos on tasks (Watch / Guide), 15-minute idle while a How-to is open
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commits
+`d7331ec` (feature) and `ba72497` (FIX NOW, Gary's ruling); docs
+`abfe736`, `149f620`, `b774132`; the PRE-PUSH-CHECK is the commit
+immediately after `b774132`. **TIER 2:** additive fields on two read paths
+and tablet-mode client UI. No migration, no env var, no permission, no
+write route, no cron, no Square or Clerk call, no dependency. DECISIONS
+2026-11-12 TAB-15 (Play plays inline, the corner button goes full screen;
+a How-to open makes the idle wait 15 minutes, not 5; accepted as built
+page-wide, PIN session included) RATIFIED by Gary at this check: "Ratify
+as written". Prompt of record `docs/prompts/TAB-15.md`, committed at this
+check.
+
+**Blast radius: Tablet mode's Home task list, its idle timer, and one
+shared read.** `loadTabletData` (`dashboard/tablet-data.ts`) now also
+selects `Task.videoUrl`, the task's one `TaskAttachment` and
+`estimatedTimeMinutes`, under the gates it already had (org +
+`getUserStoreScope`), and classifies each task's training on the server
+(`taskHowTo`: YouTube embed, direct video file, other http(s) page;
+non-http(s) URLs are not rendered). Its callers: tablet Home
+(`dashboard/page.tsx`), the tablet Checklists page (`checklists/page.tsx`,
+which receives the fields and does not render them), and `GET
+/api/stores/[id]/tablet-tasks` (`read.ts`, the TAB-8 refresh). Home gains
+the Watch / Guide / +1 pill on unticked tasks with training, the How-to
+panel in Messages' grid cell (landscape), the full-screen player, the
+in-place expanded row (portrait), an in-app image viewer, and Mark done
+through the existing tick path with a "done · N of M" toast and Undo.
+Tasks with no training render through the unchanged `TouchRow`. The
+desktop execution page is not in the diff. **Idle (`ba72497`):**
+`HOWTO_IDLE_MS` = 15 min and `idleWindow(open)` in `lib/tablet-cards.ts`;
+while a How-to is open the ONE page-wide idle waits 15 minutes, so an
+expanded card, the overdue list and the PIN session wait too (accepted by
+Gary; revisit if PIN rolls out). Closed, the window is the unchanged
+`IDLE_COLLAPSE_MS` (5 min).
+
+Files: 4 in `d7331ec` (+878/−14): new `dashboard/tablet-howto.tsx`;
+changed `dashboard/tablet-data.ts`, `dashboard/tablet-home.tsx`,
+`components/layout/standalone-tablet-default.tsx` (comment only). 4 in
+`ba72497` (+68/−9): `lib/tablet-cards.ts`, `dashboard/tablet-home.tsx`,
+`dashboard/tablet-howto.tsx`, `scripts/verify-tab9-cards.ts`. Code range
+`d7331ec~1..ba72497`: 7 files, +1041/−21. Checks at this PRE-PUSH-CHECK:
+`scripts/verify-tab9-cards.ts` exit 0, ALL PASS, 0 failures (cases 13 pin
+the 15-minute window); `npm run build` green. Verified by the build
+session only: tsc, scoped eslint and build at both work commits;
+verify-tab7 and verify-tab10 pass; the new components on a temporary
+`/menu` page (deleted) at 1180x820. Not observed: the real tablet Home
+signed in, YouTube playback, an iPad, staging.
+
+**Known, not fixed (COMMENTs).** `Task.videoUrl` is saved unvalidated by
+the templates routes and desktop puts it straight into an href. Taps
+inside a YouTube iframe never reach the page, so they do not restart the
+idle; a video longer than 15 minutes with nobody touching the screen is
+still closed. `tablet-messages.tsx`'s pinned update uses raw hex colours.
+
+**Rollback.** `git revert ba72497` then `git revert d7331ec`. No schema or
+data to undo. The fix alone: `git revert ba72497` (back to a 5-minute
+idle with a How-to open).
+
+**Staging tests owed (Gary, on the iPad, after his push; staging-SHA
+precondition first).** Fixture: a template task with a YouTube URL and one
+with a PDF, both named TAB-15. 1 video task shows Watch, document-only
+shows Guide, a plain task is unchanged; 2 landscape pill opens the panel
+in Messages' place, X brings Messages back; 3 video plays inline and full
+screen, Back returns to the panel; 4 Mark done (panel and player) asks
+"Who completed this task?", ticks, count updates, toast Undo unticks; 5 a
+document opens and there is a way back inside the home-screen app; 6
+portrait expands in place, one at a time; 7 desktop
+`/store-view/checklist/[id]` unchanged; 8 open a How-to, leave the iPad
+untouched 6 minutes — still open; at 15 minutes it closes and the page is
+at the top; with no How-to open a card still collapses at 5 minutes.
+
 ## 2a1f757 — 2026-11-11 — PWA-1: Froot as a home-screen app on iPad — manifest, cream icons, Tablet by default from the icon
 
 **PROMOTED 2026-11-11 in merge `2a1f757`** (`2a1f757909190e77c92c8760fefa3d192be91e19`,

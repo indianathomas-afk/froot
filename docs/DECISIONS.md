@@ -7,6 +7,13 @@ decisions too.)
 
 ## 2026-11-12 — TAB-15: training how-tos on tablet tasks — Play inline, a longer idle while a How-to is open (Gary)
 
+**RATIFIED BY GARY, 2026-11-12, at the TAB-15 PRE-PUSH-CHECK:** "Ratify as
+written". The entry below stands word for word as recorded: the ruling and
+the acceptance are Gary's; the "Built" paragraph stays Claude's
+implementation, recorded, not a ruling. Docs commits: `abfe736`, `149f620`,
+`b774132`; the check is the commit immediately after `b774132`.
+`docs/prompts/TAB-15.md` is committed at this check. Wording untouched.
+
 **GARY'S RULING, 2026-11-12, in chat after the TAB-15 build report — his
 words:** "Play starts the video inside the How-to panel; the corner button
 goes full screen. While a How-to is open (panel, player or expanded row), the

@@ -26851,7 +26851,17 @@ phases:
     # 2026-11-12 FIX ba72497 (Gary's ruling, FIX NOW): the 15-minute How-to
     # idle; its docs SHA is the commit immediately after ba72497. Rollback of
     # the fix alone: `git revert ba72497`.
-    status: in_progress
+    # in_progress -> staging 2026-11-12 at the TAB-15 PRE-PUSH-CHECK (the
+    # commit immediately after b774132; its own SHA cannot be written inside
+    # itself). Docs SHAs: abfe736 (this row at d7331ec), 149f620 (DECISIONS
+    # ruling + this row at ba72497), b774132 (Gary's PIN acceptance). The
+    # check committed the prompt of record docs/prompts/TAB-15.md and wrote
+    # the DEPLOY_LOG UNPROMOTED entry. DECISIONS 2026-11-12 TAB-15 RATIFIED
+    # by Gary at this check: "Ratify as written". The notes' "untracked until
+    # PRE-PUSH-CHECK" is spent, kept. Verify at the check: verify-tab9-cards
+    # exit 0, ALL PASS; build green. No migration. Rollback stays
+    # `git revert ba72497` then `git revert d7331ec`. NOT pushed at writing.
+    status: staging
     title: "Tablet checklist — training how-tos on tasks (Watch / Guide)"
     commits:
       - "d7331ec"
@@ -26859,10 +26869,15 @@ phases:
       # (new), tablet-home.tsx (pill, panel slot, Mark done, toast),
       # standalone-tablet-default.tsx (R1 comment only)
       # + the commit immediately after d7331ec: docs(TAB-15) — this row
+      #   = abfe736 (recorded at the PRE-PUSH-CHECK)
       - "ba72497"
       # FIX (Gary's ruling 2026-11-12): HOWTO_IDLE_MS in lib/tablet-cards.ts,
       # the idle tick's window in tablet-home.tsx, verify-tab9-cards.ts cases 13
       # + the commit immediately after ba72497: docs(TAB-15) — DECISIONS + this row
+      #   = 149f620 (recorded at the PRE-PUSH-CHECK)
+      # + b774132: docs(TAB-15) — Gary accepts the page-wide 15-minute idle
+      # + PRE-PUSH-CHECK: the commit immediately after b774132 — DECISIONS
+      #   ratification, this row to staging, DEPLOY_LOG, docs/prompts/TAB-15.md
     deferred:
       - Ask a manager (design A4, C1, C2) — TAB-16; the three button slots are marked in tablet-howto.tsx
       - A per-video title under the player (the design's "Turning on the menu displays") — no field exists; adding one is a schema change
