@@ -2,7 +2,45 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-11 — PWA-1: Froot as a home-screen app on iPad — manifest, cream icons, Tablet by default from the icon
+## 2a1f757 — 2026-11-11 — PWA-1: Froot as a home-screen app on iPad — manifest, cream icons, Tablet by default from the icon
+
+**PROMOTED 2026-11-11 in merge `2a1f757`** (`2a1f757909190e77c92c8760fefa3d192be91e19`,
+"Merge branch 'staging'", 2026-11-11 21:41:49 -0800 (PST) = 2026-11-12
+05:41:49 UTC). First parent `90a98b5` (prior tip of `main`, the TAB-14
+promotion), second parent `045db56` (staging tip, the PWA-1
+PRE-PUSH-CHECK). **4 commits** in `90a98b5..2a1f757`: `d99df06` (the TAB-14
+promotion docs, a staging commit riding this promotion per R1; already
+recorded on the TAB-14 entry, not re-stamped here), `630e88b` (work),
+`870d3d4` (docs), `045db56` (PRE-PUSH-CHECK); **17 files**, 535 insertions,
+22 deletions (`git diff --shortstat 90a98b5 2a1f757`). No migration (no
+`prisma/` change in the range), no env var. The merge's tree equals
+`045db56`'s. Gary pushed `90a98b5..2a1f757` to `main` on 2026-11-11;
+staging was fast-forwarded to `2a1f757` and pushed. Measured by `git
+rev-parse` before this stamp: `main`, `staging`, `origin/main` and
+`origin/staging` all = `2a1f757`. Stamped post-merge 2026-11-11 on
+`staging` (R1); the heading previously read "UNPROMOTED — 2026-11-11 —
+PWA-1: …". Spent, kept below: "Staging only, not on `main`. NOT pushed at
+writing" and the "Staging tests owed" list (results below). The
+"Rollback" paragraph below (`git revert 630e88b`) is the pre-promotion
+rollback; the production one is next.
+
+**Rollback (production).** `git revert -m 1 2a1f757`. No schema or data to
+undo. Devices that already saved `froot_view=tablet` keep it as an
+ordinary saved choice.
+
+**Staging evidence (2026-11-11, observed by Gary on the iPad, staging build
+`045db56`).** All five PWA-1 tests PASS:
+1. **Icon — PASS.** The orange slice on a cream tile, named "Froot".
+2. **Launch from the icon — PASS.** No address bar or tabs.
+3. **Sign-in inside the app — PASS.** Lands in Tablet mode.
+4. **Saved Desktop choice — PASS.** A Desktop choice survives a full close
+   and relaunch.
+5. **Plain Safari — PASS.** Still defaults to Desktop.
+
+Gary: "Everything checks out and is working." The staging-SHA match for
+build `045db56` is as Gary reported it; this promotion-docs pass did not
+re-check the staging deployment. Not observed: production (owed on a store
+iPad, ROADMAP PWA-1 `open:`).
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `630e88b`, docs `870d3d4`; the PRE-PUSH-CHECK is the commit immediately

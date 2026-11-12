@@ -26856,7 +26856,20 @@ phases:
     # PRE-PUSH-CHECK" and "untracked until PRE-PUSH-CHECK" are spent, kept.
     # Build green at the check. No migration. Rollback stays
     # `git revert 630e88b`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11 at merge 2a1f757 ("Merge branch
+    # 'staging'", parents 90a98b5 + 045db56; 4 commits d99df06 (TAB-14
+    # promotion docs, riding per R1, recorded on TAB-14), 630e88b, 870d3d4,
+    # 045db56). Gary pushed 90a98b5..2a1f757 to main 2026-11-11; staging
+    # fast-forwarded to 2a1f757 and pushed. Stamped post-merge 2026-11-11 on
+    # `staging` (R1) by PROMOTE-DOCS_2026-11-11_PWA-1, NOT pushed at writing.
+    # iPad staging test DONE — observed by Gary on the iPad, staging build
+    # 045db56: all five PASS (record in notes, ── STAGING TEST ──). Full
+    # record: DEPLOY_LOG `2a1f757 — 2026-11-11 — PWA-1`. The "NOT pushed at
+    # writing" comments above are spent (Gary pushed 045db56 to staging),
+    # kept; so is the notes' "BUILT, not yet checked on staging", kept. No
+    # migration, no env var. Rollback: `git revert -m 1 2a1f757`.
+    status: shipped
+    shipped: 2026-11-11
     title: "Froot as a home-screen app on iPad — manifest, cream icons, Tablet by default from the icon"
     commits:
       - "630e88b"
@@ -26873,13 +26886,38 @@ phases:
       # + the commit immediately after 870d3d4: docs(PWA-1) PRE-PUSH-CHECK —
       # DECISIONS R1 ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
       # status -> staging
+      # docs(PWA-1) PRE-PUSH-CHECK: the "commit immediately after 870d3d4"
+      # named above; recorded by PROMOTE-DOCS_2026-11-11_PWA-1
+      - "045db56"
+      # merge(main): production promotion 2026-11-11 (first parent 90a98b5,
+      # second parent 045db56)
+      - "2a1f757"
     open:
-      - "iPad staging test (Gary, after push; staging-SHA precondition first): (1) Safari -> Share -> Add to Home Screen: icon is the orange slice on a solid cream tile, not black and not a screenshot; name reads Froot. (2) Launch from the icon: no address bar, tabs or Safari buttons; time/battery strip readable. (3) Sign in (the icon app has its own login): it opens in Tablet mode — expect one brief Desktop paint on this very first launch only. (4) Switch to Desktop, close the app fully, relaunch from the icon: still Desktop; switch back to Tablet. (5) The same URL in Safari: Desktop by default, as before."
+      - "Production check on a store iPad: Add to Home Screen from usefroot.com, launch from the icon → no Safari bar, Tablet mode, cream icon."
+      - "Remove stale 'DRAFT ruling R1' comment in `src/components/layout/standalone-tablet-default.tsx` (next code phase)."
     deferred:
       - Push notifications
       - Offline support / service worker
       - App Store wrapper (Capacitor or similar)
     notes: >
+      ── STAGING TEST 2026-11-11 (PWA-1) — DONE, moved here from open: ──
+      The open: item as it stood, verbatim: "iPad staging test (Gary, after
+      push; staging-SHA precondition first): (1) Safari -> Share -> Add to
+      Home Screen: icon is the orange slice on a solid cream tile, not black
+      and not a screenshot; name reads Froot. (2) Launch from the icon: no
+      address bar, tabs or Safari buttons; time/battery strip readable. (3)
+      Sign in (the icon app has its own login): it opens in Tablet mode —
+      expect one brief Desktop paint on this very first launch only. (4)
+      Switch to Desktop, close the app fully, relaunch from the icon: still
+      Desktop; switch back to Tablet. (5) The same URL in Safari: Desktop by
+      default, as before."
+      RESULT — observed by Gary on the iPad, 2026-11-11, staging build
+      045db56: all five PASS. (1) icon is the orange slice on a cream tile
+      named "Froot"; (2) launch from the icon shows no address bar or tabs;
+      (3) sign-in inside the app lands in Tablet mode; (4) a Desktop choice
+      survives a full close and relaunch; (5) plain Safari still defaults to
+      Desktop. Gary: "Everything checks out and is working." Shipped in merge
+      2a1f757 the same day; production not yet observed (open:).
       ── BUILD 2026-11-11 (PWA-1). ──
       BUILT, not yet checked on staging. TIER 2: no schema, migration,
       permission, API route, env var or dependency. Prompt
