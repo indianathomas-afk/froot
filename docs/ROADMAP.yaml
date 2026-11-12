@@ -26848,6 +26848,9 @@ phases:
     # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging
     # (docs/WORKFLOW.md session completion rule 2; TAB-11..14 precedent).
     # Not promoted. No migration. Rollback: `git revert d7331ec`.
+    # 2026-11-12 FIX ba72497 (Gary's ruling, FIX NOW): the 15-minute How-to
+    # idle; its docs SHA is the commit immediately after ba72497. Rollback of
+    # the fix alone: `git revert ba72497`.
     status: in_progress
     title: "Tablet checklist — training how-tos on tasks (Watch / Guide)"
     commits:
@@ -26856,6 +26859,10 @@ phases:
       # (new), tablet-home.tsx (pill, panel slot, Mark done, toast),
       # standalone-tablet-default.tsx (R1 comment only)
       # + the commit immediately after d7331ec: docs(TAB-15) — this row
+      - "ba72497"
+      # FIX (Gary's ruling 2026-11-12): HOWTO_IDLE_MS in lib/tablet-cards.ts,
+      # the idle tick's window in tablet-home.tsx, verify-tab9-cards.ts cases 13
+      # + the commit immediately after ba72497: docs(TAB-15) — DECISIONS + this row
     deferred:
       - Ask a manager (design A4, C1, C2) — TAB-16; the three button slots are marked in tablet-howto.tsx
       - A per-video title under the player (the design's "Turning on the menu displays") — no field exists; adding one is a schema change
@@ -26914,6 +26921,21 @@ phases:
       CHOICE MADE, FOR GARY TO CONFIRM: the prompt's step 3 says Play opens
       the full-screen player; its test 3 says the video plays inline in the
       panel. Built: Play plays inline, the corner button opens full screen.
+      ── RULING 2026-11-12 (Gary, docs/DECISIONS.md 2026-11-12 — TAB-15). ──
+      "Play starts the video inside the How-to panel; the corner button goes
+      full screen. While a How-to is open (panel, player or expanded row),
+      the idle timer waits 15 minutes instead of 5. Idle stays exactly the
+      same everywhere else." The first half confirms the build as it was;
+      the second was the idle COMMENT below, ruled FIX NOW and built at
+      ba72497: HOWTO_IDLE_MS (15 min) + idleWindow() in lib/tablet-cards.ts,
+      the tick's window chosen from the open How-to in tablet-home.tsx,
+      default unchanged at IDLE_COLLAPSE_MS. The idle is one page-wide
+      timer, so while a How-to is open an expanded card, the overdue list
+      and the PIN session also wait 15 minutes. VERIFIED: scoped eslint and
+      npm run build green at ba72497; verify-tab9-cards.ts passes in full
+      with new cases 13 (5:00 not idle, 14:59.999 not idle, 15:00 idle, a
+      touch restarts it, closed = the unchanged 5:00); verify-tab7 and
+      verify-tab10 pass. Not checked in a browser or on the iPad.
       VERIFIED: tsc, scoped eslint and npm run build green at d7331ec.
       Visual check on a temporary public /menu page (deleted before the
       commit) rendering the new components with sample data, 1180x820: the
@@ -26926,7 +26948,9 @@ phases:
       OUT OF SCOPE, TRIAGED: COMMENT — Task.videoUrl is saved unvalidated
       (api/templates routes) and desktop puts it straight into an href;
       COMMENT — the 5-minute idle closes a video still playing, and taps
-      inside a YouTube iframe never reach the page's touch listeners;
+      inside a YouTube iframe never reach the page's touch listeners
+      (RULED FIX NOW 2026-11-12, built at ba72497 as the 15-minute How-to
+      window above; the iframe-taps half stands);
       COMMENT — tablet-messages.tsx's pinned update uses raw hex colours.
       STAGING TESTS (Gary's iPad, home-screen app): 1 video task "Watch",
       document-only "Guide", plain task unchanged; 2 landscape pill opens
@@ -26935,7 +26959,10 @@ phases:
       and player) asks "Who completed this task?", ticks, count updates,
       toast Undo unticks; 5 a document opens and there is a way back inside
       the home-screen app; 6 portrait expands in place, one at a time;
-      7 desktop /store-view/checklist/[id] unchanged. Fixture needed: a
+      7 desktop /store-view/checklist/[id] unchanged; 8 (ba72497) open a
+      How-to, leave the iPad untouched 6 minutes — it is still open; at 15
+      minutes it closes and the page is at the top; with no How-to open a
+      card still collapses at 5 minutes. Fixture needed: a
       template task with a YouTube URL and one with a PDF (name them TAB-15).
   - id: PWA-1
     track: platform

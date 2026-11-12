@@ -5,6 +5,36 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-12 — TAB-15: training how-tos on tablet tasks — Play inline, a longer idle while a How-to is open (Gary)
+
+**GARY'S RULING, 2026-11-12, in chat after the TAB-15 build report — his
+words:** "Play starts the video inside the How-to panel; the corner button
+goes full screen. While a How-to is open (panel, player or expanded row), the
+idle timer waits 15 minutes instead of 5. Idle stays exactly the same
+everywhere else."
+
+**What it settles.** The TAB-15 prompt disagreed with itself: its step 3 had
+Play open the full-screen player, its test 3 had the video play inline in the
+panel. The build had chosen inline and asked; the first sentence confirms that
+choice, so nothing in the Play/full-screen code changed. The second sentence
+amends TAB-9 ruling 4's five-minute idle for the one case it names and no
+other. It was triaged in the build report as a COMMENT (the idle closed a
+video still playing) and Gary ruled it FIX NOW.
+
+**Built (Claude's implementation, recorded, not part of the ruling):** work
+commit `ba72497`. `HOWTO_IDLE_MS` = 15 minutes and `idleWindow(open)` in
+`src/lib/tablet-cards.ts`; the idle tick passes the window, defaulting to the
+unchanged `IDLE_COLLAPSE_MS`. Panel, player, image viewer and portrait
+expanded row are one piece of state in `tablet-home.tsx`, so all of them
+count as "open". The idle stays one page-wide timer, so while a How-to is
+open anything else the idle would collapse (an expanded card, the overdue
+list, the PIN session) also waits the 15 minutes; once the How-to closes, the
+next check is back on five. Pinned by `scripts/verify-tab9-cards.ts` cases 13.
+
+**Not changed, and still true:** taps inside a YouTube frame do not reach the
+page, so they never restart the window; a video longer than 15 minutes with
+nobody touching the screen is still closed.
+
 ## 2026-11-11 — PWA-1: Froot as a home-screen app on iPad — draft ruling R1 — DRAFT
 
 **RATIFIED BY GARY, 2026-11-11, at the PWA-1 PRE-PUSH-CHECK:** "Ratify as
