@@ -7,6 +7,15 @@ decisions too.)
 
 ## 2026-11-11 — PWA-1: Froot as a home-screen app on iPad — draft ruling R1 — DRAFT
 
+**RATIFIED BY GARY, 2026-11-11, at the PWA-1 PRE-PUSH-CHECK:** "Ratify as
+written". R1 below is now Gary's ruling, word for word as recorded; it amends
+TAB-1 ruling 2 for the one case it names. The calls listed under "Claude's
+calls" stay Claude's design choices, recorded, not rulings. The heading's
+"DRAFT", the "DRAFT — awaiting Gary's ratification" line, R1's "(draft, the
+prompt's words)" and "(untracked until PRE-PUSH-CHECK)" are spent, kept;
+`docs/prompts/PWA-1.md` is committed at this check. Docs commit: `870d3d4`.
+Wording untouched.
+
 **DRAFT — awaiting Gary's ratification at PRE-PUSH-CHECK.** R1 below is the
 prompt's draft wording, NOT yet Gary's ruling; he ratifies it in his own words
 at the check. Prompt of record: `docs/prompts/PWA-1.md` (untracked until

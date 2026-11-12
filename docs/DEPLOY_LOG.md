@@ -2,6 +2,65 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-11 — PWA-1: Froot as a home-screen app on iPad — manifest, cream icons, Tablet by default from the icon
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`630e88b`, docs `870d3d4`; the PRE-PUSH-CHECK is the commit immediately
+after `870d3d4`. **TIER 2:** web-app config, icons and one client island.
+No migration, no env var, no permission, no API route, no cron, no Square
+or Clerk call, no dependency. DECISIONS 2026-11-11 PWA-1 R1 (Tablet by
+default from the home-screen icon; amends TAB-1 ruling 2 for that one
+case) RATIFIED by Gary at this check: "Ratify as written". Prompt of
+record `docs/prompts/PWA-1.md`, committed at this check.
+
+**Blast radius: every page's `<head>`, the install manifest and icons,
+and one client island in the desktop shell.** Root layout: `viewport.themeColor`
+becomes cream `#fff3e8`, and `apple-mobile-web-app-capable` is added through
+`metadata.other` (Next 16.2.9 emitted only the unprefixed
+`mobile-web-app-capable` — FIX NOW). `manifest.ts` gains `id`/`scope` "/",
+cream colours and 192 / 512 / 512-maskable icons in `public/icons/`;
+`start_url` stays `/dashboard`. `src/app/apple-icon.png` is regenerated on a
+solid cream tile (was white). The `(app)` layout mounts
+`StandaloneTabletDefault` only in the DESKTOP branch and only when
+`hasSavedViewMode()` is false; it acts only when the page runs as a
+home-screen app (`display-mode: standalone` or `navigator.standalone`),
+saving `froot_view=tablet` with the switch's own writer and refreshing. A
+saved choice never reaches it; Safari and desktop browsers fall through
+untouched. `view-switch.tsx` now calls the shared `writeViewCookie` (same
+cookie, same values). The HR employee `/my` redirect runs before the
+branch, so those logins are unchanged.
+
+Files: 12 in `630e88b` (+135/−20): new `public/icons/icon-192.png`,
+`icon-512.png`, `icon-maskable-512.png`, `src/lib/froot-cream.ts`,
+`components/layout/standalone-tablet-default.tsx`; changed
+`src/app/apple-icon.png`, `src/app/layout.tsx`, `src/app/manifest.ts`,
+`src/app/(app)/layout.tsx`, `components/layout/view-switch.tsx`,
+`src/lib/view-mode.ts`, `src/lib/view-mode-server.ts`. Checks at this
+PRE-PUSH-CHECK: `npm run build` green. Verified locally by the build
+session only (dev server, signed out): manifest fields, the four icons 200
+at 180/192/512/512 with no alpha (read back with sharp), all six head tags,
+and the component on a temporary `/menu` page (deleted) for both detection
+paths and an ordinary tab. Not observed: a real iPad, a signed-in session,
+staging.
+
+**Known, not fixed.** The FIRST home-screen launch on a device paints
+Desktop for one render before the refresh (the server cannot see
+display-mode); later launches are drawn Tablet by the server. An app
+installed from desktop Chrome/Edge is also display-mode standalone and
+gets the Tablet default (COMMENT; the switch fixes it and sticks).
+
+**Rollback.** `git revert 630e88b`. No schema or data to undo. Devices
+whose first home-screen launch already saved `froot_view=tablet` keep it —
+it is an ordinary saved choice, changed with the switch.
+
+**Staging tests owed (Gary, on the iPad, after his push; staging-SHA
+precondition first).** The PWA-1 row's `open:` test: Add to Home Screen
+shows the orange slice on a solid cream tile named Froot; launch from the
+icon has no Safari chrome and a readable status strip; first sign-in opens
+in Tablet (one brief Desktop paint expected, first launch only); switch to
+Desktop, fully close, relaunch → still Desktop, then back to Tablet; the
+same URL in Safari → Desktop by default.
+
 ## 90a98b5 — 2026-11-11 — TAB-14: Tablet Checklists page — type-first, this store only
 
 **PROMOTED 2026-11-11 in merge `90a98b5`** (`90a98b5593f4b16642b6d5a4a36c05323d1c31ec`,

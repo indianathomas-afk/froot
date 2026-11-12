@@ -26847,7 +26847,16 @@ phases:
     # pushed). The docs SHA is the commit immediately after 630e88b (its own
     # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to
     # staging. Not promoted. No migration. Rollback: `git revert 630e88b`.
-    status: in_progress
+    # in_progress -> staging 2026-11-11 at the PWA-1 PRE-PUSH-CHECK (the
+    # commit immediately after 870d3d4; its own SHA cannot be written inside
+    # itself). Docs SHA: 870d3d4 (this row, DECISIONS DRAFT). The check
+    # committed the prompt of record docs/prompts/PWA-1.md and wrote the
+    # DEPLOY_LOG UNPROMOTED entry. DECISIONS 2026-11-11 PWA-1 R1 RATIFIED by
+    # Gary at this check: "Ratify as written". The notes' "DRAFT until
+    # PRE-PUSH-CHECK" and "untracked until PRE-PUSH-CHECK" are spent, kept.
+    # Build green at the check. No migration. Rollback stays
+    # `git revert 630e88b`. NOT pushed at writing.
+    status: staging
     title: "Froot as a home-screen app on iPad — manifest, cream icons, Tablet by default from the icon"
     commits:
       - "630e88b"
@@ -26860,6 +26869,10 @@ phases:
       # standalone-tablet-default.tsx (new), (app)/layout.tsx (mounts it)
       # + the commit immediately after 630e88b: docs(PWA-1) — this row,
       # DECISIONS DRAFT
+      - "870d3d4"
+      # + the commit immediately after 870d3d4: docs(PWA-1) PRE-PUSH-CHECK —
+      # DECISIONS R1 ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
+      # status -> staging
     open:
       - "iPad staging test (Gary, after push; staging-SHA precondition first): (1) Safari -> Share -> Add to Home Screen: icon is the orange slice on a solid cream tile, not black and not a screenshot; name reads Froot. (2) Launch from the icon: no address bar, tabs or Safari buttons; time/battery strip readable. (3) Sign in (the icon app has its own login): it opens in Tablet mode — expect one brief Desktop paint on this very first launch only. (4) Switch to Desktop, close the app fully, relaunch from the icon: still Desktop; switch back to Tablet. (5) The same URL in Safari: Desktop by default, as before."
     deferred:
