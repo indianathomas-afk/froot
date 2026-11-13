@@ -19,6 +19,8 @@ import { docDigestView, digestIsEmpty } from "@/lib/hr-doc-digest"
 import { DOC_DIGEST_KIND, docDigestHrActive } from "@/lib/notifications/kinds/doc-digest"
 import type { ScheduleFrequency } from "@/lib/notifications/define"
 import { TASK_COMM_KIND } from "@/lib/notifications/kinds/task-comm"
+import { helpRequestSample } from "@/lib/notifications/kinds/help-request"
+import { HELP_REQUEST_KIND } from "@/lib/help-request-shared"
 import { buildTaskCommSnapshot, loadTaskCommSettings } from "@/lib/task-comm-alerts"
 
 // POST /api/notify/test — NOTIFY-1. Proves real delivery from a deployed
@@ -91,7 +93,9 @@ export async function POST(req: Request) {
   const sampleOf = params.get("kind") ?? undefined
   const isDigest = sampleOf === DOC_DIGEST_KIND
   const isTaskComm = sampleOf === TASK_COMM_KIND
-  if (sampleOf !== undefined && !isDigest && !isTaskComm && !sampleableKinds().includes(sampleOf)) {
+  // TAB-16 C1: a fixed, fictional help request, only to the caller.
+  const isHelp = sampleOf === HELP_REQUEST_KIND
+  if (sampleOf !== undefined && !isDigest && !isTaskComm && !isHelp && !sampleableKinds().includes(sampleOf)) {
     return NextResponse.json({ error: `No sample for kind "${sampleOf}"` }, { status: 400 })
   }
 
@@ -180,14 +184,27 @@ export async function POST(req: Request) {
 
   // NOTIFY-13a: a sample follows the org's SAVED schedule wording (C5), like
   // the real emails. Still no body: the org is the caller's own.
-  const sampleFrequency = sampleOf && !isDigest && !isTaskComm ? await savedScheduleFrequency(org.id, sampleOf) : undefined
+  const sampleFrequency =
+    sampleOf && !isDigest && !isTaskComm && !isHelp ? await savedScheduleFrequency(org.id, sampleOf) : undefined
+  // TAB-16: a store's zone, as the real email uses (not Organization.timezone —
+  // DEBT-70a); the org's first active store, else the default.
+  const helpZone = isHelp
+    ? ((
+        await prisma.store.findFirst({
+          where: { organizationId: org.id, isActive: true },
+          orderBy: { name: "asc" },
+          select: { timezone: true },
+        })
+      )?.timezone ?? DEFAULT_TIME_ZONE)
+    : null
   const payload: TestPayload = {
     to,
     provider,
     stamp,
     deployEnv,
     sha,
-    ...(sampleOf && !isDigest && !isTaskComm ? { sampleOf } : {}),
+    ...(sampleOf && !isDigest && !isTaskComm && !isHelp ? { sampleOf } : {}),
+    ...(helpZone ? { helpPreview: helpRequestSample(helpZone) } : {}),
     ...(digestPreview ? { digestPreview } : {}),
     ...(taskCommPreview ? { taskCommPreview } : {}),
     ...(sampleFrequency ? { sampleFrequency } : {}),

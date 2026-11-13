@@ -467,10 +467,13 @@ async function db() {
     check("C5. FRESH checklist: Pending, every live task, nothing done", [freshOut?.status, freshOut?.sections.flatMap((s) => s.tasks.map((t) => t.done))], ["Pending", [false, false]])
     check("C6. PAST checklist: absent from both — neither the render nor the route reads another day", [body.checklists.some((c) => c.id === cPast.id), page.checklists.some((c) => c.id === cPast.id)], [false, false])
     check("C7. another store's checklist never rides in this answer", body.checklists.some((c) => c.id === cOther.id), false)
+    // TAB-16 (2026-11-12) added `help` to the store entry on purpose: the
+    // Ask-a-manager sheet's settings, contacts, manager COUNT (never an
+    // address) and recent requests. Anything else new still fails here.
     check(
       "C7. nothing else is in the payload",
       [Object.keys(body).sort(), Object.keys(body.store).sort()],
-      [["checklists", "pinRequired", "store", "stripTiles"], ["day", "headerDate", "id", "name", "staff", "timezone"]]
+      [["checklists", "pinRequired", "store", "stripTiles"], ["day", "headerDate", "help", "id", "name", "staff", "timezone"]]
     )
 
     // Gates.

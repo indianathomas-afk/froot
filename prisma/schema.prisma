@@ -791,10 +791,12 @@ model Task {
   // Filter with `retiredAt: null` — never a `not:` form, which drops NULLs.
   retiredAt DateTime?
 
-  template   Template        @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  section    Section?        @relation(fields: [sectionId], references: [id], onDelete: Restrict)
-  taskLogs   TaskLog[]
-  attachment TaskAttachment?
+  template     Template        @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  section      Section?        @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  taskLogs     TaskLog[]
+  attachment   TaskAttachment?
+  // TAB-16: help requests ("Ask a manager") raised from this task.
+  helpRequests TeamMessage[]   @relation("HelpRequestTask")
 
   @@index([sectionId])
 }
@@ -1270,25 +1272,29 @@ model NotificationScheduleRun {
 // the write route's (Prisma models no CHECK): subject ≤ 120 chars, body ≤ 1,000,
 // both plain text; thresholdPct an integer 50–100.
 model NotificationKindSettings {
-  id              String   @id @default(cuid())
-  organizationId  String
-  kind            String
+  id                String   @id @default(cuid())
+  organizationId    String
+  kind              String
   /// The org switch for this kind. No row = off.
-  enabled         Boolean  @default(false)
+  enabled           Boolean  @default(false)
   /// Admin-edited subject, plain text. Null = the kind's default subject.
-  subject         String?
+  subject           String?
   /// Admin-edited intro paragraph, plain text, line breaks kept. Null = default.
-  body            String?
+  body              String?
   /// F2 role boxes, both on by default. They apply to this card only; no other
   /// kind reads them.
-  sendToAdmins    Boolean  @default(true)
-  sendToManagers  Boolean  @default(true)
+  sendToAdmins      Boolean  @default(true)
+  sendToManagers    Boolean  @default(true)
   /// F9: flag stores below this completion %, integer 50–100. Null = 90.
-  thresholdPct    Int?
+  thresholdPct      Int?
+  /// TAB-16 ("help.request" only): "Team members can add more contacts". On =
+  /// the tablet lists every active contact; off = only this kind's default
+  /// picks. No other kind reads it.
+  tabletAddContacts Boolean  @default(true)
   /// Who last saved it. A plain id, not an FK: the row must survive the user.
-  updatedByUserId String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  updatedByUserId   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   // CASCADE ON ORG — the NotificationSchedule / NotificationContact precedent.
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -2485,6 +2491,23 @@ model TeamMessage {
   acknowledgedAt       DateTime?
   acknowledgedByUserId String?
   expiresAt            DateTime?
+  // TAB-16 ("Ask a manager", DECISIONS 2026-11-12 R1–R10). Set on type
+  // "help_request" only, written by POST /api/stores/[id]/help-requests — the
+  // generic composer can't post that type. The checklist is sourceChecklistId
+  // above (no postedForDate, so it is never read as a handoff note); the asker
+  // is authorStaffId, null for R4's "Not listed" (rendered "Team member"); the
+  // note is `body` ("" when there is none).
+  // taskId: the template task asked about. SetNull: a task hard-deleted (no
+  // history) must not take the message with it.
+  taskId               String?
+  // still_stuck | broken | supplies (R6), validated in the route. Null = none picked.
+  helpReason           String?
+  // The email outcome, written after the inline dispatch: { state: "off" |
+  // "sent" | "partial" | "failed" | "not-emailed", managers, managerCount,
+  // contacts: string[], intentId }. Lets the feed say "Emailed to …" without
+  // listing manager addresses (R3) or joining the notification ledger. R10:
+  // anything not actually sent reads "Not emailed in this environment".
+  helpEmail            Json?
   createdAt            DateTime  @default(now())
   editedAt             DateTime?
   deletedAt            DateTime?
@@ -2501,10 +2524,13 @@ model TeamMessage {
   attachments        MessageAttachment[]
   reactions          MessageReaction[]
   reads              MessageRead[]
+  task               Task?               @relation("HelpRequestTask", fields: [taskId], references: [id], onDelete: SetNull)
 
   @@index([storeId, createdAt(sort: Desc)])
   @@index([storeId, postedToTemplateId, postedForDate])
   @@index([organizationId, createdAt(sort: Desc)])
+  // TAB-16 R5: "one help request per task per store every 15 minutes".
+  @@index([storeId, taskId, createdAt])
 }
 
 // Attached to EITHER a team message or a corporate update (exactly one —

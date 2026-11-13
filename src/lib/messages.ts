@@ -1,6 +1,13 @@
 import { Prisma } from "@prisma/client"
 import { z } from "zod"
 import { phaseOrder } from "@/lib/phases"
+import {
+  HELP_MESSAGE_TYPE,
+  NOT_LISTED_NAME,
+  helpEmailLabel,
+  helpReasonLabel,
+  parseHelpEmail,
+} from "@/lib/help-request-shared"
 
 // ─── I-14 Team Messaging: shared constants & helpers ─────────────────────────
 
@@ -174,6 +181,9 @@ export const messageInclude = {
   postedToTemplate: { select: { id: true, name: true } },
   attachments: { orderBy: { createdAt: "asc" } },
   reactions: { select: { emoji: true, userId: true } },
+  // TAB-16 — a help request's task and checklist (null on every other type).
+  task: { select: { id: true, description: true } },
+  sourceChecklist: { select: { id: true, template: { select: { name: true } } } },
 } satisfies Prisma.TeamMessageInclude
 
 type MessageWithIncludes = Prisma.TeamMessageGetPayload<{ include: typeof messageInclude }>
@@ -187,8 +197,25 @@ export function authorName(m: Pick<MessageWithIncludes, "authorStaff" | "authorU
   )
 }
 
+/**
+ * TAB-16 — what a Help request card shows besides its body: the task chip, the
+ * checklist, the reason and the one email line (R10: only what really left is
+ * called emailed). Null on every other type.
+ */
+function helpRequestOf(m: MessageWithIncludes) {
+  if (m.type !== HELP_MESSAGE_TYPE) return null
+  return {
+    task: m.task?.description ?? "A checklist task",
+    checklist: m.sourceChecklist?.template.name ?? null,
+    reason: helpReasonLabel(m.helpReason),
+    emailed: helpEmailLabel(parseHelpEmail(m.helpEmail)),
+  }
+}
+
 export function serializeMessage(m: MessageWithIncludes, currentUserId: string | null) {
-  const name = authorName(m)
+  // TAB-16 R4: a help request from "Not listed" names no staff member and
+  // shows as "Team member" — never the shared store login's name.
+  const name = m.type === HELP_MESSAGE_TYPE && !m.authorStaff ? NOT_LISTED_NAME : authorName(m)
   const counts = new Map<string, { count: number; mine: boolean }>()
   for (const r of m.reactions) {
     const e = counts.get(r.emoji) ?? { count: 0, mine: false }
@@ -228,6 +255,7 @@ export function serializeMessage(m: MessageWithIncludes, currentUserId: string |
       ? m.acknowledgedByUser.name ?? m.acknowledgedByUser.email.split("@")[0]
       : null,
     expiresAt: m.expiresAt?.toISOString() ?? null,
+    helpRequest: helpRequestOf(m),
   }
 }
 

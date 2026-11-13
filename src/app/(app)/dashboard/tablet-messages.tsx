@@ -6,7 +6,8 @@ import { ArrowRight, Paperclip, Pin, Play, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import { MessageAttachments, TYPE_META, type FeedAttachment, type FeedMessage } from "@/app/(app)/messages/messages-client"
+import { MessageAttachments, TYPE_META, typeMeta, type FeedAttachment, type FeedMessage } from "@/app/(app)/messages/messages-client"
+import { HelpRequestDetails } from "@/app/(app)/messages/help-request-details"
 import { MessageTypePicker } from "@/app/(app)/messages/type-picker"
 import {
   QUICK_REPLIES,
@@ -469,14 +470,18 @@ function Thread({ thread, onRetry }: { thread: FeedMessage[] | null | undefined;
               <span className="text-[var(--color-muted-foreground)]"> · {timeAgo(m.createdAt)}</span>
               <TypeBadge type={m.type} />
             </p>
-            <div
-              className={cn(
-                "mt-1 inline-block max-w-full rounded-2xl px-4 py-2.5 text-lg leading-snug whitespace-pre-wrap break-words",
-                m.isMine ? "bg-[var(--color-primary)]/10" : "bg-[var(--color-muted)]"
-              )}
-            >
-              {m.body}
-            </div>
+            {/* TAB-16: a help request with no note has no bubble, only its details. */}
+            {m.body && (
+              <div
+                className={cn(
+                  "mt-1 inline-block max-w-full rounded-2xl px-4 py-2.5 text-lg leading-snug whitespace-pre-wrap break-words",
+                  m.isMine ? "bg-[var(--color-primary)]/10" : "bg-[var(--color-muted)]"
+                )}
+              >
+                {m.body}
+              </div>
+            )}
+            {m.helpRequest && <HelpRequestDetails info={m.helpRequest} size="lg" />}
             {m.attachments.length > 0 && (
               <Link href="/messages" className="mt-1 flex items-center gap-1.5 text-base text-[var(--color-muted-foreground)]">
                 <Paperclip className="h-4 w-4" />
@@ -494,8 +499,9 @@ function Thread({ thread, onRetry }: { thread: FeedMessage[] | null | undefined;
 // as it did until someone flags a note. An unknown type shows nothing.
 function TypeBadge({ type }: { type: string }) {
   if (type === "general") return null
-  const meta = TYPE_META[type]
-  if (!meta) return null
+  // TAB-16: a Help request has a badge too (typeMeta); any other unknown type still shows nothing.
+  if (!TYPE_META[type] && type !== "help_request") return null
+  const meta = typeMeta(type)
   return (
     <span
       data-testid="tablet-type-badge"

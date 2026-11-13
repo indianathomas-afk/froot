@@ -46,6 +46,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
+import type { HelpRequestInfo } from "@/lib/help-request-shared"
+import { HELP_TYPE_META, HelpRequestDetails } from "./help-request-details"
 
 // ─── Types (mirror the API serializers) ───────────────────────────────────────
 
@@ -77,6 +79,8 @@ export type FeedMessage = {
   acknowledgedAt: string | null
   acknowledgedBy: string | null
   expiresAt: string | null
+  /** TAB-16 — set on a Help request only (src/lib/messages.ts helpRequestOf). */
+  helpRequest?: HelpRequestInfo | null
 }
 
 export type CorpUpdate = {
@@ -108,6 +112,15 @@ export const TYPE_META: Record<string, { label: string; icon: typeof MessageSqua
   staffing: { label: "Staffing", icon: UserRound, className: "bg-purple-100 text-purple-800" },
   shoutout: { label: "Shoutout", icon: PartyPopper, className: "bg-green-100 text-green-800" },
   general: { label: "General", icon: MessageSquare, className: "bg-[var(--color-muted)] text-[var(--color-muted-foreground)]" },
+}
+
+/**
+ * TAB-16 — a card's type badge. A Help request is NOT in TYPE_META, which also
+ * builds the composer's picker and the type filter (it can't be posted from
+ * either); every other type reads exactly as before.
+ */
+export function typeMeta(type: string) {
+  return TYPE_META[type] ?? (type === "help_request" ? HELP_TYPE_META : TYPE_META.general)
 }
 
 export const EMOJI = ["👍", "🎉", "❤️", "😂", "👀", "🙏"]
@@ -1195,7 +1208,9 @@ export function useMessageActions({
   // Snapshot of "now" at mount — the 15-minute edit window doesn't need to
   // tick live, and the server enforces it anyway.
   const [mountedAt] = useState(() => Date.now())
-  const canEdit = message.isMine && mountedAt - new Date(message.createdAt).getTime() < 15 * 60 * 1000
+  // TAB-16: a help request is not edited — its email already went with that note.
+  const canEdit =
+    message.type !== "help_request" && message.isMine && mountedAt - new Date(message.createdAt).getTime() < 15 * 60 * 1000
   const canDelete = message.isMine || isManager
   const ticketish = message.type === "shortage" || message.type === "equipment"
 
@@ -1239,7 +1254,7 @@ function MessageCard({
   onChanged: (m: FeedMessage) => void
   onDeleted: (id: string) => void
 }) {
-  const meta = TYPE_META[message.type] ?? TYPE_META.general
+  const meta = typeMeta(message.type)
   const Icon = meta.icon
   const { editing, setEditing, draft, setDraft, canEdit, canDelete, ticketish, saveEdit, setStatus, deleteMessage } =
     useMessageActions({ message, isManager, onChanged, onDeleted })
@@ -1303,8 +1318,10 @@ function MessageCard({
                 </div>
               </div>
             ) : (
-              <p className="text-[13.5px] text-[var(--color-foreground)] mt-1 whitespace-pre-wrap">{message.body}</p>
+              // TAB-16: a help request with no note has an empty body.
+              message.body && <p className="text-[13.5px] text-[var(--color-foreground)] mt-1 whitespace-pre-wrap">{message.body}</p>
             )}
+            {message.helpRequest && <HelpRequestDetails info={message.helpRequest} size="sm" />}
 
             {message.linkedIngredient && (
               <Badge variant="outline" className="mt-2 gap-1">

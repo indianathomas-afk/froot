@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { ChevronLeft, Award, BriefcaseBusiness, CheckCircle, FileClock, MessagesSquare, TrendingDown, XCircle } from "lucide-react"
+import { ChevronLeft, Award, BriefcaseBusiness, Check, CheckCircle, FileClock, MessagesSquare, TrendingDown, Users, XCircle } from "lucide-react"
 import { CollapsibleSection, CollapsibleSections, ExpandAllButton } from "@/components/settings/collapsible-section"
 import { getCurrentUser, hrModuleAvailable } from "@/lib/auth"
 import { can } from "@/lib/permissions"
@@ -30,6 +30,9 @@ import {
 } from "@/lib/notifications/kinds/task-comm"
 import { loadTaskCommSettings } from "@/lib/task-comm-alerts"
 import { TaskCommCopyFields, TaskCommRoleBoxes, TaskCommThresholdField, TaskCommToggle } from "./task-comm-actions"
+import { AlsoSendTo } from "./also-send-to"
+import { HelpRequestSwitch } from "./help-request-actions"
+import { HELP_REQUEST_KIND, loadHelpSettings, recipientsPhrase } from "@/lib/help-requests"
 
 // NOTIFY-2a — every email setting on one page (Gary's ruling, 2026-09-20).
 // Before this, HR-16's acknowledgment recipients and F-5b's behind-pace toggle
@@ -119,6 +122,8 @@ export default async function NotificationSettingsPage() {
     loadScheduleView(org.id, TASK_COMM_KIND),
     loadTaskCommSettings(org.id),
   ])
+  // TAB-16 C1. No row = off (R7), "Team members can add more contacts" on.
+  const help = await loadHelpSettings(org.id)
   // F13: the cards' cadence words follow the SAVED schedule; no row → the
   // sentence is byte for byte what it was.
   const paceCadence =
@@ -169,6 +174,11 @@ export default async function NotificationSettingsPage() {
   const taskCommSummary = `${onOff(taskCommOn, taskCommSchedule?.saved?.frequency ?? (taskCommOn ? "daily" : undefined))} · ${
     taskComm?.thresholdPct ?? TASK_COMM_DEFAULT_THRESHOLD
   }% threshold`
+  // TAB-16 C1: "On · Store managers + N contacts" or "Off · Messages only".
+  const helpPicked = (picks[HELP_REQUEST_KIND] ?? []).filter((id) => contacts.some((c) => c.id === id && !c.archived))
+  const helpSummary = help.enabled
+    ? `On · ${recipientsPhrase("Store", true, helpPicked.length)}`
+    : "Off · Messages only"
   const recentSummary =
     recentEmails.length === 0 ? "None yet" : `Last ${recentEmails.length} email${recentEmails.length === 1 ? "" : "s"}`
   // Exactly the sections rendered below, so Expand all acts on those and no others.
@@ -178,6 +188,7 @@ export default async function NotificationSettingsPage() {
     "pace",
     ...(hrAvailable ? ["milestones", "docdue"] : []),
     "taskcomm",
+    "help",
     "recent",
   ]
 
@@ -486,6 +497,77 @@ export default async function NotificationSettingsPage() {
             label="Send a preview to me"
             previewAs={managers.map((m) => ({ id: m.id, name: m.name?.trim() || m.email }))}
           />
+        </div>
+      </CollapsibleSection>
+
+      {/* TAB-16 C1 — Help request emails. Not module-gated: help requests
+          come from checklists, which every org has. After the existing
+          sections and before Recent emails, which stays last. */}
+      <CollapsibleSection id="help" title="Help request emails" badge="New" summary={helpSummary} className="mt-4">
+        <p className="text-sm text-[var(--color-muted-foreground)]">
+          Sent when a team member taps <span className="font-medium text-[var(--color-foreground)]">Ask a manager</span> on
+          a checklist task in Tablet mode. The request also posts in Messages with the task and its training attached.
+        </p>
+        <div className="mt-4 border border-[var(--color-border)] rounded-lg">
+          <HelpRequestSwitch
+            field="enabled"
+            initial={help.enabled}
+            title="Send help request emails"
+            description="When off, help requests only post in Messages."
+          />
+        </div>
+
+        <h3 className="mt-5 text-sm font-medium text-[var(--color-foreground)]">Always send to</h3>
+        {/* R3 (Gary): "The store's managers are always emailed." Not a control. */}
+        <div className="mt-2 flex items-start gap-3 p-3 border border-[var(--color-border)] rounded-lg">
+          <span
+            aria-hidden
+            className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] bg-[var(--color-primary)] text-white"
+          >
+            <Check className="h-3 w-3" />
+          </span>
+          <Users className="h-5 w-5 shrink-0 text-[var(--color-foreground)]" aria-hidden />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-[var(--color-foreground)]">Store managers</p>
+            <p className="text-sm text-[var(--color-muted-foreground)]">
+              Everyone with the Manager role at the store the request comes from.
+            </p>
+          </div>
+        </div>
+
+        {/* NOTIFY-12's picker, reused: the picks are this kind's DEFAULT
+            contacts (R2), pre-ticked on the tablet. */}
+        <AlsoSendTo
+          kind={HELP_REQUEST_KIND}
+          contacts={contacts.filter((c) => !c.archived)}
+          pickedIds={helpPicked}
+          archivedPicked={(picks[HELP_REQUEST_KIND] ?? []).length - helpPicked.length}
+          warnStoreLogin={false}
+          help="Ticked contacts are pre-selected on the tablet when someone asks for help."
+        />
+
+        <h3 className="mt-5 text-sm font-medium text-[var(--color-foreground)]">On the tablet</h3>
+        <div className="mt-2 border border-[var(--color-border)] rounded-lg">
+          <HelpRequestSwitch
+            field="tabletAddContacts"
+            initial={help.tabletAddContacts}
+            title="Team members can add more contacts"
+            description="They see every active contact and can tick extra people before sending. When off, they see only the contacts ticked above."
+          />
+        </div>
+
+        <h3 className="mt-5 text-sm font-medium text-[var(--color-foreground)]">Email subject</h3>
+        {/* R8: fixed, so read-only. */}
+        <p className="mt-2 px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)]/40 text-sm text-[var(--color-foreground)]">
+          Help needed at <span className="font-medium">[Store]</span>: <span className="font-medium">[Task]</span>
+        </p>
+        <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">
+          Example: Help needed at Carson: Turn on Menu displays
+        </p>
+
+        {/* A fixed, made-up help request, emailed only to the admin pressing it. */}
+        <div className="mt-4">
+          <TestSendButton kind={HELP_REQUEST_KIND} label="Send a test help request" />
         </div>
       </CollapsibleSection>
 

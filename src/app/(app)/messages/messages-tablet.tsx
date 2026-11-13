@@ -40,6 +40,7 @@ import {
   MessageAttachments,
   NewUpdateDialog,
   TYPE_META,
+  typeMeta,
   avatarColor,
   timeAgo,
   updateTargetLabel,
@@ -54,6 +55,7 @@ import {
   type FeedMessage,
 } from "./messages-client"
 import { MessageTypePicker, TABLET_TYPE_ORDER } from "./type-picker"
+import { HelpRequestDetails } from "./help-request-details"
 
 // TAB-11, 2026-11-11 — Team Messages in Tablet mode (Claude Design canvas
 // "Froot Tablet Messages", frames "A · Option 2"). Gary's rulings R1–R5
@@ -386,7 +388,7 @@ function TabletMessageCard({
   onChanged: (m: FeedMessage) => void
   onDeleted: (id: string) => void
 }) {
-  const meta = TYPE_META[message.type] ?? TYPE_META.general
+  const meta = typeMeta(message.type)
   const Icon = meta.icon
   const { editing, setEditing, draft, setDraft, canEdit, canDelete, ticketish, saveEdit, setStatus, deleteMessage } =
     useMessageActions({ message, isManager, onChanged, onDeleted })
@@ -519,8 +521,12 @@ function TabletMessageCard({
               </div>
             </div>
           ) : (
-            <p className="mt-1 text-lg leading-[1.4] whitespace-pre-wrap break-words text-[var(--color-foreground)]">{message.body}</p>
+            // TAB-16: a help request with no note has an empty body.
+            message.body && (
+              <p className="mt-1 text-lg leading-[1.4] whitespace-pre-wrap break-words text-[var(--color-foreground)]">{message.body}</p>
+            )
           )}
+          {message.helpRequest && <HelpRequestDetails info={message.helpRequest} size="lg" />}
 
           {message.linkedIngredient && (
             <span className="mt-2 inline-flex h-[30px] items-center gap-1.5 rounded-full border border-[var(--color-border)] px-3 text-sm font-semibold">

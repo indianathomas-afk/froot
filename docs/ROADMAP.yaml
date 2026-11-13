@@ -26840,6 +26840,271 @@ phases:
       TAB-13 tabs still swap the hero (RN-2 addition). Gary on the iPad:
       portrait, and a second store if available.
 
+  - id: TAB-15
+    track: platform
+    size: M
+    # planned -> in_progress 2026-11-12 at the work commit d7331ec (NOT
+    # pushed). The docs SHA is the commit immediately after d7331ec (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging
+    # (docs/WORKFLOW.md session completion rule 2; TAB-11..14 precedent).
+    # Not promoted. No migration. Rollback: `git revert d7331ec`.
+    # 2026-11-12 FIX ba72497 (Gary's ruling, FIX NOW): the 15-minute How-to
+    # idle; its docs SHA is the commit immediately after ba72497. Rollback of
+    # the fix alone: `git revert ba72497`.
+    # in_progress -> staging 2026-11-12 at the TAB-15 PRE-PUSH-CHECK (the
+    # commit immediately after b774132; its own SHA cannot be written inside
+    # itself). Docs SHAs: abfe736 (this row at d7331ec), 149f620 (DECISIONS
+    # ruling + this row at ba72497), b774132 (Gary's PIN acceptance). The
+    # check committed the prompt of record docs/prompts/TAB-15.md and wrote
+    # the DEPLOY_LOG UNPROMOTED entry. DECISIONS 2026-11-12 TAB-15 RATIFIED
+    # by Gary at this check: "Ratify as written". The notes' "untracked until
+    # PRE-PUSH-CHECK" is spent, kept. Verify at the check: verify-tab9-cards
+    # exit 0, ALL PASS; build green. No migration. Rollback stays
+    # `git revert ba72497` then `git revert d7331ec`. NOT pushed at writing.
+    status: staging
+    title: "Tablet checklist — training how-tos on tasks (Watch / Guide)"
+    commits:
+      - "d7331ec"
+      # TAB-15: dashboard/tablet-data.ts (payload + taskHowTo), tablet-howto.tsx
+      # (new), tablet-home.tsx (pill, panel slot, Mark done, toast),
+      # standalone-tablet-default.tsx (R1 comment only)
+      # + the commit immediately after d7331ec: docs(TAB-15) — this row
+      #   = abfe736 (recorded at the PRE-PUSH-CHECK)
+      - "ba72497"
+      # FIX (Gary's ruling 2026-11-12): HOWTO_IDLE_MS in lib/tablet-cards.ts,
+      # the idle tick's window in tablet-home.tsx, verify-tab9-cards.ts cases 13
+      # + the commit immediately after ba72497: docs(TAB-15) — DECISIONS + this row
+      #   = 149f620 (recorded at the PRE-PUSH-CHECK)
+      # + b774132: docs(TAB-15) — Gary accepts the page-wide 15-minute idle
+      # + PRE-PUSH-CHECK: the commit immediately after b774132 — DECISIONS
+      #   ratification, this row to staging, DEPLOY_LOG, docs/prompts/TAB-15.md
+    deferred:
+      - Ask a manager (design A4, C1, C2) — TAB-16; the three button slots are marked in tablet-howto.tsx
+      - A per-video title under the player (the design's "Turning on the menu displays") — no field exists; adding one is a schema change
+      - Revisit when PIN is rolled out — Gary 2026-11-12, "If PIN is ever rolled out, revisit this." While a How-to is open the PIN session (TAB-4 Q10) waits the same 15 minutes as the rest of the page, not 5
+    notes: >
+      ── BUILD 2026-11-12 (TAB-15). ──
+      BUILT, not yet checked on staging. TIER 2: no schema, migration,
+      permission, env var, cron, Square or write-route change; additive
+      fields on two read paths (loadTabletData and therefore GET
+      /api/stores/[id]/tablet-tasks). Prompt docs/prompts/TAB-15.md
+      (untracked until PRE-PUSH-CHECK). Design: "Tablet checklist — training
+      resources" PDF, boards A1, A2, A3 and B (A4, C1, C2 are TAB-16).
+      WHY: desktop shows a task's training under it ("Watch Training Video",
+      the attachment link); tablet mode never did, so a team member who did
+      not know a task had nowhere to look.
+      WHAT SHIPS (tablet mode only — the desktop execution page is not in
+      the diff):
+        - Payload. loadTabletData selects Task.videoUrl, the one
+          TaskAttachment (@unique on taskId) and estimatedTimeMinutes — the
+          execution page's fields, under the same gates (org + getUserStoreScope
+          store check; neither surface has a role gate on training). So a task
+          has 0, 1 or 2 resources. taskHowTo() classifies on the server:
+          YouTube -> embed id (canonicalYouTubeUrl), .mp4/.m4v/.mov/.webm ->
+          <video playsInline>, any other http(s) page -> opens in a new
+          window; a non-http(s) videoUrl (javascript:, data:) is NOT rendered
+          — the one place the tablet shows less than desktop, on purpose.
+        - A1 pill on unticked tasks with training only: Watch (video) /
+          Guide (document only) / +1 when both, 44px, left of the tick circle.
+          The row is split into text button + pill + circle button; text and
+          circle both call the existing tap, unchanged. Tasks with no
+          training render through the unchanged TouchRow.
+        - A2 landscape: the panel takes the Messages column's grid cell
+          (Messages stays mounted, display:none, so a draft survives). Row
+          highlighted, pill solid "Open". HOW-TO eyebrow, title, "<Name>
+          checklist · ~N min", 16:9 video (plays INLINE, playsinline=1), the
+          document row with Open, Mark done pinned at the bottom. X restores
+          Messages.
+        - A3 full-screen player from the corner button: Back to checklist,
+          centred title, Open guide when there is a document, Watch again +
+          Mark done. Leaving it drops the inline copy back to its poster, so
+          two never play at once.
+        - B portrait: the row expands in place (thumbnail left, document and
+          Mark done right), pill reads Hide, one row at a time. Rotating moves
+          the same open task between panel and expanded row.
+        - Mark done = tapTask, the existing tick path ("Who completed this
+          task?", PIN, °F pad). The panel closes once the task reads done.
+          The "done · N of M" toast with Undo IS built: an un-tick path
+          already exists (tap a done row), and Undo is that toggle.
+        - Documents. An image opens in an in-app viewer with Back to
+          checklist; a PDF (the only other type the upload route accepts)
+          opens with target="_blank". Nothing navigates the app's own window.
+        - An open how-to sets the TAB-5 busy flag "tasks:howto"; the TAB-9
+          idle closes it (the PIN session's pattern) and the page returns to
+          the top through the existing pageScrollReset.
+        - Planned cleanup from PWA-1: standalone-tablet-default.tsx's "DRAFT
+          ruling R1" comment now records the ratification.
+      CHOICE MADE, FOR GARY TO CONFIRM: the prompt's step 3 says Play opens
+      the full-screen player; its test 3 says the video plays inline in the
+      panel. Built: Play plays inline, the corner button opens full screen.
+      ── RULING 2026-11-12 (Gary, docs/DECISIONS.md 2026-11-12 — TAB-15). ──
+      "Play starts the video inside the How-to panel; the corner button goes
+      full screen. While a How-to is open (panel, player or expanded row),
+      the idle timer waits 15 minutes instead of 5. Idle stays exactly the
+      same everywhere else." The first half confirms the build as it was;
+      the second was the idle COMMENT below, ruled FIX NOW and built at
+      ba72497: HOWTO_IDLE_MS (15 min) + idleWindow() in lib/tablet-cards.ts,
+      the tick's window chosen from the open How-to in tablet-home.tsx,
+      default unchanged at IDLE_COLLAPSE_MS. The idle is one page-wide
+      timer, so while a How-to is open an expanded card, the overdue list
+      and the PIN session also wait 15 minutes — ACCEPTED AS BUILT by Gary
+      the same day ("Accepted as built: while a How-to is open, the whole
+      page waits 15 minutes before going idle, including the PIN session.
+      If PIN is ever rolled out, revisit this."; see deferred). VERIFIED: scoped eslint and
+      npm run build green at ba72497; verify-tab9-cards.ts passes in full
+      with new cases 13 (5:00 not idle, 14:59.999 not idle, 15:00 idle, a
+      touch restarts it, closed = the unchanged 5:00); verify-tab7 and
+      verify-tab10 pass. Not checked in a browser or on the iPad.
+      VERIFIED: tsc, scoped eslint and npm run build green at d7331ec.
+      Visual check on a temporary public /menu page (deleted before the
+      commit) rendering the new components with sample data, 1180x820: the
+      three pill states at 44px, the A2 panel, the B expanded row, the A3
+      player with its iframe at 16:9 and Back removing it, the toast. NOT
+      verified: the real tablet Home (the preview browser was signed out),
+      YouTube playback (the pane draws cross-origin frames blank), anything
+      on an iPad. Dev DB (br-broad-wave-a6vpjdw0, read-only probe): 1 live
+      task with a videoUrl, on www.youtube.com; 0 TaskAttachment rows.
+      OUT OF SCOPE, TRIAGED: COMMENT — Task.videoUrl is saved unvalidated
+      (api/templates routes) and desktop puts it straight into an href;
+      COMMENT — the 5-minute idle closes a video still playing, and taps
+      inside a YouTube iframe never reach the page's touch listeners
+      (RULED FIX NOW 2026-11-12, built at ba72497 as the 15-minute How-to
+      window above; the iframe-taps half stands);
+      COMMENT — tablet-messages.tsx's pinned update uses raw hex colours.
+      STAGING TESTS (Gary's iPad, home-screen app): 1 video task "Watch",
+      document-only "Guide", plain task unchanged; 2 landscape pill opens
+      the panel in Messages' place, X brings Messages back; 3 video plays
+      inline and full screen, Back returns to the panel; 4 Mark done (panel
+      and player) asks "Who completed this task?", ticks, count updates,
+      toast Undo unticks; 5 a document opens and there is a way back inside
+      the home-screen app; 6 portrait expands in place, one at a time;
+      7 desktop /store-view/checklist/[id] unchanged; 8 (ba72497) open a
+      How-to, leave the iPad untouched 6 minutes — it is still open; at 15
+      minutes it closes and the page is at the top; with no How-to open a
+      card still collapses at 5 minutes. Fixture needed: a
+      template task with a YouTube URL and one with a PDF (name them TAB-15).
+  - id: TAB-16
+    track: platform
+    size: M
+    # planned -> in_progress 2026-11-12 at the work commit a9bbf04 (NOT
+    # pushed). The docs SHA is the commit immediately after a9bbf04 (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging
+    # (docs/WORKFLOW.md session completion rule 2; TAB-11..15 precedent).
+    # Not promoted. MIGRATION 20261113002310_tab16_help_requests (additive;
+    # docs/MIGRATIONS.md). Rollback: `git revert a9bbf04` — the columns stay
+    # (additive-only, never dropped) and nothing reads them.
+    # in_progress -> staging 2026-11-12 at the TAB-16 PRE-PUSH-CHECK (the
+    # commit immediately after b1c97c7; its own SHA cannot be written inside
+    # itself). Docs SHA: b1c97c7 (DECISIONS rulings + Built note, MIGRATIONS
+    # entry, this row at a9bbf04, TAB-16_AUDIT.md). The check committed the
+    # prompt of record docs/prompts/TAB-16.md and wrote the DEPLOY_LOG
+    # UNPROMOTED entry. DECISIONS 2026-11-12 TAB-16 RATIFIED by Gary at this
+    # check, rulings and Claude's three readings: "Ratify as written". The
+    # notes' "untracked until PRE-PUSH-CHECK" is spent, kept. Verify at the
+    # check: npm run build green. Migration staging/production still owed at
+    # the Vercel build. Rollback stays `git revert a9bbf04`. NOT pushed at
+    # writing.
+    status: staging
+    title: "Tablet checklist — Ask a manager (help requests to Messages + email)"
+    commits:
+      - "a9bbf04"
+      # TAB-16: migration + schema; lib/help-requests.ts, help-request-shared.ts,
+      # help-request-send.ts; notifications/kinds/help-request.ts (+ registry,
+      # test kind sample, define/dispatch noRetry); email-template (second
+      # button, footer link); POST /api/stores/[id]/help-requests; PUT
+      # /api/notify/help-request; settings page section; dashboard
+      # tablet-ask-manager.tsx (new), tablet-howto/home/data/messages;
+      # messages-client/-tablet + help-request-details.tsx; fixture
+      # verify-tab16-help.ts; verify-tab8 C7
+      # + the commit immediately after a9bbf04: docs(TAB-16) — DECISIONS
+      #   Built note, MIGRATIONS entry, this row, docs/prompts/TAB-16_AUDIT.md
+      #   = b1c97c7 (recorded at the PRE-PUSH-CHECK)
+      # + PRE-PUSH-CHECK: the commit immediately after b1c97c7 — DECISIONS
+      #   ratification, this row to staging, DEPLOY_LOG, docs/prompts/TAB-16.md
+    deferred:
+      - Desktop "Help request" filter on Team Messages — the type is rendered read-only (prompt step 6), not filterable or postable from the composer
+      - A per-video title in the email ("Training video" today) — the same missing field as the TAB-15 deferred item
+    notes: >
+      ── BUILD 2026-11-12 (TAB-16). ──
+      BUILT, not yet checked on staging. TIER 3 (schema, a write route, an
+      email kind). Prompt docs/prompts/TAB-16.md (untracked until
+      PRE-PUSH-CHECK); audit docs/prompts/TAB-16_AUDIT.md. Design "Tablet
+      checklist — training resources" PDF, boards A4, the Ask buttons in A2 /
+      A3 / B, C1 and C2. Rulings R1–R10, Gary 2026-11-12, in
+      docs/DECISIONS.md 2026-11-12 TAB-16 (R1, R2, R5–R8 adopted as the
+      prompt words them; R3, R4, R9, R10 in his words), with Claude's
+      readings and the Built note under them.
+      WHAT SHIPS: (1) "Still stuck? Ask a manager" above Mark done in the
+      How-to panel, "Ask a manager" in the player's bottom bar and beside
+      Mark done in the portrait expanded row; once a request is inside the
+      15-minute window the button reads "Help sent · <what was emailed>"
+      (warning style if not everyone got it) and reopens the sheet on what
+      was sent. (2) The A4 sheet: task card, Who's asking (the store's staff
+      list + "Not listed"), three quick reasons + a 280-character note, Send
+      to (managers row always ticked and locked; contacts with Default
+      badges; only defaults when add-more is off; hidden when emails are
+      off), footer summary, Send disabled until a name is picked and someone
+      is ticked. (3) POST /api/stores/[id]/help-requests — every check on
+      the server; R5 under an advisory lock; the TeamMessage always posts;
+      the email dispatches inline; failures are final (noRetry) and unsent
+      mail is never called emailed. (4) /settings/notifications "Help request
+      emails" (New): switch, Always send to: Store managers, Also send to
+      (NOTIFY-12 picker = the defaults), "Team members can add more
+      contacts", read-only subject, "Send a test help request". ADMIN only
+      (page settings.access + route requireAdmin). Off until switched on
+      (no row = off). (5) The email: subject "Help needed at <Store>: <Task>",
+      who / store / checklist / task / asked-by / time in the STORE's zone /
+      reason / note / training, Reply in Messages + Open the checklist, footer
+      link to Settings. (6) Messages: Help request badge, task chip, reason,
+      "Emailed to …" on the tablet home column, tablet Team Messages and the
+      desktop feed; not editable from any card.
+      VERIFIED: scoped eslint and npm run build green at a9bbf04.
+      scripts/verify-tab16-help.ts 54/54 on dev br-broad-wave-a6vpjdw0 (labels,
+      the email, recipients incl. the unticked default, live / failed / dry
+      run / sandbox / switched-off sends, R5 window + three concurrent posts →
+      one, serializer, picker). Negative controls (drop exclude, drop
+      noRetry) failed 9 checks, restored. Re-run green: notify-template,
+      notify5, notify6, notify12, notify-taskcomm, tab1-today, tab2-messages,
+      tab5-refresh, tab8 (C7 now expects `help`), tab9-cards,
+      tab14-checklists. Visual: a temporary public /menu page (deleted before
+      the commit) rendering the panel, expanded row, player and sheet with
+      fetch mocked, 1366x1024 and 820x1180 — send closes the sheet and shows
+      Help sent; dry-run result stays open with "Not emailed in this
+      environment"; emails off hides Send to; the sheet sits above the player.
+      NOT verified: the real tablet Home or Settings signed in, any real send,
+      an iPad.
+      OUT OF SCOPE, TRIAGED (FIX NOW 0 · RULING NOW 0 · COMMENT 5 · ROW 0):
+      COMMENT — POST /api/messages never checks messages.use (no live
+      exposure: it is not deniable today); COMMENT — POST /api/messages
+      accepts any org staff member as authorStaffId (no ACTIVE / store
+      check); COMMENT — the prompt named StoreStaffAssignment for managers,
+      which is the roster table; logins come from StoreUserAssignment;
+      COMMENT — PATCH /api/messages/[id] would still let the author edit a
+      help request's note inside 15 minutes (no card offers it); COMMENT —
+      the tablet Messages column refresh is held while a How-to is open
+      (TAB-5 busy), so a new Help request appears there once the How-to
+      closes, not at once.
+      STAGING TESTS (Gary; staging-SHA precondition first; switch Help
+      request emails ON in staging Settings first; staging is SANDBOX, so the
+      store's managers and the ticked contact must be on the Preview
+      NOTIFY_SANDBOX_ALLOWLIST to get real mail — anyone else shows "not
+      emailed in this environment"): 1 Ask from the panel with managers + 1
+      contact → Resend → Emails shows it Delivered; Messages shows the Help
+      request with the task chip and "Emailed to …". 2 Ask from the
+      full-screen player and from portrait (expanded row). 3 No name picked,
+      or (store with no manager email) nobody ticked → Send stays disabled.
+      4 Second ask on the same task within 15 minutes (from a second device,
+      or after reload) → no second email; the sheet says when the first went
+      and who got it. 5 Switch emails off → no Send to list; the request
+      still posts in Messages; no email. 6 "Team members can add more
+      contacts" off → the tablet shows only the default contacts. 7 A MANAGER
+      login can't open /settings/notifications (redirect) and PUT
+      /api/notify/help-request answers 403. 8 "Send a test help request"
+      arrives at the admin's address. 9 The time in the email matches the
+      store's local time. 10 (R10) A contact NOT on the allowlist → the sheet
+      and Messages say "not emailed in this environment", never "Emailed to"
+      for that address. Fixture data: a template task with a video (TAB-15's
+      fixture task works); name any new contact or staff "TAB-16 …".
   - id: PWA-1
     track: platform
     size: S
@@ -26856,7 +27121,20 @@ phases:
     # PRE-PUSH-CHECK" and "untracked until PRE-PUSH-CHECK" are spent, kept.
     # Build green at the check. No migration. Rollback stays
     # `git revert 630e88b`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-11 at merge 2a1f757 ("Merge branch
+    # 'staging'", parents 90a98b5 + 045db56; 4 commits d99df06 (TAB-14
+    # promotion docs, riding per R1, recorded on TAB-14), 630e88b, 870d3d4,
+    # 045db56). Gary pushed 90a98b5..2a1f757 to main 2026-11-11; staging
+    # fast-forwarded to 2a1f757 and pushed. Stamped post-merge 2026-11-11 on
+    # `staging` (R1) by PROMOTE-DOCS_2026-11-11_PWA-1, NOT pushed at writing.
+    # iPad staging test DONE — observed by Gary on the iPad, staging build
+    # 045db56: all five PASS (record in notes, ── STAGING TEST ──). Full
+    # record: DEPLOY_LOG `2a1f757 — 2026-11-11 — PWA-1`. The "NOT pushed at
+    # writing" comments above are spent (Gary pushed 045db56 to staging),
+    # kept; so is the notes' "BUILT, not yet checked on staging", kept. No
+    # migration, no env var. Rollback: `git revert -m 1 2a1f757`.
+    status: shipped
+    shipped: 2026-11-11
     title: "Froot as a home-screen app on iPad — manifest, cream icons, Tablet by default from the icon"
     commits:
       - "630e88b"
@@ -26873,13 +27151,38 @@ phases:
       # + the commit immediately after 870d3d4: docs(PWA-1) PRE-PUSH-CHECK —
       # DECISIONS R1 ratified, prompt of record, DEPLOY_LOG UNPROMOTED entry,
       # status -> staging
+      # docs(PWA-1) PRE-PUSH-CHECK: the "commit immediately after 870d3d4"
+      # named above; recorded by PROMOTE-DOCS_2026-11-11_PWA-1
+      - "045db56"
+      # merge(main): production promotion 2026-11-11 (first parent 90a98b5,
+      # second parent 045db56)
+      - "2a1f757"
     open:
-      - "iPad staging test (Gary, after push; staging-SHA precondition first): (1) Safari -> Share -> Add to Home Screen: icon is the orange slice on a solid cream tile, not black and not a screenshot; name reads Froot. (2) Launch from the icon: no address bar, tabs or Safari buttons; time/battery strip readable. (3) Sign in (the icon app has its own login): it opens in Tablet mode — expect one brief Desktop paint on this very first launch only. (4) Switch to Desktop, close the app fully, relaunch from the icon: still Desktop; switch back to Tablet. (5) The same URL in Safari: Desktop by default, as before."
+      - "Production check on a store iPad: Add to Home Screen from usefroot.com, launch from the icon → no Safari bar, Tablet mode, cream icon."
+      - "Remove stale 'DRAFT ruling R1' comment in `src/components/layout/standalone-tablet-default.tsx` (next code phase)."
     deferred:
       - Push notifications
       - Offline support / service worker
       - App Store wrapper (Capacitor or similar)
     notes: >
+      ── STAGING TEST 2026-11-11 (PWA-1) — DONE, moved here from open: ──
+      The open: item as it stood, verbatim: "iPad staging test (Gary, after
+      push; staging-SHA precondition first): (1) Safari -> Share -> Add to
+      Home Screen: icon is the orange slice on a solid cream tile, not black
+      and not a screenshot; name reads Froot. (2) Launch from the icon: no
+      address bar, tabs or Safari buttons; time/battery strip readable. (3)
+      Sign in (the icon app has its own login): it opens in Tablet mode —
+      expect one brief Desktop paint on this very first launch only. (4)
+      Switch to Desktop, close the app fully, relaunch from the icon: still
+      Desktop; switch back to Tablet. (5) The same URL in Safari: Desktop by
+      default, as before."
+      RESULT — observed by Gary on the iPad, 2026-11-11, staging build
+      045db56: all five PASS. (1) icon is the orange slice on a cream tile
+      named "Froot"; (2) launch from the icon shows no address bar or tabs;
+      (3) sign-in inside the app lands in Tablet mode; (4) a Desktop choice
+      survives a full close and relaunch; (5) plain Safari still defaults to
+      Desktop. Gary: "Everything checks out and is working." Shipped in merge
+      2a1f757 the same day; production not yet observed (open:).
       ── BUILD 2026-11-11 (PWA-1). ──
       BUILT, not yet checked on staging. TIER 2: no schema, migration,
       permission, API route, env var or dependency. Prompt

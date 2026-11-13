@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import Link from "next/link"
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Clock, Delete, GraduationCap } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -28,6 +29,7 @@ import { dueChipFor, dueRowSuffix } from "@/lib/tablet-due"
 import {
   CHIP_TONE_CLASS,
   IDLE_CHECK_MS,
+  idleWindow,
   cardsBusy,
   cardsReducer,
   dueChipTone,
@@ -62,7 +64,22 @@ import {
   useTabletRefreshController,
   type RefreshCycle,
 } from "./tablet-refresh"
-import type { TabletChecklist, TabletStore, TabletTask } from "./tablet-data"
+import type { TabletChecklist, TabletStore, TabletTask, TaskHowTo } from "./tablet-data"
+import {
+  CloseWhenStale,
+  DoneToast,
+  HowToExpanded,
+  HowToImage,
+  HowToPanel,
+  HowToPill,
+  HowToPlayer,
+  usePortrait,
+  type HowToAsk,
+  type HowToLayer,
+  type HowToOpen,
+} from "./tablet-howto"
+import { AskManagerSheet } from "./tablet-ask-manager"
+import { HELP_WINDOW_MS, type TabletHelpRecent } from "@/lib/help-request-shared"
 
 /** TAB-1b — one button on the name sheet. `id` is what goes in
  *  `completedByStaffId`: "manager" for both generic options, as on desktop.
@@ -426,6 +443,30 @@ export function TabletHome({
   // clears the "Completing as …" chip. Only ever set while pinRequired.
   const [pin, setPin] = useState<PinSession | null>(null)
   if (cards.idle && pin) setPin(null)
+
+  // ── TAB-15: a task's how-to (panel, player, image viewer, expanded row) ──
+  // Held here, not in TasksPanel, because in landscape the panel takes the
+  // Messages column's place. React state only. Closed by: its own X / Hide,
+  // the task being ticked (TasksPanel), a new day or store (the scope check),
+  // and the TAB-9 idle — the line below, the same pattern as the PIN
+  // session's — which also sends the page to the top (pageScrollReset).
+  // TAB-15 ruling (Gary, 2026-11-12): while a How-to is open the idle waits
+  // 15 minutes instead of 5 (HOWTO_IDLE_MS, the tick below); nothing else
+  // changes.
+  // While open it holds the TAB-5 refresh like any sheet (TasksPanel's
+  // "tasks:howto" busy flag).
+  const [howToState, setHowTo] = useState<HowToOpen | null>(null)
+  if (cards.idle && howToState) setHowTo(null)
+  const howTo = howToState && howToState.scope === scope ? howToState : null
+  const onHowTo = useCallback(
+    (next: Omit<HowToOpen, "scope"> | null) => setHowTo(next ? { ...next, scope } : null),
+    [scope]
+  )
+  const portrait = usePortrait()
+  // TAB-11: portrait is one column, so the panel never replaces Messages there
+  // — the row expands in place instead (design B).
+  const sidePanel = !!howTo && !portrait
+  const [howToSlot, setHowToSlot] = useState<HTMLDivElement | null>(null)
   // Ruling 4, the day half: a new day (TAB-5's rollover, which only happens
   // while nothing is busy) or another store starts collapsed.
   useLayoutEffect(() => {
@@ -438,8 +479,13 @@ export function TabletHome({
   // collapses them — a refresh cycle never does.
   const lastTouch = useRef(0)
   const idleNow = useRef(cards.idle)
+  // TAB-15: an open How-to (panel, player, image or expanded row — all one
+  // state) stretches the window to HOWTO_IDLE_MS. A ref, so the interval
+  // below reads the current value without being re-created.
+  const howToOpen = useRef(howTo !== null)
   useLayoutEffect(() => {
     idleNow.current = cards.idle
+    howToOpen.current = howTo !== null
   })
   useEffect(() => {
     lastTouch.current = Date.now()
@@ -450,7 +496,10 @@ export function TabletHome({
     const opts = { capture: true, passive: true } as const
     const events = ["pointerdown", "touchstart", "keydown", "wheel"] as const
     for (const ev of events) window.addEventListener(ev, touched, opts)
-    const id = window.setInterval(() => act({ type: "tick", at: Date.now(), lastTouchAt: lastTouch.current }), IDLE_CHECK_MS)
+    const id = window.setInterval(
+      () => act({ type: "tick", at: Date.now(), lastTouchAt: lastTouch.current, idleAfterMs: idleWindow(howToOpen.current) }),
+      IDLE_CHECK_MS
+    )
     return () => {
       for (const ev of events) window.removeEventListener(ev, touched, opts)
       window.clearInterval(id)
@@ -685,9 +734,20 @@ export function TabletHome({
             pinRequired={pinRequired}
             pin={pin}
             onPin={setPin}
+            howTo={howTo}
+            onHowTo={onHowTo}
+            portrait={portrait}
+            howToSlot={howToSlot}
           />
         </section>
-        <MessagesColumn key={store!.id} storeId={store!.id} />
+        {/* TAB-15 (A2): while a how-to is open in landscape the panel takes the
+            Messages column's cell. Messages stays MOUNTED (display:none), so a
+            half-typed message and its feed survive; `contents` keeps it the
+            grid item it always was. Exactly one of the two is a grid item. */}
+        <div className={sidePanel ? "hidden" : "contents"}>
+          <MessagesColumn key={store!.id} storeId={store!.id} />
+        </div>
+        <div ref={setHowToSlot} className={sidePanel ? "flex min-h-0 min-w-0 flex-col" : "hidden"} />
       </div>
     )
   }
@@ -707,7 +767,7 @@ function settledNow(): number {
 }
 
 const TASKS_CARD =
-  "flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)]"
+  "relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)]"
 
 function TasksPanel({
   store,
@@ -719,6 +779,10 @@ function TasksPanel({
   pinRequired,
   pin,
   onPin,
+  howTo,
+  onHowTo,
+  portrait,
+  howToSlot,
 }: {
   store: TabletStore
   /** undefined = loading, null = the list failed to load. */
@@ -732,6 +796,12 @@ function TasksPanel({
   pinRequired: boolean
   pin: PinSession | null
   onPin: SetPin
+  /** TAB-15 — see TabletHome. */
+  howTo: HowToOpen | null
+  onHowTo: (next: Omit<HowToOpen, "scope"> | null) => void
+  portrait: boolean
+  /** Where the landscape panel is portalled: the Messages column's cell. */
+  howToSlot: HTMLDivElement | null
 }) {
   // Local ticks on top of the server's rows, keyed `${checklistId}:${taskId}`,
   // so a tap reads instantly and a refused write can be put back.
@@ -764,11 +834,45 @@ function TasksPanel({
   // TAB-4 — the PIN sheet: the name just picked and the tap waiting on it.
   const [pinFor, setPinFor] = useState<{ checklistId: string; task: TabletTask | null; option: PickerOption } | null>(null)
 
+  // TAB-16 — the Ask-a-manager sheet (A4) for the open How-to's task, and the
+  // requests this tablet sent, on top of the server's list (store.help.recent)
+  // so "Help sent" shows at once rather than at the next refresh. Keyed
+  // `${storeId}:${taskId}`. `nowMs` ticks every 30s so "Help sent" lapses when
+  // R5's 15-minute window does, without reading the clock during render.
+  const [askFor, setAskFor] = useState<{ checklistId: string; taskId: string } | null>(null)
+  const [sentHere, setSentHere] = useState<Record<string, TabletHelpRecent>>({})
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 30_000)
+    return () => window.clearInterval(id)
+  }, [])
+
   // ── TAB-5: tell the refresh controller when this panel is busy (ruling 3) ──
   const ctl = useTabletRefresh()
   const track = <T,>(p: Promise<T>): Promise<T> => (ctl ? ctl.track(p) : p)
-  useBusyFlag("tasks:sheet", !!valueFor || !!nameSheet || !!partialFor || !!pinFor)
+  // TAB-16: the Ask-a-manager sheet is a sheet like the others.
+  useBusyFlag("tasks:sheet", !!valueFor || !!nameSheet || !!partialFor || !!pinFor || !!askFor)
   useBusyFlag("tasks:write", busy !== null)
+  // TAB-15: an open how-to (panel, player, image, expanded row) is a sheet.
+  useBusyFlag("tasks:howto", howTo !== null)
+  const closeHowTo = useCallback(() => onHowTo(null), [onHowTo])
+
+  // TAB-15 — A1's "done · 25 of 38" toast. The un-tick path exists (tap a done
+  // row, "Tap to undo"), so Undo is that same toggle. `pendingMark` is a Mark
+  // done waiting on the name / PIN / °F sheet; once no sheet is open it either
+  // ticked (the optimistic override says done) and becomes the toast, or the
+  // sheet was closed without a pick and it is dropped.
+  const [pendingMark, setPendingMark] = useState<{ checklistId: string; taskId: string } | null>(null)
+  const [toast, setToast] = useState<{ checklistId: string; taskId: string } | null>(null)
+  if (pendingMark && !nameSheet && !pinFor && !valueFor) {
+    setPendingMark(null)
+    if (overrides[`${pendingMark.checklistId}:${pendingMark.taskId}`]?.done) setToast(pendingMark)
+  }
+  useEffect(() => {
+    if (!toast) return
+    const id = window.setTimeout(() => setToast(null), 6000)
+    return () => window.clearTimeout(id)
+  }, [toast])
   // Ruling 4: once a server read that began after a tick settled has landed,
   // that tick's local copy is redundant — drop it, so a later change made on
   // another device shows through instead of being masked by it.
@@ -783,12 +887,14 @@ function TasksPanel({
     return (
       <div className={TASKS_CARD}>
         <PanelSkeleton />
+        {howTo && <CloseWhenStale onClose={closeHowTo} />}
       </div>
     )
   }
   if (rows === null) {
     return (
       <div className={TASKS_CARD}>
+        {howTo && <CloseWhenStale onClose={closeHowTo} />}
         <div className="flex flex-1 flex-col items-start justify-center gap-4 p-8">
           <p className="text-lg text-[var(--color-muted-foreground)]">Couldn&apos;t load today&apos;s checklists.</p>
           <Button size="touch" variant="outline" onClick={onRetry}>
@@ -1041,6 +1147,17 @@ function TasksPanel({
     else void toggle(view, t, null, who?.id ?? null, tokenFor(who?.id ?? null))
   }
 
+  /** TAB-15 — Mark done from the panel, player or expanded row: THE SAME TAP
+   *  as the row's tick circle (tapTask — the name sheet, PIN and °F pad
+   *  included). The player gives way to the panel first, so a sheet opens
+   *  over the checklist; the panel closes itself once the task reads done. */
+  function markDone(view: TabletChecklist, t: TabletTask) {
+    onHowTo({ checklistId: view.id, taskId: t.id, layer: "panel" })
+    setToast(null)
+    setPendingMark({ checklistId: view.id, taskId: t.id })
+    tapTask(view, t)
+  }
+
   function pickName(o: PickerOption) {
     const target = nameSheet
     if (!target || o.disabled) return // Q6: a no-PIN name can't be picked
@@ -1108,6 +1225,24 @@ function TasksPanel({
   const tabbed = ordered.length > 1
   // The checklist the In progress panel is showing, if it is showing one.
   let shownId: string | null = null
+  // TAB-15 — the open how-to's task, when it is an unticked task with training
+  // on the list showing now. Anything else means the state is stale.
+  let howToView: { view: TabletChecklist; task: TabletTask & { howTo: TaskHowTo } } | null = null
+  const setLayer = (layer: HowToLayer) => howTo && onHowTo({ checklistId: howTo.checklistId, taskId: howTo.taskId, layer })
+  // TAB-16 — declared before `body`, whose expanded row calls askHook.
+  /** The newest request for this task still inside R5's window, here or on the server. */
+  const recentFor = (taskId: string): TabletHelpRecent | null => {
+    const fresh = (r: TabletHelpRecent | undefined) =>
+      r && nowMs - new Date(r.createdAt).getTime() < HELP_WINDOW_MS ? r : null
+    const local = fresh(sentHere[`${store.id}:${taskId}`])
+    const server = fresh(store.help?.recent.find((r) => r.taskId === taskId))
+    if (local && server) return new Date(local.createdAt) >= new Date(server.createdAt) ? local : server
+    return local ?? server
+  }
+  const askHook = (checklistId: string, taskId: string): HowToAsk => {
+    const recent = recentFor(taskId)
+    return { onAsk: () => setAskFor({ checklistId, taskId }), sent: recent ? { label: recent.label, warn: recent.warn } : null }
+  }
 
   let body: React.ReactNode
   if (!entry) {
@@ -1152,11 +1287,30 @@ function TasksPanel({
       body = <PanelSkeleton />
     } else {
       shownId = view.id
+      const target = howTo && howTo.checklistId === view.id ? view.sections.flatMap((s) => s.tasks).find((t) => t.id === howTo.taskId) : undefined
+      if (target && !target.done && target.howTo) howToView = { view, task: { ...target, howTo: target.howTo } }
       body = (
         <InProgressPanel
           checklist={view}
           entry={entry}
           busy={busy}
+          howToId={howToView ? howToView.task.id : null}
+          portrait={portrait}
+          onPill={(t) =>
+            howToView?.task.id === t.id ? closeHowTo() : onHowTo({ checklistId: view.id, taskId: t.id, layer: "panel" })
+          }
+          renderExpanded={(t) =>
+            howToView && howToView.task.id === t.id && howTo ? (
+              <HowToExpanded
+                task={howToView.task}
+                layer={howTo.layer}
+                onLayer={setLayer}
+                onMarkDone={() => markDone(view, t)}
+                disabled={busy === `submit:${view.id}`}
+                ask={askHook(view.id, t.id)}
+              />
+            ) : null
+          }
           person={person?.checklistId === view.id ? person.label : null}
           onChangePerson={() => setNameSheet({ checklistId: view.id, task: null })}
           onTap={(t) => tapTask(view, t)}
@@ -1230,17 +1384,85 @@ function TasksPanel({
     : 0
   const partialBusy = busy === `partial:${partialFor}`
 
+  const hv = howToView as { view: TabletChecklist; task: TabletTask & { howTo: TaskHowTo } } | null
+
+  // TAB-16. The sheet lives and dies with the How-to it was opened from: when
+  // that closes (X, Mark done, the TAB-9 idle, a stale task) the sheet goes too.
+  if (askFor && !(hv && hv.view.id === askFor.checklistId && hv.task.id === askFor.taskId)) setAskFor(null)
+  const toastView = toast ? checklistsById.get(toast.checklistId) : undefined
+  const toastAll = toastView ? withOverrides(toastView).sections.flatMap((s) => s.tasks) : []
+  const toastTask = toast ? toastAll.find((t) => t.id === toast.taskId && t.done) : undefined
+
   return (
     <>
       {tabs}
       <div className={TASKS_CARD}>
         {body}
+        {howTo && !hv && <CloseWhenStale onClose={closeHowTo} />}
+        {toastView && toastTask && (
+          <DoneToast
+            label={toastTask.label}
+            done={toastAll.filter((t) => t.done).length}
+            total={toastAll.length}
+            onUndo={() => {
+              setToast(null)
+              void toggle(toastView, toastTask)
+            }}
+          />
+        )}
         {error && (
           <p role="alert" className="border-t border-[var(--color-border)] bg-[var(--color-warning-bg)] px-5 py-3 text-base font-medium text-[var(--color-warning-text)]">
             {error}
           </p>
         )}
       </div>
+      {/* TAB-15 — A2 in the Messages column's place (landscape only; portrait
+          expands the row instead), and the two full-screen layers over both. */}
+      {hv && howTo && !portrait && howToSlot &&
+        createPortal(
+          <HowToPanel
+            task={hv.task}
+            checklistName={hv.view.name}
+            layer={howTo.layer}
+            onClose={closeHowTo}
+            onLayer={setLayer}
+            onMarkDone={() => markDone(hv.view, hv.task)}
+            disabled={busy === `submit:${hv.view.id}`}
+            ask={askHook(hv.view.id, hv.task.id)}
+          />,
+          howToSlot
+        )}
+      {hv && howTo?.layer === "player" && (
+        <HowToPlayer
+          task={hv.task}
+          checklistName={hv.view.name}
+          onBack={() => setLayer("panel")}
+          onOpenImage={() => setLayer("image")}
+          onMarkDone={() => markDone(hv.view, hv.task)}
+          disabled={busy === `submit:${hv.view.id}`}
+          ask={askHook(hv.view.id, hv.task.id)}
+        />
+      )}
+      {/* TAB-16 — A4 over the panel, the expanded row or the player. */}
+      {askFor && hv && (
+        <AskManagerSheet
+          key={`ask:${hv.view.id}:${hv.task.id}`}
+          storeId={store.id}
+          storeName={store.name}
+          timeZone={store.timezone}
+          checklistId={hv.view.id}
+          checklistName={hv.view.name}
+          task={hv.task}
+          staff={store.staff}
+          help={store.help}
+          sent={recentFor(hv.task.id)}
+          onClose={() => setAskFor(null)}
+          onSent={(r) => setSentHere((prev) => ({ ...prev, [`${store.id}:${r.taskId}`]: r }))}
+        />
+      )}
+      {hv && howTo?.layer === "image" && hv.task.howTo.doc && (
+        <HowToImage doc={hv.task.howTo.doc} onBack={() => setLayer("panel")} />
+      )}
       <ValueSheet
         key={valueFor?.task.id ?? "closed"}
         task={valueFor?.task ?? null}
@@ -1413,10 +1635,20 @@ function InProgressPanel({
   onTap,
   onSubmit,
   onSubmitPartial,
+  howToId,
+  portrait,
+  onPill,
+  renderExpanded,
 }: {
   checklist: TabletChecklist
   entry: TodayRow
   busy: string | null
+  /** TAB-15 — the task whose how-to is open (highlighted row), or null. */
+  howToId: string | null
+  portrait: boolean
+  onPill: (t: TabletTask) => void
+  /** TAB-15 (B) — the open row's training, drawn under it in portrait. */
+  renderExpanded: (t: TabletTask) => React.ReactNode
   /** TAB-1b — the sticky person's name, or null when nobody is chosen yet. */
   person: string | null
   onChangePerson: () => void
@@ -1504,19 +1736,69 @@ function InProgressPanel({
                 <span>{s.name}</span>
                 <span>{open.length} left</span>
               </div>
-              {open.map((t) => (
-                <TouchRow key={t.id} size="roomy" onClick={() => onTap(t)} disabled={submitting}>
+              {open.map((t) => {
+                const label = (
                   <span className={cn("min-w-0 flex-1", t.isCritical && "font-semibold text-[var(--color-destructive)]")}>
                     {t.label}
                   </span>
-                  {t.requiresTemp && (
-                    <span className="shrink-0 rounded-full border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] px-3 py-1 text-sm font-semibold text-[var(--color-warning-text)]">
-                      Log °F
-                    </span>
-                  )}
-                  <TouchCheck checked={false} />
-                </TouchRow>
-              ))}
+                )
+                const logChip = t.requiresTemp && (
+                  <span className="shrink-0 rounded-full border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] px-3 py-1 text-sm font-semibold text-[var(--color-warning-text)]">
+                    Log °F
+                  </span>
+                )
+                // A task with no training renders exactly as before TAB-15.
+                if (!t.howTo)
+                  return (
+                    <TouchRow key={t.id} size="roomy" onClick={() => onTap(t)} disabled={submitting}>
+                      {label}
+                      {logChip}
+                      <TouchCheck checked={false} />
+                    </TouchRow>
+                  )
+                // TAB-15 (A1) — a pill can't sit inside the row's <button>, so
+                // the row is split: the text and the tick circle are two
+                // buttons doing the row's one tap (onTap, unchanged), and the
+                // pill between them is the only new way in.
+                const isOpen = howToId === t.id
+                return (
+                  <div
+                    key={t.id}
+                    className={cn(
+                      "border-b border-[var(--color-border)] last:border-b-0",
+                      isOpen ? "bg-[var(--color-accent)]" : "bg-[var(--color-card)]"
+                    )}
+                  >
+                    <div className="flex min-h-[76px] items-center">
+                      <button
+                        type="button"
+                        onClick={() => onTap(t)}
+                        disabled={submitting}
+                        className="flex min-h-[76px] min-w-0 flex-1 items-center gap-4 py-4 pl-5 pr-3 text-left text-lg text-[var(--color-foreground)] transition-colors active:bg-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-50"
+                      >
+                        {label}
+                        {logChip}
+                      </button>
+                      <HowToPill
+                        howTo={t.howTo}
+                        state={isOpen ? (portrait ? "expanded" : "open") : "closed"}
+                        onClick={() => onPill(t)}
+                        disabled={submitting}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => onTap(t)}
+                        disabled={submitting}
+                        aria-label={`Tick: ${t.label}`}
+                        className="flex min-h-[76px] items-center pl-4 pr-5 transition-colors active:bg-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-50"
+                      >
+                        <TouchCheck checked={false} />
+                      </button>
+                    </div>
+                    {isOpen && portrait && renderExpanded(t)}
+                  </div>
+                )
+              })}
             </div>
           )
         })}

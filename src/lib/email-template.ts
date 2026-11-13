@@ -73,8 +73,19 @@ export type EmailTemplateInput = {
    */
   sections?: { heading: string; rows: EmailRow[] }[]
   cta?: { label: string; url: string }
+  /**
+   * TAB-16. An optional second button beside `cta` (C2: "Reply in Messages"
+   * and "Open the checklist"). Absent on every earlier consumer, whose html and
+   * text are therefore unchanged byte for byte.
+   */
+  secondaryCta?: { label: string; url: string }
   /** The closing line. Today every consumer says the address takes no replies. */
   footer: string
+  /**
+   * TAB-16. An optional link appended to the footer line, e.g. Settings ›
+   * Email Notification Settings. Absent on every earlier consumer.
+   */
+  footerLink?: { label: string; url: string }
   /**
    * Absolute origin (NEXT_PUBLIC_APP_URL). OPTIONAL, and the fallback is F1's
    * fallback branch: with no host there is no absolute URL for the mark, so the
@@ -187,18 +198,36 @@ function sectionsHtml(sections: EmailTemplateInput["sections"]): string {
     .join("")
 }
 
-function ctaButton(cta: { label: string; url: string } | undefined): string {
+function ctaButton(cta: { label: string; url: string } | undefined, secondary?: { label: string; url: string }): string {
   const url = safeUrl(cta?.url)
   if (!cta || !url) return ""
   // A BORDERED LINK, NOT A FILLED BUTTON. Filled buttons need a background
   // colour on a <td> plus a VML fallback to survive Outlook; a bordered anchor
   // degrades to a plain link everywhere and needs neither.
+  // TAB-16: a second button, when given, is the same anchor in ink, in its own
+  // cell beside the first. With none, the markup is exactly what it was.
+  const second = safeUrl(secondary?.url)
+  const secondCell =
+    secondary && second
+      ? `<td style="padding-top:22px;padding-left:10px;">` +
+        `<a href="${esc(second)}" style="display:inline-block;padding:10px 18px;border:2px solid ${INK};border-radius:8px;font-family:${FONT};font-size:14px;line-height:20px;font-weight:600;color:${INK};text-decoration:none;">${esc(secondary.label)}</a>` +
+        `</td>`
+      : ""
   return (
     `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>` +
     `<td style="padding-top:22px;">` +
     `<a href="${esc(url)}" style="display:inline-block;padding:10px 18px;border:2px solid ${ORANGE};border-radius:8px;font-family:${FONT};font-size:14px;line-height:20px;font-weight:600;color:${ORANGE};text-decoration:none;">${esc(cta.label)}</a>` +
-    `</td></tr></table>`
+    `</td>` +
+    secondCell +
+    `</tr></table>`
   )
+}
+
+/** TAB-16: the footer link, or nothing. */
+function footerLinkHtml(link: EmailTemplateInput["footerLink"]): string {
+  const url = safeUrl(link?.url)
+  if (!link || !url) return ""
+  return ` <a href="${esc(url)}" style="color:${ORANGE};text-decoration:underline;">${esc(link.label)}</a>`
 }
 
 /**
@@ -241,10 +270,10 @@ function renderHtml(input: EmailTemplateInput): string {
       : "") +
     rowsTable(input.rows) +
     sectionsHtml(input.sections) +
-    ctaButton(input.cta) +
+    ctaButton(input.cta, input.secondaryCta) +
     `</td></tr>` +
     `<tr><td style="padding:16px 24px 22px;border-top:1px solid ${HAIRLINE};">` +
-    `<p style="margin:0;font-family:${FONT};font-size:12px;line-height:18px;color:${MUTED_INK};">${esc(input.footer)}</p>` +
+    `<p style="margin:0;font-family:${FONT};font-size:12px;line-height:18px;color:${MUTED_INK};">${esc(input.footer)}${footerLinkHtml(input.footerLink)}</p>` +
     `</td></tr>` +
     `</table></td></tr></table>` +
     `</body></html>`
@@ -284,7 +313,11 @@ function renderText(input: EmailTemplateInput): string {
 
   const url = safeUrl(input.cta?.url)
   if (url) lines.push("", url)
-  lines.push("", input.footer)
+  // TAB-16. Absent on every earlier consumer, so their text is unchanged.
+  const second = safeUrl(input.secondaryCta?.url)
+  if (input.secondaryCta && second) lines.push(`${input.secondaryCta.label}: ${second}`)
+  const footLink = safeUrl(input.footerLink?.url)
+  lines.push("", input.footerLink && footLink ? `${input.footer} ${input.footerLink.label}: ${footLink}` : input.footer)
   return lines.join("\n")
 }
 
