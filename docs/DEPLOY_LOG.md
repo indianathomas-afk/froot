@@ -2,6 +2,63 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-12 — CHK-20: Training video links — only real web links can be saved or shown
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`27f8d2e`; docs `6f32acc`; the PRE-PUSH-CHECK is the commit immediately
+after `6f32acc`. **TIER 2:** validation added to the template write routes
+plus a shared render-side check. No migration, no env var, no permission,
+no cron, no Square or Clerk call, no dependency, no data change. No
+DECISIONS entry added or changed. Prompt of record
+`docs/prompts/CHK-VIDEO-LINKS.md`, committed at this check.
+
+**Blast radius: every place a checklist task's training video link is
+written or shown.** One rule, `src/lib/task-video-url.ts` (new, no imports,
+runs in the browser too): trim; http(s) passes as typed; a bare web address
+(`www.…`, `youtu.be/…`) gains `https://`; any other scheme, inner
+whitespace or control character -> null. **Writes:** `POST /api/templates`
+(create and Duplicate) and `PATCH /api/templates/[id]` (every editor save)
+now answer 400 with the task named on a bad link and store the normalised
+value — so a template still holding a pre-CHK-20 bad value cannot be saved
+until that link is fixed (the editor names the task and blocks Save).
+`POST /api/templates/import` never fails on a bad link: the task imports
+without it and the response's `linksDropped` names it, listed in the import
+dialog. Duplicate copies only a valid link. **Renders** (8 sites, each
+shows nothing when the helper returns null): desktop execution page
+(`store-view/checklist/[id]`), template editor card and table views, both
+print badges (`print/template/[id]`, `print/checklist/[id]`), the tablet
+(`tablet-data.ts`; TAB-15's private `webUrl` now wraps the shared helper,
+the one widening being a stored bare `www.` value now read as `https://`),
+and the help-request training list (a label, not a link). Not touched:
+`GET /api/templates/export` still writes the stored value to CSV as-is
+(re-import drops a bad one), and HR `TrainingLesson.videoUrl` (deferred on
+the row; DOC-3 amendment 1, DECISIONS 2026-08-24).
+
+Files: 13 in `27f8d2e` (+336/−38): new `lib/task-video-url.ts`,
+`scripts/verify-chk20-video-links.ts`; changed `templates/template-form.tsx`,
+`templates/template-import-button.tsx`, `templates/templates-client.tsx`,
+`api/templates/route.ts`, `api/templates/[id]/route.ts`,
+`api/templates/import/route.ts`, `store-view/checklist/[id]/checklist-execution-client.tsx`,
+`print/template/[id]/page.tsx`, `print/checklist/[id]/page.tsx`,
+`dashboard/tablet-data.ts`, `lib/notifications/kinds/help-request.ts`.
+Checks at this PRE-PUSH-CHECK: `scripts/verify-chk20-video-links.ts` exit
+0, 29/29, ALL PASS (pure, no database); `npm run build` green. Not
+observed: the editor's inline message, the import dialog's dropped-links
+list, the tablet, staging. This closes the `Task.videoUrl` COMMENT in the
+TAB-15 entry below (left as written).
+
+**Rollback.** `git revert 27f8d2e`. No schema or data to undo; any links
+normalised by saves in between stay normalised (still valid http(s)).
+
+**Staging tests owed (Gary, after his push; staging-SHA precondition
+first).** 1 template editor, video link `javascript:alert(1)` -> refused
+with "Use a web link that starts with https://" under the field; 2
+`www.youtube.com/watch?v=…` with no https -> saves as
+`https://www.youtube.com/watch?v=…` and plays on the tablet; 3 an existing
+working link still shows "Watch Training Video" on desktop and "Watch" on
+the tablet; 4 import a template CSV with one bad `task_video_url` ->
+import succeeds and names the task whose link was dropped.
+
 ## ab060e6 — 2026-11-12 — TAB-16: Tablet checklist — Ask a manager (help requests to Messages + email)
 
 **PROMOTED 2026-11-12 in merge `ab060e6`** (`ab060e62201094547130630af52a528f3db12292`,

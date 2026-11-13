@@ -3885,7 +3885,16 @@ phases:
     # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging
     # (docs/WORKFLOW.md session completion rule 2; TAB-15 precedent). No
     # migration, no env var. Rollback: `git revert 27f8d2e`.
-    status: in_progress
+    # in_progress -> staging 2026-11-12 at the CHK-20 PRE-PUSH-CHECK (the
+    # commit immediately after 6f32acc; its own SHA cannot be written inside
+    # itself). Docs SHA: 6f32acc (this row at 27f8d2e). The check committed
+    # the prompt of record docs/prompts/CHK-VIDEO-LINKS.md and wrote the
+    # DEPLOY_LOG UNPROMOTED entry. No DECISIONS entry added or changed, so no
+    # ruling to ratify. The notes' "untracked until PRE-PUSH-CHECK" is spent,
+    # kept. Verify at the check: verify-chk20-video-links exit 0, 29/29,
+    # ALL PASS; build green. No migration. Rollback stays
+    # `git revert 27f8d2e`. NOT pushed at writing.
+    status: staging
     title: "Training video links — only real web links can be saved or shown"
     commits:
       - "27f8d2e"
@@ -3894,6 +3903,9 @@ phases:
       # execution page, print views, tablet-data.ts, help-request training list,
       # scripts/verify-chk20-video-links.ts (new)
       # + the commit immediately after 27f8d2e: docs(CHK-20) — this row
+      #   = 6f32acc (recorded at the PRE-PUSH-CHECK)
+      # + PRE-PUSH-CHECK: the commit immediately after 6f32acc — this row to
+      #   staging, DEPLOY_LOG, docs/prompts/CHK-VIDEO-LINKS.md
     deferred:
       - "HR training lesson videoUrl (TrainingLesson) — same gap, different model; still the COMMENT Gary ruled at DOC-3 amendment 1 (DECISIONS 2026-08-24). Not touched."
     notes: >
