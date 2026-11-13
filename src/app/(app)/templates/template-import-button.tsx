@@ -15,6 +15,9 @@ type ImportResult = {
   tasksCreated: number
   created: { name: string; tasks: number }[]
   typesCreated: string[]
+  /** CHK-20: tasks imported WITHOUT their training video, because the link
+   *  was not an http(s) web link. Optional so an older response still renders. */
+  linksDropped?: { template: string; task: string }[]
   errors: { row: number; error: string }[]
 }
 
@@ -158,6 +161,20 @@ export function TemplateImportButton({ onImported }: { onImported: () => void })
                     Created {result.typesCreated.length} new type{result.typesCreated.length !== 1 ? "s" : ""}:{" "}
                     {result.typesCreated.join(", ")}. They are grey until you recolour them in Manage Types.
                   </p>
+                )}
+                {/* CHK-20: a bad link never fails the import — the task
+                    arrives without it, and is named here so it can be re-added. */}
+                {(result.linksDropped?.length ?? 0) > 0 && (
+                  <div className="mt-2">
+                    <p className="text-[var(--color-warning-text)]">
+                      Imported without a training video, because the link wasn&apos;t a web link starting with https://:
+                    </p>
+                    <ul className="list-disc list-inside text-xs text-[var(--color-muted-foreground)]">
+                      {result.linksDropped!.map((d, i) => (
+                        <li key={i}>{d.template}: {d.task}</li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
                 {result.errors.length > 0 && (
                   <div className="mt-2">

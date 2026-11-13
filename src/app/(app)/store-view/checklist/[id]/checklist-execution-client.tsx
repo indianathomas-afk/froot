@@ -10,6 +10,7 @@ import { frozenWindow, formatWindowTime, COMPLETED_LATE_BADGE } from "@/lib/chec
 import { HandoffBanner, HandoffComposer, type HandoffTarget } from "./handoff-notes"
 import { PinDialog, usePinSession } from "@/components/tablet-pin/pin-session"
 import { isPinRefusal, whoOptions } from "@/lib/tablet-pin-options"
+import { safeVideoUrl } from "@/lib/task-video-url"
 
 // CHK-7 — iPhone capture, made sendable. ONE canvas re-encode answers two
 // separate problems: (1) the iPhone default capture format is HEIC, which most
@@ -597,11 +598,13 @@ export function ChecklistExecutionClient({ checklist, staff, staffNames, handoff
                         </div>
                       </div>
 
-                      {/* Training video link */}
-                      {task.videoUrl && (
+                      {/* Training video link. CHK-20: http(s) only — a value
+                          that fails src/lib/task-video-url.ts renders nothing,
+                          so a stored `javascript:` is never a clickable link. */}
+                      {safeVideoUrl(task.videoUrl) && (
                         <div className="mt-2 ml-8">
                           <a
-                            href={task.videoUrl}
+                            href={safeVideoUrl(task.videoUrl)!}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 min-h-[44px] py-2 px-3 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] hover:bg-[var(--color-accent)] transition-colors text-sm text-[var(--color-foreground)]"

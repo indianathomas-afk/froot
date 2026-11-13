@@ -3877,6 +3877,95 @@ phases:
       entry on desktop that matches the tablet (value + the tick's name), and
       showing a saved value wherever a tick is reviewed.
 
+  - id: CHK-20
+    track: checklists
+    size: S
+    # planned -> in_progress 2026-11-12 at the work commit 27f8d2e (NOT
+    # pushed). The docs SHA is the commit immediately after 27f8d2e (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging
+    # (docs/WORKFLOW.md session completion rule 2; TAB-15 precedent). No
+    # migration, no env var. Rollback: `git revert 27f8d2e`.
+    # in_progress -> staging 2026-11-12 at the CHK-20 PRE-PUSH-CHECK (the
+    # commit immediately after 6f32acc; its own SHA cannot be written inside
+    # itself). Docs SHA: 6f32acc (this row at 27f8d2e). The check committed
+    # the prompt of record docs/prompts/CHK-VIDEO-LINKS.md and wrote the
+    # DEPLOY_LOG UNPROMOTED entry. No DECISIONS entry added or changed, so no
+    # ruling to ratify. The notes' "untracked until PRE-PUSH-CHECK" is spent,
+    # kept. Verify at the check: verify-chk20-video-links exit 0, 29/29,
+    # ALL PASS; build green. No migration. Rollback stays
+    # `git revert 27f8d2e`. NOT pushed at writing.
+    status: staging
+    title: "Training video links — only real web links can be saved or shown"
+    commits:
+      - "27f8d2e"
+      # CHK-20: src/lib/task-video-url.ts (new), template editor + import
+      # dialog + Duplicate, POST/PATCH /api/templates, import route, desktop
+      # execution page, print views, tablet-data.ts, help-request training list,
+      # scripts/verify-chk20-video-links.ts (new)
+      # + the commit immediately after 27f8d2e: docs(CHK-20) — this row
+      #   = 6f32acc (recorded at the PRE-PUSH-CHECK)
+      # + PRE-PUSH-CHECK: the commit immediately after 6f32acc — this row to
+      #   staging, DEPLOY_LOG, docs/prompts/CHK-VIDEO-LINKS.md
+    deferred:
+      - "HR training lesson videoUrl (TrainingLesson) — same gap, different model; still the COMMENT Gary ruled at DOC-3 amendment 1 (DECISIONS 2026-08-24). Not touched."
+    notes: >
+      ── BUILD 2026-11-12 (CHK-20). ──
+      BUILT, not yet checked on staging. TIER 2: no schema, migration,
+      permission, env var, cron or Square change; validation added to the two
+      existing template write routes and the import route. Prompt
+      docs/prompts/CHK-VIDEO-LINKS.md (untracked until PRE-PUSH-CHECK).
+      WHY: Task.videoUrl is free text; the editor saved whatever was typed and
+      the desktop checklist page put it straight into an href, so a saved
+      `javascript:` became a clickable "Watch Training Video" link for every
+      team member. TAB-15 already hid non-http(s) on the tablet.
+      THE RULE (src/lib/task-video-url.ts, no imports so it runs in the browser
+      too): trim; a value naming a scheme must be http or https and is returned
+      as typed (no trailing slash or re-encoding added); a value with no scheme
+      that looks like a web address (www.youtube.com/…, youtu.be/…) gains
+      https://; any other scheme, any inner whitespace or control character
+      (browsers strip tabs, so java<TAB>script: is javascript:) -> null.
+      TASK_VIDEO_URL_ERROR = "Use a web link that starts with https://".
+      WRITES (audit a): POST /api/templates (create + Duplicate) and PATCH
+      /api/templates/[id] (every editor save) now 400 with the task named and
+      store the normalised value; POST /api/templates/import drops a bad link
+      and keeps the task, returning linksDropped [{template, task}], listed in
+      the import dialog. task-sync.ts writes whatever PATCH's taskData built,
+      so it needs no edit. No other writer sets Task.videoUrl (scripts/
+      import-keva-templates.ts and the verify scripts never set it, except
+      verify-tab16-help.ts with a valid youtu.be link).
+      EDITOR: Add Task and the edit drawer refuse a bad link with the inline
+      message under the field and keep what was typed (the drawer refuses
+      before any attachment upload). A task still holding a bad value saved
+      before CHK-20 shows "Video link isn't a web link — edit to fix" in place
+      of the link, and Save is blocked with the task named, because PATCH
+      would refuse it. Duplicate copies only a valid link (otherwise a pre-
+      CHK-20 bad value would make POST refuse the whole copy).
+      RENDERS (audit b, 8 sites, every renderer of Task.videoUrl checked):
+      desktop execution page (checklist-execution-client.tsx, sole renderer
+      store-view/checklist/[id]/page.tsx); template editor card and table views
+      (template-form.tsx, rendered by templates/new and templates/[id]/edit);
+      print/template/[id] and print/checklist/[id] "Training video in app"
+      badges; the tablet (tablet-data.ts taskHowTo, read by tablet-home and
+      tablet-howto); the help-request training list (lib/notifications/kinds/
+      help-request.ts, a label, not a link). templates/[id] (view page) and
+      templates-client do not render it. Each shows nothing when the helper
+      returns null.
+      TAB-15 (audit c): its private webUrl in tablet-data.ts now wraps the
+      shared helper. Same refusals; the one widening is a stored bare www.
+      value, which the tablet now reads as https:// like every other surface.
+      Attachment URLs still pass through the same wrapper (blob URLs, unchanged).
+      NO BACKFILL and no data change: existing bad values stop rendering.
+      FIXTURE: npx tsx scripts/verify-chk20-video-links.ts — 29/29 pass.
+      STAGING TESTS (Gary): (1) template editor, video link
+      javascript:alert(1) -> refused with "Use a web link that starts with
+      https://" under the field; (2) www.youtube.com/watch?v=… with no https ->
+      saves as https://www.youtube.com/watch?v=… and plays on the tablet; (3)
+      an existing working link still shows "Watch Training Video" on desktop
+      and "Watch" on the tablet; (4) import a template CSV with one bad
+      task_video_url -> import succeeds and names the task whose link was
+      dropped.
+      Cross-refs: TAB-15, DOC-3 (DECISIONS 2026-08-24 amendment 1).
+
   - id: I-1
     track: inventory
     size: M-L
@@ -26861,7 +26950,24 @@ phases:
     # PRE-PUSH-CHECK" is spent, kept. Verify at the check: verify-tab9-cards
     # exit 0, ALL PASS; build green. No migration. Rollback stays
     # `git revert ba72497` then `git revert d7331ec`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-12 at merge ab060e6 ("Promote TAB-15 +
+    # TAB-16: tablet how-tos and Ask a manager", parents 2a1f757 + 4f49185;
+    # 10 commits: 699a4bc (PWA-1 promotion docs, riding per R1), TAB-15's
+    # d7331ec, abfe736, ba72497, 149f620, b774132, 9f6cc43, and TAB-16's
+    # a9bbf04, b1c97c7, 4f49185). Gary pushed 2a1f757..ab060e6 to main
+    # 2026-11-12; staging fast-forwarded 4f49185..ab060e6 and pushed. Stamped
+    # post-merge 2026-11-12 on `staging` (R1) by
+    # PROMOTE-DOCS_2026-11-12_TAB-15-16, NOT pushed at writing. Staging tests
+    # DONE — Gary, 2026-11-12: "All is working." (record in notes, ── STAGING
+    # TEST ──). Production: build for ab060e6 Ready; the Watch pill shows on
+    # the tablet on usefroot.com (Gary). Full record: DEPLOY_LOG
+    # `ab060e6 — 2026-11-12 — TAB-15`. The "NOT pushed at writing" comments
+    # above are spent (Gary pushed), kept; so is the notes' "BUILT, not yet
+    # checked on staging", kept. No migration, no env var. Rollback:
+    # `git revert -m 1 ab060e6` (takes TAB-16 too); TAB-15 alone stays
+    # `git revert ba72497` then `git revert d7331ec`.
+    status: shipped
+    shipped: 2026-11-12
     title: "Tablet checklist — training how-tos on tasks (Watch / Guide)"
     commits:
       - "d7331ec"
@@ -26878,11 +26984,23 @@ phases:
       # + b774132: docs(TAB-15) — Gary accepts the page-wide 15-minute idle
       # + PRE-PUSH-CHECK: the commit immediately after b774132 — DECISIONS
       #   ratification, this row to staging, DEPLOY_LOG, docs/prompts/TAB-15.md
+      # docs(TAB-15) PRE-PUSH-CHECK: the "commit immediately after b774132"
+      # named above; recorded by PROMOTE-DOCS_2026-11-12_TAB-15-16
+      - "9f6cc43"
+      # merge(main): production promotion 2026-11-12, with TAB-16 (first
+      # parent 2a1f757, second parent 4f49185)
+      - "ab060e6"
     deferred:
       - Ask a manager (design A4, C1, C2) — TAB-16; the three button slots are marked in tablet-howto.tsx
       - A per-video title under the player (the design's "Turning on the menu displays") — no field exists; adding one is a schema change
       - Revisit when PIN is rolled out — Gary 2026-11-12, "If PIN is ever rolled out, revisit this." While a How-to is open the PIN session (TAB-4 Q10) waits the same 15 minutes as the rest of the page, not 5
     notes: >
+      ── STAGING TEST 2026-11-12 (TAB-15) — DONE. ──
+      The STAGING TESTS paragraph at the end of these notes (1–8, Gary's
+      iPad) was run by Gary on staging on 2026-11-12. RESULT, Gary: "All is
+      working." Per-test results were not reported. Shipped in merge ab060e6
+      the same day; on production Gary saw the Watch pill on the tablet at
+      usefroot.com (build for ab060e6 Ready).
       ── BUILD 2026-11-12 (TAB-15). ──
       BUILT, not yet checked on staging. TIER 2: no schema, migration,
       permission, env var, cron, Square or write-route change; additive
@@ -27004,7 +27122,29 @@ phases:
     # check: npm run build green. Migration staging/production still owed at
     # the Vercel build. Rollback stays `git revert a9bbf04`. NOT pushed at
     # writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-12 at merge ab060e6 ("Promote TAB-15 +
+    # TAB-16: tablet how-tos and Ask a manager", parents 2a1f757 + 4f49185;
+    # 10 commits: 699a4bc (PWA-1 promotion docs, riding per R1), TAB-15's
+    # six (recorded on TAB-15), and a9bbf04, b1c97c7, 4f49185). Gary pushed
+    # 2a1f757..ab060e6 to main 2026-11-12; staging fast-forwarded
+    # 4f49185..ab060e6 and pushed. Stamped post-merge 2026-11-12 on
+    # `staging` (R1) by PROMOTE-DOCS_2026-11-12_TAB-15-16, NOT pushed at
+    # writing. Staging tests DONE — Gary, 2026-11-12: "All is working."
+    # (record in notes, ── STAGING TEST ──). MIGRATION
+    # 20261113002310_tab16_help_requests: staging at the 4f49185 Vercel build
+    # (the ab060e6 staging build: "No pending migrations to apply");
+    # production at the ab060e6 Vercel build, build log "Applying migration
+    # `20261113002310_tab16_help_requests`" 17:09:01.898 PST, then "All
+    # migrations have been successfully applied." (Gary; docs/MIGRATIONS.md).
+    # The "Migration staging/production still owed" comment above is spent,
+    # kept. On usefroot.com Help request emails is Off (R7, see open:). Full
+    # record: DEPLOY_LOG `ab060e6 — 2026-11-12 — TAB-16`. The "NOT pushed at
+    # writing" comments above are spent, kept; so is the notes' "BUILT, not
+    # yet checked on staging", kept. No env var. Rollback:
+    # `git revert -m 1 ab060e6` (takes TAB-15 too); TAB-16 alone stays
+    # `git revert a9bbf04`; the columns stay either way.
+    status: shipped
+    shipped: 2026-11-12
     title: "Tablet checklist — Ask a manager (help requests to Messages + email)"
     commits:
       - "a9bbf04"
@@ -27021,10 +27161,25 @@ phases:
       #   = b1c97c7 (recorded at the PRE-PUSH-CHECK)
       # + PRE-PUSH-CHECK: the commit immediately after b1c97c7 — DECISIONS
       #   ratification, this row to staging, DEPLOY_LOG, docs/prompts/TAB-16.md
+      # docs(TAB-16) PRE-PUSH-CHECK: the "commit immediately after b1c97c7"
+      # named above; recorded by PROMOTE-DOCS_2026-11-12_TAB-15-16
+      - "4f49185"
+      # merge(main): production promotion 2026-11-12, with TAB-15 (first
+      # parent 2a1f757, second parent 4f49185)
+      - "ab060e6"
+    open:
+      - "Help request emails ship OFF on production (R7) until Gary turns them on; check every Keva manager login has an email address on production first (audit query, Neon console)."
     deferred:
       - Desktop "Help request" filter on Team Messages — the type is rendered read-only (prompt step 6), not filterable or postable from the composer
       - A per-video title in the email ("Training video" today) — the same missing field as the TAB-15 deferred item
     notes: >
+      ── STAGING TEST 2026-11-12 (TAB-16) — DONE. ──
+      The STAGING TESTS paragraph at the end of these notes (1–10) was run by
+      Gary on staging on 2026-11-12. RESULT, Gary: "All is working." Per-test
+      results were not reported. Shipped in merge ab060e6 the same day; on
+      production the migration applied at the ab060e6 build and Gary saw Help
+      request emails Off on usefroot.com. Not observed
+      on production: a help request sent, any help-request email.
       ── BUILD 2026-11-12 (TAB-16). ──
       BUILT, not yet checked on staging. TIER 3 (schema, a write route, an
       email kind). Prompt docs/prompts/TAB-16.md (untracked until

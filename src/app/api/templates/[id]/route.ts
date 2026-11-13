@@ -8,6 +8,7 @@ import { SectionConflict, pruneEmptySections, sectionsFromTasks, syncTemplateSec
 import { syncTemplateTasks } from "../task-sync"
 import { NextResponse } from "next/server"
 import { OPERATIONAL_PHASES, isOperationalPhase, normalizePhase } from "@/lib/phases"
+import { storedTaskVideoUrl, taskVideoUrlRefusal } from "@/lib/task-video-url"
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { orgId } = await auth()
@@ -119,6 +120,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "Every task needs a non-empty sectionName" }, { status: 400 })
   }
 
+  // CHK-20: the second choke point for the training-video rule — see the same
+  // check in POST /api/templates. A task loaded with a bad value saved before
+  // CHK-20 is refused here too until it is fixed; the editor names it first.
+  const videoRefusal = taskVideoUrlRefusal(incomingTasks)
+  if (videoRefusal) {
+    return NextResponse.json({ error: videoRefusal }, { status: 400 })
+  }
+
   // DEBT-1b: templateData is spread wholesale into the update below, so the
   // phase is validated here or not at all. The one known legacy value is
   // corrected; anything else is rejected by name.
@@ -165,7 +174,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         isCritical: t.isCritical ?? false,
         orderIndex: t.orderIndex ?? 0,
         excludedStoreIds: t.excludedStoreIds ?? [],
-        videoUrl: t.videoUrl || null,
+        // CHK-20: checked above; a bare www. address is stored with https://.
+        videoUrl: storedTaskVideoUrl(t.videoUrl),
       }
     }
 

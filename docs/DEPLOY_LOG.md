@@ -2,7 +2,121 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-12 — TAB-16: Tablet checklist — Ask a manager (help requests to Messages + email)
+## UNPROMOTED — 2026-11-12 — CHK-20: Training video links — only real web links can be saved or shown
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`27f8d2e`; docs `6f32acc`; the PRE-PUSH-CHECK is the commit immediately
+after `6f32acc`. **TIER 2:** validation added to the template write routes
+plus a shared render-side check. No migration, no env var, no permission,
+no cron, no Square or Clerk call, no dependency, no data change. No
+DECISIONS entry added or changed. Prompt of record
+`docs/prompts/CHK-VIDEO-LINKS.md`, committed at this check.
+
+**Blast radius: every place a checklist task's training video link is
+written or shown.** One rule, `src/lib/task-video-url.ts` (new, no imports,
+runs in the browser too): trim; http(s) passes as typed; a bare web address
+(`www.…`, `youtu.be/…`) gains `https://`; any other scheme, inner
+whitespace or control character -> null. **Writes:** `POST /api/templates`
+(create and Duplicate) and `PATCH /api/templates/[id]` (every editor save)
+now answer 400 with the task named on a bad link and store the normalised
+value — so a template still holding a pre-CHK-20 bad value cannot be saved
+until that link is fixed (the editor names the task and blocks Save).
+`POST /api/templates/import` never fails on a bad link: the task imports
+without it and the response's `linksDropped` names it, listed in the import
+dialog. Duplicate copies only a valid link. **Renders** (8 sites, each
+shows nothing when the helper returns null): desktop execution page
+(`store-view/checklist/[id]`), template editor card and table views, both
+print badges (`print/template/[id]`, `print/checklist/[id]`), the tablet
+(`tablet-data.ts`; TAB-15's private `webUrl` now wraps the shared helper,
+the one widening being a stored bare `www.` value now read as `https://`),
+and the help-request training list (a label, not a link). Not touched:
+`GET /api/templates/export` still writes the stored value to CSV as-is
+(re-import drops a bad one), and HR `TrainingLesson.videoUrl` (deferred on
+the row; DOC-3 amendment 1, DECISIONS 2026-08-24).
+
+Files: 13 in `27f8d2e` (+336/−38): new `lib/task-video-url.ts`,
+`scripts/verify-chk20-video-links.ts`; changed `templates/template-form.tsx`,
+`templates/template-import-button.tsx`, `templates/templates-client.tsx`,
+`api/templates/route.ts`, `api/templates/[id]/route.ts`,
+`api/templates/import/route.ts`, `store-view/checklist/[id]/checklist-execution-client.tsx`,
+`print/template/[id]/page.tsx`, `print/checklist/[id]/page.tsx`,
+`dashboard/tablet-data.ts`, `lib/notifications/kinds/help-request.ts`.
+Checks at this PRE-PUSH-CHECK: `scripts/verify-chk20-video-links.ts` exit
+0, 29/29, ALL PASS (pure, no database); `npm run build` green. Not
+observed: the editor's inline message, the import dialog's dropped-links
+list, the tablet, staging. This closes the `Task.videoUrl` COMMENT in the
+TAB-15 entry below (left as written).
+
+**Rollback.** `git revert 27f8d2e`. No schema or data to undo; any links
+normalised by saves in between stay normalised (still valid http(s)).
+
+**Staging tests owed (Gary, after his push; staging-SHA precondition
+first).** 1 template editor, video link `javascript:alert(1)` -> refused
+with "Use a web link that starts with https://" under the field; 2
+`www.youtube.com/watch?v=…` with no https -> saves as
+`https://www.youtube.com/watch?v=…` and plays on the tablet; 3 an existing
+working link still shows "Watch Training Video" on desktop and "Watch" on
+the tablet; 4 import a template CSV with one bad `task_video_url` ->
+import succeeds and names the task whose link was dropped.
+
+## ab060e6 — 2026-11-12 — TAB-16: Tablet checklist — Ask a manager (help requests to Messages + email)
+
+**PROMOTED 2026-11-12 in merge `ab060e6`** (`ab060e62201094547130630af52a528f3db12292`,
+"Promote TAB-15 + TAB-16: tablet how-tos and Ask a manager", 2026-11-12
+17:08:23 -0800 (PST) = 2026-11-13 01:08:23 UTC). First parent `2a1f757`
+(prior tip of `main`, the PWA-1 promotion), second parent `4f49185`
+(staging tip, the TAB-16 PRE-PUSH-CHECK). **10 commits** in
+`2a1f757..ab060e6` besides the merge: `699a4bc` (the PWA-1 promotion docs,
+a staging commit riding this promotion per R1; it stamped the PWA-1 entry
+and is not re-stamped here); TAB-15's six, `d7331ec`, `abfe736`,
+`ba72497`, `149f620`, `b774132`, `9f6cc43` (stamped on the TAB-15 entry
+below); and TAB-16's three, `a9bbf04` (work), `b1c97c7` (docs), `4f49185`
+(PRE-PUSH-CHECK). The whole merge is **40 files**, 4482 insertions, 73
+deletions (`git diff --shortstat 2a1f757 ab060e6`). One migration,
+`20261113002310_tab16_help_requests` (TAB-16's); no env var. The merge's
+tree equals `4f49185`'s. Gary pushed `2a1f757..ab060e6` to `main` on
+2026-11-12; staging was fast-forwarded `4f49185..ab060e6` and pushed.
+Measured by `git rev-parse` before this stamp: `main`, `staging`,
+`origin/main` and `origin/staging` all = `ab060e6`. Stamped post-merge
+2026-11-12 on `staging` (R1) by PROMOTE-DOCS_2026-11-12_TAB-15-16; the
+heading previously read "UNPROMOTED — 2026-11-12 — TAB-16: …". Spent, kept
+below: "Staging only, not on `main`. NOT pushed at writing", "staging gets
+it from the Vercel build on Gary's push, production at promotion", and the
+"Staging tests owed" list (result below). The "Rollback" paragraph below
+(`git revert a9bbf04`) is the pre-promotion rollback; the production one
+is next.
+
+**Rollback (production).** `git revert -m 1 ab060e6`. It reverts TAB-15
+with TAB-16 (one merge). TAB-16 alone: `git revert a9bbf04`, as below. The
+migration is NOT reverted: the columns and index stay (additive-only,
+never dropped) and nothing reads them after the revert. Faster kill
+without a deploy: Help request emails is already Off on production (R7);
+requests then only post to Messages.
+
+**Staging evidence (2026-11-12, Gary).** Gary ran the TAB-15 and TAB-16
+staging tests and reported: "All is working." Per-test results were not
+reported, and this pass did not re-check the staging deployment's SHA.
+Staging build for `ab060e6` (endpoint `ep-odd-rain-a6gr4xmm`, staging
+`br-square-feather-a63z92vz`) at 17:09:21 PST: "No pending migrations to
+apply" — the migration was already applied at the earlier `4f49185`
+staging build.
+
+**Production evidence (2026-11-12, Gary).** The Vercel production build for
+`ab060e6` (branch `main`, Datasource `ep-green-smoke-a6xthq4r`) is Ready.
+Build-log lines as Gary pasted them, Vercel times in Pacific (PST, =
+UTC−8; 17:09:01.898 PST = 2026-11-13 01:09:01.898 UTC):
+```
+17:09:01.898 Applying migration `20261113002310_tab16_help_requests`
+17:09:02.321 All migrations have been successfully applied.
+17:10:21.484 Deployment completed
+```
+`ep-green-smoke-a6xthq4r` is production `br-sparkling-block-a620qvg4`
+(`docs/MIGRATIONS.md` § Which branch am I actually reading?). On
+usefroot.com: Help request emails is Off (R7, the kind ships off: no
+`NotificationKindSettings` row) and the TAB-15 Watch pill shows on the
+tablet. Gary's report names no org id. Not observed on production: a help
+request sent, any help-request email, the migration's
+`_prisma_migrations.finished_at` (no ledger read).
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `a9bbf04`; docs `b1c97c7`; the PRE-PUSH-CHECK is the commit immediately
@@ -92,7 +206,34 @@ test help request" arrives; 9 email time matches the store's local time;
 10 a contact NOT on the allowlist → "not emailed in this environment",
 never "Emailed to" for that address.
 
-## UNPROMOTED — 2026-11-12 — TAB-15: Tablet checklist — training how-tos on tasks (Watch / Guide), 15-minute idle while a How-to is open
+## ab060e6 — 2026-11-12 — TAB-15: Tablet checklist — training how-tos on tasks (Watch / Guide), 15-minute idle while a How-to is open
+
+**PROMOTED 2026-11-12 in merge `ab060e6`**, with TAB-16. The TAB-16 entry
+above carries the merge facts (parents, range, file count, the migration,
+which is TAB-16's). TAB-15's six commits in `2a1f757..ab060e6`: `d7331ec`
+and `ba72497` (work), `abfe736`, `149f620` and `b774132` (docs), `9f6cc43`
+(PRE-PUSH-CHECK). TAB-15 itself carries no migration and no env var.
+Stamped post-merge 2026-11-12 on `staging` (R1) by
+PROMOTE-DOCS_2026-11-12_TAB-15-16; the heading previously read
+"UNPROMOTED — 2026-11-12 — TAB-15: …". Spent, kept below: "Staging only,
+not on `main`. NOT pushed at writing" and the "Staging tests owed" list
+(result below). The "Rollback" paragraph below is the pre-promotion
+rollback; the production one is next.
+
+**Rollback (production).** `git revert -m 1 ab060e6`. It reverts TAB-16
+with TAB-15 (one merge; see the TAB-16 entry). TAB-15 alone:
+`git revert ba72497` then `git revert d7331ec`, as below. No schema or data
+to undo.
+
+**Staging evidence (2026-11-12, Gary).** Gary ran the TAB-15 and TAB-16
+staging tests and reported: "All is working." Per-test results were not
+reported, and this pass did not re-check the staging deployment's SHA.
+
+**Production evidence (2026-11-12, Gary).** The production build for
+`ab060e6` is Ready (build-log lines on the TAB-16 entry). On usefroot.com
+the Watch pill shows on the tablet. Gary's report names no org id. Not
+observed on production: the Guide pill, video playback, Mark done from a
+How-to, the 15-minute idle.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commits
 `d7331ec` (feature) and `ba72497` (FIX NOW, Gary's ruling); docs

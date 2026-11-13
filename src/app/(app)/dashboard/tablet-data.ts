@@ -3,6 +3,7 @@ import { tasksForChecklist } from "@/lib/checklist-tasks"
 import { groupTasksBySection } from "@/lib/sections"
 import { businessDayWindow, dashboardHeaderDate, localDateStr } from "@/lib/reports"
 import { canonicalYouTubeUrl, youTubeVideoId } from "@/lib/messages"
+import { safeVideoUrl } from "@/lib/task-video-url"
 import { loadTabletHelp } from "@/lib/help-requests"
 import type { TabletHelp } from "@/lib/help-request-shared"
 
@@ -61,17 +62,16 @@ export type TaskVideo =
 export type TaskDoc = { label: string; url: string; kind: "image" | "document" }
 export type TaskHowTo = { video: TaskVideo | null; doc: TaskDoc | null }
 
-/** http(s) only. Task.videoUrl is free text (templates/route.ts saves it
- *  unvalidated) and desktop puts it straight into an href; the tablet refuses
- *  any other scheme (javascript:, data:…) rather than render it. */
+/** http(s) only. CHK-20: the rule now lives in src/lib/task-video-url.ts,
+ *  shared with the desktop page, the template editor, the print views and the
+ *  write routes; this wrapper only turns its string into the URL the
+ *  classification below reads pathname from. Any other scheme (javascript:,
+ *  data:…) is still refused rather than rendered. The one widening is a
+ *  stored bare `www.…` value, which is now read as https:// here exactly as
+ *  it is everywhere else. */
 function webUrl(raw: string | null | undefined): URL | null {
-  if (!raw) return null
-  try {
-    const u = new URL(raw.trim())
-    return u.protocol === "https:" || u.protocol === "http:" ? u : null
-  } catch {
-    return null
-  }
+  const safe = safeVideoUrl(raw)
+  return safe ? new URL(safe) : null
 }
 
 export function taskHowTo(

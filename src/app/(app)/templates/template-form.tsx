@@ -16,6 +16,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { badgePreset } from "@/lib/badge-presets"
+// CHK-20: one rule for a task's training video, shared with the write routes
+// and every surface that renders the link.
+import { TASK_VIDEO_URL_ERROR, normalizeTaskVideoUrl, safeVideoUrl } from "@/lib/task-video-url"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -372,6 +375,9 @@ interface SortableTaskRowProps {
   setEditAttachmentFile: React.Dispatch<React.SetStateAction<File | null>>
   editAttachmentError: string
   setEditAttachmentError: React.Dispatch<React.SetStateAction<string>>
+  /** CHK-20: the inline message under the drawer's video field, set by Save. */
+  editVideoError: string
+  setEditVideoError: React.Dispatch<React.SetStateAction<string>>
   validateFile: (f: File) => string
   startEditTask: (task: Task) => void
   saveEditTask: (taskId: string) => Promise<void>
@@ -390,6 +396,7 @@ function SortableTaskRow({
   editAttachmentLabel, setEditAttachmentLabel,
   editAttachmentFile, setEditAttachmentFile,
   editAttachmentError, setEditAttachmentError,
+  editVideoError, setEditVideoError,
   validateFile, startEditTask, saveEditTask, setEditingTaskId,
   removeTask, toggleTaskExclusion, toggleEditDraftExclusion,
 }: SortableTaskRowProps) {
@@ -464,7 +471,8 @@ function SortableTaskRow({
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Training Video URL (optional)</Label>
-            <Input className="h-8 text-sm" type="url" placeholder="https://..." value={editDraft.videoUrl} onChange={(e) => setEditDraft((p) => ({ ...p, videoUrl: e.target.value }))} />
+            <Input className="h-8 text-sm" type="url" placeholder="https://..." value={editDraft.videoUrl} aria-invalid={!!editVideoError} onChange={(e) => { setEditVideoError(""); setEditDraft((p) => ({ ...p, videoUrl: e.target.value })) }} />
+            {editVideoError && <p className="text-xs text-[var(--color-destructive)]">{editVideoError}</p>}
           </div>
           {/* Attachment section */}
           <div className="space-y-2 border border-[var(--color-border)] rounded-md p-3 bg-[var(--color-muted)]/10">
@@ -566,11 +574,18 @@ function SortableTaskRow({
                     <Camera className="h-3 w-3" /> Photo
                   </span>
                 )}
-                {task.videoUrl && (
-                  <a href={task.videoUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs bg-[var(--color-accent)] text-[var(--color-foreground)] border border-[var(--color-border)] px-1.5 py-0.5 rounded hover:bg-[var(--color-accent)]/80">
+                {/* CHK-20: a link only when it is http(s). A value saved before
+                    CHK-20 that fails the rule is named, not linked, so the
+                    operator can find the task Save is refusing. */}
+                {safeVideoUrl(task.videoUrl) ? (
+                  <a href={safeVideoUrl(task.videoUrl)!} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs bg-[var(--color-accent)] text-[var(--color-foreground)] border border-[var(--color-border)] px-1.5 py-0.5 rounded hover:bg-[var(--color-accent)]/80">
                     <Play className="h-3 w-3" /> Video
                   </a>
-                )}
+                ) : task.videoUrl?.trim() ? (
+                  <span className="inline-flex items-center gap-1 text-xs bg-[var(--color-destructive)]/10 text-[var(--color-destructive)] border border-[var(--color-destructive)]/30 px-1.5 py-0.5 rounded">
+                    <AlertTriangle className="h-3 w-3" /> Video link isn&apos;t a web link — edit to fix
+                  </span>
+                ) : null}
                 {task.attachment && (
                   <a href={task.attachment.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs bg-[var(--color-accent)] text-[var(--color-foreground)] border border-[var(--color-border)] px-1.5 py-0.5 rounded hover:bg-[var(--color-accent)]/80 max-w-[140px]">
                     <FileText className="h-3 w-3 shrink-0" />
@@ -978,8 +993,8 @@ function TaskTableView({ tasks, stores, updateTask, toggleTaskExclusion }: TaskT
                       </td>
                     )}
                     <td className="px-2 py-1 text-center">
-                      {task.videoUrl ? (
-                        <a href={task.videoUrl} target="_blank" rel="noopener noreferrer" aria-label={`Training video for task ${idx + 1}`} className="inline-flex p-1 rounded text-[var(--color-foreground)] hover:bg-[var(--color-accent)]">
+                      {safeVideoUrl(task.videoUrl) ? (
+                        <a href={safeVideoUrl(task.videoUrl)!} target="_blank" rel="noopener noreferrer" aria-label={`Training video for task ${idx + 1}`} className="inline-flex p-1 rounded text-[var(--color-foreground)] hover:bg-[var(--color-accent)]">
                           <Play className="h-3.5 w-3.5" />
                         </a>
                       ) : (
@@ -1163,6 +1178,9 @@ export function TemplateForm({
   const [editAttachmentLabel, setEditAttachmentLabel] = useState("")
   const [editAttachmentFile, setEditAttachmentFile] = useState<File | null>(null)
   const [editAttachmentError, setEditAttachmentError] = useState("")
+  // CHK-20: inline video-link messages for the edit drawer and Add Task.
+  const [editVideoError, setEditVideoError] = useState("")
+  const [newVideoError, setNewVideoError] = useState("")
   const [editExistingAttachment, setEditExistingAttachment] = useState<TaskAttachment | null | undefined>(undefined)
 
   // TPL-1a: the org's template types, for the Type select. Fetched rather than
@@ -1315,6 +1333,7 @@ export function TemplateForm({
     setEditAttachmentLabel(task.attachment?.label ?? "")
     setEditAttachmentFile(null)
     setEditAttachmentError("")
+    setEditVideoError("")
   }
 
   // CHK-1 + CHK-8: ONE commit for the whole drawer — the field patch, then the
@@ -1336,6 +1355,9 @@ export function TemplateForm({
         ...t,
         ...editDraft,
         estimatedTimeMinutes: editDraft.estimatedTimeMinutes || null,
+        // CHK-20: saveEditTask has already refused a bad link, so this is the
+        // stored form — a bare www. address gains https:// here.
+        videoUrl: safeVideoUrl(editDraft.videoUrl) ?? "",
         ...(attachment !== undefined ? { attachment } : {}),
       })
     )
@@ -1348,6 +1370,12 @@ export function TemplateForm({
   }
 
   async function saveEditTask(taskId: string) {
+    // CHK-20: refused BEFORE the attachment upload, so nothing is written and
+    // the drawer stays open with what was typed, ready to fix.
+    if (!normalizeTaskVideoUrl(editDraft.videoUrl).ok) {
+      setEditVideoError(TASK_VIDEO_URL_ERROR)
+      return
+    }
     if (editAttachmentFile) {
       const form = new FormData()
       form.append("file", editAttachmentFile)
@@ -1379,11 +1407,17 @@ export function TemplateForm({
   const [pendingAttachments, setPendingAttachments] = useState<Record<string, { file: File; label: string }>>({})
 
   function addTask() {
+    // CHK-20: same rule as the drawer; the form keeps what was typed.
+    if (!normalizeTaskVideoUrl(newTask.videoUrl).ok) {
+      setNewVideoError(TASK_VIDEO_URL_ERROR)
+      return
+    }
     const localId = Math.random().toString(36)
     const task: Task = {
       id: localId,
       ...newTask,
       estimatedTimeMinutes: newTask.estimatedTimeMinutes || null,
+      videoUrl: safeVideoUrl(newTask.videoUrl) ?? "",
       orderIndex: tasks.length,
     }
     // CHK-1: regrouped, so adding a task to a section that already exists puts
@@ -1394,6 +1428,7 @@ export function TemplateForm({
       setPendingAttachments((p) => ({ ...p, [localId]: { file: newAttachmentFile, label: newAttachmentLabel || newAttachmentFile.name } }))
     }
     setNewTask(emptyTaskFields)
+    setNewVideoError("")
     setNewAttachmentFile(null)
     setNewAttachmentLabel("")
     setNewAttachmentError("")
@@ -1512,6 +1547,20 @@ export function TemplateForm({
       blankSectionTasks.length === 1
         ? `${label} needs a section name.`
         : `${blankSectionTasks.length} tasks need a section name, starting with ${label}.`
+    )
+  }
+  // CHK-20: a task still holding a link saved before CHK-20 that is not a web
+  // link would be refused by the API with a 400; say so BEFORE Save, naming
+  // the task, the same way the blank-section blocker above does. Its row shows
+  // "Video link isn't a web link — edit to fix".
+  const badVideoTasks = tasks.filter((t) => !normalizeTaskVideoUrl(t.videoUrl).ok)
+  if (badVideoTasks.length > 0) {
+    const first = badVideoTasks[0].description.trim()
+    const label = first ? `"${first.length > 40 ? `${first.slice(0, 40)}\u2026` : first}"` : "an untitled task"
+    saveBlockers.push(
+      badVideoTasks.length === 1
+        ? `${label} has a training video link that isn't a web link. Edit the task to fix it.`
+        : `${badVideoTasks.length} tasks have a training video link that isn't a web link, starting with ${label}. Edit them to fix it.`
     )
   }
   if (!typeId) {
@@ -2218,6 +2267,8 @@ export function TemplateForm({
                         setEditAttachmentFile={setEditAttachmentFile}
                         editAttachmentError={editAttachmentError}
                         setEditAttachmentError={setEditAttachmentError}
+                        editVideoError={editVideoError}
+                        setEditVideoError={setEditVideoError}
                         validateFile={validateFile}
                         startEditTask={startEditTask}
                         saveEditTask={saveEditTask}
@@ -2253,7 +2304,8 @@ export function TemplateForm({
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Training Video URL (optional)</Label>
-                  <Input className="h-8 text-sm" type="url" placeholder="https://..." value={newTask.videoUrl} onChange={(e) => setNewTask((p) => ({ ...p, videoUrl: e.target.value }))} />
+                  <Input className="h-8 text-sm" type="url" placeholder="https://..." value={newTask.videoUrl} aria-invalid={!!newVideoError} onChange={(e) => { setNewVideoError(""); setNewTask((p) => ({ ...p, videoUrl: e.target.value })) }} />
+                  {newVideoError && <p className="text-xs text-[var(--color-destructive)]">{newVideoError}</p>}
                 </div>
                 {/* Attachment section — new task form */}
                 <div className="space-y-2 border border-[var(--color-border)] rounded-md p-3 bg-[var(--color-muted)]/10">
