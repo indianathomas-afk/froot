@@ -2,6 +2,96 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
+## UNPROMOTED — 2026-11-12 — TAB-16: Tablet checklist — Ask a manager (help requests to Messages + email)
+
+**Staging only, not on `main`. NOT pushed at writing.** Work commit
+`a9bbf04`; docs `b1c97c7`; the PRE-PUSH-CHECK is the commit immediately
+after `b1c97c7`. **TIER 3:** a migration, a new write route, a new email
+kind, an ADMIN settings route. No env var, no cron, no Square or Clerk
+call, no dependency. DECISIONS 2026-11-12 TAB-16 (rulings R1–R10, plus
+Claude's three readings) RATIFIED by Gary at this check: "Ratify as
+written". Prompt of record `docs/prompts/TAB-16.md`, committed at this
+check; audit `docs/prompts/TAB-16_AUDIT.md`.
+
+**MIGRATION `20261113002310_tab16_help_requests` — additive only.** Applied
+to dev by Gary 2026-11-13 00:25:44 UTC (2026-11-12 16:25:44 PST); staging
+gets it from the Vercel build on Gary's push, production at promotion
+(`docs/MIGRATIONS.md`). `TeamMessage` gains nullable `taskId` (FK to
+`Task`, ON DELETE SET NULL), `helpReason`, `helpEmail` (JSONB) and the
+index `(storeId, taskId, createdAt)`; `NotificationKindSettings` gains
+`tabletAddContacts BOOLEAN NOT NULL DEFAULT true` (existing rows are other
+kinds and never read it). Nothing backfilled or dropped. If the build's
+`migrate deploy` fails with P1002, that is the advisory-lock leak, not
+this SQL.
+
+**Blast radius: the tablet How-to surfaces, Team Messages rendering on
+three surfaces, one new email kind, and a shared dispatcher flag.**
+New `POST /api/stores/[id]/help-requests` (every check on the server:
+store scope, checklist, task, ACTIVE staff at the store or "Not listed",
+active contacts; R5's 15-minute window under `pg_advisory_xact_lock`; the
+`TeamMessage` always posts, R1; the email dispatches inline and its
+outcome is stored on the message). New `PUT /api/notify/help-request`
+(ADMIN only) and a "Help request emails" section on
+`/settings/notifications`. **The kind ships OFF everywhere** — no
+`NotificationKindSettings` row exists for `help.request`, so no email goes
+until an admin switches it on (R7); requests still post to Messages.
+Shared code touched: `lib/notifications/define.ts` + `dispatch.ts` gain a
+per-kind `noRetry` (only `help.request` sets it; every other kind's 5-try
+backoff is unchanged), `registry.ts`, the `test` kind (a help-request
+sample), `lib/email-template.ts` (optional second button and footer link;
+absent = byte-identical output), `lib/messages.ts` (serializer fields),
+`components/settings/collapsible-section.tsx`. Messages: Help request
+badge, task chip, reason and "Emailed to …" on the tablet home column,
+tablet Team Messages and the desktop feed; not editable from any card.
+Tablet: Ask a manager in the How-to panel, player bar and expanded row,
+and the A4 sheet. R10: anything not actually emailed (dry run, sandbox
+non-allowlisted) reads "Not emailed in this environment".
+
+Files: 29 in `a9bbf04` (+2354/−53), including the migration,
+`prisma/schema.prisma`, new `lib/help-requests.ts`,
+`lib/help-request-shared.ts`, `lib/help-request-send.ts`,
+`lib/notifications/kinds/help-request.ts`,
+`dashboard/tablet-ask-manager.tsx`, `messages/help-request-details.tsx`,
+`settings/notifications/help-request-actions.tsx`, the two new routes, and
+fixture `scripts/verify-tab16-help.ts`. Checks at this PRE-PUSH-CHECK:
+`npm run build` green. Verified by the build session only: scoped eslint
+and build at `a9bbf04`; `verify-tab16-help.ts` 54/54 on dev
+`br-broad-wave-a6vpjdw0` (negative controls fail as documented); re-run
+green: notify-template, notify5, notify6, notify12, notify-taskcomm,
+tab1-today, tab2-messages, tab5-refresh, tab8 (C7 expects `help`),
+tab9-cards, tab14-checklists; the sheet on a temporary `/menu` page
+(deleted) at 1366x1024 and 820x1180 with fetch mocked. Not observed: the
+real tablet Home or Settings signed in, any real send, an iPad, staging.
+
+**Known, not fixed (COMMENTs).** `POST /api/messages` never checks
+`messages.use` and accepts any org staff member as `authorStaffId`;
+`PATCH /api/messages/[id]` would still let the author edit a help
+request's note inside 15 minutes (no card offers it); the tablet Messages
+column refresh is held while a How-to is open, so a new Help request
+appears once it closes.
+
+**Rollback.** `git revert a9bbf04`. The migration is NOT reverted: the
+columns and index stay (additive-only, never dropped) and nothing reads
+them after the revert. Faster kill without a deploy: switch Help request
+emails off in Settings (requests then only post to Messages).
+
+**Staging tests owed (Gary, after his push; staging-SHA precondition
+first; switch Help request emails ON in staging Settings first; staging is
+SANDBOX, so managers and ticked contacts must be on the Preview
+`NOTIFY_SANDBOX_ALLOWLIST` to get real mail).** Name any new contact or
+staff "TAB-16 …". 1 Ask from the panel with managers + 1 contact →
+Resend shows Delivered; Messages shows the Help request with task chip and
+"Emailed to …"; 2 ask from the full-screen player and the portrait
+expanded row; 3 no name picked, or (no manager email) nobody ticked →
+Send disabled; 4 second ask on the same task within 15 minutes → no
+second email, the sheet says when the first went and who got it; 5 emails
+off → no Send to list, still posts to Messages; 6 "Team members can add
+more contacts" off → only default contacts; 7 MANAGER can't open
+`/settings/notifications`, `PUT /api/notify/help-request` → 403; 8 "Send a
+test help request" arrives; 9 email time matches the store's local time;
+10 a contact NOT on the allowlist → "not emailed in this environment",
+never "Emailed to" for that address.
+
 ## UNPROMOTED — 2026-11-12 — TAB-15: Tablet checklist — training how-tos on tasks (Watch / Guide), 15-minute idle while a How-to is open
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commits

@@ -7,6 +7,17 @@ decisions too.)
 
 ## 2026-11-12 — TAB-16: Ask a manager — help requests from tablet tasks, rulings R1–R10 (Gary)
 
+**RATIFIED BY GARY, 2026-11-12, at the TAB-16 PRE-PUSH-CHECK:** "Ratify as
+written". The check printed this whole entry verbatim, rulings R1–R10 and the
+three "Claude's readings" (the add-more contacts switch built, the "Ask who
+needs help" switch not built, "Not listed" rendering "Team member"), and asked
+"Ratify as written, or give me your wording"; that was his reply. The entry
+below stands word for word as recorded: the rulings are Gary's; the "Built"
+paragraph stays Claude's implementation, recorded, not a ruling. Work commit
+`a9bbf04`; docs commit `b1c97c7`; the check is the commit immediately after
+`b1c97c7`. `docs/prompts/TAB-16.md` is committed at this check. Wording
+untouched.
+
 **Ruled by Gary, 2026-11-12, in chat after the TAB-16 Phase A audit**
 (`docs/prompts/TAB-16_AUDIT.md`). Prompt of record: `docs/prompts/TAB-16.md`
 (untracked until PRE-PUSH-CHECK). TIER 3. His message opened "Rulings for

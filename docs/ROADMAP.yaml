@@ -26993,7 +26993,18 @@ phases:
     # Not promoted. MIGRATION 20261113002310_tab16_help_requests (additive;
     # docs/MIGRATIONS.md). Rollback: `git revert a9bbf04` — the columns stay
     # (additive-only, never dropped) and nothing reads them.
-    status: in_progress
+    # in_progress -> staging 2026-11-12 at the TAB-16 PRE-PUSH-CHECK (the
+    # commit immediately after b1c97c7; its own SHA cannot be written inside
+    # itself). Docs SHA: b1c97c7 (DECISIONS rulings + Built note, MIGRATIONS
+    # entry, this row at a9bbf04, TAB-16_AUDIT.md). The check committed the
+    # prompt of record docs/prompts/TAB-16.md and wrote the DEPLOY_LOG
+    # UNPROMOTED entry. DECISIONS 2026-11-12 TAB-16 RATIFIED by Gary at this
+    # check, rulings and Claude's three readings: "Ratify as written". The
+    # notes' "untracked until PRE-PUSH-CHECK" is spent, kept. Verify at the
+    # check: npm run build green. Migration staging/production still owed at
+    # the Vercel build. Rollback stays `git revert a9bbf04`. NOT pushed at
+    # writing.
+    status: staging
     title: "Tablet checklist — Ask a manager (help requests to Messages + email)"
     commits:
       - "a9bbf04"
@@ -27007,6 +27018,9 @@ phases:
       # verify-tab16-help.ts; verify-tab8 C7
       # + the commit immediately after a9bbf04: docs(TAB-16) — DECISIONS
       #   Built note, MIGRATIONS entry, this row, docs/prompts/TAB-16_AUDIT.md
+      #   = b1c97c7 (recorded at the PRE-PUSH-CHECK)
+      # + PRE-PUSH-CHECK: the commit immediately after b1c97c7 — DECISIONS
+      #   ratification, this row to staging, DEPLOY_LOG, docs/prompts/TAB-16.md
     deferred:
       - Desktop "Help request" filter on Team Messages — the type is rendered read-only (prompt step 6), not filterable or postable from the composer
       - A per-video title in the email ("Training video" today) — the same missing field as the TAB-15 deferred item
