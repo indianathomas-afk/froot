@@ -6,6 +6,7 @@ import { resolveTemplateType } from "./template-type"
 import { SectionConflict, sectionsFromTasks, syncTemplateSections, type IncomingSection } from "./sections"
 import { NextResponse } from "next/server"
 import { OPERATIONAL_PHASES, isOperationalPhase, normalizePhase } from "@/lib/phases"
+import { storedTaskVideoUrl, taskVideoUrlRefusal } from "@/lib/task-video-url"
 
 export async function GET() {
   const { orgId } = await auth()
@@ -111,6 +112,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Every task needs a non-empty sectionName" }, { status: 400 })
   }
 
+  // CHK-20: a training video is an http(s) link or nothing — the server half
+  // of the editor's inline check, so a hand-made request cannot store
+  // `javascript:…`. One of the two choke points, like the section check above;
+  // the rule lives in src/lib/task-video-url.ts.
+  const videoRefusal = taskVideoUrlRefusal(Array.isArray(tasks) ? tasks : [])
+  if (videoRefusal) {
+    return NextResponse.json({ error: videoRefusal }, { status: 400 })
+  }
+
   // DEBT-1b: the canonical phase is enforced at every entry point. The one
   // known legacy value is corrected; anything else is rejected by name.
   const operationalPhase = normalizePhase(templateData.operationalPhase)
@@ -200,7 +210,8 @@ export async function POST(req: Request) {
             isCritical: t.isCritical ?? false,
             orderIndex: t.orderIndex ?? i,
             excludedStoreIds: t.excludedStoreIds ?? [],
-            videoUrl: t.videoUrl || null,
+            // CHK-20: checked above; a bare www. address is stored with https://.
+            videoUrl: storedTaskVideoUrl(t.videoUrl),
           },
         })
       }

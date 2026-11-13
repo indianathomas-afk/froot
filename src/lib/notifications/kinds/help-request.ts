@@ -26,6 +26,7 @@ import { prisma } from "@/lib/prisma"
 import { renderEmail, type EmailRow } from "@/lib/email-template"
 import { HELP_REQUEST_KIND, NOT_LISTED_NAME, helpReasonLabel } from "@/lib/help-request-shared"
 import { storeManagers } from "@/lib/help-requests"
+import { safeVideoUrl } from "@/lib/task-video-url"
 import { defineNotification, type ResolvedRecipient } from "../define"
 
 /** Everything the email shows, all text. Built by hydrate, or by the test sample. */
@@ -188,7 +189,8 @@ export const helpRequestKind = defineNotification<HelpRequestPayload>({
     })
     if (!m) throw new Error(`help request message ${p.messageId} not found`)
     const training: HelpRequestView["training"] = []
-    if (m.task?.videoUrl?.trim()) training.push({ label: "Training video", kind: "Video" })
+    // CHK-20: listed only when the task screen would actually show the video.
+    if (safeVideoUrl(m.task?.videoUrl)) training.push({ label: "Training video", kind: "Video" })
     if (m.task?.attachment) {
       const ct = m.task.attachment.contentType
       training.push({ label: m.task.attachment.label, kind: ct === "application/pdf" ? "PDF" : ct.startsWith("image/") ? "Image" : "Document" })

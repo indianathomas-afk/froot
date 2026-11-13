@@ -10,6 +10,7 @@ import { badgePreset } from "@/lib/badge-presets"
 import { TemplateImportButton } from "./template-import-button"
 import { TemplateExportButton } from "./template-export-button"
 import { TypeManagerDialog, type TemplateType } from "./type-manager-dialog"
+import { safeVideoUrl } from "@/lib/task-video-url"
 
 // TPL-1b: the hardcoded TYPE_COLORS map that stood here is GONE. It held nine
 // keys written to match scripts/import-keva-templates.ts, one of which
@@ -231,7 +232,9 @@ export default function TemplatesClient({ retiredNotice = null }: { retiredNotic
           isCritical: t.isCritical,
           orderIndex: t.orderIndex,
           excludedStoreIds: t.excludedStoreIds,
-          videoUrl: t.videoUrl ?? null,
+          // CHK-20: the copy carries only a valid link. A bad value saved
+          // before CHK-20 would otherwise make POST refuse the whole duplicate.
+          videoUrl: safeVideoUrl(t.videoUrl),
         })),
       }),
     })

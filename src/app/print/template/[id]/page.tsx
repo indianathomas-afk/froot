@@ -4,6 +4,7 @@ import { notFound } from "next/navigation"
 import { AlertTriangle } from "lucide-react"
 import { groupTasksBySection } from "@/lib/sections"
 import { PrintControls } from "./print-controls"
+import { safeVideoUrl } from "@/lib/task-video-url"
 
 export default async function TemplatePrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -112,7 +113,8 @@ export default async function TemplatePrintPage({ params }: { params: Promise<{ 
                     )}
                     {task.requiresPhoto && <span className="badge">📷 Photo required</span>}
                     {task.requiresTemp && <span className="badge">🌡 Temp required</span>}
-                    {task.videoUrl && <span className="badge">▶ Training video in app</span>}
+                    {/* CHK-20: only a link the app will actually show */}
+                    {safeVideoUrl(task.videoUrl) && <span className="badge">▶ Training video in app</span>}
                     {task.estimatedTimeMinutes && (
                       <span className="badge">~{task.estimatedTimeMinutes} min</span>
                     )}

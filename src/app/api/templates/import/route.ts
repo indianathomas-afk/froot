@@ -5,6 +5,7 @@ import { sectionsFromTasks, syncTemplateSections } from "../sections"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { OPERATIONAL_PHASES, isOperationalPhase, normalizePhase } from "@/lib/phases"
+import { normalizeTaskVideoUrl } from "@/lib/task-video-url"
 
 // ─── Templates Import ─────────────────────────────────────────────────────────
 // POST /api/templates/import
@@ -146,6 +147,11 @@ export async function POST(req: Request) {
   let templatesCreated = 0
   let tasksCreated = 0
   const created: { name: string; tasks: number }[] = []
+  // CHK-20: a task_video_url that is not an http(s) link does NOT stop the
+  // import — the task imports without it and is named here, so the operator
+  // knows which links to re-add. Filled only once a template's transaction has
+  // committed, so a template that failed to import lists no dropped links.
+  const linksDropped: { template: string; task: string }[] = []
 
   for (const [name, groupRows] of groups) {
     // Template-level fields come from the first row of the group.
@@ -199,17 +205,24 @@ export async function POST(req: Request) {
         // which is now a real Section row rather than a display-time default.
         // Section order comes from first-appearance row order, which is what
         // the file already encodes.
-        const taskInputs = taskRows.map((t, idx) => ({
-          sectionName: t.task_section?.trim() || "General",
-          description: t.task_description!.trim(),
-          estimatedTimeMinutes: t.task_estimated_minutes ?? null,
-          requiresPhoto: t.task_requires_photo ?? false,
-          requiresTemp: t.task_requires_temp ?? false,
-          isCritical: t.task_is_critical ?? false,
-          orderIndex: t.task_order_index ?? idx,
-          excludedStoreIds: [] as string[],
-          videoUrl: t.task_video_url?.trim() || null,
-        }))
+        const dropped: string[] = []
+        const taskInputs = taskRows.map((t, idx) => {
+          const description = t.task_description!.trim()
+          const video = normalizeTaskVideoUrl(t.task_video_url)
+          if (!video.ok) dropped.push(description)
+          return {
+            sectionName: t.task_section?.trim() || "General",
+            description,
+            estimatedTimeMinutes: t.task_estimated_minutes ?? null,
+            requiresPhoto: t.task_requires_photo ?? false,
+            requiresTemp: t.task_requires_temp ?? false,
+            isCritical: t.task_is_critical ?? false,
+            orderIndex: t.task_order_index ?? idx,
+            excludedStoreIds: [] as string[],
+            // CHK-20: http(s) or nothing; a bare www. address gains https://.
+            videoUrl: video.ok ? video.value : null,
+          }
+        })
 
         const synced = await syncTemplateSections(tx, template.id, sectionsFromTasks(taskInputs))
         // A fresh template has no sections to collide with, so the only way
@@ -225,6 +238,9 @@ export async function POST(req: Request) {
         templatesCreated++
         tasksCreated += taskInputs.length
         created.push({ name: template.name, tasks: taskInputs.length })
+        return dropped
+      }).then((dropped) => {
+        for (const task of dropped) linksDropped.push({ template: name, task })
       })
     } catch (err) {
       console.error("Failed to import template", name, err)
@@ -232,5 +248,5 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ templatesCreated, tasksCreated, created, typesCreated, errors })
+  return NextResponse.json({ templatesCreated, tasksCreated, created, typesCreated, linksDropped, errors })
 }
