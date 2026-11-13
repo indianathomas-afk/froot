@@ -2,7 +2,47 @@
 
 Deploy verification: 2026-07-02T22:00:05Z
 
-## UNPROMOTED — 2026-11-12 — CHK-20: Training video links — only real web links can be saved or shown
+## b47fadf — 2026-11-12 — CHK-20: Training video links — only real web links can be saved or shown
+
+**PROMOTED 2026-11-12 in merge `b47fadf`** (`b47fadfc207223e20130546d1f18046d419b6184`,
+"Promote CHK-20: training video links are http(s) only", 2026-11-12
+21:31:29 -0800 (PST) = 2026-11-13 05:31:29 UTC). First parent `ab060e6`
+(prior tip of `main`, the TAB-15 + TAB-16 promotion), second parent
+`5b1a96d` (staging tip, the CHK-20 PRE-PUSH-CHECK). **4 commits** in
+`ab060e6..b47fadf` besides the merge: `2be020e` (the TAB-15 + TAB-16
+promotion docs, a staging commit riding this promotion per R1; it stamped
+those entries and is not re-stamped here); and CHK-20's three, `27f8d2e`
+(work), `6f32acc` (docs), `5b1a96d` (PRE-PUSH-CHECK). The whole merge is
+**18 files**, 723 insertions, 42 deletions (`git diff --shortstat ab060e6
+b47fadf`). No migration (no `prisma/migrations/` path in the merge); no env
+var. The merge's tree equals `5b1a96d`'s. Gary pushed `ab060e6..b47fadf` to
+`main` on 2026-11-12; staging was fast-forwarded `5b1a96d..b47fadf` and
+pushed. Measured by `git rev-parse` before this stamp: `main`, `staging`,
+`origin/main` and `origin/staging` all = `b47fadf`. Stamped post-merge
+2026-11-12 on `staging` (R1) by PROMOTE-DOCS_2026-11-12_CHK-20; the heading
+previously read "UNPROMOTED — 2026-11-12 — CHK-20: …". Spent, kept below:
+"Staging only, not on `main`. NOT pushed at writing" and the "Staging tests
+owed" list (result below). The "Rollback" paragraph below
+(`git revert 27f8d2e`) is the pre-promotion rollback; the production one is
+next.
+
+**Rollback (production).** `git revert -m 1 b47fadf`. It reverts CHK-20 only
+(the riding `2be020e` is docs). CHK-20 alone also stays `git revert 27f8d2e`,
+as below. No schema or data to undo; links normalised by saves in between
+stay normalised (still valid http(s)).
+
+**Staging evidence (2026-11-12, Gary).** Gary ran the four CHK-20 staging
+tests below (1 `javascript:` refused, 2 bare `www.` saved as `https://`,
+3 existing link still shows, 4 import names the dropped link) and confirmed
+all four. This pass did not re-check the staging deployment's SHA.
+
+**Production evidence (2026-11-12, Gary).** The Vercel production build for
+`b47fadf` is Ready, and its log says "No pending migrations to apply" (no
+migration in this promotion, as expected). On usefroot.com, templates with
+training videos still show their Video badges. Gary's report names no org id
+and gives no build-log times. Not observed on production: a bad link refused
+on save, a bare `www.` link normalised, the import dialog's dropped-links
+list, the tablet Watch pill after this merge.
 
 **Staging only, not on `main`. NOT pushed at writing.** Work commit
 `27f8d2e`; docs `6f32acc`; the PRE-PUSH-CHECK is the commit immediately

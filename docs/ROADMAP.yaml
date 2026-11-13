@@ -3894,7 +3894,23 @@ phases:
     # kept. Verify at the check: verify-chk20-video-links exit 0, 29/29,
     # ALL PASS; build green. No migration. Rollback stays
     # `git revert 27f8d2e`. NOT pushed at writing.
-    status: staging
+    # `staging` -> `shipped` 2026-11-12 at merge b47fadf ("Promote CHK-20:
+    # training video links are http(s) only", parents ab060e6 + 5b1a96d;
+    # 4 commits: 2be020e (TAB-15 + TAB-16 promotion docs, riding per R1),
+    # and CHK-20's 27f8d2e, 6f32acc, 5b1a96d). Gary pushed ab060e6..b47fadf
+    # to main 2026-11-12; staging fast-forwarded 5b1a96d..b47fadf and pushed.
+    # Stamped post-merge 2026-11-12 on `staging` (R1) by
+    # PROMOTE-DOCS_2026-11-12_CHK-20, NOT pushed at writing. Staging tests
+    # DONE — Gary ran all four on 2026-11-12 and confirmed all four (record
+    # in notes, ── STAGING TEST ──). Production: build for b47fadf Ready, log
+    # "No pending migrations to apply"; on usefroot.com templates with
+    # training videos still show their Video badges (Gary). Full record:
+    # DEPLOY_LOG `b47fadf — 2026-11-12 — CHK-20`. The "NOT pushed at writing"
+    # comments above are spent (Gary pushed), kept; so is the notes' "BUILT,
+    # not yet checked on staging", kept. No migration, no env var. Rollback:
+    # `git revert -m 1 b47fadf`; CHK-20 alone stays `git revert 27f8d2e`.
+    status: shipped
+    shipped: 2026-11-12
     title: "Training video links — only real web links can be saved or shown"
     commits:
       - "27f8d2e"
@@ -3906,9 +3922,23 @@ phases:
       #   = 6f32acc (recorded at the PRE-PUSH-CHECK)
       # + PRE-PUSH-CHECK: the commit immediately after 6f32acc — this row to
       #   staging, DEPLOY_LOG, docs/prompts/CHK-VIDEO-LINKS.md
+      # docs(CHK-20) PRE-PUSH-CHECK: the "commit immediately after 6f32acc"
+      # named above; recorded by PROMOTE-DOCS_2026-11-12_CHK-20
+      - "5b1a96d"
+      # merge(main): production promotion 2026-11-12 (first parent ab060e6,
+      # second parent 5b1a96d)
+      - "b47fadf"
     deferred:
       - "HR training lesson videoUrl (TrainingLesson) — same gap, different model; still the COMMENT Gary ruled at DOC-3 amendment 1 (DECISIONS 2026-08-24). Not touched."
     notes: >
+      ── STAGING TEST 2026-11-12 (CHK-20) — DONE. ──
+      The STAGING TESTS paragraph at the end of these notes (1–4) was run by
+      Gary on staging on 2026-11-12; he confirmed all four. Shipped in merge
+      b47fadf the same day; on production the build for b47fadf is Ready
+      ("No pending migrations to apply") and Gary saw templates with training
+      videos still showing their Video badges on usefroot.com. Not observed
+      on production: a bad link refused on save, a bare www. link normalised,
+      the import dialog's dropped-links list.
       ── BUILD 2026-11-12 (CHK-20). ──
       BUILT, not yet checked on staging. TIER 2: no schema, migration,
       permission, env var, cron or Square change; validation added to the two
