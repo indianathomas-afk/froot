@@ -2832,6 +2832,29 @@ runs `prisma generate`. The session ran no `migrate deploy`, `db execute`,
 
 ## 2026-11-12 — `20261113002310_tab16_help_requests` (TAB-16)
 
+**SHIPPED 2026-11-12 in merge `ab060e6`** (DEPLOY_LOG `ab060e6 —
+2026-11-12 — TAB-16`), with TAB-15. Stamped post-merge 2026-11-12 on
+`staging` by PROMOTE-DOCS_2026-11-12_TAB-15-16 (prepended, nothing below is
+edited). The two OWED cells in the table below are superseded by this
+stamp, kept. Per branch, from Gary's Vercel build logs (2026-11-12, times as
+Vercel shows them, Pacific):
+
+- **production `br-sparkling-block-a620qvg4`: applied at the `ab060e6`
+  production build** (branch `main`, Datasource `ep-green-smoke-a6xthq4r` =
+  production per § Which branch am I actually reading?). Build log:
+  "Applying migration `20261113002310_tab16_help_requests`" at
+  17:09:01.898 PST (2026-11-13 01:09:01.898 UTC), "All migrations have been
+  successfully applied." at 17:09:02.321 PST (01:09:02.321 UTC). Those are
+  build-log times, not `finished_at`: no `_prisma_migrations` read was taken
+  on this branch. On usefroot.com, Help request emails reads Off (R7).
+- **staging `br-square-feather-a63z92vz`: applied at the earlier `4f49185`
+  staging build** (the TAB-16 PRE-PUSH-CHECK push). That build's log line
+  was not pasted, so no apply time is recorded here. The `ab060e6` staging
+  build (branch `staging`, Datasource `ep-odd-rain-a6gr4xmm` = staging) at
+  17:09:21 PST (01:09:21 UTC) logged "No pending migrations to apply",
+  which means the staging ledger already held this migration as applied.
+  Gary's TAB-16 staging tests on 2026-11-12: "All is working."
+
 **APPLIED TO DEV ONLY, by Gary**, with `npx prisma migrate deploy`, after the
 TAB-16 Phase B STOP and before the work commit (§ A migration STOPS the
 session). Staging and production get it from the Vercel build on Gary's push
