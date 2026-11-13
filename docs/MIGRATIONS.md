@@ -2829,3 +2829,59 @@ above, and `npx prisma migrate diff --from-config-datasource --to-schema
 prisma/schema.prisma --script` (the empty-diff check). `npm run build` also
 runs `prisma generate`. The session ran no `migrate deploy`, `db execute`,
 `migrate dev`, `migrate reset` or `migrate resolve`.
+
+## 2026-11-12 — `20261113002310_tab16_help_requests` (TAB-16)
+
+**APPLIED TO DEV ONLY, by Gary**, with `npx prisma migrate deploy`, after the
+TAB-16 Phase B STOP and before the work commit (§ A migration STOPS the
+session). Staging and production get it from the Vercel build on Gary's push
+and at promotion. The timestamp `20261113002310` is a name (UTC at
+generation), not an apply time.
+
+**Dev was checked before the build, not taken on its word.**
+- **After Gary's first "Applied, go":** `migrate diff` of dev against the
+  schema still returned all four statements below. Nothing was built or
+  committed, and Gary was told.
+- **After his second report ("Re-applied, go"):** the same `migrate diff`
+  returned `-- This is an empty migration.` (2026-11-13 00:26:04 UTC), and a
+  read-only ledger query (branch id from the server) found exactly ONE row for
+  this migration — no failed or rolled-back attempt.
+
+| Branch | Applied (`_prisma_migrations.finished_at`) | By |
+|---|---|---|
+| dev `br-broad-wave-a6vpjdw0` | **2026-11-13 00:25:44.391 UTC** (2026-11-12 16:25:44 PST); started 00:25:43.940 UTC; `rolled_back_at` null | Gary |
+| staging `br-square-feather-a63z92vz` | OWED — the Vercel build on Gary's push | Vercel build |
+| production `br-sparkling-block-a620qvg4` | OWED — at promotion | Vercel build |
+
+**GENERATED AGAINST THE LIVE DEV DATABASE**, with:
+
+```
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/20261113002310_tab16_help_requests/migration.sql
+```
+
+The generated file carries the TAB-16 changes and nothing else, so dev
+matched the schema in every other respect at generation. Every statement is
+generated; nothing is hand-authored. **Additive only. Nothing is backfilled or
+dropped:**
+
+| Statement | Kind |
+|---|---|
+| `ALTER TABLE "NotificationKindSettings" ADD COLUMN "tabletAddContacts" BOOLEAN NOT NULL DEFAULT true` | "Team members can add more contacts"; read by the `help.request` kind only. Existing rows (other kinds) get `true` and never read it |
+| `ALTER TABLE "TeamMessage" ADD COLUMN "helpEmail" JSONB` | nullable; the email outcome snapshot (counts and contact addresses, never a manager address — R3) |
+| `ADD COLUMN "helpReason" TEXT` (same statement) | nullable; `still_stuck` / `broken` / `supplies` (R6), validated in the route |
+| `ADD COLUMN "taskId" TEXT` (same statement) | nullable; the task a help request is about |
+| `CREATE INDEX "TeamMessage_storeId_taskId_createdAt_idx"` | R5's 15-minute lookup |
+| `ALTER TABLE "TeamMessage" ADD CONSTRAINT "TeamMessage_taskId_fkey" … ON DELETE SET NULL` | a task hard-deleted (no history) leaves its help requests, task-less |
+
+Every existing `TeamMessage` row gets nulls; no existing reader changes
+behaviour. The `help.request` kind has no `NotificationKindSettings` row
+anywhere, so it is OFF everywhere until an admin switches it on (R7).
+
+**Prisma commands the session ran, verbatim:** `npx prisma format`,
+`npx prisma validate`, the `migrate diff -o` above, `npx prisma migrate diff
+--from-config-datasource --to-schema prisma/schema.prisma --script` (three
+times: twice before the second apply, once after), and `npx prisma generate`.
+`npm run build` also runs `prisma generate`. The session ran no
+`migrate deploy`, `db execute`, `migrate dev`, `migrate reset` or
+`migrate resolve`. The ledger read was a temporary `npx tsx` script with a
+`SELECT` on `_prisma_migrations`, deleted after it ran.

@@ -26983,6 +26983,114 @@ phases:
       minutes it closes and the page is at the top; with no How-to open a
       card still collapses at 5 minutes. Fixture needed: a
       template task with a YouTube URL and one with a PDF (name them TAB-15).
+  - id: TAB-16
+    track: platform
+    size: M
+    # planned -> in_progress 2026-11-12 at the work commit a9bbf04 (NOT
+    # pushed). The docs SHA is the commit immediately after a9bbf04 (its own
+    # SHA cannot be written inside itself). PRE-PUSH-CHECK moves it to staging
+    # (docs/WORKFLOW.md session completion rule 2; TAB-11..15 precedent).
+    # Not promoted. MIGRATION 20261113002310_tab16_help_requests (additive;
+    # docs/MIGRATIONS.md). Rollback: `git revert a9bbf04` — the columns stay
+    # (additive-only, never dropped) and nothing reads them.
+    status: in_progress
+    title: "Tablet checklist — Ask a manager (help requests to Messages + email)"
+    commits:
+      - "a9bbf04"
+      # TAB-16: migration + schema; lib/help-requests.ts, help-request-shared.ts,
+      # help-request-send.ts; notifications/kinds/help-request.ts (+ registry,
+      # test kind sample, define/dispatch noRetry); email-template (second
+      # button, footer link); POST /api/stores/[id]/help-requests; PUT
+      # /api/notify/help-request; settings page section; dashboard
+      # tablet-ask-manager.tsx (new), tablet-howto/home/data/messages;
+      # messages-client/-tablet + help-request-details.tsx; fixture
+      # verify-tab16-help.ts; verify-tab8 C7
+      # + the commit immediately after a9bbf04: docs(TAB-16) — DECISIONS
+      #   Built note, MIGRATIONS entry, this row, docs/prompts/TAB-16_AUDIT.md
+    deferred:
+      - Desktop "Help request" filter on Team Messages — the type is rendered read-only (prompt step 6), not filterable or postable from the composer
+      - A per-video title in the email ("Training video" today) — the same missing field as the TAB-15 deferred item
+    notes: >
+      ── BUILD 2026-11-12 (TAB-16). ──
+      BUILT, not yet checked on staging. TIER 3 (schema, a write route, an
+      email kind). Prompt docs/prompts/TAB-16.md (untracked until
+      PRE-PUSH-CHECK); audit docs/prompts/TAB-16_AUDIT.md. Design "Tablet
+      checklist — training resources" PDF, boards A4, the Ask buttons in A2 /
+      A3 / B, C1 and C2. Rulings R1–R10, Gary 2026-11-12, in
+      docs/DECISIONS.md 2026-11-12 TAB-16 (R1, R2, R5–R8 adopted as the
+      prompt words them; R3, R4, R9, R10 in his words), with Claude's
+      readings and the Built note under them.
+      WHAT SHIPS: (1) "Still stuck? Ask a manager" above Mark done in the
+      How-to panel, "Ask a manager" in the player's bottom bar and beside
+      Mark done in the portrait expanded row; once a request is inside the
+      15-minute window the button reads "Help sent · <what was emailed>"
+      (warning style if not everyone got it) and reopens the sheet on what
+      was sent. (2) The A4 sheet: task card, Who's asking (the store's staff
+      list + "Not listed"), three quick reasons + a 280-character note, Send
+      to (managers row always ticked and locked; contacts with Default
+      badges; only defaults when add-more is off; hidden when emails are
+      off), footer summary, Send disabled until a name is picked and someone
+      is ticked. (3) POST /api/stores/[id]/help-requests — every check on
+      the server; R5 under an advisory lock; the TeamMessage always posts;
+      the email dispatches inline; failures are final (noRetry) and unsent
+      mail is never called emailed. (4) /settings/notifications "Help request
+      emails" (New): switch, Always send to: Store managers, Also send to
+      (NOTIFY-12 picker = the defaults), "Team members can add more
+      contacts", read-only subject, "Send a test help request". ADMIN only
+      (page settings.access + route requireAdmin). Off until switched on
+      (no row = off). (5) The email: subject "Help needed at <Store>: <Task>",
+      who / store / checklist / task / asked-by / time in the STORE's zone /
+      reason / note / training, Reply in Messages + Open the checklist, footer
+      link to Settings. (6) Messages: Help request badge, task chip, reason,
+      "Emailed to …" on the tablet home column, tablet Team Messages and the
+      desktop feed; not editable from any card.
+      VERIFIED: scoped eslint and npm run build green at a9bbf04.
+      scripts/verify-tab16-help.ts 54/54 on dev br-broad-wave-a6vpjdw0 (labels,
+      the email, recipients incl. the unticked default, live / failed / dry
+      run / sandbox / switched-off sends, R5 window + three concurrent posts →
+      one, serializer, picker). Negative controls (drop exclude, drop
+      noRetry) failed 9 checks, restored. Re-run green: notify-template,
+      notify5, notify6, notify12, notify-taskcomm, tab1-today, tab2-messages,
+      tab5-refresh, tab8 (C7 now expects `help`), tab9-cards,
+      tab14-checklists. Visual: a temporary public /menu page (deleted before
+      the commit) rendering the panel, expanded row, player and sheet with
+      fetch mocked, 1366x1024 and 820x1180 — send closes the sheet and shows
+      Help sent; dry-run result stays open with "Not emailed in this
+      environment"; emails off hides Send to; the sheet sits above the player.
+      NOT verified: the real tablet Home or Settings signed in, any real send,
+      an iPad.
+      OUT OF SCOPE, TRIAGED (FIX NOW 0 · RULING NOW 0 · COMMENT 5 · ROW 0):
+      COMMENT — POST /api/messages never checks messages.use (no live
+      exposure: it is not deniable today); COMMENT — POST /api/messages
+      accepts any org staff member as authorStaffId (no ACTIVE / store
+      check); COMMENT — the prompt named StoreStaffAssignment for managers,
+      which is the roster table; logins come from StoreUserAssignment;
+      COMMENT — PATCH /api/messages/[id] would still let the author edit a
+      help request's note inside 15 minutes (no card offers it); COMMENT —
+      the tablet Messages column refresh is held while a How-to is open
+      (TAB-5 busy), so a new Help request appears there once the How-to
+      closes, not at once.
+      STAGING TESTS (Gary; staging-SHA precondition first; switch Help
+      request emails ON in staging Settings first; staging is SANDBOX, so the
+      store's managers and the ticked contact must be on the Preview
+      NOTIFY_SANDBOX_ALLOWLIST to get real mail — anyone else shows "not
+      emailed in this environment"): 1 Ask from the panel with managers + 1
+      contact → Resend → Emails shows it Delivered; Messages shows the Help
+      request with the task chip and "Emailed to …". 2 Ask from the
+      full-screen player and from portrait (expanded row). 3 No name picked,
+      or (store with no manager email) nobody ticked → Send stays disabled.
+      4 Second ask on the same task within 15 minutes (from a second device,
+      or after reload) → no second email; the sheet says when the first went
+      and who got it. 5 Switch emails off → no Send to list; the request
+      still posts in Messages; no email. 6 "Team members can add more
+      contacts" off → the tablet shows only the default contacts. 7 A MANAGER
+      login can't open /settings/notifications (redirect) and PUT
+      /api/notify/help-request answers 403. 8 "Send a test help request"
+      arrives at the admin's address. 9 The time in the email matches the
+      store's local time. 10 (R10) A contact NOT on the allowlist → the sheet
+      and Messages say "not emailed in this environment", never "Emailed to"
+      for that address. Fixture data: a template task with a video (TAB-15's
+      fixture task works); name any new contact or staff "TAB-16 …".
   - id: PWA-1
     track: platform
     size: S

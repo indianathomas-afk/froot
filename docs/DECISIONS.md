@@ -5,6 +5,94 @@ operator decision; **Claude** = implementation choice made without an explicit
 instruction. Newest scoping at top. (Started as the Labor log; now records HR
 decisions too.)
 
+## 2026-11-12 — TAB-16: Ask a manager — help requests from tablet tasks, rulings R1–R10 (Gary)
+
+**Ruled by Gary, 2026-11-12, in chat after the TAB-16 Phase A audit**
+(`docs/prompts/TAB-16_AUDIT.md`). Prompt of record: `docs/prompts/TAB-16.md`
+(untracked until PRE-PUSH-CHECK). TIER 3. His message opened "Rulings for
+TAB-16 (record in DECISIONS.md)".
+
+**Adopted from the prompt.** Gary's words: "R1, R2, R5, R6, R7, R8: as written
+in TAB-16.md." The six as the prompt words them:
+- **R1** Record — "A help request always posts in Messages as a Help request
+  with the task attached, even when the email is off. When Help request emails
+  are off, the sheet skips the Send to list and just posts to Messages."
+- **R2** Recipients — "Help request emails go to the managers of the store that
+  asked (everyone with the Manager role there) plus any contacts ticked under
+  Also send to. Admins pick the default contacts in Settings."
+- **R5** Duplicates — "One help request per task per store every 15 minutes. A
+  second tap inside that window shows when the first was sent and who got it —
+  no second email."
+- **R6** Reasons and note — "Three fixed quick reasons — Watched it, still stuck
+  / Something is broken / Missing supplies — plus an optional note up to 280
+  characters. Not editable in v1."
+- **R7** Settings — "Only Admins can change Help request emails. It ships
+  switched off on production; I'll turn it on."
+- **R8** Email — "Subject: Help needed at [Store]: [Task]. The body stands on
+  its own — who asked, store, checklist, task, reason, note, the training
+  attached, and the time in the store's time zone — because contacts may not
+  have a Froot login. Buttons: Reply in Messages and Open the checklist."
+
+**In his own words (these replace the prompt's R3, R4 and R9; R10 is new):**
+- **R3** — "The store's managers are always emailed. That row stays ticked and
+  can't be unticked. Default contacts start ticked and can be unticked, and
+  anyone unticked doesn't get the email. If a store has no manager with an
+  email address, the row says so and the request still goes to the ticked
+  contacts and Messages."
+- **R4** — "Team members pick their own name from the store's staff list.
+  There's always a \"Not listed\" choice at the end so a new hire can still
+  ask; it shows as \"Team member\" in Messages and the email. No generic \"Team
+  Member\" or \"Manager\" options."
+- **R9** — "A failed help email is marked failed right away and never retried.
+  The Messages post stands, and the sheet says the email didn't go out."
+- **R10** — "Anything that wasn't actually emailed, including staging dry runs,
+  says \"Not emailed in this environment\" on the sheet and in Messages. Never
+  claim an email that didn't go out."
+
+**What they settle.** The audit's RULING NOW 1–4: retry (R9 — the
+dispatcher's 5-attempt backoff, `dispatch.ts:108–109`, does not apply to this
+kind), unticking (R3), the name list's edges (R4), dry runs (R10).
+
+**Claude's readings, for Gary to confirm at PRE-PUSH-CHECK — not rulings:**
+- The prompt's R3 also named the setting "Team members can add more contacts"
+  (C1, staging test 6). Gary's R3 does not mention it; it is built as the
+  prompt's step 4 and test 6 describe (off = the tablet shows only the default
+  contacts), stored as `NotificationKindSettings.tabletAddContacts`.
+- The prompt's R4 dropped C1's second switch, "Ask who needs help". Gary's R4
+  has the team member always pick a name (or "Not listed"), so that switch is
+  not built.
+- "Not listed" saves no staff member (`authorStaffId` null) and renders
+  "Team member" wherever the help request names its asker.
+
+**Built (Claude's implementation, recorded, not part of the rulings):** work
+commit `a9bbf04`; migration `20261113002310_tab16_help_requests` (applied to
+dev by Gary 2026-11-13 00:25:44 UTC). Calls made while building:
+- R9 is a per-kind `noRetry` on the dispatcher (a live send that misses
+  anyone settles `failed` at once; no other kind changes), and the route
+  expires any intent its inline dispatch left `queued` (a dry run, a sandbox
+  send, a failed send-time lookup), so nothing sends later on its own.
+- R3's "anyone unticked doesn't get the email" is the kind's `exclude`: the
+  dispatcher still appends every default pick to a kind with extras, and
+  `exclude` drops the ones this request did not tick. Dispatcher unchanged.
+- R5's check runs under `pg_advisory_xact_lock` on (store, task), so two taps
+  at once post one message (fixture: three concurrent posts → one).
+- R10 also styles the tablet's "Help sent · …" line as a warning whenever not
+  everyone got the email, so a dry run never looks like a success.
+- The asker check is the tablet list exactly (ACTIVE, assigned to the store),
+  stricter than CHK-15's tick rule, which also allows `isCorporate`.
+- Emails on, no manager with an email and nothing ticked: Send stays disabled
+  and the route answers 400.
+- The settings switches save the moment they are flipped (this page's
+  pattern); C1's "Save changes" button is not built. The section sits after
+  Tasks and Communication, before Recent emails (still last).
+- Subject: a task description over 80 characters is cut with "…". The email
+  adds an "Asked by" row; training is listed by name and type, with no link
+  (attachment URLs are not mailed to outside contacts).
+- A help request cannot be edited from any Messages card (the note already
+  went by email). `PATCH /api/messages/[id]` itself is unchanged.
+- The tablet sees every active contact's address when add-more is on (board
+  A4 shows them); manager addresses never leave the server.
+
 ## 2026-11-12 — TAB-15: training how-tos on tablet tasks — Play inline, a longer idle while a How-to is open (Gary)
 
 **RATIFIED BY GARY, 2026-11-12, at the TAB-15 PRE-PUSH-CHECK:** "Ratify as
