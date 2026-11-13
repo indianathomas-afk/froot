@@ -3,6 +3,8 @@ import { tasksForChecklist } from "@/lib/checklist-tasks"
 import { groupTasksBySection } from "@/lib/sections"
 import { businessDayWindow, dashboardHeaderDate, localDateStr } from "@/lib/reports"
 import { canonicalYouTubeUrl, youTubeVideoId } from "@/lib/messages"
+import { loadTabletHelp } from "@/lib/help-requests"
+import type { TabletHelp } from "@/lib/help-request-shared"
 
 // TAB-1 — the item lists behind the tablet Tasks panel. READ-ONLY.
 // TAB-1b adds each store's picker names (still read-only, still no route).
@@ -118,6 +120,10 @@ export type TabletStore = {
   day: string
   /** TAB-1b — the desktop picker's staff list for this store, same query. */
   staff: TabletStaff[]
+  /** TAB-16 — what the Ask-a-manager sheet needs (src/lib/help-requests.ts
+   *  loadTabletHelp). Optional so a hand-built store (fixtures) needs none;
+   *  absent reads as emails off with nothing recent. Never a manager address. */
+  help?: TabletHelp
 }
 
 export async function loadTabletData(
@@ -226,12 +232,17 @@ export async function loadTabletData(
       .filter((m) => m.storeAssignments.some((a) => a.storeId === storeId))
       .map((m) => ({ id: m.id, displayName: m.displayName, hasPin: m.pinSetAt !== null }))
 
+  // TAB-16 — settings, contacts, manager counts and the last 15 minutes' help
+  // requests, for every store this login can see.
+  const help = await loadTabletHelp(organizationId, stores.map((s) => s.id), now)
+
   return {
     stores: stores.map((s) => ({
       ...s,
       headerDate: dashboardHeaderDate(now, s.timezone),
       day: localDateStr(now, s.timezone),
       staff: staffFor(s.id),
+      help: help.get(s.id),
     })),
     checklists,
   }

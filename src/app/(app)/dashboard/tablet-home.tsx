@@ -74,9 +74,12 @@ import {
   HowToPill,
   HowToPlayer,
   usePortrait,
+  type HowToAsk,
   type HowToLayer,
   type HowToOpen,
 } from "./tablet-howto"
+import { AskManagerSheet } from "./tablet-ask-manager"
+import { HELP_WINDOW_MS, type TabletHelpRecent } from "@/lib/help-request-shared"
 
 /** TAB-1b — one button on the name sheet. `id` is what goes in
  *  `completedByStaffId`: "manager" for both generic options, as on desktop.
@@ -831,10 +834,24 @@ function TasksPanel({
   // TAB-4 — the PIN sheet: the name just picked and the tap waiting on it.
   const [pinFor, setPinFor] = useState<{ checklistId: string; task: TabletTask | null; option: PickerOption } | null>(null)
 
+  // TAB-16 — the Ask-a-manager sheet (A4) for the open How-to's task, and the
+  // requests this tablet sent, on top of the server's list (store.help.recent)
+  // so "Help sent" shows at once rather than at the next refresh. Keyed
+  // `${storeId}:${taskId}`. `nowMs` ticks every 30s so "Help sent" lapses when
+  // R5's 15-minute window does, without reading the clock during render.
+  const [askFor, setAskFor] = useState<{ checklistId: string; taskId: string } | null>(null)
+  const [sentHere, setSentHere] = useState<Record<string, TabletHelpRecent>>({})
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 30_000)
+    return () => window.clearInterval(id)
+  }, [])
+
   // ── TAB-5: tell the refresh controller when this panel is busy (ruling 3) ──
   const ctl = useTabletRefresh()
   const track = <T,>(p: Promise<T>): Promise<T> => (ctl ? ctl.track(p) : p)
-  useBusyFlag("tasks:sheet", !!valueFor || !!nameSheet || !!partialFor || !!pinFor)
+  // TAB-16: the Ask-a-manager sheet is a sheet like the others.
+  useBusyFlag("tasks:sheet", !!valueFor || !!nameSheet || !!partialFor || !!pinFor || !!askFor)
   useBusyFlag("tasks:write", busy !== null)
   // TAB-15: an open how-to (panel, player, image, expanded row) is a sheet.
   useBusyFlag("tasks:howto", howTo !== null)
@@ -1212,6 +1229,20 @@ function TasksPanel({
   // on the list showing now. Anything else means the state is stale.
   let howToView: { view: TabletChecklist; task: TabletTask & { howTo: TaskHowTo } } | null = null
   const setLayer = (layer: HowToLayer) => howTo && onHowTo({ checklistId: howTo.checklistId, taskId: howTo.taskId, layer })
+  // TAB-16 — declared before `body`, whose expanded row calls askHook.
+  /** The newest request for this task still inside R5's window, here or on the server. */
+  const recentFor = (taskId: string): TabletHelpRecent | null => {
+    const fresh = (r: TabletHelpRecent | undefined) =>
+      r && nowMs - new Date(r.createdAt).getTime() < HELP_WINDOW_MS ? r : null
+    const local = fresh(sentHere[`${store.id}:${taskId}`])
+    const server = fresh(store.help?.recent.find((r) => r.taskId === taskId))
+    if (local && server) return new Date(local.createdAt) >= new Date(server.createdAt) ? local : server
+    return local ?? server
+  }
+  const askHook = (checklistId: string, taskId: string): HowToAsk => {
+    const recent = recentFor(taskId)
+    return { onAsk: () => setAskFor({ checklistId, taskId }), sent: recent ? { label: recent.label, warn: recent.warn } : null }
+  }
 
   let body: React.ReactNode
   if (!entry) {
@@ -1276,6 +1307,7 @@ function TasksPanel({
                 onLayer={setLayer}
                 onMarkDone={() => markDone(view, t)}
                 disabled={busy === `submit:${view.id}`}
+                ask={askHook(view.id, t.id)}
               />
             ) : null
           }
@@ -1353,6 +1385,10 @@ function TasksPanel({
   const partialBusy = busy === `partial:${partialFor}`
 
   const hv = howToView as { view: TabletChecklist; task: TabletTask & { howTo: TaskHowTo } } | null
+
+  // TAB-16. The sheet lives and dies with the How-to it was opened from: when
+  // that closes (X, Mark done, the TAB-9 idle, a stale task) the sheet goes too.
+  if (askFor && !(hv && hv.view.id === askFor.checklistId && hv.task.id === askFor.taskId)) setAskFor(null)
   const toastView = toast ? checklistsById.get(toast.checklistId) : undefined
   const toastAll = toastView ? withOverrides(toastView).sections.flatMap((s) => s.tasks) : []
   const toastTask = toast ? toastAll.find((t) => t.id === toast.taskId && t.done) : undefined
@@ -1392,6 +1428,7 @@ function TasksPanel({
             onLayer={setLayer}
             onMarkDone={() => markDone(hv.view, hv.task)}
             disabled={busy === `submit:${hv.view.id}`}
+            ask={askHook(hv.view.id, hv.task.id)}
           />,
           howToSlot
         )}
@@ -1403,6 +1440,24 @@ function TasksPanel({
           onOpenImage={() => setLayer("image")}
           onMarkDone={() => markDone(hv.view, hv.task)}
           disabled={busy === `submit:${hv.view.id}`}
+          ask={askHook(hv.view.id, hv.task.id)}
+        />
+      )}
+      {/* TAB-16 — A4 over the panel, the expanded row or the player. */}
+      {askFor && hv && (
+        <AskManagerSheet
+          key={`ask:${hv.view.id}:${hv.task.id}`}
+          storeId={store.id}
+          storeName={store.name}
+          timeZone={store.timezone}
+          checklistId={hv.view.id}
+          checklistName={hv.view.name}
+          task={hv.task}
+          staff={store.staff}
+          help={store.help}
+          sent={recentFor(hv.task.id)}
+          onClose={() => setAskFor(null)}
+          onSent={(r) => setSentHere((prev) => ({ ...prev, [`${store.id}:${r.taskId}`]: r }))}
         />
       )}
       {hv && howTo?.layer === "image" && hv.task.howTo.doc && (

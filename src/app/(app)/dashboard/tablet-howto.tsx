@@ -10,8 +10,10 @@ import {
   FileText,
   GraduationCap,
   Maximize,
+  MessageCircleQuestion,
   Play,
   RotateCcw,
+  TriangleAlert,
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -37,6 +39,10 @@ import type { TabletTask, TaskDoc, TaskHowTo, TaskVideo } from "./tablet-data"
 //
 // TAB-16 ("Ask a manager") goes in three marked places: above Mark done in the
 // panel, in the player's bottom bar, and beside Mark done in B's expanded row.
+// BUILT (TAB-16): each takes an optional `ask` (HowToAsk below). Absent = no
+// button, exactly as before. Once a request for the task is inside R5's
+// 15-minute window the button becomes "Help sent · …", which reopens the sheet
+// on what was sent (R5: a second tap shows when the first went and who got it).
 
 /** What is open, held by TabletHome so the Messages column can give way to the
  *  panel and the idle can close it (15 minutes while one is open — TAB-15
@@ -268,6 +274,45 @@ export function HowToDocRow({ doc, onOpenImage }: { doc: TaskDoc; onOpenImage: (
   )
 }
 
+/** TAB-16 — the Ask-a-manager hook for one task. `sent` = a request inside R5's window. */
+export type HowToAsk = { onAsk: () => void; sent: { label: string; warn: boolean } | null }
+
+/** The light-surface Ask button (panel and expanded row). 56px+, full width of its slot. */
+function AskButton({ ask, full, className }: { ask: HowToAsk; full?: boolean; className?: string }) {
+  if (ask.sent) {
+    return (
+      <button
+        type="button"
+        onClick={ask.onAsk}
+        className={cn(
+          "flex min-h-14 w-full items-center gap-2 rounded-full border px-5 py-2 text-left text-base font-semibold",
+          // R10: a request whose email did not reach everyone is never shown as a success.
+          ask.sent.warn
+            ? "border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] text-[var(--color-warning-text)]"
+            : "border-[var(--color-success-border)] bg-[var(--color-success-bg)] text-[var(--color-success-text)]",
+          className
+        )}
+      >
+        {ask.sent.warn ? <TriangleAlert className="h-5 w-5 shrink-0" /> : <Check className="h-5 w-5 shrink-0" />}
+        <span className="min-w-0 line-clamp-2">Help sent · {ask.sent.label}</span>
+      </button>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={ask.onAsk}
+      className={cn(
+        "flex h-14 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full border border-[var(--color-border)] bg-[var(--color-primary)]/5 font-semibold text-[var(--color-foreground)] active:bg-[var(--color-primary)]/10",
+        full ? "px-5 text-lg" : "px-3 text-base",
+        className
+      )}
+    >
+      <MessageCircleQuestion className="h-5 w-5" /> {full ? "Still stuck? Ask a manager" : "Ask a manager"}
+    </button>
+  )
+}
+
 function MarkDoneButton({ onClick, disabled, className }: { onClick: () => void; disabled?: boolean; className?: string }) {
   return (
     <Button size="touch" onClick={onClick} disabled={disabled} className={cn("h-16 w-full text-xl", className)}>
@@ -286,6 +331,7 @@ export function HowToPanel({
   onLayer,
   onMarkDone,
   disabled,
+  ask,
 }: {
   task: TabletTask & { howTo: TaskHowTo }
   checklistName: string
@@ -294,6 +340,7 @@ export function HowToPanel({
   onLayer: (layer: HowToLayer) => void
   onMarkDone: () => void
   disabled?: boolean
+  ask?: HowToAsk
 }) {
   const { video, doc } = task.howTo
   const mins = minutesLabel(task.minutes)
@@ -338,7 +385,8 @@ export function HowToPanel({
         )}
       </div>
       <div className="shrink-0 space-y-3 px-5 pb-5 pt-2">
-        {/* TAB-16: the "Still stuck? Ask a manager" button goes here. */}
+        {/* TAB-16: "Still stuck? Ask a manager", above Mark done (A2). */}
+        {ask && <AskButton ask={ask} full />}
         <MarkDoneButton onClick={onMarkDone} disabled={disabled} />
       </div>
     </section>
@@ -353,12 +401,14 @@ export function HowToExpanded({
   onLayer,
   onMarkDone,
   disabled,
+  ask,
 }: {
   task: TabletTask & { howTo: TaskHowTo }
   layer: HowToLayer
   onLayer: (layer: HowToLayer) => void
   onMarkDone: () => void
   disabled?: boolean
+  ask?: HowToAsk
 }) {
   const { video, doc } = task.howTo
   const mins = minutesLabel(task.minutes)
@@ -380,8 +430,23 @@ export function HowToExpanded({
           {mins && <p className="text-base text-[var(--color-muted-foreground)]">Task takes {mins}</p>}
         </div>
         {doc && <HowToDocRow doc={doc} onOpenImage={() => onLayer("image")} />}
-        {/* TAB-16: "Ask a manager" goes beside Mark done here. */}
-        <MarkDoneButton onClick={onMarkDone} disabled={disabled} className="mt-auto" />
+        {/* TAB-16: "Ask a manager" beside Mark done (B). Once sent, the status
+            takes its own line above Mark done — it is too long to share one. */}
+        {ask ? (
+          ask.sent ? (
+            <div className="mt-auto flex flex-col gap-3">
+              <AskButton ask={ask} />
+              <MarkDoneButton onClick={onMarkDone} disabled={disabled} />
+            </div>
+          ) : (
+            <div className="mt-auto grid grid-cols-2 gap-3">
+              <AskButton ask={ask} className="h-16" />
+              <MarkDoneButton onClick={onMarkDone} disabled={disabled} />
+            </div>
+          )
+        ) : (
+          <MarkDoneButton onClick={onMarkDone} disabled={disabled} className="mt-auto" />
+        )}
       </div>
     </div>
   )
@@ -399,6 +464,7 @@ export function HowToPlayer({
   onOpenImage,
   onMarkDone,
   disabled,
+  ask,
 }: {
   task: TabletTask & { howTo: TaskHowTo }
   checklistName: string
@@ -406,6 +472,7 @@ export function HowToPlayer({
   onOpenImage: () => void
   onMarkDone: () => void
   disabled?: boolean
+  ask?: HowToAsk
 }) {
   const { video, doc } = task.howTo
   // Watch again: a YouTube iframe restarts by remounting (autoplay=1); a file
@@ -489,7 +556,17 @@ export function HowToPlayer({
           <button type="button" onClick={watchAgain} className={DARK_OUTLINE}>
             <RotateCcw className="h-5 w-5" /> Watch again
           </button>
-          {/* TAB-16: the "Ask a manager" button goes here. */}
+          {/* TAB-16: "Ask a manager" in the bottom bar (A3); "Help sent" once sent. */}
+          {ask && (
+            <button type="button" onClick={ask.onAsk} className={cn(DARK_OUTLINE, "max-w-xs")}>
+              {ask.sent ? (
+                ask.sent.warn ? <TriangleAlert className="h-5 w-5 shrink-0" /> : <Check className="h-5 w-5 shrink-0" />
+              ) : (
+                <MessageCircleQuestion className="h-5 w-5 shrink-0" />
+              )}
+              <span className="truncate">{ask.sent ? "Help sent" : "Ask a manager"}</span>
+            </button>
+          )}
           <Button size="touch" onClick={onMarkDone} disabled={disabled} className="h-14 rounded-full px-6">
             <Check /> Mark done
           </Button>

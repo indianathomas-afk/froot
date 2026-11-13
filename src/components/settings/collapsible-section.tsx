@@ -201,12 +201,15 @@ export function CollapsibleSection({
   id,
   title,
   summary,
+  badge,
   className,
   children,
 }: {
   id: string
   title: string
   summary?: string
+  /** TAB-16: a small pill beside the title (C1's "New"). Absent everywhere else. */
+  badge?: string
   className?: string
   children: ReactNode
 }) {
@@ -259,7 +262,14 @@ export function CollapsibleSection({
             className="-m-2 flex min-h-[44px] w-[calc(100%+1rem)] items-center gap-3 rounded-md p-2 text-left"
           >
             <span className="min-w-0 flex-1">
-              <span className="block">{title}</span>
+              <span className="block">
+                {title}
+                {badge && (
+                  <span className="ml-2 inline-block rounded-full bg-[var(--color-info-bg)] border border-[var(--color-info-border)] px-2 py-0.5 align-middle text-xs font-medium tracking-normal text-[var(--color-info)]">
+                    {badge}
+                  </span>
+                )}
+              </span>
               {summary && (
                 <span className="mt-1.5 block text-sm font-normal tracking-normal leading-snug text-[var(--color-muted-foreground)]">
                   {summary}

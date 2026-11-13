@@ -16,6 +16,7 @@ import { MILESTONE_KIND, milestoneKind } from "./milestone"
 import { renderDocDigest } from "./doc-digest"
 import type { DocDigestView } from "@/lib/hr-doc-digest"
 import { hydrateTaskComm, renderTaskComm, taskCommSettings, type TaskCommPayload } from "./task-comm"
+import { renderHelpRequest, type HelpRequestView } from "./help-request"
 
 // MS-4b — "Send a sample to me". A kind with sample() can be rendered through
 // THIS kind, so the sample inherits this kind's whole security model: the
@@ -60,6 +61,12 @@ export type TestPayload = {
    * text at send time. Still this kind, so still only `to`.
    */
   taskCommPreview?: { payload: TaskCommPayload; viewKey: string }
+  /**
+   * TAB-16 C1, "Send a test help request": a FIXED, FICTIONAL help request
+   * (helpRequestSample — never a real person), rendered by the real kind's
+   * renderer. Still this kind, so still only `to`.
+   */
+  helpPreview?: HelpRequestView
 }
 
 export const testKind = defineNotification<TestPayload>({
@@ -89,6 +96,10 @@ export const testKind = defineNotification<TestPayload>({
 
   // The NOTIFY-1 text, unchanged and passed through the template verbatim.
   render(p, org, to) {
+    if (p.helpPreview) {
+      const r = renderHelpRequest(p.helpPreview, org.name)
+      return { ...r, subject: `Test — ${r.subject}` }
+    }
     if (p.taskCommPreview) {
       const { payload, viewKey } = p.taskCommPreview
       const view = payload.views[viewKey]

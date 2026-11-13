@@ -197,6 +197,14 @@ type KindCommon<P> = {
    * ever reach the person clicking.
    */
   sandboxBypass?: boolean
+  /**
+   * TAB-16 R9 (Gary, 2026-11-12: "A failed help email is marked failed right
+   * away and never retried."). True = a live dispatch that does not reach every
+   * recipient settles the intent as `failed` at once — no backoff, no
+   * `partial`, so the hourly sweep never picks it up. Absent on every other
+   * kind, whose retry schedule is unchanged.
+   */
+  noRetry?: boolean
   /** Runs once, when a live intent first becomes `sent`. Must not throw. */
   onSent?: (intent: KindIntent<P>, sentTo: string[]) => Promise<void>
 }

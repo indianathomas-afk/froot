@@ -743,8 +743,10 @@ async function finalize(
     result.recipients.find((r) => r.status === "failed")?.error ??
     rows.find((d) => d.state === "failed")?.error ??
     "send failed"
+  // TAB-16 R9: a noRetry kind settles as failed on its first incomplete
+  // attempt — `partial` would leave it DISPATCHABLE for the sweep.
   const state: IntentState =
-    bumped.attempts >= MAX_ATTEMPTS ? "failed" : sentTo.length > 0 ? "partial" : "queued"
+    def.noRetry || bumped.attempts >= MAX_ATTEMPTS ? "failed" : sentTo.length > 0 ? "partial" : "queued"
   const backoffH = BACKOFF_HOURS[Math.min(bumped.attempts, BACKOFF_HOURS.length) - 1]
   await prisma.notificationIntent.updateMany({
     where: { id: intent.id, state: { in: DISPATCHABLE } },
@@ -759,7 +761,9 @@ async function finalize(
     outcome: state,
     reason:
       state === "failed"
-        ? `gave up after ${bumped.attempts} attempts`
+        ? def.noRetry
+          ? `${keys.length - sentTo.length} of ${keys.length} not sent; this email is never retried`
+          : `gave up after ${bumped.attempts} attempts`
         : `${keys.length - sentTo.length} of ${keys.length} not sent; retry in ${backoffH}h`,
   }
 }

@@ -80,6 +80,8 @@ export type Comms = {
       body: string
       author: { name: string; initial: string }
       createdAt: string
+      /** TAB-16 — present on a Help request (serializeMessage). */
+      helpRequest?: { task: string } | null
     }[]
     unreadCount: number
   }
@@ -760,7 +762,10 @@ export function TeamMessagesCard({
                       {m.author.name}{" "}
                       <span className="font-normal text-[var(--color-muted-foreground)]/70 text-xs">{timeAgo(m.createdAt)}</span>
                     </p>
-                    <p className="text-[12.5px] text-[var(--color-muted-foreground)]">{m.body}</p>
+                    {/* TAB-16: a help request with no note still says what it is. */}
+                    <p className="text-[12.5px] text-[var(--color-muted-foreground)]">
+                      {m.body || (m.helpRequest ? `Help request · ${m.helpRequest.task}` : "")}
+                    </p>
                   </div>
                 </div>
               ))}
